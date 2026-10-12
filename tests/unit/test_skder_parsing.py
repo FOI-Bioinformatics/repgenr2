@@ -5,6 +5,8 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
+import pytest
+
 from repgenr.dereplicators.skder import _parse_skder_output
 
 _LOG = logging.getLogger("test")
@@ -110,7 +112,9 @@ def test_skder_receives_one_staged_directory_for_10000_genomes(tmp_path, monkeyp
     result = SkderDereplicator().dereplicate(genomes, tmp_path / "out", params, _LOG)
 
     args = argv_log.read_text().split("\n")
-    assert len(args) == 12  # -g DIR -o OUT -i -f -c -d with their values
+    # -g DIR -o OUT -i -f -c -d with their values, plus the screen the cutoff 99.9 sets
+    assert len(args) == 13
+    assert args[-1] == "--skani-triangle-parameters=-s 98.9"
     staged = Path(args[args.index("-g") + 1])
     assert args.count("-g") == 1 and not staged.name.endswith(".fasta")
     names = listed.read_text().split("\n")
@@ -237,3 +241,135 @@ def test_many_placements_are_one_line_capped_on_the_console(tmp_path: Path) -> N
     assert all(f"mem{i:02d}.fasta" in warnings[0].getMessage() for i in range(12))
     console = warnings[0].repgenr_console  # type: ignore[attr-defined]
     assert "and 7 more" in console and "mem11.fasta" not in console
+
+
+def _skder_argv(tmp_path, monkeypatch, secondary_ani: float, extra: dict) -> list[str]:
+    from repgenr.dereplicators.base import DerepParams
+    from repgenr.dereplicators.skder import SkderDereplicator
+
+    argv_log, _listed = _install_fake_skder(tmp_path, monkeypatch)
+    src = tmp_path / "genomes"
+    src.mkdir(exist_ok=True)
+    genomes = [src / "Fam_Gen_sp_GCA_000000001.1.fasta", src / "Fam_Gen_sp_GCA_000000002.1.fasta"]
+    for g in genomes:
+        g.touch()
+    params = DerepParams(primary_ani=0.9, secondary_ani=secondary_ani, threads=1, extra=extra)
+    SkderDereplicator().dereplicate(genomes, tmp_path / "out", params, _LOG)
+    return argv_log.read_text().split("\n")
+
+
+def test_screen_defaults_to_one_below_a_high_cutoff(tmp_path, monkeypatch) -> None:
+    """At 99.95 the screen is 98.95, so pairs below that skip the alignment."""
+    args = _skder_argv(tmp_path, monkeypatch, 0.9995, {})
+    assert args[-1] == "--skani-triangle-parameters=-s 98.95"
+
+
+def test_screen_is_left_to_skder_below_99(tmp_path, monkeypatch) -> None:
+    """Below a 99 percent cutoff the adapter keeps skDER's own screen (cutoff - 10)."""
+    args = _skder_argv(tmp_path, monkeypatch, 0.95, {})
+    assert not any(a.startswith("--skani-triangle-parameters") for a in args)
+
+
+def test_screen_tool_arg_overrides_the_default(tmp_path, monkeypatch) -> None:
+    args = _skder_argv(tmp_path, monkeypatch, 0.9995, {"screen": "90"})
+    assert args[-1] == "--skani-triangle-parameters=-s 90"
+
+
+@pytest.mark.parametrize(
+    ("screen", "fragment"),
+    [("99.96", "above the ANI cutoff"), ("abc", "ANI percentage"), ("100", "between 0 and 100")],
+)
+def test_screen_tool_arg_is_validated(screen: str, fragment: str) -> None:
+    from repgenr.core.errors import UserInputError
+    from repgenr.dereplicators.skder import resolve_screen
+
+    with pytest.raises(UserInputError, match=fragment):
+        resolve_screen(screen, 99.95)
+
+
+def test_resolve_screen_values() -> None:
+    from repgenr.dereplicators.skder import resolve_screen
+
+    assert resolve_screen(None, 99.95) == 98.95
+    assert resolve_screen(None, 99.0) == 98.0
+    assert resolve_screen(None, 98.9) is None
+    assert resolve_screen("95", 99.95) == 95.0
+    assert resolve_screen("skder", 99.95) is None
+
+
+def test_screen_above_a_lower_call_cutoff_falls_back_and_warns_once(caplog) -> None:
+    """A --pre-* chunk or a --target-reps step runs below the final cutoff by design."""
+    from repgenr.dereplicators import skder as skder_mod
+    from repgenr.dereplicators.skder import resolve_screen
+
+    skder_mod._screen_fallbacks_logged.clear()
+    log = logging.getLogger("test_screen_fallback")
+    with caplog.at_level(logging.WARNING, logger="test_screen_fallback"):
+        assert resolve_screen("99.9", 99.0, log) == 98.0
+        assert resolve_screen("99.9", 99.0, log) == 98.0
+        assert resolve_screen("99.9", 90.0, log) is None
+    warnings = [r.getMessage() for r in caplog.records if r.levelno == logging.WARNING]
+    assert len(warnings) == 2
+    assert "using a screen of 98" in warnings[0]
+    assert "using skDER's own screen" in warnings[1]
+
+
+def test_stage_precheck_refuses_a_screen_above_the_final_cutoff(tmp_path) -> None:
+    from repgenr.core.context import WorkdirContext
+    from repgenr.core.errors import UserInputError
+    from repgenr.stages.dereplicate import DereplicateParams, precheck
+
+    wd = tmp_path / "wd"
+    (wd / "genomes").mkdir(parents=True)
+    (wd / "genomes" / "Fam_Gen_sp_GCA_000000001.1.fasta").write_text(">x\nACGT\n")
+    ctx = WorkdirContext(wd, create=True)
+    params = DereplicateParams(
+        tool="skder", secondary_ani=0.9995, extra={"screen": "99.96"}, allow_incomplete=True
+    )
+    with pytest.raises(UserInputError, match="above the ANI cutoff"):
+        precheck(ctx, params)
+
+
+def test_screen_argument_survives_a_parser_like_skders(tmp_path, monkeypatch) -> None:
+    """skDER declares -p/--skani-triangle-parameters and a store-true -s; the one-token
+    equals form must reach -p as its value (a separate "-s 98.95" token did not)."""
+    import argparse
+
+    args = _skder_argv(tmp_path, monkeypatch, 0.9995, {})
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-g", nargs="+")
+    parser.add_argument("-o")
+    parser.add_argument("-i")
+    parser.add_argument("-f")
+    parser.add_argument("-c")
+    parser.add_argument("-d")
+    parser.add_argument("-p", "--skani-triangle-parameters", default="-s X")
+    parser.add_argument("-s", "--sanity-check", action="store_true")
+    parsed = parser.parse_args(args)
+    assert parsed.skani_triangle_parameters == "-s 98.95"
+    assert parsed.sanity_check is False
+
+
+def test_stage_precheck_checks_the_form_under_target_reps(tmp_path) -> None:
+    from repgenr.core.context import WorkdirContext
+    from repgenr.core.errors import UserInputError
+    from repgenr.stages.dereplicate import DereplicateParams, precheck
+
+    wd = tmp_path / "wd"
+    (wd / "genomes").mkdir(parents=True)
+    (wd / "genomes" / "Fam_Gen_sp_GCA_000000001.1.fasta").write_text(">x\nACGT\n")
+    ctx = WorkdirContext(wd, create=True)
+    with pytest.raises(UserInputError, match="ANI percentage"):
+        precheck(
+            ctx,
+            DereplicateParams(
+                tool="skder", target_reps=5, extra={"screen": "abc"}, allow_incomplete=True
+            ),
+        )
+    # A value above the final cutoff is allowed there: the search sets the cutoff.
+    precheck(
+        ctx,
+        DereplicateParams(
+            tool="skder", target_reps=5, extra={"screen": "99.96"}, allow_incomplete=True
+        ),
+    )

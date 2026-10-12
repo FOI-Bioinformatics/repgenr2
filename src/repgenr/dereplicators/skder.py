@@ -6,7 +6,22 @@ estimates pairwise ANI/AF with skani and picks representatives in one round.
 CLI used::
 
     skder -g <staged_dir> -o <out_dir> -i <ANI%> -f <AF%> -c <threads> \
-          -d dynamic|greedy|low_mem_greedy
+          -d dynamic|greedy|low_mem_greedy [--skani-triangle-parameters="-s <screen%>"]
+
+skani's screen (``-s``) skips the alignment of pairs whose k-mer sketches put
+them below the given identity. skDER's own default is the ANI cutoff minus 10,
+so at a cutoff of 99.95 every pair above about 90 percent is aligned, which in
+a genus-level set is most same-species pairs. The adapter sets the screen to
+the cutoff minus 1 when the cutoff is at or above 99 (``_SCREEN_MARGIN_PCT``,
+``_SCREEN_MIN_CUTOFF_PCT``), and leaves skDER's default below that, where the
+sketch estimate is less exact. ``--tool-arg screen=<percent>`` overrides it
+and ``screen=skder`` restores skDER's own default; a screen above the cutoff
+is refused, because pairs at the cutoff would be skipped. The dereplicate
+stage checks the override against the final cutoff before any work; a call
+at a lower cutoff (a ``--pre-*`` chunk, a ``--target-reps`` step) falls back
+to the default rule for that call. The screen is a ``skani triangle`` option,
+so it applies to the greedy and dynamic modes; ``low_mem_greedy`` runs
+``skani search`` instead and does not read it.
 
 Three robustness notes:
 
@@ -59,6 +74,19 @@ from .base import (
 _MAX_PLACED_LINES = 5
 # skDER asks for confirmation below this ANI (percent); skani is unreliable there.
 _MIN_ANI_PCT = 80.0
+# Default skani screen: cutoff minus this margin, once the cutoff is at or above
+# the minimum. skani's screen is a k-mer estimate of identity made before any
+# alignment; its own help calls it approximate. The margin of one point at
+# cutoffs of 99 and above is a judgment, not a measured bound: at that identity
+# bacterial genomes share nearly all sketch k-mers, so the estimate sits close
+# to the aligned value, while at lower identities it is looser and skDER's own
+# default (cutoff minus 10) is kept.
+_SCREEN_MARGIN_PCT = 1.0
+_SCREEN_MIN_CUTOFF_PCT = 99.0
+# Override-above-cutoff fallbacks already reported, so the log says it once.
+_screen_fallbacks_logged: set[tuple[float, float]] = set()
+# Screens already reported, so the log names the value and its source once per run.
+_screens_logged: set[tuple[float | None, str]] = set()
 
 
 class SkderDereplicator(Dereplicator):
@@ -68,7 +96,7 @@ class SkderDereplicator(Dereplicator):
             BinarySpec("skder", version_args=("-v",), min_version="1.0"),
             BinarySpec("skani", version_args=("-V",), min_version="0.2"),
         ),
-        default_params={"mode": "greedy"},
+        default_params={"mode": "greedy", "screen": None},
         recommended_max_genomes=None,  # scales natively
         supports_native_scaling=True,
         # No pinned BioContainer: the skder images (1.3.2 through 1.3.8) are
@@ -77,7 +105,7 @@ class SkderDereplicator(Dereplicator):
         # there (dynamic mode, which uses skDERcore, is unaffected). A Wave
         # image minted from the conda spec carries GNU coreutils and works.
         conda=("bioconda::skder",),
-        accepted_extras=frozenset({"mode"}),
+        accepted_extras=frozenset({"mode", "screen"}),
         # skDER clusters at one ANI cutoff; there is no primary pre-clustering.
         ignored_params=frozenset({"primary_ani"}),
     )
@@ -99,6 +127,16 @@ class SkderDereplicator(Dereplicator):
         result_dir = local_tmp / "skder_out"
         mode = params.extra.get("mode", self.capabilities.default_params["mode"])
         af_pct = _as_percent(params.aligned_fraction)
+        requested = params.extra.get("screen")
+        screen = resolve_screen(requested, float(ani_pct), logger)
+        source = "--tool-arg screen" if requested is not None else "default rule"
+        if (screen, source) not in _screens_logged:
+            _screens_logged.add((screen, source))
+            logger.info(
+                "skani screen %s (%s)",
+                f"{screen:g} percent" if screen is not None else "left to skDER",
+                source,
+            )
         try:
             genome_dir = stage_genome_dir(genomes, local_tmp / "genomes")
         except BaseException:
@@ -122,6 +160,11 @@ class SkderDereplicator(Dereplicator):
             "-d",
             mode,
         ]
+        if screen is not None:
+            # skDER takes the skani triangle options as one string. Its parser
+            # reads a separate "-s ..." value as its own -s flag, so the value
+            # is attached with "=", which argparse resolves before that.
+            cmd.append(f"--skani-triangle-parameters=-s {screen:g}")
         try:
             run_tool(
                 self.capabilities,
@@ -141,6 +184,65 @@ class SkderDereplicator(Dereplicator):
             shutil.rmtree(local_tmp, ignore_errors=True)
 
         return _parse_skder_output(staged, genomes, float(ani_pct), float(af_pct), logger)
+
+
+def reset_screen_log() -> None:
+    """Forget the screens and fallbacks reported, so the next run logs them again."""
+    _screen_fallbacks_logged.clear()
+    _screens_logged.clear()
+
+
+def default_screen(ani_pct: float) -> float | None:
+    """Cutoff minus the margin at or above the minimum cutoff, else None (skDER's own)."""
+    if ani_pct >= _SCREEN_MIN_CUTOFF_PCT:
+        return round(ani_pct - _SCREEN_MARGIN_PCT, 4)
+    return None
+
+
+def resolve_screen(
+    requested: str | float | None,
+    ani_pct: float,
+    logger: logging.Logger | None = None,
+) -> float | None:
+    """The skani screen (percent) to pass, or None for skDER's own default.
+
+    ``requested`` is the ``--tool-arg screen=`` value when given. Without it the
+    screen is ``default_screen``. A requested screen above this call's cutoff
+    is refused when no logger is given (the stage precheck, against the final
+    cutoff); with a logger, the call keeps the default rule instead and says so
+    once, because a chunk at ``--pre-secondary-ani`` or a ``--target-reps`` step
+    runs below the final cutoff by design.
+    """
+    if requested is None:
+        return default_screen(ani_pct)
+    if isinstance(requested, str) and requested.strip().lower() == "skder":
+        return None
+    try:
+        screen = float(requested)
+    except (TypeError, ValueError):
+        raise UserInputError(
+            f"--tool-arg screen= must be an ANI percentage or 'skder', got {requested!r}."
+        ) from None
+    if not 0 <= screen < 100:
+        raise UserInputError(f"--tool-arg screen= must be between 0 and 100, got {screen:g}.")
+    if screen > ani_pct:
+        if logger is None:
+            raise UserInputError(
+                f"--tool-arg screen={screen:g} is above the ANI cutoff {ani_pct:g} percent; "
+                "pairs at the cutoff would be skipped before alignment."
+            )
+        fallback = default_screen(ani_pct)
+        if (screen, ani_pct) not in _screen_fallbacks_logged:
+            _screen_fallbacks_logged.add((screen, ani_pct))
+            logger.warning(
+                "--tool-arg screen=%g is above this call's ANI cutoff %g percent; "
+                "using %s for calls at this cutoff.",
+                screen,
+                ani_pct,
+                f"a screen of {fallback:g}" if fallback is not None else "skDER's own screen",
+            )
+        return fallback
+    return screen
 
 
 def stage_genome_dir(genomes: Sequence[Path], dest: Path) -> Path:

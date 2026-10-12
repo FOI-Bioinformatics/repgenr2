@@ -12,6 +12,7 @@ from __future__ import annotations
 import logging
 import math
 import sqlite3
+import time
 from collections.abc import Collection, Mapping
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
@@ -118,10 +119,22 @@ def precheck(ctx: WorkdirContext, params: DereplicateParams) -> None:
             check_secondary_ani(params.secondary_ani)
         if params.pre_secondary_ani is not None:
             check_secondary_ani(params.pre_secondary_ani, "--pre-secondary-ani")
+        screen = (params.extra or {}).get("screen")
+        if screen is not None:
+            from ..dereplicators.skder import _as_percent, resolve_screen
+
+            # Against the final cutoff; a chunk or search step below it falls
+            # back to the default rule in the adapter. --target-reps searches
+            # the cutoff itself, so only the value's form is checked there.
+            cutoff = 100.0 if params.target_reps else float(_as_percent(params.secondary_ani))
+            resolve_screen(screen, cutoff)
 
 
 def run(ctx: WorkdirContext, params: DereplicateParams) -> DerepResult:
     logger = ctx.logger
+    from ..dereplicators.skder import reset_screen_log
+
+    reset_screen_log()
     check_genome_completeness(
         ctx.genomes_dir,
         ctx.workdir,
@@ -464,6 +477,41 @@ def _recurse_min_shrink(n_input: int, process_size: int) -> int:
     return max(process_size, math.ceil(n_input / 10))
 
 
+def _level_pays_above(n_union: int, process_size: int) -> float:
+    """Fraction of its genomes a level over ``n_union`` must remove to pay for itself.
+
+    A level over a union of U in chunks of S costs the tool's per-genome work
+    for all U plus about S / U of the final pass's pairwise work; removing a
+    fraction f of U saves about 2 f of that pairwise work (and f of the
+    per-genome work of the final pass). With the pairwise work about U / S
+    times the per-genome work, the level breaks even near f = S / U.
+    """
+    return process_size / n_union
+
+
+def _final_pass_work_factor(n_union: int, n_level_input: int, process_size: int) -> float:
+    """Pairwise work of the final pass over ``n_union`` relative to the level just run.
+
+    A level over n genomes in chunks of S compares about n * S / 2 pairs; one
+    pass over the union compares U * U / 2. The ratio U * U / (n * S) says how
+    many times the level's pairwise work the final pass is.
+    """
+    return n_union * n_union / (n_level_input * process_size)
+
+
+def _format_factor(x: float) -> str:
+    """Two significant digits below 10, a whole number above (never scientific notation)."""
+    return f"{x:.2g}" if x < 10 else f"{x:.0f}"
+
+
+def _format_duration(seconds: float) -> str:
+    if seconds < 90:
+        return f"{seconds:.0f} s"
+    if seconds < 120 * 60:
+        return f"{seconds / 60:.1f} min"
+    return f"{seconds / 3600:.1f} h"
+
+
 def _interleave_by_origin(stage1: list[DerepResult]) -> list[Path]:
     """The union of stage-1 representatives, taken round-robin over the chunks.
 
@@ -488,22 +536,42 @@ def _dereplicate_chunked(
     pre_secondary_ani: float,
     logger,
     depth: int = 0,
+    first_chunk: DerepResult | None = None,
 ) -> DerepResult:
     """Hierarchical chunked dereplication, usable for any tool.
+
+    ``first_chunk`` is the result of this level's first chunk when the caller
+    already ran it as a probe; that chunk is not run again.
 
     Leaf chunks of <= ``process_size`` are dereplicated independently (in
     parallel, with the stage-1 ANI thresholds). The union of their
     representatives is then reduced:
 
-    * when it fits in one chunk, or when this level removed fewer genomes than
-      ``_recurse_min_shrink`` requires, one final pass dereplicates the whole
+    * when it is at most two chunks' worth, or when this level removed fewer
+      genomes than ``_recurse_min_shrink`` requires, one final pass dereplicates the whole
       union with the final thresholds, whatever its size. The chunk size bounds
       the leaf chunks, not this merge: for a diverse set the union can be most
       of the input.
-    * otherwise the union, interleaved by chunk of origin, is chunked again at
-      the next level, so representatives from different chunks are compared.
-      Only the leaf chunks of level 0 use the stage-1 (``--pre-*``) thresholds;
-      every later level and the final pass use the final thresholds.
+    * otherwise one chunk of the next level is run first as a probe: the
+      first chunk of the union interleaved by chunk of origin, one sample of
+      that level (the first representatives of every chunk). When the probe
+      removes more than ``_level_pays_above`` of its genomes, the rest of that
+      level runs (the probe's result is its first chunk) and the level's union
+      is reduced the same way; when it removes less, the union goes to the
+      final pass and the probe's result is dropped. Only the leaf chunks of
+      level 0 use the stage-1 (``--pre-*``) thresholds; the probe, every later
+      level and the final pass use the final thresholds.
+
+    Why a probe: a level over a union of U representatives in chunks of S
+    costs the per-genome work of the tool (sketching, N50) for all U plus
+    about S / U of the final pass's pairwise work, and removes only the close
+    pairs that one chunk happens to hold. How much that is depends on the
+    set: a reported 6888-genome run removed 45 percent at level 0 and 5, 1.4
+    and 0.5 percent at the next levels, each level costing as much as a
+    level-0 wave, while clusters spread a few members per leaf chunk collapse
+    almost entirely at the next level. The previous level's removal does not
+    predict the next one's, so one chunk of it is measured. The probe costs
+    one tool call over S genomes with every thread.
 
     ``_MAX_REDUCE_DEPTH`` is a termination backstop only. Membership is
     composed level by level so every original genome maps to one final
@@ -517,9 +585,9 @@ def _dereplicate_chunked(
     if len(chunks) == 1:
         # Fits in a single pass: dereplicate directly with the final thresholds.
         if depth > 0:
-            # A union of representatives that collapsed into one chunk (for
-            # example process_size + 1, the last genome merged into the first
-            # chunk): this call is the final pass.
+            # Not reached from the probe path (a union of process_size + 1 goes
+            # to the final pass without a level), kept as a guard: a union that
+            # collapsed into one chunk makes this call the final pass.
             logger.info(
                 "Final pass over %d representatives (chunk size %d bounds the leaf "
                 "chunks, not the merge)",
@@ -550,7 +618,17 @@ def _dereplicate_chunked(
         logger.info("Level %d chunk %d/%d (%d genomes)", depth, idx + 1, len(chunks), len(chunk))
         return adapter.dereplicate(chunk, chunk_dir, chunk_params, logger)
 
-    stage1_results = parallel_map(run_chunk, list(enumerate(chunks)), workers, logger=logger)
+    level_started = time.monotonic()
+    if first_chunk is not None:
+        # The probe ran chunk 0 (the same genomes, same thresholds); the rest
+        # of the level runs now.
+        if len(chunks[0]) != len(first_chunk.genome_status):
+            raise RuntimeError("The probe chunk does not match this level's first chunk.")
+        rest = parallel_map(run_chunk, list(enumerate(chunks))[1:], workers, logger=logger)
+        stage1_results = [first_chunk, *rest]
+    else:
+        stage1_results = parallel_map(run_chunk, list(enumerate(chunks)), workers, logger=logger)
+    level_seconds = time.monotonic() - level_started
     # Chunk order for the final pass (as the Nextflow merge step), interleaved
     # only when the union is chunked again.
     union = [rep for r in stage1_results for rep in r.representatives]
@@ -558,26 +636,63 @@ def _dereplicate_chunked(
     removed = len(genomes) - len(union)
     min_shrink = _recurse_min_shrink(len(genomes), process_size)
     logger.info(
-        "Level %d: %d genomes -> union of %d representatives (%d removed)",
+        "Level %d: %d genomes -> union of %d representatives (%d removed) in %s",
         depth,
         len(genomes),
         len(union),
         removed,
+        _format_duration(level_seconds),
     )
 
-    if len(union) > process_size and removed >= min_shrink and depth < _MAX_REDUCE_DEPTH:
+    probe: DerepResult | None = None
+    # A union of at most two chunks' worth goes to the final pass without a
+    # probe: the level could pay only above S / U, one half or more, and a
+    # failed probe would cost nearly as much as that final pass.
+    if len(union) > 2 * process_size and removed >= min_shrink and depth < _MAX_REDUCE_DEPTH:
+        interleaved = _interleave_by_origin(stage1_results)
+        probe_chunk = interleaved[:process_size]
+        pays_above = _level_pays_above(len(union), process_size)
         logger.info(
-            "Level %d: union of %d > chunk size %d and %d removed (>= %d); "
-            "chunking the union again, interleaved by chunk of origin",
+            "Level %d removed %d (>= %d); probing level %d with one chunk of %d of the "
+            "%d representatives, interleaved by chunk of origin",
             depth,
-            len(union),
-            process_size,
             removed,
             min_shrink,
+            depth + 1,
+            len(probe_chunk),
+            len(union),
+        )
+        probe_started = time.monotonic()
+        probe = adapter.dereplicate(
+            probe_chunk, merge_dir / f"level{depth + 1}" / "chunk0", params, logger
+        )
+        probe_removed = len(probe_chunk) - len(probe.representatives)
+        probe_fraction = probe_removed / len(probe_chunk)
+        logger.info(
+            "Probe: %d of %d removed (%.1f%%) in %s; a level over %d is expected to pay "
+            "above %.1f%%",
+            probe_removed,
+            len(probe_chunk),
+            100 * probe_fraction,
+            _format_duration(time.monotonic() - probe_started),
+            len(union),
+            100 * pays_above,
+        )
+        if probe_fraction <= pays_above:
+            logger.info(
+                "Level %d: a further level is expected to cost more than it saves; "
+                "the probe's result is dropped",
+                depth,
+            )
+            probe = None
+
+    if probe is not None:
+        logger.info(
+            "Level %d: chunking the union of %d again (level %d)", depth, len(union), depth + 1
         )
         stage2 = _dereplicate_chunked(
             adapter,
-            _interleave_by_origin(stage1_results),
+            interleaved,
             merge_dir,
             params,
             process_size,
@@ -588,15 +703,17 @@ def _dereplicate_chunked(
             params.secondary_ani,
             logger,
             depth + 1,
+            first_chunk=probe,
         )
     else:
-        if len(union) > process_size:
+        if len(union) > 2 * process_size and depth >= _MAX_REDUCE_DEPTH:
+            logger.info("Level %d: depth limit %d reached", depth, _MAX_REDUCE_DEPTH)
+        elif len(union) > 2 * process_size and removed < min_shrink:
             logger.info(
-                "Level %d removed %d genomes (another level needs >= %d%s)",
+                "Level %d removed %d genomes (another level needs >= %d)",
                 depth,
                 removed,
                 min_shrink,
-                f"; depth limit {_MAX_REDUCE_DEPTH} reached" if depth >= _MAX_REDUCE_DEPTH else "",
             )
         logger.info(
             "Final pass over %d representatives (chunk size %d bounds the leaf "
@@ -604,6 +721,22 @@ def _dereplicate_chunked(
             len(union),
             process_size,
         )
+        if len(union) > process_size:
+            # The tool prints no progress that reaches the console; say what to
+            # expect from the level just measured. Pairwise work grows with the
+            # square of the union; the per-genome work (sketches, N50) is paid
+            # once more for every genome of the union.
+            logger.info(
+                "One call over %d genomes with %d threads: about %s times the pairwise "
+                "work of level %d, which took %s with %d worker(s); no progress is "
+                "printed while it runs",
+                len(union),
+                params.threads,
+                _format_factor(_final_pass_work_factor(len(union), len(genomes), process_size)),
+                depth,
+                _format_duration(level_seconds),
+                workers,
+            )
         if len(union) > _FINAL_PASS_WARN_FACTOR * process_size:
             logger.warning(
                 "The final dereplication pass compares %d representatives, more than "
@@ -615,7 +748,14 @@ def _dereplicate_chunked(
                 _FINAL_PASS_WARN_FACTOR,
                 process_size,
             )
+        final_started = time.monotonic()
         stage2 = adapter.dereplicate(union, merge_dir, params, logger)
+        logger.info(
+            "Final pass: %d representatives -> %d in %s",
+            len(union),
+            len(stage2.representatives),
+            _format_duration(time.monotonic() - final_started),
+        )
 
     return _compose_two_stage(stage1_results, stage2, logger)
 

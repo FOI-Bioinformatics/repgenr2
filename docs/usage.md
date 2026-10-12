@@ -1068,25 +1068,51 @@ the final representative of its chunk representative.
 The chunk size bounds the leaf chunks, not the final pass. A chunk can only
 remove genomes that have a close relative in the same chunk, so for a diverse
 set at a strict threshold the union is most of the input, and the final pass
-compares nearly all genomes with each other. When the union is larger than one
-chunk, it is chunked again (a further level). Levels continue while each level
-removes at least a tenth of its input or a chunk's worth (N), whichever is
-larger. Levels after the first compare representatives at the final
-thresholds, not the `--pre-*` ones. The next level takes the representatives
-in turn from each chunk of the previous one, so that genomes from different
-chunks are compared. When a level removes less, the union goes to one final
-pass, whatever its size. The log names the size of that pass:
+compares nearly all genomes with each other. When the union is larger than
+two chunks and the level removed at least a tenth of its input or a chunk's
+worth (N), whichever is larger, one chunk of the next level is run first as a
+probe: the first N representatives taken in turn from each chunk of the
+previous level, so that genomes from different chunks meet. A level over the
+union costs the tool's per-genome work (sketching, N50) for every
+representative plus about N/U of the final pass's pairwise work, where U is
+the union, and is expected to pay when it removes more than about N/U of its
+genomes. When the probe removes more than that fraction, the rest of the
+level runs (the probe is its first chunk) and its union is treated the same
+way; when it removes less, the union goes to the final pass and the probe's
+result is dropped. The probe, the levels after the first and the final pass
+compare representatives at the final thresholds, not the `--pre-*` ones.
+When a level removes less than the shrink rule asks, the union goes to the
+final pass without a probe. The log names the size of that pass and what to
+expect of it, from the level just timed:
 
 ```text
-Final pass over 3577 representatives (chunk size 500 bounds the leaf chunks, not the merge)
+Level 0: 6888 genomes -> union of 3807 representatives (3081 removed) in 8.0 min
+Level 0 removed 3081 (>= 689); probing level 1 with one chunk of 500 of the 3807 representatives, interleaved by chunk of origin
+Probe: 24 of 500 removed (4.8%) in 1.2 min; a level over 3807 is expected to pay above 13.1%
+Level 0: a further level is expected to cost more than it saves; the probe's result is dropped
+Final pass over 3807 representatives (chunk size 500 bounds the leaf chunks, not the merge)
+One call over 3807 genomes with 48 threads: about 4.2 times the pairwise work of level 0, which took 8.0 min with 12 worker(s); no progress is printed while it runs
 ```
 
 and a warning follows when the final pass is more than four times the chunk
-size. For example, 6888 Bacillaceae genomes with `skder --secondary-ani 0.9995
--s 500` keep 3807 representatives after level 0. That removes 3081 genomes,
-more than the 689 required, so one further level runs on the interleaved
-union. It removes fewer than 500, so the remaining representatives (the figure
-above is illustrative) go to the final pass. size. To make the final pass smaller:
+size. The pairwise factor is the union squared over the level's input times
+the chunk size; the per-genome work is paid once more for every genome of the
+union, and the tool's threads are shared by one call rather than by parallel
+chunks, so the pass can take longer than the factor alone suggests. The
+example is 6888 Bacillaceae genomes with `skder --secondary-ani 0.9995 -s 500`
+(the probe line is illustrative): 3807 representatives after level 0, and the
+earlier levels of that run removed 5, 1.4 and 0.5 percent each, so the probe
+is expected to send the union to the final pass. To make the final pass
+smaller or faster:
+
+- **Keep the default skani screen with skDER.** For a cutoff at or above 99
+  percent the adapter passes skani a screen of the cutoff minus one, so pairs
+  whose k-mer estimate is below that are not aligned; skDER's own default is
+  the cutoff minus ten, which at 99.95 aligns every pair above about 90
+  percent. `--tool-arg screen=PERCENT` sets another value and `screen=skder`
+  restores skDER's own; a value above the cutoff is refused. The screen is
+  an option of `skani triangle`, which the greedy and dynamic modes run;
+  `low_mem_greedy` does not read it.
 
 - **Raise `-s`** so that each chunk holds more close relatives. Chunking pays
   when the set has many near-identical genomes; for a set where most genomes
