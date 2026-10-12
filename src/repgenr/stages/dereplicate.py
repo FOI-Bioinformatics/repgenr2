@@ -9,6 +9,8 @@ manifest derep status is updated.
 
 from __future__ import annotations
 
+import logging
+import math
 import sqlite3
 from collections.abc import Collection, Mapping
 from dataclasses import dataclass, replace
@@ -292,7 +294,9 @@ def _list_genomes(genomes_dir: Path) -> list[Path]:
     return list_fasta(genomes_dir)
 
 
-_MAX_REDUCE_DEPTH = 50  # termination backstop; the shrink-guard normally stops sooner
+_MAX_REDUCE_DEPTH = 50  # termination backstop; the shrink-guard stops much sooner
+# Warn when the final pass of a chunked run compares more than this many chunks' worth.
+_FINAL_PASS_WARN_FACTOR = 4
 _MAX_TARGET_ITERS = 12  # binary-search steps for --target-reps
 
 
@@ -449,6 +453,30 @@ def _search_target_reps(
     return best
 
 
+def _recurse_min_shrink(n_input: int, process_size: int) -> int:
+    """Genomes a reduction level must remove before another level is attempted.
+
+    A level removes only the close pairs that fall into one chunk. When it
+    removes fewer than a chunk's worth (or fewer than a tenth of its input),
+    another level of chunks finds few more, and the all-against-all comparison
+    that the merge needs cannot be avoided; the final pass is cheaper.
+    """
+    return max(process_size, math.ceil(n_input / 10))
+
+
+def _interleave_by_origin(stage1: list[DerepResult]) -> list[Path]:
+    """The union of stage-1 representatives, taken round-robin over the chunks.
+
+    Element 0 of every chunk result, then element 1 of every chunk result, and
+    so on. When the union is chunked again, each new chunk holds representatives
+    from many previous chunks, so pairs that a fixed order kept apart can meet.
+    The order depends only on the input order (no random seed).
+    """
+    per_chunk = [list(r.representatives) for r in stage1]
+    longest = max((len(reps) for reps in per_chunk), default=0)
+    return [reps[i] for i in range(longest) for reps in per_chunk if i < len(reps)]
+
+
 def _dereplicate_chunked(
     adapter,
     genomes: list[Path],
@@ -461,16 +489,25 @@ def _dereplicate_chunked(
     logger,
     depth: int = 0,
 ) -> DerepResult:
-    """Hierarchical (recursive) chunked dereplication, usable for any tool.
+    """Hierarchical chunked dereplication, usable for any tool.
 
     Leaf chunks of <= ``process_size`` are dereplicated independently (in
     parallel, with the stage-1 ANI thresholds). The union of their
-    representatives is then dereplicated with the final thresholds -- and if that
-    union still exceeds ``process_size`` it is reduced recursively, so no single
-    dereplication call ever sees many more than ``process_size`` genomes (the key
-    to 100k-scale). Recursion stops when the union fits, when it stops shrinking
-    (recursing would not help), or at ``_MAX_REDUCE_DEPTH``. Membership is
-    composed so every original genome maps to a final representative.
+    representatives is then reduced:
+
+    * when it fits in one chunk, or when this level removed fewer genomes than
+      ``_recurse_min_shrink`` requires, one final pass dereplicates the whole
+      union with the final thresholds, whatever its size. The chunk size bounds
+      the leaf chunks, not this merge: for a diverse set the union can be most
+      of the input.
+    * otherwise the union, interleaved by chunk of origin, is chunked again at
+      the next level, so representatives from different chunks are compared.
+      Only the leaf chunks of level 0 use the stage-1 (``--pre-*``) thresholds;
+      every later level and the final pass use the final thresholds.
+
+    ``_MAX_REDUCE_DEPTH`` is a termination backstop only. Membership is
+    composed level by level so every original genome maps to one final
+    representative or keeps its QC failure.
     """
     chunks = [genomes[i : i + process_size] for i in range(0, len(genomes), process_size)]
     if len(chunks) > 1 and len(chunks[-1]) == 1:
@@ -479,6 +516,16 @@ def _dereplicate_chunked(
 
     if len(chunks) == 1:
         # Fits in a single pass: dereplicate directly with the final thresholds.
+        if depth > 0:
+            # A union of representatives that collapsed into one chunk (for
+            # example process_size + 1, the last genome merged into the first
+            # chunk): this call is the final pass.
+            logger.info(
+                "Final pass over %d representatives (chunk size %d bounds the leaf "
+                "chunks, not the merge)",
+                len(chunks[0]),
+                process_size,
+            )
         return adapter.dereplicate(chunks[0], scratch / f"level{depth}", params, logger)
 
     workers = max(1, min(num_processes, len(chunks)))
@@ -504,37 +551,78 @@ def _dereplicate_chunked(
         return adapter.dereplicate(chunk, chunk_dir, chunk_params, logger)
 
     stage1_results = parallel_map(run_chunk, list(enumerate(chunks)), workers, logger=logger)
+    # Chunk order for the final pass (as the Nextflow merge step), interleaved
+    # only when the union is chunked again.
     union = [rep for r in stage1_results for rep in r.representatives]
     merge_dir = scratch / f"level{depth}" / "merge"
+    removed = len(genomes) - len(union)
+    min_shrink = _recurse_min_shrink(len(genomes), process_size)
+    logger.info(
+        "Level %d: %d genomes -> union of %d representatives (%d removed)",
+        depth,
+        len(genomes),
+        len(union),
+        removed,
+    )
 
-    # Reduce the union: recurse only if it is still oversized AND actually shrank
-    # (else recursing re-chunks the same set forever); otherwise one final pass.
-    if len(union) > process_size and len(union) < len(genomes) and depth < _MAX_REDUCE_DEPTH:
+    if len(union) > process_size and removed >= min_shrink and depth < _MAX_REDUCE_DEPTH:
         logger.info(
-            "Level %d: union of %d reps still > %d; reducing recursively",
+            "Level %d: union of %d > chunk size %d and %d removed (>= %d); "
+            "chunking the union again, interleaved by chunk of origin",
             depth,
             len(union),
             process_size,
+            removed,
+            min_shrink,
         )
         stage2 = _dereplicate_chunked(
             adapter,
-            union,
+            _interleave_by_origin(stage1_results),
             merge_dir,
             params,
             process_size,
             num_processes,
-            pre_primary_ani,
-            pre_secondary_ani,
+            # Levels over representatives compare them at the final thresholds;
+            # only the leaf chunks of the original genomes use --pre-*.
+            params.primary_ani,
+            params.secondary_ani,
             logger,
             depth + 1,
         )
     else:
+        if len(union) > process_size:
+            logger.info(
+                "Level %d removed %d genomes (another level needs >= %d%s)",
+                depth,
+                removed,
+                min_shrink,
+                f"; depth limit {_MAX_REDUCE_DEPTH} reached" if depth >= _MAX_REDUCE_DEPTH else "",
+            )
+        logger.info(
+            "Final pass over %d representatives (chunk size %d bounds the leaf "
+            "chunks, not the merge)",
+            len(union),
+            process_size,
+        )
+        if len(union) > _FINAL_PASS_WARN_FACTOR * process_size:
+            logger.warning(
+                "The final dereplication pass compares %d representatives, more than "
+                "%d times the chunk size %d; its time and memory follow the union, "
+                "not the chunk size. A larger --process-size, or --pre-secondary-ani "
+                "below the final --secondary-ani (so the chunks remove more), "
+                "reduces this pass.",
+                len(union),
+                _FINAL_PASS_WARN_FACTOR,
+                process_size,
+            )
         stage2 = adapter.dereplicate(union, merge_dir, params, logger)
 
-    return _compose_two_stage(stage1_results, stage2)
+    return _compose_two_stage(stage1_results, stage2, logger)
 
 
-def _compose_two_stage(stage1: list[DerepResult], stage2: DerepResult) -> DerepResult:
+def _compose_two_stage(
+    stage1: list[DerepResult], stage2: DerepResult, logger: logging.Logger | None = None
+) -> DerepResult:
     from ..dereplicators.base import STATUS_CONTAINED, STATUS_FAIL_QC, STATUS_REPRESENTATIVE
 
     # Each stage-1 representative -> every original genome in its cluster (the rep
@@ -570,6 +658,32 @@ def _compose_two_stage(stage1: list[DerepResult], stage2: DerepResult) -> DerepR
                 contained.append(genome)
                 status[genome] = STATUS_CONTAINED
         final_clusters[final_rep] = contained
+
+    # A genome the later pass rejected on QC is in no stage-2 cluster either.
+    # With nested levels, stage 2 is itself a composed result whose QC failures
+    # come from its own chunks, so carry them here. A stage-1 representative
+    # rejected there takes its stage-1 members with it: their cluster has no
+    # representative left. QC is a per-genome check, so in practice this only
+    # forwards failures from deeper levels; it keeps every genome accounted for.
+    rejected_reps: list[str] = []
+    for genome, state in stage2.genome_status.items():
+        if state != STATUS_FAIL_QC or genome in status:
+            continue
+        members = s1rep_to_members.get(genome, [genome])
+        if genome in s1rep_to_members:
+            rejected_reps.append(genome)
+        for member in members:
+            status.setdefault(member, STATUS_FAIL_QC)
+    if rejected_reps:
+        n_members = sum(len(s1rep_to_members[r]) - 1 for r in rejected_reps)
+        (logger or logging.getLogger(__name__)).warning(
+            "%d representative(s) accepted by an earlier dereplication pass failed QC "
+            "in a later pass (e.g. %s); they and their %d cluster member(s) are marked "
+            "fail_qc. The QC result differs between calls for the same genome.",
+            len(rejected_reps),
+            ", ".join(sorted(rejected_reps)[:3]),
+            n_members,
+        )
 
     return DerepResult(
         representatives=stage2.representatives,

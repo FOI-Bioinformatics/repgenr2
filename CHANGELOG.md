@@ -845,6 +845,26 @@ All notable changes to RepGenR are documented here. The format follows
   dropped without a message.
 
 ### Fixed
+- Chunked dereplication (`dereplicate -s N`) no longer descends level by
+  level while each level removes only a few genomes. It chunked the union of
+  representatives again whenever it had shrunk at all, in the same fixed
+  order, so pairs never placed in one chunk stayed apart: 6888 Bacillaceae
+  genomes with `skder --secondary-ani 0.9995 -s 500` ran up to fifty levels
+  of about five minutes each (3807, 3627, 3577, 3558, ... representatives).
+  A further level now runs only when the previous one removed at least
+  max(N, a tenth of its input) genomes; it takes the representatives in turn
+  from each previous chunk, so genomes from different chunks meet, and
+  compares them at the final thresholds (only the leaf chunks use `--pre-*`).
+  Otherwise the union goes to one final pass at the final thresholds,
+  logged as "Final pass over M representatives (chunk size N bounds the leaf
+  chunks, not the merge)", with a warning above four times N that suggests a
+  larger `-s` or a lower `--pre-secondary-ani`. Membership composition also
+  keeps QC failures reported by a deeper level, with a warning when a later
+  pass rejects a representative that an earlier pass accepted. The Nextflow scatter already
+  merged in one call and is unchanged. The reported run removes 3081 genomes
+  at level 0, so it now runs one further interleaved level and then the final
+  pass, instead of fifty levels. A set where few genomes are removed at level 0
+  goes straight to the final pass.
 - skDER receives the genome set as a staged directory; the genome count no
   longer limits a single call. The adapter links each genome by its basename
   into a scratch directory and passes that one path to `-g` (it passed one

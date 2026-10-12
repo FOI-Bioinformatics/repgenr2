@@ -70,7 +70,13 @@ Notes on the table:
 - Past a few thousand genomes, dereplicate in chunks (`--process-size` on the
   CLI, `--derep_process_size` in Nextflow) to bound the time and memory of one
   tool call. Chunking changes which genome represents a cluster, not the
-  clustering (scaling audit, finding 3). The genome count does not limit a
+  clustering (scaling audit, finding 3). The chunk size bounds the leaf
+  chunks only. The final pass compares the union of the chunk
+  representatives, and for a diverse set at a strict threshold that union can
+  be most of the input: 6888 Bacillaceae genomes at `--secondary-ani 0.9995`
+  kept 3807 after the chunks. Chunking then saves little, and a larger `-s`,
+  or `--pre-secondary-ani` below the final threshold, is the better lever
+  (see [Chunked dereplication](usage.md#chunked-dereplication)). The genome count does not limit a
   single call through the command line: every dereplicator receives the
   genome set as a list file or a staged directory, and a command that would
   still exceed the operating system's argument-size limit (ARG_MAX) stops

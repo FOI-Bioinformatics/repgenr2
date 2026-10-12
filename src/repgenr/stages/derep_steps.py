@@ -15,9 +15,11 @@ Neither step touches the SQLite manifest or the run config: their entire state i
 the directories they read and write, so Nextflow can stage them between tasks and
 cache them independently. A chunk result directory is itself a valid contract, so
 ``dereplicate_merge`` consumes exactly what ``dereplicate_chunk`` produces. This
-mirrors the in-process ``_dereplicate_chunked`` reduce-tree, split into steps the
-orchestrator scatters; multi-level reduction is expressed by feeding a merge
-output back through another chunk/merge round.
+is the first level and the final pass of the in-process ``_dereplicate_chunked``,
+split into steps the orchestrator scatters. The ``DEREPLICATE_SCATTER``
+subworkflow runs one chunk round and one merge: the merge dereplicates the whole
+union of chunk representatives in one call, whatever its size, and does not
+chunk it again.
 """
 
 from __future__ import annotations
@@ -327,7 +329,7 @@ def dereplicate_merge(params: MergeParams, logger: logging.Logger) -> DerepResul
         )
     else:
         stage2 = adapter.dereplicate(union, scratch, derep_params, logger)
-    final = _compose_two_stage(stage1, stage2)
+    final = _compose_two_stage(stage1, stage2, logger)
     rep_dirs = [d / _REPRESENTATIVES_DIR for d in params.chunk_dirs]
     n50 = N50Lookup(rep_dirs, known=_read_n50(params.chunk_dirs))
 
