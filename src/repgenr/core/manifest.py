@@ -420,7 +420,7 @@ class Manifest:
 def _enable_wal(conn: sqlite3.Connection) -> None:
     """Switch the database to WAL, retrying while another connection holds it.
 
-    A file already in WAL mode (every manifest RepGenR2 wrote) needs no lock
+    A file already in WAL mode (every manifest this program writes) needs no lock
     for this. A rollback-journal file (a copied or hand-made manifest) needs an
     exclusive lock, and SQLite reports "database is locked" at once rather
     than calling the busy handler when other connections hold a shared lock,

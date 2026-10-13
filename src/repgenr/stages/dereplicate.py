@@ -225,7 +225,7 @@ def run(ctx: WorkdirContext, params: DereplicateParams) -> DerepResult:
                 "representative in the manifest, so "
                 "--keeper gtdb falls back to %s. Only GTDB selections from the "
                 "metadata stage carry the flag; a workdir selected by an older "
-                "RepGenR2 needs `repgenr metadata --force` to record it.",
+                "version needs `repgenr metadata --force` to record it.",
                 "the quality rule" if quality else "the tool's own representatives",
             )
         result, keeper_swaps = prefer_gtdb_representatives(result, gtdb, quality, logger, n50)

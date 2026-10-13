@@ -8,7 +8,9 @@ ways to provide the tools.
 
 - **The package.** `pip install .` installs the distribution `repgenr2`, which
   provides the `repgenr` command and the `repgenr` import package. It needs
-  Python 3.12 or later. Two extras exist: `sparse` adds the
+  Python 3.12 or later. An environment installed from the project under its
+  earlier name holds a distribution called `repgenr` that owns the same files;
+  run `pip uninstall repgenr` before installing `repgenr2` there. Two extras exist: `sparse` adds the
   `sourmash_plugin_branchwater` back-end for sparse sourmash dereplication
   (without it the adapter falls back to dense `sourmash compare`), and `dev`
   adds the test, lint and type-check tools.

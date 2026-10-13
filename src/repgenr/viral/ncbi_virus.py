@@ -527,7 +527,7 @@ def read_records(path: Path) -> list[VirusRecord]:
     rows = json.loads(path.read_text(encoding="utf-8"))
     if rows and any("species_source" not in row for row in rows):
         raise WorkdirError(
-            f"{path} was written by an earlier RepGenR2, which took the viral species "
+            f"{path} was written by an earlier version, which took the viral species "
             "from the organism name. Rerun the download once with "
             "'repgenr --force vmetadata ...' (same arguments) so that the species "
             "comes from NCBI Taxonomy and the lineage; vgenome and the later stages "

@@ -892,7 +892,7 @@ counted and is named on the first line. When the candidates of the entry
 stage are also present, a `candidates` column shows how many each row had
 before selection; a species with candidates and no selected genome appears
 with 0 genomes. When the entry-stage data cannot be read (for example a
-`virus_records.json` written by an earlier RepGenR2), the census counts the
+`virus_records.json` written by an earlier version), the census counts the
 selection without the `candidates` column and says why in a note.
 
 ```text
@@ -1053,7 +1053,7 @@ Two limitations, both covered by `--force`: input directories are digested from
 file metadata (name, size, mtime), so an in-place edit that preserves size and
 mtime is not detected; and upgrading a natively installed tool binary does not
 invalidate previous results (switching the container backend or platform does).
-Workdirs created by older RepGenR2 versions re-run each stage once (the
+Workdirs created by earlier versions re-run each stage once (the
 fingerprint format changed).
 
 ### Chunked dereplication
@@ -1199,12 +1199,12 @@ flags at least one genome, and otherwise `quality` or `tool` with a warning.
 Only GTDB selections carry the flag: `ingest` (unless its `--selection` has
 the column), `reads`/`assemble` and the viral path leave it at 0, so
 `--keeper gtdb` acts there as `--keeper quality`. A workdir selected by an
-earlier RepGenR2 has no flag recorded; `repgenr metadata --force` with the same
+earlier version has no flag recorded; `repgenr metadata --force` with the same
 options records it. `genome` then runs again because `selection.tsv`
 changed, and downloads nothing already present; `dereplicate` runs again
 because the manifest now flags genomes. A manifest from an earlier version is
 upgraded in place (schema version 3) when a stage opens it, and an earlier
-RepGenR2 then refuses to open it.
+version then refuses to open it.
 
 The same manifest values also reach the dereplicator, whichever keeper rule is
 chosen (the Nextflow chunk and merge steps read them from `selection.tsv`),

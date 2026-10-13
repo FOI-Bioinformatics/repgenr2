@@ -11,9 +11,14 @@ All notable changes to RepGenR2 are documented here. The format follows
   <https://github.com/FOI-Bioinformatics/repgenr2>. The distribution name is
   `repgenr2`; the `repgenr` command, the `repgenr` import package, the plugin
   entry-point groups (`repgenr.dereplicators` and the others), the workdir
-  layout and the conda environment names are unchanged, so existing workdirs,
-  plugins and environments keep working. The Nextflow manifest name and the
-  schema and citation URLs point at the new repository.
+  layout and the conda environment names are unchanged, so existing workdirs
+  and plugins keep working. An environment that holds the old `repgenr`
+  distribution needs `pip uninstall repgenr` before `pip install .`: the two
+  distributions own the same files, `__version__` reads the `repgenr2`
+  metadata and reports `0.0.0+unknown` without it, and a later
+  `pip uninstall repgenr` would remove files the new install needs. The
+  Nextflow manifest name and the schema and citation URLs point at the new
+  repository.
 - `dereplicate --process-size`: before a further level over the union of
   chunk representatives, one chunk of that level is run as a probe. A level
   costs the tool's per-genome work for every representative plus about N/U
