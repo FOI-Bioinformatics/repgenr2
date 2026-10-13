@@ -1,6 +1,6 @@
 """Shared HTTP client with retry/backoff for external services.
 
-RepGenR talks to flaky, externally-operated services (the GTDB API and metadata
+RepGenR2 talks to flaky, externally-operated services (the GTDB API and metadata
 download, NCBI Entrez). Routing them through one process-wide ``requests.Session``
 with a urllib3 retry policy gives every caller the same transient-failure
 resilience -- retrying 429/5xx with exponential backoff and honoring

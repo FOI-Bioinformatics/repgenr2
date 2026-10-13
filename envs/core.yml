@@ -1,4 +1,4 @@
-# Core environment: RepGenR (Python 3.12) and every tool that shares its solve. Platforms: linux-64, osx-arm64. Floors match BinarySpec.min_version.
+# Core environment: RepGenR2 (Python 3.12) and every tool that shares its solve. Platforms: linux-64, osx-arm64. Floors match BinarySpec.min_version.
 name: repgenr
 channels:
   - conda-forge

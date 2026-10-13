@@ -1,16 +1,17 @@
-# RepGenR
+# RepGenR2
 
-RepGenR (Representative-Genome Repositories) builds dereplicated, representative
-genome repositories for large-scale genomic studies. It selects taxa, downloads
-genomes, clusters them by average nucleotide identity (ANI), computes
-phylogenetic trees, and emits taxonomy files for downstream tools such as
-FlexTaxD.
+RepGenR2 builds dereplicated, representative genome repositories for
+large-scale genomic studies. It selects taxa, downloads genomes, clusters them
+by average nucleotide identity (ANI), computes phylogenetic trees, and emits
+taxonomy files for downstream tools such as FlexTaxD.
 
-Version 2 is a modular, importable Python package (Python 3.12+) with eight
-pluggable tool families and an optional Nextflow pipeline for scatter-gather
-runs on HPC and cloud. The largest end-to-end runs recorded are 1157
-bacterial genomes (one genus, 12 minutes) and 1256 viral genomes
-(Hepeviridae). Larger sizes are measured per tool in the
+It is the second generation of RepGenR (Representative-Genome Repositories):
+a modular, importable Python package (Python 3.12+, distributed as `repgenr2`,
+installed as the `repgenr` command) with eight pluggable tool families and an
+optional Nextflow pipeline for scatter-gather runs on HPC and cloud. The
+largest end-to-end runs recorded are 1157 bacterial genomes (one genus, 12
+minutes) and 1256 viral genomes (Hepeviridae). Larger sizes are measured per
+tool in the
 [scaling audit](docs/audit/scaling-audit.md).
 
 ## Pipeline
@@ -57,7 +58,7 @@ repgenr list-tools --check             # which tools are found, with versions
 ```
 
 The tools come from conda environments or from containers. `envs/core.yml`
-holds RepGenR and most tools; six satellite files (`envs/gubbins.yml`,
+holds RepGenR2 and most tools; six satellite files (`envs/gubbins.yml`,
 `envs/mashtree.yml` and others) hold tools that do not solve with it. Append a
 satellite's `bin` directory after core on `PATH`, never before it:
 

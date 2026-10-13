@@ -1,4 +1,4 @@
-"""pyproject, the Nextflow manifest, the changelog and the installed package agree."""
+"""pyproject, the Nextflow manifest, the changelog and the installed distribution agree."""
 
 from __future__ import annotations
 
@@ -23,7 +23,7 @@ def test_nextflow_manifest_matches_pyproject() -> None:
 
 
 def test_installed_package_matches_pyproject() -> None:
-    assert version("repgenr") == _pyproject_version()
+    assert version("repgenr2") == _pyproject_version()
 
 
 def test_changelog_has_section_for_version() -> None:

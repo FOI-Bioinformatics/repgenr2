@@ -225,7 +225,7 @@ app = typer.Typer(
     cls=_PanelOrderedGroup,
     add_completion=False,
     no_args_is_help=True,
-    help="RepGenR: modular genome dereplication, alignment, SNP typing and phylogenetics.",
+    help="RepGenR2: modular genome dereplication, alignment, SNP typing and phylogenetics.",
     epilog=APP_EPILOG,
 )
 
@@ -857,7 +857,7 @@ def main(
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Verbose (DEBUG) logging."),
     quiet: bool = typer.Option(False, "--quiet", "-q", help="Only warnings and errors."),
 ) -> None:
-    """RepGenR top-level entry point."""
+    """RepGenR2 top-level entry point."""
     from ..core.containers import configure_container
     from ..core.process import install_termination_handler
 

@@ -2,7 +2,7 @@
 
 ## Introduction
 
-RepGenR builds a representative-genome repository for a taxonomic group and the
+RepGenR2 builds a representative-genome repository for a taxonomic group and the
 matching FlexTaxD taxonomy. The pipeline runs five stages in order:
 
 1. **metadata** -- select genome accessions (GTDB for bacteria/archaea; the
@@ -892,7 +892,7 @@ counted and is named on the first line. When the candidates of the entry
 stage are also present, a `candidates` column shows how many each row had
 before selection; a species with candidates and no selected genome appears
 with 0 genomes. When the entry-stage data cannot be read (for example a
-`virus_records.json` written by an earlier RepGenR), the census counts the
+`virus_records.json` written by an earlier version), the census counts the
 selection without the `candidates` column and says why in a note.
 
 ```text
@@ -1053,7 +1053,7 @@ Two limitations, both covered by `--force`: input directories are digested from
 file metadata (name, size, mtime), so an in-place edit that preserves size and
 mtime is not detected; and upgrading a natively installed tool binary does not
 invalidate previous results (switching the container backend or platform does).
-Workdirs created by older RepGenR versions re-run each stage once (the
+Workdirs created by earlier versions re-run each stage once (the
 fingerprint format changed).
 
 ### Chunked dereplication
@@ -1199,12 +1199,12 @@ flags at least one genome, and otherwise `quality` or `tool` with a warning.
 Only GTDB selections carry the flag: `ingest` (unless its `--selection` has
 the column), `reads`/`assemble` and the viral path leave it at 0, so
 `--keeper gtdb` acts there as `--keeper quality`. A workdir selected by an
-earlier RepGenR has no flag recorded; `repgenr metadata --force` with the same
+earlier version has no flag recorded; `repgenr metadata --force` with the same
 options records it. `genome` then runs again because `selection.tsv`
 changed, and downloads nothing already present; `dereplicate` runs again
 because the manifest now flags genomes. A manifest from an earlier version is
 upgraded in place (schema version 3) when a stage opens it, and an earlier
-RepGenR then refuses to open it.
+version then refuses to open it.
 
 The same manifest values also reach the dereplicator, whichever keeper rule is
 chosen (the Nextflow chunk and merge steps read them from `selection.tsv`),
@@ -1642,12 +1642,12 @@ Combine an executor profile with an optional container profile, e.g.
 `-profile slurm,singularity`.
 
 - **Executors**: `standard` (local), `slurm`.
-- **Containers**: `docker`, `singularity`, `wave`. These set RepGenR's own
+- **Containers**: `docker`, `singularity`, `wave`. These set RepGenR2's own
   adapter-level container backend (`--container ...`). Under `docker` or
   `singularity` every adapter with a pinned image runs in it (all but the
   `simple` SNP typer, parsnp, skder and SibeliaZ, which run on the host and
   say so in the log); `wave` mints an image from each adapter's conda
-  specification instead, which also covers those four. RepGenR itself must
+  specification instead, which also covers those four. RepGenR2 itself must
   be available to the Nextflow process.
 - **`test`**: minimal resources and a small target for a quick smoke run.
 
@@ -1782,9 +1782,9 @@ nextflow run nextflow/main.nf --mode reads --outdir results \
 
 ## Running tools in containers
 
-RepGenR can run each external tool inside a pinned container instead of relying
+RepGenR2 can run each external tool inside a pinned container instead of relying
 on tools installed on `PATH`. This unblocks Linux-only tools on any host (e.g.
-macOS) and makes tool versions reproducible. RepGenR itself runs on the host;
+macOS) and makes tool versions reproducible. RepGenR2 itself runs on the host;
 only the tool subprocess is containerized, so it works in the plain CLI and
 inside Nextflow.
 
@@ -1849,7 +1849,7 @@ give `--repgenr_opts '--container docker --bin-dir gubbins=/p/bin'`.
 
 `nextflow run nextflow/main.nf -profile docker` (or `singularity`, `wave`) sets
 `params.repgenr_opts` so every stage calls `repgenr --container …`. On HPC,
-Singularity is the clean target (RepGenR dispatches each tool to Singularity);
+Singularity is the clean target (RepGenR2 dispatches each tool to Singularity);
 stacking with Nextflow's own Docker engine implies docker-in-docker.
 
 ## Troubleshooting

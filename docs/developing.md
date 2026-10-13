@@ -19,7 +19,7 @@ grouping, the rendered reference and a test.
 
 ### Overview
 
-RepGenR is an importable Python package (`src/repgenr`, Python 3.12+). A thin
+RepGenR2 is an importable Python package (`src/repgenr`, Python 3.12+). A thin
 Typer CLI (`repgenr.cli.main`) dispatches each subcommand to an importable stage
 function `repgenr.stages.<name>.run(ctx, params)`. Stages share a working
 directory; a `WorkdirContext` resolves the canonical path layout, logging, the
@@ -158,7 +158,7 @@ unit test checks. The consumers that read the sketches are listed under
 
 A new tool is a self-contained adapter plus one entry-point line. The core never
 imports adapters directly, so third parties can ship adapters in their own
-package without modifying RepGenR: after `pip install`, the tool appears in
+package without modifying RepGenR2: after `pip install`, the tool appears in
 `repgenr list-tools`, in the registry-generated `--help` texts, and is
 selectable by name (including from the Nextflow pipeline, whose schema does not
 restrict tool names).
@@ -349,8 +349,9 @@ mytool = "repgenr.dereplicators.mytool:MyDereplicator"
 ```
 
 (the groups are `repgenr.dereplicators`, `.aligners`, `.snptypers`,
-`.treebuilders`, `.maskers`). Third parties add the same entry point in their
-own package's metadata. Programmatic registration (tests, embedders) goes
+`.treebuilders`, `.maskers`, `.assemblers`, `.classifiers` and `.polishers`).
+Third parties add the same entry point in their own package's metadata and
+depend on the distribution `repgenr2`. Programmatic registration (tests, embedders) goes
 through the public API: `registry.register("mytool", MyDereplicator)` /
 `registry.unregister("mytool")`, or the `register_tool` pytest fixture.
 

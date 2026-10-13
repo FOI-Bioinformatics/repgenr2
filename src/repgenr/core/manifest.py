@@ -187,7 +187,7 @@ class Manifest:
         self._conn.commit()
 
     def _check_version(self) -> int:
-        """Reject a manifest written by a newer, incompatible RepGenR.
+        """Reject a manifest written by a newer, incompatible RepGenR2.
 
         Returns the current ``user_version`` so callers that need it (e.g.
         ``_migrate``) do not have to issue a second ``PRAGMA`` query.
@@ -196,7 +196,7 @@ class Manifest:
         if version > SCHEMA_VERSION:
             raise WorkdirError(
                 f"Manifest at {self.path} has schema version {version}, newer than this "
-                f"RepGenR supports ({SCHEMA_VERSION}). Upgrade RepGenR or use a new workdir."
+                f"RepGenR2 supports ({SCHEMA_VERSION}). Upgrade RepGenR2 or use a new workdir."
             )
         return version
 
@@ -420,7 +420,7 @@ class Manifest:
 def _enable_wal(conn: sqlite3.Connection) -> None:
     """Switch the database to WAL, retrying while another connection holds it.
 
-    A file already in WAL mode (every manifest RepGenR wrote) needs no lock
+    A file already in WAL mode (every manifest this program writes) needs no lock
     for this. A rollback-journal file (a copied or hand-made manifest) needs an
     exclusive lock, and SQLite reports "database is locked" at once rather
     than calling the busy handler when other connections hold a shared lock,
