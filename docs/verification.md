@@ -533,7 +533,7 @@ they are recorded here and not fixed.
 | Tests | `--live-config <path>` into the main checkout from a worktree loads two conftest files and fails; `--live-config=<path>` works. |
 | Environment | dRep 3.4.5 fails on exFAT volumes because macOS writes `._*` files into its cache; use an APFS workdir for glance and `dereplicate --tool drep`. |
 | glance | Changing `--plot-min` or `--plot-max` reruns the whole dRep comparison, about 80 s for 1000 genomes, although only the plots change. |
-| Environment | The host CheckM2 builds in the RepGenR and repgenr_checkm2 environments fail on macOS (multiprocessing spawn cannot pickle `Predictor.__set_up_prodigal_thread`); the pinned image works. |
+| Environment | The host CheckM2 builds in the RepGenR2 and repgenr_checkm2 environments fail on macOS (multiprocessing spawn cannot pickle `Predictor.__set_up_prodigal_thread`); the pinned image works. |
 | glance | For 1000 genomes the dendrogram PDF is one page about 3.9 m tall; it is readable only when zoomed. |
 | glance | The genomes in `outgroup/` are not part of the comparison; glance compares `genomes/` only, as documented. |
 | Resume | The skip message says "use --force to re-run", but `--force` is a global option and must come before the command (`repgenr --force glance ...`); `repgenr glance --force` exits 2 with "No such option". |

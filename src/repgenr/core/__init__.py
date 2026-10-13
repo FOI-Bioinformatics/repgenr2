@@ -1,1 +1,1 @@
-"""Core infrastructure shared by all RepGenR stages and plugins."""
+"""Core infrastructure shared by all RepGenR2 stages and plugins."""

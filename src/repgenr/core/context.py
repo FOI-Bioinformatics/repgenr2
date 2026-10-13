@@ -20,7 +20,7 @@ from .manifest import Manifest
 
 
 class WorkdirContext:
-    """Resolved paths and shared services for one RepGenR invocation."""
+    """Resolved paths and shared services for one RepGenR2 invocation."""
 
     def __init__(
         self,

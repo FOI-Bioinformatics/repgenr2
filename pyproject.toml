@@ -3,14 +3,14 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "repgenr"
+name = "repgenr2"
 version = "2.1.0"
-description = "Representative-Genome Repositories: modular genome dereplication, alignment, SNP typing and phylogenetics"
+description = "RepGenR2 (Representative-Genome Repositories): modular genome dereplication, alignment, SNP typing and phylogenetics"
 readme = "README.md"
 requires-python = ">=3.12"
 license = { text = "MIT" }
 authors = [{ name = "jaclew" }]
-# Upper caps to the next major: RepGenR is an application (a pinned CLI/pipeline,
+# Upper caps to the next major: RepGenR2 is an application (a pinned CLI/pipeline,
 # not a library others resolve against), so capping guards a fresh install from a
 # surprise breaking major (e.g. numpy 3, biopython 2) without the downstream
 # resolver friction caps cause for libraries. Raise a cap when that major is
@@ -28,6 +28,11 @@ dependencies = [
     # ete3, which dragged in heavy/GUI deps and the removed stdlib 'cgi' module.
     "dendropy>=4.6,<6.0",
 ]
+
+[project.urls]
+Homepage = "https://github.com/FOI-Bioinformatics/repgenr2"
+Repository = "https://github.com/FOI-Bioinformatics/repgenr2"
+Changelog = "https://github.com/FOI-Bioinformatics/repgenr2/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]
 # Sparse sourmash dereplication back-end (manysketch + pairwise). Optional: the

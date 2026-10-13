@@ -1,4 +1,4 @@
-"""Exception hierarchy for RepGenR.
+"""Exception hierarchy for RepGenR2.
 
 Stages and plugins raise these instead of calling ``sys.exit``. The CLI layer
 (:mod:`repgenr.cli.main`) catches :class:`RepGenRError`, logs it cleanly and
@@ -16,7 +16,7 @@ DOCTOR_FAILURES_EXIT = 7
 
 
 class RepGenRError(Exception):
-    """Base class for all expected, user-facing RepGenR failures.
+    """Base class for all expected, user-facing RepGenR2 failures.
 
     ``exit_code`` is the process status the CLI exits with for the class, so
     a caller can tell a usage error from a missing tool or a failed run

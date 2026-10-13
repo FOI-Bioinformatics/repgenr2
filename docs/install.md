@@ -1,12 +1,13 @@
-# Installing RepGenR
+# Installing RepGenR2
 
-RepGenR is a Python package that calls external bioinformatics tools. The
+RepGenR2 is a Python package that calls external bioinformatics tools. The
 package does not install those tools. This page covers both parts and three
 ways to provide the tools.
 
 ## What gets installed
 
-- **The package.** `pip install .` installs the `repgenr` command. It needs
+- **The package.** `pip install .` installs the distribution `repgenr2`, which
+  provides the `repgenr` command and the `repgenr` import package. It needs
   Python 3.12 or later. Two extras exist: `sparse` adds the
   `sourmash_plugin_branchwater` back-end for sparse sourmash dereplication
   (without it the adapter falls back to dense `sourmash compare`), and `dev`
@@ -39,14 +40,14 @@ pip install -e ".[dev]"  # for development
 The tools do not solve as one conda environment. Gubbins needs Python 3.8 to
 3.10, mashtree and snippy need zlib older than 1.3, and progressiveMauve needs
 boost 1.74. The files under `envs/` therefore define a core environment with
-RepGenR and every tool that shares its solve, plus six satellite environments.
+RepGenR2 and every tool that shares its solve, plus six satellite environments.
 Each file's first line names its platforms and why it is separate. CI
 dry-runs each solve on every change to `envs/` and once a week
 (`.github/workflows/envs.yml`).
 
 | File | Environment | Contents | Platforms that solve |
 |---|---|---|---|
-| `envs/core.yml` | `repgenr` | Python 3.12, RepGenR, sourmash and branchwater, skDER, skani, galah, dRep, datasets, SibeliaZ, minimap2, samtools, bcftools, ska2, skesa, shovill, flye, medaka, racon, FastTree, IQ-TREE, RAxML-NG | linux-64, osx-arm64 |
+| `envs/core.yml` | `repgenr` | Python 3.12, RepGenR2, sourmash and branchwater, skDER, skani, galah, dRep, datasets, SibeliaZ, minimap2, samtools, bcftools, ska2, skesa, shovill, flye, medaka, racon, FastTree, IQ-TREE, RAxML-NG | linux-64, osx-arm64 |
 | `envs/gubbins.yml` | `repgenr-gubbins` | Gubbins (Python 3.10, with its own IQ-TREE 2 and RAxML) | linux-64, osx-64, osx-arm64 |
 | `envs/mashtree.yml` | `repgenr-mashtree` | mashtree (brings samtools 0.1.19) | linux-64, osx-64, osx-arm64 |
 | `envs/snippy.yml` | `repgenr-snippy` | snippy 4.6 | linux-64, osx-64 |
@@ -69,7 +70,7 @@ osx-arm64 the solve gives dRep without CheckM, so run dRep there with
 `CONDA_SUBDIR=osx-64` and run them under Rosetta.
 
 The versions in the files are lower bounds. They match the minimum versions
-RepGenR checks before a run (a test keeps them in step) and guard against
+RepGenR2 checks before a run (a test keeps them in step) and guard against
 known-incompatible old tools. They do not make an environment reproducible.
 For a reproducible environment, export a pinned list from a solved
 environment, one per platform, for example:
@@ -82,7 +83,7 @@ conda env export -n repgenr --no-builds > repgenr.lock.yml
 
 ### 2. Satellites on PATH, after core
 
-RepGenR finds tools on `PATH`, and the first match wins. Activate the core
+RepGenR2 finds tools on `PATH`, and the first match wins. Activate the core
 environment and append each satellite's `bin` directory after it, never
 before:
 
@@ -140,7 +141,7 @@ whose entries become `REPGENR_BIN_DIRS` (see `tests/live/README.md`).
 
 ### 3. Containers
 
-RepGenR can run each tool inside a pinned container instead of on `PATH`. The
+RepGenR2 can run each tool inside a pinned container instead of on `PATH`. The
 package itself runs on the host and only the tool subprocess is containerized,
 so this works in the plain CLI and inside Nextflow. The default is `none`
 (native execution). The quick start and the option table are in
@@ -187,7 +188,7 @@ Each adapter declares its container metadata in `ToolCapabilities`:
   wrappers (`sort --parallel` in skder's greedy mode, `mktemp --suffix` in
   SibeliaZ) fail there and the run silently yields nothing.
 - `conda` is a conda spec (for example `bioconda::skder`). With `--wave`,
-  RepGenR mints an image for it. This is arm64-native and the only route for
+  RepGenR2 mints an image for it. This is arm64-native and the only route for
   the multi-package adapters. The pin stays the default without Wave.
 
 BioContainers are `linux/amd64`. On Apple Silicon pass
@@ -206,7 +207,7 @@ BioContainers are `linux/amd64`. On Apple Silicon pass
 
 #### Notes
 
-- Before a tool runs in an image, RepGenR checks that the engine binary is
+- Before a tool runs in an image, RepGenR2 checks that the engine binary is
   on `PATH` and, for Docker, that `docker info` reaches the daemon. A stopped
   Docker Desktop therefore exits 4 before the stage starts, and
   `repgenr --container docker list-tools --check` reports it per tool. Under
@@ -232,7 +233,7 @@ BioContainers are `linux/amd64`. On Apple Silicon pass
 - The macOS SibeliaZ BSD-wrapper workaround is skipped automatically when
   running in a (Linux) container.
 - dRep's CheckM step needs its reference data at run time. Set
-  `CHECKM_DATA_PATH` on the host: RepGenR passes it into the container and
+  `CHECKM_DATA_PATH` on the host: RepGenR2 passes it into the container and
   binds that directory at the same path. Otherwise run dRep with
   `--ignoreGenomeQuality`.
 - progressiveMauve from bioconda (`mauvealigner`) is linked against boost

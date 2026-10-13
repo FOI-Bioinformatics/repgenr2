@@ -23,7 +23,7 @@ def test_status_missing_workdir_exits_3(tmp_path: Path) -> None:
 def test_status_empty_workdir_hints_at_entry_stages(tmp_path: Path) -> None:
     result = _runner.invoke(app, ["status", "-wd", str(tmp_path)])
     assert result.exit_code == 0
-    assert "No RepGenR run found" in result.stdout
+    assert "No RepGenR2 run found" in result.stdout
 
 
 def test_doctor_missing_workdir_exits_3(tmp_path: Path) -> None:
@@ -37,7 +37,7 @@ def test_doctor_missing_workdir_exits_3(tmp_path: Path) -> None:
 def test_doctor_empty_workdir_warns(tmp_path: Path) -> None:
     result = _runner.invoke(app, ["doctor", "-wd", str(tmp_path)])
     assert result.exit_code == 0
-    assert "No RepGenR run found" in result.stdout
+    assert "No RepGenR2 run found" in result.stdout
 
 
 def test_status_bacterial_progress(tmp_path: Path, write_deliverables) -> None:

@@ -1,12 +1,19 @@
 # Changelog
 
-All notable changes to RepGenR are documented here. The format follows
+All notable changes to RepGenR2 are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and the project aims to follow
 [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
 ### Changed
+- The project is renamed RepGenR2 and lives at
+  <https://github.com/FOI-Bioinformatics/repgenr2>. The distribution name is
+  `repgenr2`; the `repgenr` command, the `repgenr` import package, the plugin
+  entry-point groups (`repgenr.dereplicators` and the others), the workdir
+  layout and the conda environment names are unchanged, so existing workdirs,
+  plugins and environments keep working. The Nextflow manifest name and the
+  schema and citation URLs point at the new repository.
 - `dereplicate --process-size`: before a further level over the union of
   chunk representatives, one chunk of that level is run as a probe. A level
   costs the tool's per-genome work for every representative plus about N/U

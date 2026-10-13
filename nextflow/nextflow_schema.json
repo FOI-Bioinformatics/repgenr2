@@ -1,7 +1,7 @@
 {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "$id": "https://raw.githubusercontent.com/druvus/repgenr/main/nextflow/nextflow_schema.json",
-    "title": "repgenr pipeline parameters",
+    "$id": "https://raw.githubusercontent.com/FOI-Bioinformatics/repgenr2/main/nextflow/nextflow_schema.json",
+    "title": "repgenr2 pipeline parameters",
     "description": "Representative-Genome Repositories pipeline",
     "type": "object",
     "$defs": {
@@ -142,7 +142,7 @@
                 "derep_tool": {
                     "type": "string",
                     "default": "skder",
-                    "description": "Dereplicator used by the scatter-gather subworkflow. Any registered adapter name (built-in: skder/drep/galah/sourmash, plus pip-installed plugins); RepGenR validates the name at stage start.",
+                    "description": "Dereplicator used by the scatter-gather subworkflow. Any registered adapter name (built-in: skder/drep/galah/sourmash, plus pip-installed plugins); RepGenR2 validates the name at stage start.",
                     "fa_icon": "fas fa-compress-arrows-alt"
                 },
                 "derep_primary_ani": {

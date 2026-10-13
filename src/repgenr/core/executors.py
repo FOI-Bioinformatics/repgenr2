@@ -1,6 +1,6 @@
 """Lightweight in-stage parallelism.
 
-The parallel work in RepGenR stages is subprocess-bound (progressiveMauve,
+The parallel work in RepGenR2 stages is subprocess-bound (progressiveMauve,
 dRep, skani, ...), so a thread pool is the right tool: the GIL is released while
 each external tool runs, and threads avoid the pickling constraints that
 ``multiprocessing`` imposes on closures/adapters. Cross-stage and HPC

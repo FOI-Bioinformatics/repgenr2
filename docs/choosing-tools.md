@@ -1,6 +1,6 @@
 # Choosing tools
 
-RepGenR has eight tool families, and most stages work with the defaults. This
+RepGenR2 has eight tool families, and most stages work with the defaults. This
 page helps when the defaults do not fit: it goes from the kind of dataset, to
 its size, to the individual families. Measurements come from
 [verification.md](verification.md) and

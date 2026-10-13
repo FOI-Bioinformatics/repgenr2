@@ -1,4 +1,4 @@
-"""RepGenR: Representative-Genome Repositories.
+"""RepGenR2: Representative-Genome Repositories.
 
 Modular pipeline for genome selection, dereplication, whole-genome alignment,
 SNP typing and phylogenetics. See the per-stage subcommands under
@@ -11,7 +11,7 @@ from __future__ import annotations
 from importlib.metadata import PackageNotFoundError, version
 
 try:
-    __version__ = version("repgenr")
+    __version__ = version("repgenr2")
 except PackageNotFoundError:  # running from a source tree without install
     __version__ = "0.0.0+unknown"
 

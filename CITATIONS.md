@@ -1,10 +1,10 @@
-# repgenr: Citations
+# RepGenR2: Citations
 
 ## Pipeline
 
-RepGenR builds representative-genome repositories and the associated FlexTaxD
+RepGenR2 builds representative-genome repositories and the associated FlexTaxD
 taxonomy. If you use it, please cite this repository:
-<https://github.com/druvus/repgenr>.
+<https://github.com/FOI-Bioinformatics/repgenr2>.
 
 ## Workflow managers
 

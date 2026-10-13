@@ -106,7 +106,7 @@ class Config:
             # included.
             reason = str(exc).splitlines()[0] if str(exc) else type(exc).__name__
             raise WorkdirError(
-                f"{path} is not a readable RepGenR record ({reason}). Restore it from a "
+                f"{path} is not a readable RepGenR2 record ({reason}). Restore it from a "
                 "backup, or move it aside and re-run the stages (each re-runs once)."
             ) from exc
 

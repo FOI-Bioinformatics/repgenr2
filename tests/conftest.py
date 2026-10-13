@@ -74,7 +74,7 @@ def workdir(tmp_path: Path) -> Path:
 
 @pytest.fixture
 def genome_files(workdir: Path) -> list[Path]:
-    """Create a small genomes/ dir with RepGenR-style filenames."""
+    """Create a small genomes/ dir with RepGenR2-style filenames."""
     gdir = workdir / "genomes"
     gdir.mkdir(parents=True)
     names = [

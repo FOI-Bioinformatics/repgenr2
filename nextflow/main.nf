@@ -1,6 +1,6 @@
 #!/usr/bin/env nextflow
 
-// RepGenR pipeline entry point (data-channel form).
+// RepGenR2 pipeline entry point (data-channel form).
 //
 // Stages exchange typed channel files -- metadata selection (or a reads
 // selection assembled per run), genome FASTAs,
@@ -20,7 +20,7 @@ workflow {
     // Print usage and exit before validation, so `--help` needs no other params.
     if (params.help) {
         log.info """
-        RepGenR -- ${workflow.manifest.description} (v${workflow.manifest.version})
+        RepGenR2 -- ${workflow.manifest.description} (v${workflow.manifest.version})
 
         Usage:
           nextflow run main.nf --outdir <DIR> [-profile standard|slurm|docker|singularity|wave|test]

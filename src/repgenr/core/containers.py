@@ -1,11 +1,11 @@
 """Container execution backend for external tools.
 
-RepGenR drives bioinformatics tools via :func:`repgenr.core.process.run`. When a
+RepGenR2 drives bioinformatics tools via :func:`repgenr.core.process.run`. When a
 container backend is active, each tool's argument vector is wrapped so it runs
 inside a pinned image (a BioContainer, the Cactus image, or a Wave-built image),
 which unblocks Linux-only tools on any host and pins tool versions.
 
-Only the external-tool subprocess is containerized; RepGenR's own Python (e.g.
+Only the external-tool subprocess is containerized; RepGenR2's own Python (e.g.
 the format converters) keeps running on the host and reads tool outputs from the
 bind-mounted working directory.
 

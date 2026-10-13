@@ -1,4 +1,4 @@
-"""RepGenR command-line interface (entry point).
+"""RepGenR2 command-line interface (entry point).
 
 Replaces the old ``repgenr.py`` string-rewriting dispatcher with a real Typer
 app. The app, top-level callback and shared stage harness live in

@@ -57,7 +57,7 @@ def versions(
     configure_logging(None, level=min(_RUN_STATE["log_level"], logging.WARNING))
     if not (workdir / CONFIG_FILENAME).exists():
         # A wrong -wd would otherwise print nothing and exit 0.
-        err = WorkdirError(f"No RepGenR run found at {workdir} (no {CONFIG_FILENAME}).")
+        err = WorkdirError(f"No RepGenR2 run found at {workdir} (no {CONFIG_FILENAME}).")
         typer.echo(f"ERROR {err}", err=True)
         raise typer.Exit(code=err.exit_code)
     from ..stages.metadata import gtdb_provenance
@@ -185,7 +185,7 @@ def status(
         if as_json:
             _echo_json(_status_envelope(workdir, None, [], None, notes, None))
             raise typer.Exit()
-        typer.echo(f"No RepGenR run found at {workdir} (no {CONFIG_FILENAME}).")
+        typer.echo(f"No RepGenR2 run found at {workdir} (no {CONFIG_FILENAME}).")
         typer.echo(notes[0])
         raise typer.Exit()
 
@@ -323,7 +323,7 @@ def _status_report(workdir: Path, cfg: Any) -> dict[str, Any]:
 def _render_status_text(report: dict[str, Any]) -> None:
     """The text form of `status`: one line per stage, then the next step."""
     workdir = report["workdir"]
-    typer.echo(f"RepGenR workdir: {workdir}")
+    typer.echo(f"RepGenR2 workdir: {workdir}")
     if not report["stages"]:
         for line in report["notes"]:
             typer.echo(line)

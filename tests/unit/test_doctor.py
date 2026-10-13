@@ -439,14 +439,14 @@ def test_malformed_record_is_a_config_failure_not_a_traceback(tmp_path: Path, te
     (wd / "repgenr.yaml").write_text(text, encoding="utf-8")
     findings = diagnose(wd)
     assert [(f.level, f.area) for f in findings] == [("fail", "config")]
-    assert "not a readable RepGenR record" in findings[0].message
+    assert "not a readable RepGenR2 record" in findings[0].message
     result = _runner.invoke(app, ["doctor", "-wd", str(wd)])
     assert result.exit_code == 7
     assert "[FAIL] config" in result.stdout
     for command in ("status", "versions"):
         result = _runner.invoke(app, [command, "-wd", str(wd)])
         assert result.exit_code == 3, result.output
-        assert "not a readable RepGenR record" in result.output
+        assert "not a readable RepGenR2 record" in result.output
 
 
 def test_interrupted_stage_without_params_is_a_failure(tmp_path: Path) -> None:

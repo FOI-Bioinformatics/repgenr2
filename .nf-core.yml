@@ -1,7 +1,7 @@
 repository_type: pipeline
 nf_core_version: 3.2.0
 lint:
-  # RepGenR is an nf-core-style pipeline but not a community pipeline, so the
+  # RepGenR2 is an nf-core-style pipeline but not a community pipeline, so the
   # nf-core branding/template checks do not apply. These are disabled while the
   # Phase 4 data-channel rewrite brings the layer up to the data/scaffolding
   # conventions; the remaining checks (schema, config, manifest) are enforced.

@@ -1,8 +1,8 @@
-# RepGenR documentation
+# RepGenR2 documentation
 
 | Page | Read it when |
 |------|--------------|
-| [install.md](install.md) | You are setting up RepGenR: the package, the external tools (one conda environment, several environments, or containers), databases, and how to verify the installation. |
+| [install.md](install.md) | You are setting up RepGenR2: the package, the external tools (one conda environment, several environments, or containers), databases, and how to verify the installation. |
 | [choosing-tools.md](choosing-tools.md) | You need to pick tools: which method suits a dataset type and size, the dereplicator and tree builder trade-offs, and each adapter's declared genome limit. |
 | [usage.md](usage.md) | You want to run the pipeline: the CLI stages, starting from local genomes, viruses, resume and `--force`, representative selection, inspecting and comparing dereplications, SNP typing and masking, tree2tax collapsing, the Nextflow layer (parameters, profiles, scaling, per-process configuration), running tools in containers (quick start), and troubleshooting. |
 | [cli-reference.md](cli-reference.md) | You need the exact options of a command. Generated from the command tree. |

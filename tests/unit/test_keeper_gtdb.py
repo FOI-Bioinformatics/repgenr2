@@ -377,7 +377,7 @@ def test_concurrent_opens_of_an_old_manifest_migrate_once(tmp_path, old_schema, 
     for trial in range(6):
         path = tmp_path / f"m{trial}.sqlite"
         conn = sqlite3.connect(path)
-        if wal:  # as every manifest RepGenR writes; a copied or hand-made one may not be
+        if wal:  # as every manifest RepGenR2 writes; a copied or hand-made one may not be
             conn.execute("PRAGMA journal_mode=WAL")
         conn.executescript(schema)
         conn.close()

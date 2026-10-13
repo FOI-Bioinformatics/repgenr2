@@ -71,7 +71,7 @@ def diagnose(workdir: Path, *, quick: bool = False) -> list[Finding]:
     """
     workdir = Path(workdir)
     if not (workdir / CONFIG_FILENAME).exists():
-        return [Finding("warn", "config", f"No RepGenR run found at {workdir}.")]
+        return [Finding("warn", "config", f"No RepGenR2 run found at {workdir}.")]
 
     findings: list[Finding] = []
     try:
