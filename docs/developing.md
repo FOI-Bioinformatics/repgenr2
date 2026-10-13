@@ -349,8 +349,9 @@ mytool = "repgenr.dereplicators.mytool:MyDereplicator"
 ```
 
 (the groups are `repgenr.dereplicators`, `.aligners`, `.snptypers`,
-`.treebuilders`, `.maskers`). Third parties add the same entry point in their
-own package's metadata. Programmatic registration (tests, embedders) goes
+`.treebuilders`, `.maskers`, `.assemblers`, `.classifiers` and `.polishers`).
+Third parties add the same entry point in their own package's metadata and
+depend on the distribution `repgenr2`. Programmatic registration (tests, embedders) goes
 through the public API: `registry.register("mytool", MyDereplicator)` /
 `registry.unregister("mytool")`, or the `register_tool` pytest fixture.
 

@@ -8,9 +8,10 @@ taxonomy files for downstream tools such as FlexTaxD.
 It is the second generation of RepGenR (Representative-Genome Repositories):
 a modular, importable Python package (Python 3.12+, distributed as `repgenr2`,
 installed as the `repgenr` command) with eight pluggable tool families and an
-optional Nextflow pipeline for scatter-gather runs on HPC and cloud. The largest end-to-end runs recorded are 1157
-bacterial genomes (one genus, 12 minutes) and 1256 viral genomes
-(Hepeviridae). Larger sizes are measured per tool in the
+optional Nextflow pipeline for scatter-gather runs on HPC and cloud. The
+largest end-to-end runs recorded are 1157 bacterial genomes (one genus, 12
+minutes) and 1256 viral genomes (Hepeviridae). Larger sizes are measured per
+tool in the
 [scaling audit](docs/audit/scaling-audit.md).
 
 ## Pipeline

@@ -17,8 +17,10 @@ All notable changes to RepGenR2 are documented here. The format follows
   distributions own the same files, `__version__` reads the `repgenr2`
   metadata and reports `0.0.0+unknown` without it, and a later
   `pip uninstall repgenr` would remove files the new install needs. The
-  Nextflow manifest name and the schema and citation URLs point at the new
-  repository.
+  Nextflow manifest name is `repgenr2`; the manifest home page, the schema
+  `$id`, the citation and the new `[project.urls]` refer to the new
+  repository. User-visible messages name RepGenR2 (for example "No RepGenR2
+  run found"), which affects scripts that match on that output.
 - `dereplicate --process-size`: before a further level over the union of
   chunk representatives, one chunk of that level is run as a probe. A level
   costs the tool's per-genome work for every representative plus about N/U
