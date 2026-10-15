@@ -449,6 +449,12 @@ def phylo_params(
         if effective_source != "snptype":
             hint = ", or on run with --with-snptype" if on_run else ""
             raise UserInputError(f"--mask applies only with --msa-source snptype{hint}.")
+    # Likewise --core-fraction: the typing pass filters the core, an aligner
+    # alignment is left as it is, so the value would be dropped silently.
+    core_fraction = extra.get("core_fraction") if extra is not _UNSET else None
+    if core_fraction is not None and effective_source != "snptype":
+        hint = ", or on run with --with-snptype" if on_run else ""
+        raise UserInputError(f"--core-fraction applies only with --msa-source snptype{hint}.")
     return _build(
         PhyloParams,
         treebuilder=treebuilder,

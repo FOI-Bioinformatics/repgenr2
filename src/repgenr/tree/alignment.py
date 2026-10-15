@@ -54,26 +54,39 @@ def _records(path: Path):
 
 
 def column_bases(path: Path, logger: logging.Logger | None = None) -> npt.NDArray[np.uint8]:
-    """For each column, the OR of the base bits of every genome (one pass).
+    """For each column, the OR of the base bits of every genome (one pass)."""
+    return column_stats(path, logger)[0]
+
+
+def column_stats(
+    path: Path, logger: logging.Logger | None = None
+) -> tuple[npt.NDArray[np.uint8], npt.NDArray[np.uint32], int]:
+    """Per column, the OR of the base bits and the number of genomes with a
+    called base, plus the number of records (one pass).
 
     Records of unequal length are compared over the shortest; the rest is
     reported once, since a whole-genome alignment should be rectangular.
     """
     state: npt.NDArray[np.uint8] | None = None
+    called: npt.NDArray[np.uint32] | None = None
     shortest = longest = 0
+    n_records = 0
     for name, seq in _records(path):
         if not name:
             raise WorkdirError(f"{path.name}: a record has no name in its header line")
         bits = _BITS[np.frombuffer(seq, dtype=np.uint8)]
-        if state is None:
+        n_records += 1
+        if state is None or called is None:
             state = bits.copy()
+            called = (bits != 0).astype(np.uint32)
             shortest = longest = len(bits)
             continue
         n = min(len(bits), len(state))
         shortest, longest = min(shortest, len(bits)), max(longest, len(bits))
         state[:n] |= bits[:n]
-    if state is None:
-        return np.zeros(0, dtype=np.uint8)
+        called[:n] += bits[:n] != 0
+    if state is None or called is None:
+        return np.zeros(0, dtype=np.uint8), np.zeros(0, dtype=np.uint32), 0
     if shortest != longest:
         if logger is not None:
             logger.warning(
@@ -83,20 +96,80 @@ def column_bases(path: Path, logger: logging.Logger | None = None) -> npt.NDArra
                 longest,
                 shortest,
             )
-        state = state[:shortest]
-    return state
+        state, called = state[:shortest], called[:shortest]
+    return state, called, n_records
+
+
+def completeness_mask(
+    called: npt.NDArray[np.uint32], n_records: int, min_fraction: float | None
+) -> npt.NDArray[np.bool_]:
+    """True for the columns where at least ``min_fraction`` of the genomes have
+    a called base; every column when ``min_fraction`` is None."""
+    if min_fraction is None or n_records == 0:
+        return np.ones(len(called), dtype=bool)
+    return called >= min_fraction * n_records - 1e-9
+
+
+def filter_columns_by_completeness(
+    msa: Path, out: Path, min_fraction: float, logger: logging.Logger | None = None
+) -> tuple[int, int]:
+    """Write ``msa`` to ``out`` without the columns where fewer than
+    ``min_fraction`` of the genomes have a base; return (kept, removed)."""
+    records = list(_records(msa))
+    if any(not name for name, _ in records):
+        raise WorkdirError(f"{msa.name}: a record has no name in its header line")
+    if not records:
+        with atomic_path(out) as tmp:
+            tmp.write_text("", encoding="utf-8")
+        return (0, 0)
+    length = min(len(seq) for _, seq in records)
+    if logger is not None and any(len(seq) != length for _, seq in records):
+        logger.warning(
+            "%s: records differ in length; columns beyond %d are dropped", msa.name, length
+        )
+    called = np.zeros(length, dtype=np.uint32)
+    for _, seq in records:
+        called += _BITS[np.frombuffer(seq[:length], dtype=np.uint8)] != 0
+    keep = completeness_mask(called, len(records), min_fraction)
+    with atomic_path(out) as tmp, open(tmp, "wb") as fo:
+        for name, seq in records:
+            kept = np.frombuffer(seq[:length], dtype=np.uint8)[keep].tobytes()
+            fo.write(b">" + name.encode("utf-8") + b"\n" + kept + b"\n")
+    kept_n = int(keep.sum())
+    if logger is not None:
+        logger.info(
+            "%s: %d of %d columns have a base in at least %.0f%% of the genomes and are kept",
+            msa.name,
+            kept_n,
+            length,
+            100 * min_fraction,
+        )
+    return kept_n, int(length - kept_n)
+
+
+def columns_at_completeness(msa: Path, min_fraction: float) -> tuple[int, int]:
+    """(columns kept, columns in all) if ``min_fraction`` were applied to ``msa``."""
+    _state, called, n = column_stats(msa)
+    return int(completeness_mask(called, n, min_fraction).sum()), int(len(called))
 
 
 def constant_site_counts(
-    path: Path, logger: logging.Logger | None = None
+    path: Path,
+    logger: logging.Logger | None = None,
+    *,
+    min_fraction: float | None = None,
 ) -> tuple[tuple[int, int, int, int], int]:
     """(constant A, C, G, T column counts, variable column count) of ``path``.
 
     A column is constant when exactly one of A, C, G and T occurs in it, in
     however many genomes; a column with two or more bases is variable; a
-    column with no base at all is neither.
+    column with no base at all is neither. With ``min_fraction`` only the
+    columns where at least that fraction of the genomes have a base are
+    counted, the same rule the variable-site alignment is filtered by.
     """
-    state = column_bases(path, logger)
+    state, called, n = column_stats(path, logger)
+    keep = completeness_mask(called, n, min_fraction)
+    state = state[keep]
     counts = tuple(int(np.count_nonzero(state == (1 << bit))) for bit in range(4))
     variable = int(np.count_nonzero(_POPCOUNT[state] >= 2))
     return (counts[0], counts[1], counts[2], counts[3]), variable
@@ -142,6 +215,7 @@ def write_alignment_stats(
     *,
     source: str,
     masked: bool,
+    core_fraction: float | None = None,
 ) -> Path:
     """Write the sidecar next to the variable-site alignment ``beside``.
 
@@ -159,6 +233,7 @@ def write_alignment_stats(
         "constant_sites": dict(zip(_BASES, counts, strict=True)),
         "variable_sites": variable,
         "masked": masked,
+        "core_fraction": core_fraction,
     }
     with atomic_path(path) as tmp:
         tmp.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")

@@ -23,6 +23,7 @@ from .base import (
     HELP_COLLAPSE_DIAMETER,
     HELP_COLLAPSE_LENGTH,
     HELP_COLLAPSE_SUPPORT,
+    HELP_CORE_FRACTION,
     HELP_DEREP_TOOL_ARG,
     HELP_INCLUDE_DEREPLICATED,
     HELP_KEEP_FILES,
@@ -181,6 +182,9 @@ def phylo_build_cmd(
     no_outgroup: bool = typer.Option(False, "--no-outgroup", help=HELP_NO_OUTGROUP),
     root: str | None = typer.Option(None, "--root", help=HELP_ROOT),
     bootstrap: int = typer.Option(0, "-B", "--bootstrap", min=0, help=HELP_BOOTSTRAP),
+    core_fraction: float | None = typer.Option(
+        None, "--core-fraction", min=0.0, max=1.0, help=HELP_CORE_FRACTION
+    ),
     reference: str | None = typer.Option(None, "--reference", help=HELP_REFERENCE),
     aligner_arg: list[str] = typer.Option([], "--aligner-arg", help=HELP_ALIGNER_ARG),
     threads: int = typer.Option(
@@ -223,6 +227,10 @@ def phylo_build_cmd(
         require_mask(mask)
         if mask != "none" and msa_source != "snptype":
             raise UserInputError("--mask applies only with --msa-source snptype.")
+        # Not refused with --msa: Nextflow passes the same phylo_args to the
+        # tree half, where the typing pass does not run and the value is idle.
+        if core_fraction is not None and msa_source != "snptype" and msa is None:
+            raise UserInputError("--core-fraction applies only with --msa-source snptype.")
         if msa_only and msa is not None:
             raise UserInputError("--msa-only builds an alignment; --msa consumes one. Pick one.")
         if msa is not None and not msa.is_file():
@@ -241,6 +249,7 @@ def phylo_build_cmd(
             extra={
                 **_parse_key_values(aligner_arg, "--aligner-arg"),
                 **({"mask": mask} if mask != "none" else {}),
+                **({"core_fraction": core_fraction} if core_fraction is not None else {}),
             },
         )
         phylo_build(

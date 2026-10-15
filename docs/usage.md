@@ -1463,6 +1463,30 @@ whole-genome alignment, so its tree has no correction and `phylo` warns;
 compare topologies and supports rather than lengths there, or build the tree
 from a whole-genome alignment (`phylo-build --msa snp/full_alignment.fasta`).
 
+The variable-site alignment of the mapping typers keeps every column in
+which two bases occur, however many genomes lack a base there, so a position
+covered in two genomes out of seventy is in it. `--core-fraction F` on
+`snptype`, `phylo`, `phylo-build` and `run` keeps only the columns where at
+least the fraction F of the genomes have a called base (a soft core; 0.95 is
+the usual choice), applied after masking, and counts the constant sites under
+the same rule. It is unset by default: every variable column is kept, and
+the log reports how many columns a fraction of 0.95 would keep, so the
+effect can be seen before the rule is chosen; the default may become 0.95
+in a later release, after the reported counts have been compared on real
+data sets. The value is part of the alignment reuse key and of
+`alignment_stats.json`. Three cases differ from the description above.
+`snippy`'s core already holds only the sites called in every genome, so the
+filter changes nothing there, while the constant sites are still counted at
+F; `ska2` already keeps the split k-mers present in a fraction `min_freq`
+of the samples (0.9 by default), so `--core-fraction` is a second threshold
+on top of it; and after `--mask`, the bases the masker replaced count as
+missing, so a column inside a recombination block shared by more than 1 - F
+of the genomes is dropped, while the constant sites come from the unmasked
+alignment. It applies only with `--msa-source snptype` (or, on `run`, to
+the standalone `snptype` stage under `--with-snptype`); an aligner
+alignment is left as it is and the option is refused there, and a tree
+builder that works from the genomes warns that it has no effect.
+
 Gubbins expects isolates of one species. The masker estimates how much of the
 alignment is variable, warns above 10%, and repeats the figure if Gubbins
 fails: on a genus-level set its scan can die with a bus error (see

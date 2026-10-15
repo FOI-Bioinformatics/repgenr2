@@ -342,6 +342,28 @@ def test_run_with_snptype_passes_mask_to_the_snptype_stage(monkeypatch, tmp_path
     assert "mask" not in built["phylo"].extra
 
 
+def test_run_core_fraction_with_snptype_goes_to_the_snptype_stage_only(
+    monkeypatch, tmp_path
+) -> None:
+    built: dict[str, object] = {}
+
+    def fake_run(stage, workdir, build, *, create=False):
+        built[stage] = build()
+
+    monkeypatch.setattr(cmd_run, "_run", fake_run)
+    monkeypatch.setattr(cmd_run, "_preflight_tools", lambda *a, **k: None)
+    result = _runner.invoke(
+        app,
+        [
+            *("run", "-wd", str(tmp_path / "wd"), "-l", "genus", "-tg", "francisella"),
+            *("--with-snptype", "--core-fraction", "0.9"),
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    assert built["snptype"].core_fraction == 0.9
+    assert "core_fraction" not in built["phylo"].extra
+
+
 def test_run_mask_without_snptype_source_is_still_rejected(monkeypatch, tmp_path) -> None:
     calls = _record(monkeypatch)
     result = _runner.invoke(

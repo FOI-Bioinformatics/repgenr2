@@ -27,6 +27,7 @@ from .base import (
     HELP_COLLAPSE_DIAMETER,
     HELP_COLLAPSE_LENGTH,
     HELP_COLLAPSE_SUPPORT,
+    HELP_CORE_FRACTION,
     HELP_DATASET,
     HELP_DEREP_TOOL_ARG,
     HELP_GTDB_RELEASE,
@@ -364,6 +365,9 @@ def run(
         "--include-dereplicated/--no-include-dereplicated",
         help=HELP_INCLUDE_DEREPLICATED,
     ),
+    core_fraction: float | None = typer.Option(
+        None, "--core-fraction", min=0.0, max=1.0, help=HELP_CORE_FRACTION
+    ),
     collapse_support: float | None = typer.Option(
         None,
         "--collapse-support",
@@ -444,9 +448,12 @@ def run(
         # With --with-snptype and the aligner MSA source, --mask belongs to the
         # standalone snptype stage only; phylo would reject it there.
         mask_for_phylo = mask != "none" and (msa_source == "snptype" or not with_snptype)
+        # The same holds for --core-fraction, which the typing pass applies.
+        core_for_phylo = core_fraction is not None and (msa_source == "snptype" or not with_snptype)
         phylo_extra = {
             **_parse_key_values(aligner_arg, "--aligner-arg"),
             **({"mask": mask} if mask_for_phylo else {}),
+            **({"core_fraction": core_fraction} if core_for_phylo else {}),
         }
         dereplicate_params(
             tool=derep_tool,
@@ -666,6 +673,7 @@ def run(
                 reference=reference,
                 all_genomes=all_genomes,
                 mask=mask,
+                core_fraction=core_fraction,
                 allow_incomplete=allow_incomplete,
                 extra=_parse_key_values(aligner_arg, "--aligner-arg"),
             ),

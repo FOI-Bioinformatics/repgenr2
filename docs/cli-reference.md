@@ -102,6 +102,7 @@ is 'vmetadata --source'. --platform filters the sequencing platform with
 | `--root-name` | `root` | Label of the top node. FlexTaxD expects 'root'. |
 | `--remove-outgroup` | off | Leave the outgroup out of the taxonomy after rooting. |
 | `--include-dereplicated`, `--no-include-dereplicated` | on | List redundant genomes under their representative in the taxonomy. |
+| `--core-fraction` |  | Keep only the variable columns where at least this fraction of the genomes have a called base (a soft core, 0 to 1). Unset keeps every variable column and the log reports what 0.95 would keep. |
 | `--collapse-support` |  | Merge nodes whose support is below this fraction into their parent. |
 | `--collapse-length` |  | Merge nodes whose branch is shorter than this length into their parent. |
 | `--collapse-diameter` |  | Merge every clade whose leaf-to-leaf distance is within this value into one node, keeping the fewest such clades (in the tree's own units). |
@@ -313,6 +314,7 @@ commands it selects the dereplicator.
 | `--reference` |  | Reference genome: a filename, 'medoid' (the default: the genome nearest to all others by sketch ANI, when the genomes are sketched and sourmash is at hand) or 'first'. |
 | `--all-genomes` | off | Use all genomes, not only the representatives. |
 | `--mask` | `none` | Recombination masking of the SNP alignment: none, gubbins. |
+| `--core-fraction` |  | Keep only the variable columns where at least this fraction of the genomes have a called base (a soft core, 0 to 1). Unset keeps every variable column and the log reports what 0.95 would keep. |
 | `-t`, `--threads` | `16` | Threads for the external tool (default 16, or the CPU limit when lower). |
 | `--tool-arg` |  | Tool tuning as key=value (repeatable). |
 | `--allow-incomplete` | off | Proceed with a warning when the input genome set is incomplete. |
@@ -336,6 +338,7 @@ Build a phylogenetic tree from an alignment, SNP alignment, or directly.
 | `--aligner-arg` |  | Aligner, SNP typer, masker or tree builder tuning as key=value (repeatable), e.g. kmer=15 (sibeliaz), seed_weight=11 (progressivemauve) or model=GTR+G (iqtree, raxmlng). |
 | `-t`, `--threads` | `16` | Threads for the external tool (default 16, or the CPU limit when lower). |
 | `--mask` | `none` | Recombination masking of the SNP alignment: none, gubbins. Needs --msa-source snptype. |
+| `--core-fraction` |  | Keep only the variable columns where at least this fraction of the genomes have a called base (a soft core, 0 to 1). Unset keeps every variable column and the log reports what 0.95 would keep. |
 | `--allow-incomplete` | off | Proceed with a warning when the input genome set is incomplete. |
 
 ### tree2tax
@@ -600,6 +603,8 @@ Here --outgroup-accession takes a file that names the accession, not the accessi
 | `--root` |  | How phylo roots tree/tree.nwk: outgroup (on the branch to the outgroup), midpoint, or none (as the tree builder wrote it). Default: outgroup when an outgroup is staged and --no-outgroup is not given, else none. |
 | `-B`, `--bootstrap` | `0` | Bootstrap replicates. 0 turns bootstrapping off; IQ-TREE needs at least 1000 when it is on. |
 | `--reference` |  | Reference genome: a filename, 'medoid' (the default: the genome nearest to all others by sketch ANI, when the genomes are sketched and sourmash is at hand) or 'first'. |
+| `--core-fraction` |  | Keep only the variable columns where at least this fraction of the genomes have a called base (a soft core, 0 to 1). Unset keeps every variable column and the log reports what 0.95 would keep. |
+| `--reference` |  | Reference genome filename. |
 | `--aligner-arg` |  | Aligner, SNP typer, masker or tree builder tuning as key=value (repeatable), e.g. kmer=15 (sibeliaz), seed_weight=11 (progressivemauve) or model=GTR+G (iqtree, raxmlng). |
 | `-t`, `--threads` | `16` | Threads for the external tool (default 16, or the CPU limit when lower). |
 | `--mask` | `none` | Recombination masking of the SNP alignment: none, gubbins. Needs --msa-source snptype. |
