@@ -7,8 +7,10 @@ label or a label under two parents corrupts the tree; a third column is read
 as a rank and an empty one silently inherits the previous row's, so the file
 carries two columns only; the top node must be ``root``, which FlexTaxD
 pre-creates and validates from; the genome map has no header and two columns
-whose second names a node of the relation file. FlexTaxD itself is not a test
-dependency; a live test imports the files where the binary is present.
+whose second names a node of the relation file. The map check is stricter
+than FlexTaxD, which accepts a third column (a reference flag) and only warns
+about an unknown node. FlexTaxD itself is not a test dependency; a live test
+imports the files where the binary is present.
 """
 
 from __future__ import annotations
@@ -41,9 +43,10 @@ def _mirror_read(t2t: Path, gmap: Path) -> tuple[dict[str, str], list[tuple[str,
         data = row.strip().split("\t")
         if data[0] == "":
             continue  # FlexTaxD skips an empty row
+        # A row with an empty field loses that column when FlexTaxD strips
+        # it, so two fields after the strip also means no empty label.
         assert len(data) == 2, f"a third column would be read as a rank: {row!r}"
         child, parent = (data[1], data[0]) if swap else (data[0], data[1])
-        assert child and parent, f"an empty label becomes a node named '': {row!r}"
         assert parent_of.setdefault(child, parent) == parent, f"{child!r} under two parents"
     nodes = set(parent_of) | set(parent_of.values())
     tops = nodes - set(parent_of)

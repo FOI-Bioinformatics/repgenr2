@@ -707,4 +707,4 @@ def test_tree2tax_top_node_not_root_is_a_warning(tmp_path: Path) -> None:
     (wd / "genomes_map.tsv").write_text(_MAP, encoding="utf-8")
     findings = diagnose(wd)
     assert "FlexTaxD validates" in _messages(findings, "warn")
-    assert "tree2tax" not in _messages(findings, "fail")
+    assert "fail" not in {f.level for f in findings if f.area == "tree2tax"}
