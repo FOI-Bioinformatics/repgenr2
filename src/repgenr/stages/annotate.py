@@ -13,7 +13,7 @@ version or extras); records no longer in the set are removed.
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -82,6 +82,7 @@ def annotate_core(
     logger: logging.Logger,
     *,
     annotator: Annotator | None = None,
+    versions: dict[str, str] | None = None,
 ) -> tuple[AnnotateResult, dict[str, str]]:
     """Annotate one genome into ``out_dir`` (stateless; no config).
 
@@ -90,17 +91,20 @@ def annotate_core(
     into place. Returns the result and the tool versions.
     """
     annotator = annotator or annotator_registry.create(tool)
-    versions = annotator.preflight()
-    if params.db is not None:
-        versions[f"{tool}-db"] = annotator.database_version(params.db)
+    # The caller may have preflighted once for the whole set: under a
+    # container backend every check is a container run.
+    if versions is None:
+        versions = annotator.preflight()
+        if params.db is not None:
+            versions[f"{tool}-db"] = annotator.database_version(params.db)
     parent = out_dir.parent
     parent.mkdir(parents=True, exist_ok=True)
     tmp = cache.partial_dir(parent, out_dir.name)
     remove_tree(tmp)
     inputs = scratch / "inputs"
     remove_tree(inputs)
-    staged = stage_plain_inputs([genome], annotator.capabilities, inputs, logger)
     try:
+        staged = stage_plain_inputs([genome], annotator.capabilities, inputs, logger)
         result = annotator.call(staged[genome], name, tmp, params, logger)
     except BaseException:
         remove_tree(tmp)
@@ -137,13 +141,13 @@ def annotate_build(params: AnnotateBuildParams, logger: logging.Logger) -> Annot
         params.genome,
         name,
         params.out_dir / name,
-        params.out_dir / "scratch",
+        params.out_dir / ".scratch",
         params.tool,
         AnnotateParams(threads=params.threads, db=db, extra=dict(params.extra)),
         logger,
         annotator=annotator,
     )
-    remove_tree(params.out_dir / "scratch")
+    remove_tree(params.out_dir / ".scratch")
     if params.versions_out is not None:
         write_versions_fragment(params.versions_out, versions)
     logger.info("Annotated %s into %s", name, result.gff.parent)
@@ -182,8 +186,19 @@ def run(ctx: WorkdirContext, params: AnnotateStageParams) -> AnnotateSummary:
     records = cache.read_index(directory)
     names = [record_name(g) for g, _ in sets]
     if len(set(names)) != len(names):
-        raise UserInputError("Two genomes share a record name; annotation keys on the name.")
-    removed = cache.remove_stale(directory, records, names, logger)
+        seen: dict[str, list[Path]] = {}
+        for genome, _which in sets:
+            seen.setdefault(record_name(genome), []).append(genome)
+        clash = [
+            f"{name} ({', '.join(str(p) for p in paths)})"
+            for name, paths in sorted(seen.items())
+            if len(paths) > 1
+        ]
+        raise UserInputError(
+            "Two genomes share a record name, which the annotation cache keys on: "
+            + "; ".join(clash)
+        )
+    removed = cache.remove_stale(directory, records, names, ctx.workdir, logger)
     if removed:
         cache.write_index(directory, records)
 
@@ -205,6 +220,11 @@ def run(ctx: WorkdirContext, params: AnnotateStageParams) -> AnnotateSummary:
             )
             and not ctx.force
         ):
+            # A genome that moved between the set and the outgroup keeps its
+            # annotation; only the column that names the set is updated.
+            current = records[name]
+            if current.set != which:
+                records[name] = replace(current, set=which)
             reused += 1
             continue
         logger.info("Annotating %s with %s", name, params.tool)
@@ -217,6 +237,7 @@ def run(ctx: WorkdirContext, params: AnnotateStageParams) -> AnnotateSummary:
             AnnotateParams(threads=params.threads, db=db, extra=dict(params.extra)),
             logger,
             annotator=annotator,
+            versions=dict(versions),
         )
         records[name] = AnnotationRecord(
             record_name=name,

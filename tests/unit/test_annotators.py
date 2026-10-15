@@ -141,3 +141,48 @@ def test_annotators_are_registered_and_never_auto() -> None:
     assert registry.get("bakta").requires_database is True
     assert registry.get("prokka").requires_database is False
     assert registry.get("bakta").capabilities.auto_eligible is False
+
+
+def test_read_db_version_tolerates_an_old_or_broken_file(tmp_path: Path) -> None:
+    db = tmp_path / "db"
+    db.mkdir()
+    # Database version 5.0 had no "type" field.
+    (db / "version.json").write_text('{"major": 5, "minor": 0}', encoding="utf-8")
+    assert bk.read_db_version(db) == "5.0"
+    (db / "version.json").write_text("[1, 2]", encoding="utf-8")
+    with pytest.raises(WorkdirError, match="JSON object"):
+        bk.read_db_version(db)
+    (db / "version.json").write_text("{not json", encoding="utf-8")
+    with pytest.raises(WorkdirError, match="unreadable"):
+        bk.read_db_version(db)
+
+
+def test_bakta_refuses_skip_cds(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setattr(bk, "run_tool", _fake([], gff_suffix=".gff3"))
+    with pytest.raises(UserInputError, match="skip_cds"):
+        bk.BaktaAnnotator().call(
+            _genome(tmp_path),
+            "x",
+            tmp_path / "o",
+            AnnotateParams(db=_db(tmp_path), extra={"skip_cds": True}),
+            _LOG,
+        )
+    assert "skip_cds" not in bk.BaktaAnnotator.capabilities.accepted_extras
+
+
+def test_prokka_explains_a_long_contig_name(tmp_path: Path, monkeypatch) -> None:
+    from repgenr.core.errors import ToolExecutionError
+
+    genome = tmp_path / "Fam_Gen_sp_GCA_1.fasta"
+    genome.write_text(">NODE_1_length_123456_cov_7.8901234_component_0\nACGT\n", encoding="utf-8")
+
+    def failing(caps, cmd, **k):
+        raise ToolExecutionError("prokka failed", 1)
+
+    monkeypatch.setattr(pk, "run_tool", failing)
+    with pytest.raises(WorkdirError, match="compliant=true"):
+        pk.ProkkaAnnotator().call(genome, "x", tmp_path / "o", AnnotateParams(), _LOG)
+    # A short contig name leaves the tool's own error alone.
+    genome.write_text(">c1\nACGT\n", encoding="utf-8")
+    with pytest.raises(ToolExecutionError):
+        pk.ProkkaAnnotator().call(genome, "x", tmp_path / "o2", AnnotateParams(), _LOG)

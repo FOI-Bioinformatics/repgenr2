@@ -1,10 +1,16 @@
 """prokka annotator (no database to download).
 
-Command surface checked against prokka 1.14 (bioconda): ``prokka --outdir
+Command surface checked against prokka 1.15.6 (bioconda): ``prokka --outdir
 DIR --prefix NAME --cpus N --force [--kingdom K --genus G --species S
 --compliant --centre C --gcode N] GENOME`` writes ``NAME.gff`` (FASTA
 appended), ``NAME.faa`` and ``NAME.ffn``; the GFF is copied as
-``NAME.gff3`` so every annotator leaves the same file names.
+``NAME.gff3`` so every annotator leaves the same file names (prokka's own
+``NAME.gff`` is left beside it, as it writes it).
+
+prokka refuses a contig name longer than 37 characters unless it renames
+the contigs (``compliant=true`` with ``centre=X``), which assemblies from
+the reads route hit (``NODE_1_length_..._cov_...``); the failure is caught
+and says so. ``compliant`` also drops contigs under 200 bases.
 """
 
 from __future__ import annotations
@@ -16,11 +22,28 @@ from pathlib import Path
 
 from ..core.binaries import BinarySpec
 from ..core.containers import run_tool
-from ..core.errors import WorkdirError
+from ..core.errors import ToolExecutionError, WorkdirError
 from ..core.plugins import ToolCapabilities, parse_extra_bool
 from .base import AnnotateParams, AnnotateResult, Annotator, require_fasta_section
 
 _VALUE_FLAGS = ("kingdom", "genus", "species", "strain", "centre", "gcode")
+
+
+_PROKKA_MAX_CONTIG_NAME = 37
+
+
+def _long_contig_name(genome: Path) -> bool:
+    """Whether a FASTA header's first token is too long for prokka."""
+    try:
+        with open(genome, "rb") as fo:
+            for raw in fo:
+                if raw.startswith(b">"):
+                    name = raw[1:].split()[0] if raw[1:].split() else b""
+                    if len(name) > _PROKKA_MAX_CONTIG_NAME:
+                        return True
+    except OSError:
+        return False
+    return False
 
 
 class ProkkaAnnotator(Annotator):
@@ -59,13 +82,23 @@ class ProkkaAnnotator(Annotator):
             if key in params.extra and str(params.extra[key]).strip():
                 cmd += ["--" + key, str(params.extra[key])]
         cmd.append(genome)
-        run_tool(
-            self.capabilities,
-            cmd,
-            logger=logger,
-            log_prefix="prokka",
-            extra_mounts=[os.path.dirname(os.path.abspath(genome))],
-        )
+        try:
+            run_tool(
+                self.capabilities,
+                cmd,
+                logger=logger,
+                log_prefix="prokka",
+                extra_mounts=[os.path.dirname(os.path.abspath(genome))],
+            )
+        except ToolExecutionError as exc:
+            if _long_contig_name(genome):
+                raise WorkdirError(
+                    f"prokka failed on {genome.name}, whose contig names are longer than the "
+                    "37 characters it accepts (assembler contig names usually are). Pass "
+                    "--tool-arg compliant=true --tool-arg centre=X to let prokka rename them "
+                    "(it then also drops contigs under 200 bases), or annotate with bakta."
+                ) from exc
+            raise
         gff = out_dir / f"{record_name}.gff"
         if not gff.is_file():
             raise WorkdirError(f"prokka wrote no {gff.name} in {out_dir}")

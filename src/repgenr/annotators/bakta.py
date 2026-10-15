@@ -31,7 +31,6 @@ _SKIP_FLAGS = (
     "skip_ncrna",
     "skip_ncrna_region",
     "skip_crispr",
-    "skip_cds",
     "skip_pseudo",
     "skip_sorf",
     "skip_gap",
@@ -63,10 +62,18 @@ def check_bakta_db(db: Path | None) -> Path:
 
 
 def read_db_version(db: Path) -> str:
+    """``<major>.<minor>[-<type>]`` from the database's version.json.
+
+    The ``type`` field (light or full) exists from database version 5.1; an
+    older file gives the version alone.
+    """
+    path = db / "version.json"
     try:
-        data = json.loads((db / "version.json").read_text(encoding="utf-8"))
+        data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError) as exc:
-        raise WorkdirError(f"{db / 'version.json'} is unreadable: {exc}") from exc
+        raise WorkdirError(f"{path} is unreadable: {exc}") from exc
+    if not isinstance(data, dict):
+        raise WorkdirError(f"{path} does not hold a JSON object; not a bakta database.")
     major, minor = data.get("major", ""), data.get("minor", "")
     kind = data.get("type", "")
     return f"{major}.{minor}{'-' + kind if kind else ''}"
@@ -100,6 +107,11 @@ class BaktaAnnotator(Annotator):
         db = check_bakta_db(params.db)
         out_dir.mkdir(parents=True, exist_ok=True)
         extra = {**self.capabilities.default_params, **params.extra}
+        if parse_extra_bool(extra, "skip_cds", False):
+            raise UserInputError(
+                "bakta skip_cds leaves no protein-coding genes, which the core-gene route "
+                "needs; drop it, or annotate with another tool."
+            )
         cmd: list[str | Path] = [
             "bakta",
             "--db",

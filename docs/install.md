@@ -284,7 +284,7 @@ the `envs/` files, and the environment that holds each tool is listed in
 | Classifier | sourmash | `sourmash` | yes | `sourmash:4.9.4` | a GTDB sourmash sketch and its lineages CSV |
 | Polisher | medaka | `medaka` | no | `medaka:2.2.2` | medaka models. Reads from SRA have no basecaller in their headers; the adapter then assumes ONT's bacterial R10.4.1 model and records it. Give another with `--tool-arg model=...` |
 | Polisher | racon | `racon`, `minimap2` | yes | `racon:1.5.0`; minimap2 runs from `minimap2:2.28` | none |
-| Annotator | bakta | `bakta` | yes | `bakta:1.12.2` | bakta database: `bakta_db download --output DIR --type light` (about 4 GB; `--type full` 84 GB, more specific CDS annotation), then `--bakta-db DIR` or `BAKTA_DB` |
+| Annotator | bakta | `bakta` | yes | `bakta:1.12.2` | bakta database: `bakta_db download --output DIR --type light` (1.4 GB download, about 4 GB unpacked; `--type full` is 30 GB and about 84 GB unpacked, with more specific CDS annotation), then `--bakta-db DIR` or `BAKTA_DB` |
 | Annotator | prokka | `prokka` | no (tbl2asn is not packaged for arm64) | `prokka:1.15.6` | none |
 | Quality (reads chain) | checkm2 | `checkm2` | no | `checkm2:1.1.0` | CheckM2 database: `checkm2 database --download`, then `--checkm2-db` or `CHECKM2DB` |
 

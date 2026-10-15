@@ -20,12 +20,10 @@ from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, fields
 from pathlib import Path
 
-from .contracts import atomic_replace
+from .contracts import ANNOTATIONS_TSV, atomic_replace
 from .errors import WorkdirError
 from .inputs import file_digest
 
-ANNOTATIONS_DIR = "annotations"
-ANNOTATIONS_TSV = "annotations.tsv"
 GFF_SUFFIX = ".gff3"
 _PARTIAL = ".partial"
 SET_GENOMES = "genomes"
@@ -50,7 +48,23 @@ COLUMNS = tuple(f.name for f in fields(AnnotationRecord))
 
 
 def extra_text(extra: Mapping[str, object]) -> str:
-    return ",".join(f"{k}={extra[k]}" for k in sorted(extra))
+    """The tuning as a stable string: a boolean is normalised, so ``True`` and
+    ``"true"`` describe one setting and do not force a re-annotation. ``1``
+    and ``0`` are left alone; they are numbers to the tools that read them.
+    """
+
+    def value(raw: object) -> str:
+        if isinstance(raw, bool):
+            return "true" if raw else "false"
+        text = str(raw).strip()
+        low = text.lower()
+        if low in ("true", "yes"):
+            return "true"
+        if low in ("false", "no"):
+            return "false"
+        return text
+
+    return ",".join(f"{k}={value(extra[k])}" for k in sorted(extra))
 
 
 def index_path(directory: Path) -> Path:
@@ -132,12 +146,21 @@ def clear_partials(directory: Path) -> None:
 
 
 def publish(directory: Path, record_name: str) -> Path:
-    """Rename the record's partial directory into place, replacing an older one."""
+    """Rename the record's partial directory into place, replacing an older one.
+
+    The previous directory is moved aside first and removed only once the new
+    one is in place, so a crash between the two leaves one of them, never
+    neither. A leftover ``.<name>.old.partial`` is cleared by
+    :func:`clear_partials`.
+    """
     final = record_dir(directory, record_name)
     tmp = partial_dir(directory, record_name)
+    old = directory / f".{record_name}.old{_PARTIAL}"
+    shutil.rmtree(old, ignore_errors=True)
     if final.exists():
-        shutil.rmtree(final)
+        os.replace(final, old)
     os.replace(tmp, final)
+    shutil.rmtree(old, ignore_errors=True)
     return final
 
 
@@ -145,19 +168,42 @@ def remove_stale(
     directory: Path,
     records: dict[str, AnnotationRecord],
     expected: Iterable[str],
+    workdir: Path,
     logger: logging.Logger | None = None,
 ) -> int:
-    """Drop records (and their directories) that are not in ``expected``."""
+    """Drop the records whose genome file is gone; keep the rest.
+
+    An annotation costs minutes, so a record outside the current set is kept
+    (a run on the representatives after one with ``--all-genomes``, or a new
+    dereplication, would otherwise throw away work that the next run needs
+    again). Only a record whose genome no longer exists is removed, with its
+    directory. Consumers read the records of their own set by name.
+    """
     keep = set(expected)
     removed = 0
+    kept_outside = 0
     for name in sorted(records):
         if name in keep:
+            continue
+        genome = records[name].genome_path
+        path = (workdir / genome) if genome else None
+        if path is not None and path.exists():
+            kept_outside += 1
             continue
         shutil.rmtree(record_dir(directory, name), ignore_errors=True)
         del records[name]
         removed += 1
-    if removed and logger is not None:
-        logger.info("Removed %d annotation(s) of genomes no longer in the set", removed)
+    if logger is not None:
+        if removed:
+            logger.info(
+                "Removed %d annotation(s) whose genome is no longer in the workdir", removed
+            )
+        if kept_outside:
+            logger.info(
+                "Kept %d annotation(s) of genomes outside this set (they cost minutes each); "
+                "they are reused if the set grows again",
+                kept_outside,
+            )
     return removed
 
 

@@ -15,8 +15,11 @@ All notable changes to RepGenR2 are documented here. The format follows
   stale (a changed genome, annotator, tool version, database version or
   tuning), removing the records of genomes that left the set. bakta needs
   its database (`bakta_db download --output DIR --type light`, then
-  `--bakta-db DIR` or `BAKTA_DB`); prokka needs none. The data-channel step
-  `annotate-build` annotates one genome. `envs/bakta.yml` and
+  `--bakta-db DIR` or `BAKTA_DB`), and its `version.json` is one of the
+  stage's resume inputs, so replacing the database re-annotates; prokka
+  needs none. A record whose genome left the set is kept and reused if it
+  returns; one whose genome left the workdir is removed. The data-channel
+  step `annotate-build` annotates one genome. `envs/bakta.yml` and
   `envs/prokka.yml` are new satellite environments. This is the first half
   of the core-gene phylogeny route; `phylo --msa-source coregene` follows.
 - `--treebuilder skani`: an alignment-free tree from skani's ANI estimates

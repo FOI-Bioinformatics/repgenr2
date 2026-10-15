@@ -225,3 +225,117 @@ def test_annotate_build_step_writes_versions(tmp_path: Path, fake) -> None:
             ),
             logging.getLogger("t"),
         )
+
+
+def test_a_genome_outside_the_set_keeps_its_annotation(workdir: Path, genome_files, fake) -> None:
+    """Annotation costs minutes: leaving the set must not throw it away."""
+    ctx = _ctx(workdir)
+    run(ctx, AnnotateStageParams(tool="fakeannot", all_genomes=True))
+    reps = workdir / "derep" / "representatives"
+    reps.mkdir(parents=True)
+    for g in genome_files[:2]:
+        (reps / g.name).write_text(g.read_text(encoding="utf-8"), encoding="utf-8")
+    (workdir / "derep" / "clusters.tsv").write_text(
+        "representative\tmember\n" + "".join(f"{g.name}\t{g.name}\n" for g in genome_files[:2]),
+        encoding="utf-8",
+    )
+    summary = run(ctx, AnnotateStageParams(tool="fakeannot"))
+    assert summary.removed == 0 and summary.reused == 2
+    index = cache.read_index(ctx.annotations_dir)
+    assert len(index) == 3  # the third genome's annotation is still there
+    assert cache.gff_path(ctx.annotations_dir, genome_files[2].stem).is_file()
+
+
+def test_the_set_column_follows_a_genome_that_becomes_the_outgroup(
+    workdir: Path, genome_files, fake
+) -> None:
+    ctx = _ctx(workdir)
+    run(ctx, AnnotateStageParams(tool="fakeannot", all_genomes=True))
+    name = genome_files[2].stem
+    og = workdir / "outgroup"
+    og.mkdir()
+    (og / genome_files[2].name).write_text(
+        genome_files[2].read_text(encoding="utf-8"), encoding="utf-8"
+    )
+    (workdir / "outgroup_accession.txt").write_text("GCA_000003\n", encoding="utf-8")
+    genome_files[2].unlink()
+    summary = run(ctx, AnnotateStageParams(tool="fakeannot", all_genomes=True))
+    assert summary.annotated == 0 and summary.reused == 3
+    assert cache.read_index(ctx.annotations_dir)[name].set == "outgroup"
+
+
+def test_two_genomes_with_one_record_name_are_named_in_the_error(
+    workdir: Path, genome_files, fake
+) -> None:
+    og = workdir / "outgroup"
+    og.mkdir()
+    (og / genome_files[0].name).write_text(">x\nACGT\n", encoding="utf-8")
+    (workdir / "outgroup_accession.txt").write_text("GCA_000001\n", encoding="utf-8")
+    ctx = _ctx(workdir)
+    with pytest.raises(UserInputError, match=r"share a record name.*GCA_000001"):
+        run(ctx, AnnotateStageParams(tool="fakeannot", all_genomes=True))
+
+
+def test_a_changed_database_version_re_annotates(workdir: Path, genome_files, fake) -> None:
+    class _DbAnnotator(_FakeAnnotator):
+        db_version = "6.0-light"
+
+        def database_version(self, db) -> str:  # noqa: ANN001
+            return type(self).db_version
+
+    _DbAnnotator.calls = []
+    _DbAnnotator.requires_database = True
+    ctx = _ctx(workdir)
+    from repgenr.annotators.base import registry as annot_registry
+
+    annot_registry.register("fakedb", _DbAnnotator, replace=True)
+    try:
+        db = workdir / "db"
+        db.mkdir(parents=True)
+        (db / "version.json").write_text('{"major": 6, "minor": 0}', encoding="utf-8")
+        params = AnnotateStageParams(tool="fakedb", all_genomes=True, bakta_db=str(db))
+        assert run(ctx, params).annotated == 3
+        assert run(ctx, params).reused == 3
+        _DbAnnotator.db_version = "7.0-light"
+        summary = run(ctx, params)
+        assert summary.annotated == 3 and summary.reused == 0
+        rec = ctx.config.stages["annotate"]
+        assert rec.params["db_version"] == "7.0-light"
+    finally:
+        annot_registry.unregister("fakedb")
+
+
+def test_the_database_is_part_of_the_resume_inputs(workdir: Path, monkeypatch) -> None:
+    from repgenr.cli.base import STAGE_INPUTS
+
+    ctx = _ctx(workdir)
+    db = workdir / "db"
+    db.mkdir(parents=True)
+    (db / "version.json").write_text("{}", encoding="utf-8")
+    flagged = STAGE_INPUTS["annotate"](
+        ctx, AnnotateStageParams(tool="bakta", bakta_db=str(db), all_genomes=True)
+    )
+    assert db / "version.json" in flagged
+    monkeypatch.setenv("BAKTA_DB", str(db))
+    from_env = STAGE_INPUTS["annotate"](ctx, AnnotateStageParams(tool="bakta", all_genomes=True))
+    assert db / "version.json" in from_env
+    # prokka needs none, so nothing is added.
+    assert STAGE_INPUTS["annotate"](ctx, AnnotateStageParams(tool="prokka")) == [
+        ctx.representatives_dir,
+        ctx.outgroup_dir,
+    ]
+
+
+def test_boolean_tuning_is_normalised_in_the_index(workdir: Path, genome_files, fake) -> None:
+    ctx = _ctx(workdir)
+
+    def once(**extra) -> AnnotateStageParams:
+        return AnnotateStageParams(tool="fakeannot", all_genomes=True, extra=extra)
+
+    assert run(ctx, once(k=True)).annotated == 3
+    # "true" describes the same setting as True and must not re-annotate.
+    assert run(ctx, once(k="true")).reused == 3
+    assert run(ctx, once(k="no")).annotated == 3
+    # A number stays a number, so 1 is not read as "on".
+    assert run(ctx, once(k=1)).annotated == 3
+    assert run(ctx, once(k="1")).reused == 3

@@ -279,6 +279,39 @@ def _phylo_inputs(ctx: WorkdirContext, params: Any) -> list[Path]:
     ]
 
 
+def _annotate_inputs(ctx: WorkdirContext, params: Any) -> list[Path]:
+    # The genome set and the outgroup; the per-record cache inside the stage
+    # keeps unchanged annotations when the fingerprint changes. The database
+    # is an input too: bakta's version.json identifies it, so a database
+    # updated in place, or a changed BAKTA_DB, reruns the stage instead of
+    # skipping with annotations made against the previous one.
+    inputs = [
+        ctx.genomes_dir if getattr(params, "all_genomes", False) else ctx.representatives_dir,
+        ctx.outgroup_dir,
+    ]
+    db = _annotator_database(params)
+    if db is not None:
+        inputs.append(db / "version.json")
+    return inputs
+
+
+def _annotator_database(params: Any) -> Path | None:
+    """The annotator's database directory, from the flag or its environment
+    variable; None for a tool that needs none or a path that does not resolve."""
+    from ..annotators.base import registry as annotator_registry
+
+    try:
+        annotator = annotator_registry.create(getattr(params, "tool", ""))
+    except Exception:  # noqa: BLE001 - an unknown tool is refused by the stage
+        return None
+    if not annotator.requires_database:
+        return None
+    from ..annotators.bakta import bakta_db_from_env
+
+    raw = getattr(params, "bakta_db", None) or bakta_db_from_env()
+    return Path(raw).expanduser() if raw else None
+
+
 def _metadata_inputs(ctx: WorkdirContext, params: Any) -> list[Path]:
     if getattr(params, "metadata_path", None):
         return [Path(params.metadata_path)]
@@ -387,12 +420,7 @@ STAGE_INPUTS: dict[str, Any] = {
     "snptype": lambda ctx, p: [
         ctx.genomes_dir if getattr(p, "all_genomes", False) else ctx.representatives_dir
     ],
-    # The genome set and the outgroup; the per-record cache inside the stage
-    # keeps unchanged annotations when the fingerprint changes.
-    "annotate": lambda ctx, p: [
-        ctx.genomes_dir if getattr(p, "all_genomes", False) else ctx.representatives_dir,
-        ctx.outgroup_dir,
-    ],
+    "annotate": _annotate_inputs,
     "phylo": _phylo_inputs,
     "tree2tax": _tree2tax_inputs,
     # Auxiliary stages: recorded so status shows them and a repeat skips.

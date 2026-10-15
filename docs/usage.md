@@ -1440,14 +1440,18 @@ every genome with `--all-genomes`) and the outgroup, one directory per
 record under `annotations/` with the GFF3 (sequences appended), the
 proteins and the gene nucleotides, and an index `annotations.tsv`. The
 annotator is `bakta` by default, which needs its database: download it once
-with `bakta_db download --output DIR --type light` (about 4 GB; `--type
-full`, 84 GB, gives more specific CDS annotation) and pass `--bakta-db DIR`
-or set `BAKTA_DB`. `--tool prokka` needs no database. bakta takes about 5
+with `bakta_db download --output DIR --type light` (a 1.4 GB download,
+about 4 GB unpacked; `--type full` is 30 GB to download and about 84 GB
+unpacked, and annotates CDS more specifically) and pass `--bakta-db DIR` or
+set `BAKTA_DB`. The database is part of the stage's resume inputs through
+its `version.json`, so replacing it re-annotates. `--tool prokka` needs no database. bakta takes about 5
 to 15 minutes per genome and runs the genomes one after another with `-t`
 threads each, so a genus-level set is a cluster job; a later run annotates
 only the genomes that are new or whose genome, annotator, tool version,
-database version or tuning changed, removes the records of genomes no
-longer in the set, and reuses the rest. `--force` re-annotates everything.
+database version or tuning changed, and reuses the rest. A record whose
+genome left the set is kept (annotation is expensive and the genome may
+return, for instance after another dereplication); only a record whose
+genome has left the workdir is removed. `--force` re-annotates everything.
 Tuning goes through `--tool-arg` (`skip_crispr=true`, `genus=Francisella`,
 `translation_table=11` for bakta; `kingdom=Bacteria`, `gcode=11` for prokka).
 The data-channel step `annotate-build --genome FILE -o DIR` annotates one
