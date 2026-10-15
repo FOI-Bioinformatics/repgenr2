@@ -1205,3 +1205,56 @@ def test_split_alignment_refusal_names_the_builders_that_consume_one(
             PhyloParams(treebuilder="faketree_genomes"),
             logging.getLogger("test-phylo"),
         )
+
+
+def test_auto_is_restricted_to_alignment_builders_when_only_the_alignment_is_built(
+    workdir: Path, fake_phylo_tools, monkeypatch
+) -> None:
+    from repgenr.stages.phylo import PhyloDirs, build_msa
+
+    seen = _spy_auto_select(monkeypatch, "faketree_msa")
+    _make_reps(workdir)
+    genomes = sorted((workdir / "derep" / "representatives").glob("*.fasta"))
+    dirs = PhyloDirs(
+        tree_dir=workdir / "tree",
+        align_dir=workdir / "align",
+        msa_dir=workdir / "tree" / "msa",
+        scratch_dir=workdir / "scratch",
+    )
+    build_msa(
+        genomes,
+        None,
+        dirs,
+        PhyloParams(treebuilder="auto", msa_source="aligner", aligner="fakealigner"),
+        logging.getLogger("test-phylo"),
+    )
+    assert "faketree_msa" in seen["allowed"] and "faketree_genomes" not in seen["allowed"]
+
+
+def test_auto_is_restricted_to_alignment_builders_when_an_alignment_is_given(
+    workdir: Path, fake_phylo_tools, monkeypatch
+) -> None:
+    from repgenr.stages.phylo import PhyloDirs, build_tree
+
+    seen = _spy_auto_select(monkeypatch, "faketree_msa")
+    _make_reps(workdir)
+    genomes = sorted((workdir / "derep" / "representatives").glob("*.fasta"))
+    msa = workdir / "given.fasta"
+    msa.write_text("".join(f">{g.stem}\nACGT\n" for g in genomes))
+    dirs = PhyloDirs(
+        tree_dir=workdir / "tree",
+        align_dir=workdir / "align",
+        msa_dir=workdir / "tree" / "msa",
+        scratch_dir=workdir / "scratch",
+    )
+    outcome = build_tree(
+        genomes,
+        None,
+        None,
+        dirs,
+        PhyloParams(treebuilder="auto", no_outgroup=True),
+        logging.getLogger("test-phylo"),
+        msa=msa,
+    )
+    assert "faketree_genomes" not in seen["allowed"]
+    assert outcome.treebuilder == "faketree_msa"

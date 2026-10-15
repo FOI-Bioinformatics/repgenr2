@@ -415,7 +415,9 @@ def build_msa(
     changing the tree builder does not repeat the alignment.
     """
     n_leaves = len(genomes) + (0 if outgroup_file is None else 1)
-    builder = treebuilder_registry.create(_resolve_treebuilder(params, n_leaves, logger))
+    builder = treebuilder_registry.create(
+        _resolve_treebuilder(params, n_leaves, logger, alignment_given="--msa-only")
+    )
     if builder.input_kind == InputKind.GENOMES:
         raise UserInputError(
             f"Tree builder '{builder.capabilities.name}' builds from genomes, not from an "
@@ -448,18 +450,25 @@ def _wants_alignment(params: PhyloParams) -> str | None:
     return None
 
 
-def _resolve_treebuilder(params: PhyloParams, n_genomes: int, logger: logging.Logger) -> str:
+def _resolve_treebuilder(
+    params: PhyloParams,
+    n_genomes: int,
+    logger: logging.Logger,
+    *,
+    alignment_given: str | None = None,
+) -> str:
     """The tree builder to use, resolving 'auto' and warning past its scale.
 
     ``n_genomes`` counts every leaf the tree will have, the outgroup included.
-    With 'auto', a request that only an alignment can honour (a SNP source or
-    a masker) restricts the choice to builders that consume one; otherwise a
-    large set would be handed to an alignment-free builder and the request
-    silently dropped.
+    With 'auto', a request that only an alignment can honour (a SNP source, a
+    masker, or ``alignment_given``, the flag under which the caller builds or
+    supplies the alignment itself) restricts the choice to builders that
+    consume one; otherwise a large set would be handed to an alignment-free
+    builder and the request silently dropped.
     """
     treebuilder = params.treebuilder
     if treebuilder == "auto":
-        wants = _wants_alignment(params)
+        wants = alignment_given or _wants_alignment(params)
         allowed = _msa_builder_names() if wants else None
         treebuilder = auto_select(treebuilder_registry, n_genomes, allowed) or "iqtree"
         logger.info(
@@ -509,7 +518,9 @@ def build_tree(
     root = resolve_root(params.root, outgroup_leaf, params.no_outgroup)
 
     n_leaves = len(genomes) + (0 if outgroup_file is None else 1)
-    treebuilder = _resolve_treebuilder(params, n_leaves, logger)
+    treebuilder = _resolve_treebuilder(
+        params, n_leaves, logger, alignment_given=None if msa is None else "--msa"
+    )
     builder = treebuilder_registry.create(treebuilder)
     if (
         builder.input_kind != InputKind.GENOMES
