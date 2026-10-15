@@ -152,10 +152,9 @@ def _make_fake_run_tool(recorded: list[list[str]]):
             _fake_sourmash_sketch(cmd)
         elif cmd[:2] == ["sourmash", "compare"]:
             _fake_sourmash_compare(cmd)
-        elif cmd[0] in ("mashtree", "FastTree", "fasttree", "VeryFastTree"):
         elif cmd[:2] == ["skani", "triangle"]:
             _fake_skani_triangle(cmd)
-        elif cmd[0] in ("mashtree", "FastTree", "fasttree"):
+        elif cmd[0] in ("mashtree", "FastTree", "fasttree", "VeryFastTree"):
             Path(stdout_path).write_text(_NEWICK, encoding="utf-8")
         elif cmd[0] == "iqtree":
             msa = Path(_flag_value(cmd, "-s"))
