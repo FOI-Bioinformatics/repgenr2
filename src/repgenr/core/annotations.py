@@ -168,7 +168,7 @@ def remove_stale(
     directory: Path,
     records: dict[str, AnnotationRecord],
     expected: Iterable[str],
-    workdir: Path,
+    present: Iterable[str],
     logger: logging.Logger | None = None,
 ) -> int:
     """Drop the records whose genome file is gone; keep the rest.
@@ -176,18 +176,20 @@ def remove_stale(
     An annotation costs minutes, so a record outside the current set is kept
     (a run on the representatives after one with ``--all-genomes``, or a new
     dereplication, would otherwise throw away work that the next run needs
-    again). Only a record whose genome no longer exists is removed, with its
-    directory. Consumers read the records of their own set by name.
+    again). ``present`` names every genome still in the workdir, whatever
+    directory holds it, so a genome that stops being a representative keeps
+    its annotation; only a record whose genome has left the workdir is
+    removed, with its directory. Consumers read the records of their own set
+    by name.
     """
     keep = set(expected)
+    still_here = set(present)
     removed = 0
     kept_outside = 0
     for name in sorted(records):
         if name in keep:
             continue
-        genome = records[name].genome_path
-        path = (workdir / genome) if genome else None
-        if path is not None and path.exists():
+        if name in still_here:
             kept_outside += 1
             continue
         shutil.rmtree(record_dir(directory, name), ignore_errors=True)

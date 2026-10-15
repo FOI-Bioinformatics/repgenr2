@@ -22,7 +22,7 @@ from ..annotators.base import registry as annotator_registry
 from ..core import annotations as cache
 from ..core.annotations import AnnotationRecord
 from ..core.context import WorkdirContext
-from ..core.contracts import record_name
+from ..core.contracts import list_fasta, record_name
 from ..core.errors import UserInputError
 from ..core.plugins import warn_unconsumed_extras
 from ..core.process import remove_tree, stage_plain_inputs
@@ -198,7 +198,14 @@ def run(ctx: WorkdirContext, params: AnnotateStageParams) -> AnnotateSummary:
             "Two genomes share a record name, which the annotation cache keys on: "
             + "; ".join(clash)
         )
-    removed = cache.remove_stale(directory, records, names, ctx.workdir, logger)
+    # Every genome the workdir holds, whichever directory it sits in: a
+    # record of one of them is kept even when it is outside this set.
+    present = {
+        record_name(g)
+        for directory_with_genomes in (ctx.genomes_dir, ctx.representatives_dir, ctx.outgroup_dir)
+        for g in list_fasta(directory_with_genomes)
+    }
+    removed = cache.remove_stale(directory, records, names, present, logger)
     if removed:
         cache.write_index(directory, records)
 

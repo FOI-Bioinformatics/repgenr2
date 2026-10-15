@@ -339,3 +339,32 @@ def test_boolean_tuning_is_normalised_in_the_index(workdir: Path, genome_files, 
     # A number stays a number, so 1 is not read as "on".
     assert run(ctx, once(k=1)).annotated == 3
     assert run(ctx, once(k="1")).reused == 3
+
+
+def test_a_genome_that_stops_being_a_representative_keeps_its_annotation(
+    workdir: Path, genome_files, fake
+) -> None:
+    """Re-dereplication moves a genome out of representatives/ but not out of
+    the workdir; its annotation is expensive and must survive."""
+    ctx = _ctx(workdir)
+    reps = workdir / "derep" / "representatives"
+    reps.mkdir(parents=True)
+    clusters = workdir / "derep" / "clusters.tsv"
+    for g in genome_files:
+        (reps / g.name).write_text(g.read_text(encoding="utf-8"), encoding="utf-8")
+    clusters.write_text(
+        "representative\tmember\n" + "".join(f"{g.name}\t{g.name}\n" for g in genome_files),
+        encoding="utf-8",
+    )
+    assert run(ctx, AnnotateStageParams(tool="fakeannot")).annotated == 3
+    # A new dereplication keeps two representatives; the third genome stays in genomes/.
+    (reps / genome_files[2].name).unlink()
+    clusters.write_text(
+        "representative\tmember\n"
+        + "".join(f"{g.name}\t{g.name}\n" for g in genome_files[:2])
+        + f"{genome_files[0].name}\t{genome_files[2].name}\n",
+        encoding="utf-8",
+    )
+    summary = run(ctx, AnnotateStageParams(tool="fakeannot"))
+    assert summary.removed == 0 and summary.reused == 2
+    assert cache.gff_path(ctx.annotations_dir, genome_files[2].stem).is_file()
