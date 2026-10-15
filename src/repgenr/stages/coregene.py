@@ -177,7 +177,10 @@ def coregene_core(
         "clustering_identity": (
             result.clustering_identity
             if result.clustering_identity is not None
+            # Only a builder that reads threshold= clusters at it.
             else params.extra.get("threshold")
+            if "threshold" in builder.capabilities.accepted_extras
+            else None
         ),
     }
     if result.settings:

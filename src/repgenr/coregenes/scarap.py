@@ -2,16 +2,24 @@
 
 Command surface checked against SCARAP 1.0.2 (bioconda). Two calls:
 
-1. ``scarap core FAA_LIST OUT -f F -t N`` infers the core genome directly,
-   without the full pangenome: it builds orthogroups on a set of seed
-   genomes, turns them into MMseqs2 profiles and searches every genome
-   against them. A gene is core when it is present in a single copy in at
-   least ``F`` of the genomes (``--core-threshold``). It writes
-   ``genes.tsv`` (gene, genome, orthogroup).
-2. ``scarap concat FAA_LIST genes.tsv OUT -n FFN_LIST -t N`` aligns each
-   orthogroup with mafft and concatenates them; with ``-n`` it writes the
-   nucleotide supermatrix ``supermatrix_nucs.fasta`` beside the amino-acid
-   one, one record per genome.
+1. ``scarap core FAA_LIST OUT -p P -f F -e SEEDS -t N`` infers the core
+   genome directly, without the full pangenome. It draws ``SEEDS`` genomes
+   at random (100 by default, with no fixed random seed, so two runs on a
+   larger set can differ), builds their pangenome, keeps the families that
+   are single-copy in at least ``P`` of the seeds, turns those with
+   single-copy presence ``F`` into MMseqs2 profiles and searches every other
+   genome against them. It writes ``genes.tsv`` (gene, genome, orthogroup).
+   SCARAP's own ``P`` default is 0.90, which would cap how far a lower
+   ``--core-threshold`` reaches, so the adapter passes the smaller of 0.90
+   and ``F`` unless ``core_prefilter=`` is set.
+2. ``scarap concat FAA_LIST genes.tsv OUT -f F -n FFN_LIST -t N`` keeps the
+   orthogroups single-copy in at least ``F`` of all the genomes, not only
+   the seeds, aligns each with mafft and concatenates them; with ``-n`` it
+   writes the nucleotide supermatrix ``supermatrix_nucs.fasta``. A genome
+   missing a gene, or holding several copies, is a gap for it.
+
+SCARAP aligns with as many processes as the machine has CPUs, whatever
+``-t`` says, and mafft writes its temporary files to ``$TMPDIR``.
 
 SCARAP reads proteins, not GFF3: the adapter takes the ``.faa`` and ``.ffn``
 files the annotate stage writes beside each GFF3, and SCARAP names each
@@ -33,11 +41,14 @@ from ..core.errors import UserInputError, WorkdirError
 from ..core.plugins import ToolCapabilities, parse_extra_int
 from .base import CoreGeneBuilder, CoreGeneParams, CoreGeneResult
 
-METHODS = ("H", "FH", "FT", "H-nl", "T-nl", "P", "O-B", "O-D", "S")
+# O-B and O-D call OrthoFinder, which the SCARAP package and image do not ship.
+METHODS = ("H", "FH", "FT", "H-nl", "T-nl", "P", "S")
 SUPERMATRIX = "supermatrix_nucs.fasta"
 TABLES = ("genes.tsv",)
 # Below this a core-gene tree rests on very little.
 _SMALL_CORE = 100
+# scarap core's own --core-prefilter default.
+_SCARAP_PREFILTER = 0.90
 
 
 class ScarapBuilder(CoreGeneBuilder):
@@ -79,7 +90,7 @@ class ScarapBuilder(CoreGeneBuilder):
         prefilter = (
             _unit(params.extra["core_prefilter"], "core_prefilter")
             if "core_prefilter" in params.extra
-            else None
+            else min(_SCARAP_PREFILTER, params.core_threshold)
         )
         max_core = parse_extra_int(params.extra, "max_core_genes", 0)
         seeds = parse_extra_int(params.extra, "seeds", 100)
@@ -97,6 +108,7 @@ class ScarapBuilder(CoreGeneBuilder):
                 f"each GFF3, and {len(missing)} are missing ({', '.join(missing[:3])}); "
                 "rerun `repgenr annotate --force`."
             )
+        _refuse_shared_gene_ids(faas)
 
         out_dir.mkdir(parents=True, exist_ok=True)
         faa_list = out_dir / "faa_files.txt"
@@ -109,18 +121,16 @@ class ScarapBuilder(CoreGeneBuilder):
 
         core: list[str | Path] = [
             "scarap", "core", faa_list, core_dir,
-            "-f", f"{params.core_threshold:g}", "-d", method,
+            "-f", f"{params.core_threshold:g}", "-p", f"{prefilter:g}", "-d", method,
             "-m", str(max_core), "-e", str(seeds), "-t", str(params.threads),
         ]  # fmt: skip
-        if prefilter is not None:
-            core += ["-p", f"{prefilter:g}"]
         run_tool(
             self.capabilities, core, logger=logger, cwd=out_dir,
             log_prefix="scarap", extra_mounts=mounts,
         )  # fmt: skip
 
         genes = core_dir / "genes.tsv"
-        orthogroups = _orthogroups(genes)
+        orthogroups = _core_orthogroups(genes, params.core_threshold, max_core)
         if not orthogroups:
             raise WorkdirError(
                 f"scarap found no core gene present in a single copy in "
@@ -131,6 +141,8 @@ class ScarapBuilder(CoreGeneBuilder):
             self.capabilities,
             [
                 "scarap", "concat", faa_list, genes, concat_dir,
+                # Over all the genomes; the core step judged only the seeds.
+                "-f", f"{params.core_threshold:g}", "-m", str(max_core),
                 "-n", ffn_list, "-t", str(params.threads),
             ],
             logger=logger, cwd=out_dir, log_prefix="scarap", extra_mounts=mounts,
@@ -163,17 +175,57 @@ class ScarapBuilder(CoreGeneBuilder):
         )
 
 
-def _orthogroups(genes: Path) -> set[str]:
-    """The orthogroups of ``genes.tsv`` (gene, genome, orthogroup per row)."""
+def _core_orthogroups(genes: Path, threshold: float, max_core: int) -> list[str]:
+    """The orthogroups ``scarap concat -f threshold -m max_core`` keeps.
+
+    Mirrors SCARAP's ``determine_corefams``: an orthogroup is kept when the
+    genomes holding it in exactly one copy are at least ``threshold`` of the
+    genomes in the table; with ``max_core`` the most frequent are kept.
+    """
     if not genes.is_file():
-        return set()
-    out: set[str] = set()
+        return []
+    copies: dict[tuple[str, str], int] = {}
+    genomes: set[str] = set()
     with open(genes, encoding="utf-8") as fh:
         for line in fh:
             fields = line.rstrip("\n").split("\t")
-            if len(fields) >= 3 and fields[2]:
-                out.add(fields[2])
-    return out
+            if len(fields) < 3 or not fields[2]:
+                continue
+            genomes.add(fields[1])
+            key = (fields[2], fields[1])
+            copies[key] = copies.get(key, 0) + 1
+    if not genomes:
+        return []
+    single: dict[str, int] = {}
+    for (group, _genome), n in copies.items():
+        single.setdefault(group, 0)
+        if n == 1:
+            single[group] += 1
+    kept = [(g, c / len(genomes)) for g, c in single.items() if c / len(genomes) >= threshold]
+    kept.sort(key=lambda item: (-item[1], item[0]))
+    if max_core > 0:
+        kept = kept[:max_core]
+    return [g for g, _ in kept]
+
+
+def _refuse_shared_gene_ids(faas: Sequence[Path]) -> None:
+    """SCARAP joins hits to genomes on the gene identifier; a shared one would
+    assign genes to the wrong genome. Annotators that derive locus tags from
+    the sequence give two identical assemblies the same identifiers."""
+    owner: dict[str, str] = {}
+    for faa in faas:
+        with open(faa, encoding="utf-8", errors="replace") as fh:
+            for line in fh:
+                if not line.startswith(">"):
+                    continue
+                gene = line[1:].split(maxsplit=1)[0] if line[1:].strip() else ""
+                other = owner.setdefault(gene, faa.stem)
+                if other != faa.stem:
+                    raise WorkdirError(
+                        f"scarap needs gene identifiers unique across genomes, but {gene} is in "
+                        f"both {other} and {faa.stem}; the two are probably the same assembly. "
+                        "Leave one out, or use another core-gene builder."
+                    )
 
 
 def _unit(raw: object, flag: str) -> float:

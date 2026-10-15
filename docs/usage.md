@@ -1539,7 +1539,11 @@ protein and gene files the annotate stage writes beside each GFF3, not the
 GFF3 itself, and aligns each orthogroup with mafft. The orthogroups come
 from profile searches rather than a fixed identity cut, so there is no
 identity to lower; `method=` chooses the orthogroup inference (`FH`, the
-default) and `max_core_genes=` caps the count. On the same 24 Wolbachia
+default) and `max_core_genes=` caps the count. The seed genomes are drawn
+at random with no fixed random seed, so on a set larger than `seeds` two
+runs can select slightly different cores; the final selection is checked
+over all the genomes, not only the seeds. SCARAP aligns with as many
+processes as the machine has CPUs, whatever `-t` says. On the same 24 Wolbachia
 genomes it found 577 single-copy core genes, and its IQ-TREE tree shared 20
 of 21 splits with the PPanGGOLiN one. It took about six and a half minutes
 on this machine, against three for PPanGGOLiN. Its declared limit of 10000

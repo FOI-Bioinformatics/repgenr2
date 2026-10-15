@@ -657,8 +657,10 @@ defaults (`core -f 0.95`, method `FH`, 100 seed genomes):
 
 - **Three supergroup-A genomes:** 782 core genes; `core` 114 seconds,
   `concat` 47 seconds.
-- **24 complete genomes:** 576 single-copy core genes in the direct runs,
-  577 through RepGenR2; `core` 159 seconds, `concat` 58 seconds.
+- **24 complete genomes:** 576 single-copy core genes in the direct run,
+  577 through RepGenR2; `core` 159 seconds, `concat` 58 seconds. All 24
+  were seeds, so the seed draw does not explain the one-gene difference,
+  which was not investigated further.
 - **End to end**, `repgenr phylo --all-genomes --msa-source coregene
   --coregene scarap --treebuilder iqtree --no-outgroup --root midpoint -t
   8`: 577 genes, 618594 columns, 24 records, 388 seconds for the stage;

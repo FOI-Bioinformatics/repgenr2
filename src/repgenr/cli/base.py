@@ -136,7 +136,8 @@ HELP_COREGENE = (
     "family_threshold, len_dif_percent. ppanggolin: identity= and coverage= of its "
     "protein clustering (0.8 each), partition=softcore|core|persistent (softcore, at "
     "--core-threshold), single_copy=false, dup_margin, mode, nb_of_partitions, "
-    "translation_table. scarap: method, core_prefilter, max_core_genes, seeds."
+    "translation_table. scarap: method (FH), seeds (100), max_core_genes (0, no cap), "
+    "core_prefilter (the smaller of 0.90 and --core-threshold)."
 )
 HELP_CORE_THRESHOLD = (
     "With --msa-source coregene: a gene is core when present in at least this fraction "
