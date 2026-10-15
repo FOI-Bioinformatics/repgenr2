@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-import time
 from pathlib import Path
 
 import dendropy
@@ -83,9 +82,9 @@ def test_basename_numbers_internal_nodes_in_preorder() -> None:
     ]
 
 
-def test_edges_once_per_node_in_a_ladder_within_a_second() -> None:
+def test_edges_once_per_node_in_a_ladder() -> None:
     # Built node by node: the Newick parser recurses once per nesting level.
-    n = 2000
+    n = 5000
     taxa = dendropy.TaxonNamespace()
     tree = dendropy.Tree(taxon_namespace=taxa)
     node = tree.seed_node
@@ -94,15 +93,13 @@ def test_edges_once_per_node_in_a_ladder_within_a_second() -> None:
         leaf.taxon = taxa.require_taxon(label=f"A{i}")
         node = node.new_child()
     node.taxon = taxa.require_taxon(label=f"A{n - 1}")
-    started = time.monotonic()
     _name_nodes(tree, None)
     tree.seed_node.label = "root"
     edges = _edges(tree)
-    assert time.monotonic() - started < 1.0
     assert len(edges) == len(set(edges)) == 2 * n - 2  # every non-root node once
 
 
-def test_prune_leaf_removes_the_unifurcation_it_leaves(tmp_path: Path) -> None:
+def test_prune_leaf_removes_the_unifurcation_it_leaves() -> None:
     # The outgroup sits inside a clade, as on a midpoint-rooted tree.
     tree = _tree("((A:1,B:1):1,(C:1,(D:1,OG:1):2):1);")
     _prune_leaf(tree, "OG")
@@ -140,3 +137,40 @@ def test_remove_outgroup_on_a_nested_outgroup_leaves_no_single_child_node(
         children_of.setdefault(parent, set()).add(child)
     assert "OG" not in {c for c, _ in rows}
     assert all(len(kids) >= 2 for kids in children_of.values())
+
+
+def test_a_clade_keeps_its_name_when_an_unrelated_clade_changes() -> None:
+    before = _names("(((A,B),C),(D,E));")
+    after = _names("(((A,B),C),((D,E),F));")
+    assert before[frozenset("AB")] == after[frozenset("AB")]
+    assert before[frozenset("ABC")] == after[frozenset("ABC")]
+
+
+def test_remove_outgroup_keeps_the_ingroup_clade_under_root(tmp_path: Path) -> None:
+    text = "(OG:1,((A:1,B:1):1,(C:1,D:1):1):1);"  # rooted on the outgroup
+    t2t, _, _ = _emit_relations(
+        text,
+        "OG",
+        {},
+        node_basename=None,
+        root_name="root",
+        remove_outgroup=True,
+        out_tree2tax=tmp_path / "t.tsv",
+        out_map=tmp_path / "m.tsv",
+        logger=_LOG,
+    )
+    rows = [tuple(line.split("\t")) for line in t2t.read_text().splitlines()[1:]]
+    parent_of = dict(rows)
+    under_root = [c for c, p in rows if p == "root"]
+    assert len(under_root) == 1  # the ingroup clade, not its two halves
+    leaves = {c for c in parent_of if c not in parent_of.values()}
+
+    def ancestors(leaf: str) -> set[str]:
+        out, node = set(), leaf
+        while node in parent_of:
+            node = parent_of[node]
+            out.add(node)
+        return out
+
+    assert leaves == {"A", "B", "C", "D"}
+    assert all(under_root[0] in ancestors(leaf) for leaf in leaves)

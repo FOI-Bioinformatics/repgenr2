@@ -354,3 +354,32 @@ def test_run_mask_without_snptype_source_is_still_rejected(monkeypatch, tmp_path
         in result.output
     )
     assert calls == []
+
+
+def test_run_dry_run_warns_about_collapse_support_with_mashtree(
+    monkeypatch, tmp_path, caplog
+) -> None:
+    _record(monkeypatch)
+    import logging
+
+    with caplog.at_level(logging.WARNING):
+        result = _runner.invoke(
+            app,
+            [
+                "run",
+                "-wd",
+                str(tmp_path),
+                "--dry-run",
+                "-l",
+                "genus",
+                "-tg",
+                "francisella",
+                "--treebuilder",
+                "mashtree",
+                "--collapse-support",
+                "0.5",
+            ],
+        )
+    assert result.exit_code == 0, result.stdout
+    logged = any("carries no support values" in r.getMessage() for r in caplog.records)
+    assert logged or "carries no support values" in result.output

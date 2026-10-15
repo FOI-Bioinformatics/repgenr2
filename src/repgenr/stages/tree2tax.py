@@ -458,8 +458,8 @@ def _name_nodes(tree: dendropy.Tree, node_basename: str | None) -> list[str]:
     the leaves are met in and takes one post-order pass over the tree, so a
     long ladder costs the same per node as a balanced tree. The name does not
     depend on how the clade is resolved inside. A node whose leaf set equals
-    one child's (a single child, or one labelled child beside unlabelled
-    leaves; left by a tool, never by this stage) would share that child's
+    one child's (a single child below the root, or one labelled child beside
+    unlabelled leaves; left by a tool, never by this stage) would share that child's
     name, so its label is mixed once more while the plain sum still passes
     upward, so the ancestors' names stay those of their leaf sets. With a
     basename, nodes are numbered in preorder instead. Keyed on ``is_leaf``,

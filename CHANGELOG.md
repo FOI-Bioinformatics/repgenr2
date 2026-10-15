@@ -19,9 +19,11 @@ All notable changes to RepGenR2 are documented here. The format follows
   md5 of the joined labels. Edges are written once per node. With
   `--remove-outgroup` the outgroup leaf is pruned before collapse and naming,
   so no clade is named for a leaf set that held it and no single-child node
-  remains where it sat on a midpoint-rooted tree.
-- `run`: `--collapse-support` with `--treebuilder mashtree` or `sourmash` is
-  announced before any stage runs, since those trees carry no support values.
+  remains where it sat on a midpoint-rooted tree. The rows of `tree2tax.tsv`
+  are now in preorder, a parent before its children; nothing reads the order.
+- `run`: with `--collapse-support` and a tree builder that ignores the
+  bootstrap (`mashtree`, `sourmash`) a warning is logged before any stage
+  runs, since those trees carry no support values.
 - `phylo`: `--treebuilder auto` counts the outgroup as a leaf and, when
   `--msa-source snptype` or `--mask` is given, chooses among the builders that
   consume an alignment instead of dropping the request with a warning; the
