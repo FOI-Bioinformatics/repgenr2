@@ -9,6 +9,7 @@ stages already completed with the same parameters.
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 import typer
@@ -144,6 +145,26 @@ def _preflight_tools(
             from ..maskers.base import registry as masker_registry
 
             masker_registry.create(mask).preflight()
+
+
+def _warn_collapse_without_supports(
+    treebuilder: str, collapse_support: float | None, logger: logging.Logger
+) -> None:
+    """Say before any stage runs that --collapse-support cannot act on the tree
+    of a builder that writes no support values (mashtree, sourmash)."""
+    from ..treebuilders.base import InputKind
+    from ..treebuilders.base import registry as tb_registry
+
+    if collapse_support is None or treebuilder == "auto":
+        return
+    if tb_registry.create(treebuilder).input_kind == InputKind.GENOMES:
+        logger.warning(
+            "--collapse-support %g is given, but the %s tree carries no support values, "
+            "so tree2tax will collapse nothing on support; use --collapse-length, or a "
+            "tree builder that bootstraps",
+            collapse_support,
+            treebuilder,
+        )
 
 
 def _msa_source_summary(treebuilder: str, msa_source: str, aligner: str, snptyper: str) -> str:
@@ -382,6 +403,7 @@ def run(
         }
         # With --with-snptype and the aligner MSA source, --mask belongs to the
         # standalone snptype stage only; phylo would reject it there.
+        _warn_collapse_without_supports(treebuilder, collapse_support, logger)
         mask_for_phylo = mask != "none" and (msa_source == "snptype" or not with_snptype)
         phylo_extra = {
             **_parse_key_values(aligner_arg, "--aligner-arg"),

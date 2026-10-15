@@ -1,0 +1,118 @@
+"""Node naming and edge emission in tree2tax: one pass, stable names."""
+
+from __future__ import annotations
+
+import logging
+import time
+from pathlib import Path
+
+import dendropy
+
+from repgenr.stages.tree2tax import _edges, _emit_relations, _name_nodes, _prune_leaf
+
+_LOG = logging.getLogger("test-naming")
+
+
+def _tree(text: str) -> dendropy.Tree:
+    return dendropy.Tree.get(data=text, schema="newick", preserve_underscores=True)
+
+
+def _names(text: str) -> dict[frozenset[str], str]:
+    """Internal node name keyed by its leaf set."""
+    tree = _tree(text)
+    _name_nodes(tree, None)
+    return {
+        frozenset(lf.taxon.label for lf in node.leaf_iter()): node.label
+        for node in tree.internal_nodes()
+        if node is not tree.seed_node
+    }
+
+
+def test_name_depends_on_the_leaf_set_only() -> None:
+    a = _names("(((A,B),C),(D,E));")
+    b = _names("((C,(B,A)),(E,D));")  # same clades, children swapped
+    assert a == b
+    assert len(set(a.values())) == len(a)  # distinct clades, distinct names
+
+
+def test_name_is_independent_of_the_resolution_inside_the_clade() -> None:
+    resolved = _names("(((A,B),C),(D,E));")
+    polytomy = _names("((A,B,C),(D,E));")
+    key = frozenset("ABC")
+    assert resolved[key] == polytomy[key]
+
+
+def test_a_unary_node_is_not_named_like_its_child() -> None:
+    tree = _tree("(((A,B)),(C,D));")  # ((A,B)) is a node with one child
+    _name_nodes(tree, None)
+    labels = [n.label for n in tree.internal_nodes() if n is not tree.seed_node]
+    assert len(labels) == len(set(labels)) == 3
+
+
+def test_basename_numbers_internal_nodes_in_preorder() -> None:
+    tree = _tree("((A,B),(C,D));")
+    leaves = _name_nodes(tree, "N")
+    assert sorted(leaves) == ["A", "B", "C", "D"]
+    assert [n.label for n in tree.preorder_internal_node_iter() if n is not tree.seed_node] == [
+        "N0",
+        "N1",
+    ]
+
+
+def test_edges_once_per_node_in_a_ladder_within_a_second() -> None:
+    # Built node by node: the Newick parser recurses once per nesting level.
+    n = 2000
+    taxa = dendropy.TaxonNamespace()
+    tree = dendropy.Tree(taxon_namespace=taxa)
+    node = tree.seed_node
+    for i in range(n - 1):
+        leaf = node.new_child()
+        leaf.taxon = taxa.require_taxon(label=f"A{i}")
+        node = node.new_child()
+    node.taxon = taxa.require_taxon(label=f"A{n - 1}")
+    started = time.monotonic()
+    _name_nodes(tree, None)
+    tree.seed_node.label = "root"
+    edges = _edges(tree)
+    assert time.monotonic() - started < 1.0
+    assert len(edges) == len(set(edges)) == 2 * n - 2  # every non-root node once
+
+
+def test_prune_leaf_removes_the_unifurcation_it_leaves(tmp_path: Path) -> None:
+    # The outgroup sits inside a clade, as on a midpoint-rooted tree.
+    tree = _tree("((A:1,B:1):1,(C:1,(D:1,OG:1):2):1);")
+    _prune_leaf(tree, "OG")
+    assert sorted(lf.taxon.label for lf in tree.leaf_node_iter()) == ["A", "B", "C", "D"]
+    assert all(n.num_child_nodes() >= 2 for n in tree.internal_nodes())
+    d = next(lf for lf in tree.leaf_node_iter() if lf.taxon.label == "D")
+    assert d.edge.length == 3  # the collapsed node's length is added
+
+
+def test_prune_leaf_keeps_the_root_over_one_ingroup_clade() -> None:
+    tree = _tree("(OG:1,((A:1,B:1):1,C:1):1);")  # rooted on the outgroup
+    _prune_leaf(tree, "OG")
+    assert tree.seed_node.num_child_nodes() == 1
+
+
+def test_remove_outgroup_on_a_nested_outgroup_leaves_no_single_child_node(
+    tmp_path: Path,
+) -> None:
+    text = "((A:1,B:1):1,(C:1,(D:1,OG:1):2):1);"
+    t2t, _, _ = _emit_relations(
+        text,
+        "OG",
+        {},
+        node_basename=None,
+        root_name="root",
+        remove_outgroup=True,
+        out_tree2tax=tmp_path / "t.tsv",
+        out_map=tmp_path / "m.tsv",
+        logger=_LOG,
+        keep_root=True,
+    )
+    rows = [line.split("\t") for line in t2t.read_text().splitlines()[1:]]
+    children_of: dict[str, set[str]] = {}
+    for child, parent in rows:
+        children_of.setdefault(parent, set()).add(child)
+    assert "OG" not in {c for c, _ in rows}
+    assert all(len(kids) >= 2 for kids in children_of.values())

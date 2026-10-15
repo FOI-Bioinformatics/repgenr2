@@ -12,6 +12,16 @@ All notable changes to RepGenR2 are documented here. The format follows
   that later entries implement (batches A to D; E deferred).
 
 ### Changed
+- `tree2tax`: internal nodes are named in one pass over the tree (the sum of
+  the descendant leaves' label hashes), so a ladder-shaped tree from clonal
+  data no longer costs time proportional to the square of its size; the name
+  still depends on the leaf set only, but its value differs from the earlier
+  md5 of the joined labels. Edges are written once per node. With
+  `--remove-outgroup` the outgroup leaf is pruned before collapse and naming,
+  so no clade is named for a leaf set that held it and no single-child node
+  remains where it sat on a midpoint-rooted tree.
+- `run`: `--collapse-support` with `--treebuilder mashtree` or `sourmash` is
+  announced before any stage runs, since those trees carry no support values.
 - `phylo`: `--treebuilder auto` counts the outgroup as a leaf and, when
   `--msa-source snptype` or `--mask` is given, chooses among the builders that
   consume an alignment instead of dropping the request with a warning; the

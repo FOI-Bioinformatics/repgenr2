@@ -961,7 +961,10 @@ builder's output itself. They exit 3 when the outgroup is not a leaf of the
 tree. After `phylo --root midpoint`, `tree2tax` keeps the midpoint root (it
 reads the `root` that phylo recorded); `tree2tax-relations` does so when given
 `--keep-root`. The root is named by `--root-name` in either case, and
-`--remove-outgroup` still removes the outgroup leaf. After
+`--remove-outgroup` still removes the outgroup leaf: it is pruned before the
+collapse and naming steps, so no clade is named for a leaf set that held it,
+and a node left with a single child where it sat is merged into its parent.
+After
 `phylo --no-outgroup` with `--root none`, `tree2tax` leaves the tree unrooted
 (its relations start at the builder's root); `tree2tax-relations` does so
 when given `--no-outgroup`, which ignores `--outgroup-dir` and
