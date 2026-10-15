@@ -36,7 +36,12 @@ def _header(genes: int) -> str:
 
 
 def _fake_panaroo(
-    calls: list[list[str]], *, filtered: bool = True, unfiltered: bool = True, header: bool = True
+    calls: list[list[str]],
+    *,
+    filtered: bool = True,
+    unfiltered: bool = True,
+    header: bool = True,
+    genes: int = 20,
 ):
     def run_tool(caps, cmd, **k):
         cmd = [str(c) for c in cmd]
@@ -58,10 +63,10 @@ def _fake_panaroo(
         (out / "summary_statistics.txt").write_text(summary, encoding="utf-8")
         if header:
             # Panaroo's own 99-100% bin above; the alignment holds fewer genes.
-            (out / "core_alignment_header.embl").write_text(_header(20), encoding="utf-8")
+            (out / "core_alignment_header.embl").write_text(_header(genes), encoding="utf-8")
             if filtered:
                 (out / "core_alignment_filtered_header.embl").write_text(
-                    _header(17), encoding="utf-8"
+                    _header(max(genes - 3, 0)), encoding="utf-8"
                 )
         return 0
 
@@ -119,6 +124,77 @@ def test_panaroo_unfiltered_choice_and_errors(tmp_path: Path, monkeypatch) -> No
         mod.PanarooBuilder().call(
             _gffs(tmp_path), tmp_path / "o5", CoreGeneParams(filtered=False), _LOG
         )
+
+
+def test_panaroo_threshold_reaches_argv_and_is_checked(tmp_path: Path, monkeypatch) -> None:
+    """``threshold=`` is Panaroo's -c, the identity of its first clustering pass."""
+    calls: list[list[str]] = []
+    monkeypatch.setattr(mod, "run_tool", _fake_panaroo(calls))
+    mod.PanarooBuilder().call(
+        _gffs(tmp_path), tmp_path / "o1", CoreGeneParams(extra={"threshold": "0.90"}), _LOG
+    )
+    (cmd,) = calls
+    assert cmd[cmd.index("-c") + 1] == "0.9"
+    assert "threshold" in mod.PanarooBuilder.capabilities.accepted_extras
+
+    calls.clear()
+    mod.PanarooBuilder().call(
+        _gffs(tmp_path), tmp_path / "o2", CoreGeneParams(extra={"threshold": 1.0}), _LOG
+    )
+    (cmd,) = calls
+    assert cmd[cmd.index("-c") + 1] == "1"  # the upper bound is allowed
+
+    calls.clear()
+    mod.PanarooBuilder().call(_gffs(tmp_path), tmp_path / "o3", CoreGeneParams(), _LOG)
+    (cmd,) = calls
+    # Passed even unset, so the command and the record carry the governing value.
+    assert cmd[cmd.index("-c") + 1] == "0.98"
+
+    for bad in ("high", "1.5", "0", "-0.5"):
+        with pytest.raises(UserInputError, match="threshold"):
+            mod.PanarooBuilder().call(
+                _gffs(tmp_path), tmp_path / "bad", CoreGeneParams(extra={"threshold": bad}), _LOG
+            )
+
+
+def test_a_small_core_names_the_identity_gate(tmp_path: Path, monkeypatch, caplog) -> None:
+    """Under 100 genes the warning points at the parameter that governs it."""
+    monkeypatch.setattr(mod, "run_tool", _fake_panaroo([]))  # the fake header holds 17 genes
+    with caplog.at_level(logging.WARNING, logger=_LOG.name):
+        mod.PanarooBuilder().call(_gffs(tmp_path), tmp_path / "o1", CoreGeneParams(), _LOG)
+    assert "threshold=0.95" in caplog.text and "0.98" in caplog.text
+
+    # Not repeated once the user has set it: they know about the parameter.
+    caplog.clear()
+    with caplog.at_level(logging.WARNING, logger=_LOG.name):
+        mod.PanarooBuilder().call(
+            _gffs(tmp_path), tmp_path / "o2", CoreGeneParams(extra={"threshold": "0.9"}), _LOG
+        )
+    assert "threshold=0.95" not in caplog.text
+
+    # Nor on a core that is large enough to stand on.
+    caplog.clear()
+    monkeypatch.setattr(mod, "run_tool", _fake_panaroo([], genes=150))
+    with caplog.at_level(logging.WARNING, logger=_LOG.name):
+        mod.PanarooBuilder().call(_gffs(tmp_path), tmp_path / "o3", CoreGeneParams(), _LOG)
+    assert caplog.text == ""
+
+
+def test_no_core_at_all_refuses_and_names_the_identity_gate(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setattr(mod, "run_tool", _fake_panaroo([], filtered=False, unfiltered=False))
+    with pytest.raises(WorkdirError, match=r"least 0.98 identical"):
+        mod.PanarooBuilder().call(
+            _gffs(tmp_path), tmp_path / "o1", CoreGeneParams(filtered=False), _LOG
+        )
+    with pytest.raises(WorkdirError, match=r"You already set it to 0.9") as caught:
+        mod.PanarooBuilder().call(
+            _gffs(tmp_path),
+            tmp_path / "o2",
+            CoreGeneParams(filtered=False, extra={"threshold": "0.90"}),
+            _LOG,
+        )
+    # The value is normalised, so the message and the command agree.
+    assert "0.90" not in str(caught.value)
 
 
 def test_panaroo_is_registered_and_never_auto() -> None:
@@ -181,12 +257,19 @@ def test_coregene_core_publishes_alignment_tables_and_stats(
     gffs = _gffs(tmp_path)
     with caplog.at_level(logging.INFO, logger="test-coregene"):
         result, versions = coregene_core(
-            gffs, tmp_path / "msa", tmp_path / "scratch", CoreGeneParams(), "fakecg", _LOG
+            gffs,
+            tmp_path / "msa",
+            tmp_path / "scratch",
+            CoreGeneParams(extra={"threshold": "0.9"}),
+            "fakecg",
+            _LOG,
         )
     assert result.alignment == tmp_path / "msa" / CORE_GENE_FASTA and result.alignment.is_file()
     assert (tmp_path / "msa" / PANGENOME_DIR / "summary_statistics.txt").is_file()
     stats = json.loads((tmp_path / "msa" / CORE_GENE_STATS).read_text(encoding="utf-8"))
     assert stats["core_genes"] == 7 and stats["alignment_length"] == 6 and stats["genomes"] == 3
+    # The parameter that governs the count is kept beside it.
+    assert stats["clustering_identity"] == "0.9"
     assert versions == {"fakecg": "1.0"} and not (tmp_path / "scratch").exists()
     assert any("no ascertainment-bias correction" in r.getMessage() for r in caplog.records)
     with pytest.raises(UserInputError, match="Unknown core-gene builder"):
