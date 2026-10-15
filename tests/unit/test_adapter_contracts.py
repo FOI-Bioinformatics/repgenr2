@@ -138,7 +138,7 @@ def _make_fake_run_tool(recorded: list[list[str]]):
             _fake_sourmash_sketch(cmd)
         elif cmd[:2] == ["sourmash", "compare"]:
             _fake_sourmash_compare(cmd)
-        elif cmd[0] in ("mashtree", "FastTree", "fasttree"):
+        elif cmd[0] in ("mashtree", "FastTree", "fasttree", "VeryFastTree"):
             Path(stdout_path).write_text(_NEWICK, encoding="utf-8")
         elif cmd[0] == "iqtree":
             msa = Path(_flag_value(cmd, "-s"))
@@ -271,6 +271,7 @@ def test_galah_empty_clusters_yields_empty_result(genomes, recorded, tmp_path, m
 _TREE_PARAM_TOKENS = {
     "mashtree": ["--numcpus", "5"],
     "fasttree": ["-nt", "-gtr"],
+    "veryfasttree": ["-nt", "-gtr", "-threads", "5"],
     "iqtree": ["--threads-max", "5"],
     "raxmlng": ["--threads", "auto{5}"],
     "sourmash": ["k=31,scaled=1000", "--processes", "5"],

@@ -13,7 +13,7 @@ from ..core.bindirs import host_which, tool_path
 from ..core.containers import available_cpus, run_tool, runs_on_host
 from ..core.contracts import parse_genome_filename
 from ..core.errors import ToolExecutionError, UserInputError, WorkdirError
-from ..core.plugins import ToolCapabilities
+from ..core.plugins import ToolCapabilities, parse_extra_bool
 from .base import Masker, MaskParams
 
 _ALLOWED = set("ACGTNacgtn-")
@@ -235,12 +235,12 @@ def check_species_spread(names: list[str], extra: dict, logger: logging.Logger) 
 
 
 def _forced(extra: dict) -> bool:
-    raw = str(extra.get("gubbins_force", "")).strip().lower()
-    if raw in ("", "0", "false", "no"):
-        return False
-    if raw in ("1", "true", "yes"):
-        return True
-    raise UserInputError(f"gubbins_force must be true or false, got {extra.get('gubbins_force')!r}")
+    try:
+        return parse_extra_bool(extra, "gubbins_force", False)
+    except UserInputError:
+        raise UserInputError(
+            f"gubbins_force must be true or false, got {extra.get('gubbins_force')!r}"
+        ) from None
 
 
 def variable_fraction(records: dict[str, str], sample: int = 200_000) -> tuple[float, int]:

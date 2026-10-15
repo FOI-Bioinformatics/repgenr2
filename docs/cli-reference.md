@@ -86,7 +86,7 @@ is 'vmetadata --source'. --platform filters the sequencing platform with
 | `--target-reps` | `0` | Target representative count: search --secondary-ani to land near it (0 = off; re-runs dereplication per search step). |
 | `--tool-arg` |  | Tool tuning as key=value (repeatable), e.g. mode=greedy. |
 | `--with-snptype` | off | Run the standalone snptype stage (with --snptyper, --mask, --reference) after dereplication, so the SNP tables are produced whatever builds the tree. |
-| `--treebuilder` | `iqtree` | auto, fasttree, iqtree, mashtree, raxmlng, sourmash. |
+| `--treebuilder` | `iqtree` | auto, fasttree, iqtree, mashtree, raxmlng, sourmash, veryfasttree. |
 | `--msa-source` | `aligner` | aligner or snptype. |
 | `--aligner` | `progressivemauve` | cactus, progressivemauve, sibeliaz. |
 | `--snptyper` | `simple` | SNP typer: parsnp, simple, ska2, snippy. |
@@ -326,7 +326,7 @@ Build a phylogenetic tree from an alignment, SNP alignment, or directly.
 | option | default | description |
 |---|---|---|
 | `-wd`, `--workdir` | required | Working directory. |
-| `--treebuilder` | `iqtree` | auto, fasttree, iqtree, mashtree, raxmlng, sourmash. |
+| `--treebuilder` | `iqtree` | auto, fasttree, iqtree, mashtree, raxmlng, sourmash, veryfasttree. |
 | `--msa-source` | `aligner` | aligner or snptype. |
 | `--aligner` | `progressivemauve` | cactus, progressivemauve, sibeliaz. |
 | `--snptyper` | `simple` | SNP typer: parsnp, simple, ska2, snippy. |
@@ -595,7 +595,7 @@ Here --outgroup-accession takes a file that names the accession, not the accessi
 | `-o`, `--out` | required | Output dir (writes tree/tree.nwk). |
 | `--outgroup-dir` |  | Directory holding the outgroup genome file(s). |
 | `--outgroup-accession` |  | File naming the outgroup accession. |
-| `--treebuilder` | `iqtree` | auto, fasttree, iqtree, mashtree, raxmlng, sourmash. |
+| `--treebuilder` | `iqtree` | auto, fasttree, iqtree, mashtree, raxmlng, sourmash, veryfasttree. |
 | `--msa-source` | `aligner` | aligner or snptype. |
 | `--aligner` | `progressivemauve` | cactus, progressivemauve, sibeliaz. |
 | `--snptyper` | `simple` | SNP typer: parsnp, simple, ska2, snippy. |

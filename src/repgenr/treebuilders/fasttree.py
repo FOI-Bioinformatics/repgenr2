@@ -9,12 +9,11 @@ from pathlib import Path
 
 from ..core.binaries import BinarySpec
 from ..core.containers import run_tool
-from ..core.plugins import ToolCapabilities
+from ..core.plugins import ToolCapabilities, parse_extra_bool
 from .base import InputKind, TreeBuilder, TreeParams, as_msa_path
 
 
 class FasttreeBuilder(TreeBuilder):
-    # FastTree / VeryFastTree are both accepted; prefer FastTree on PATH.
     capabilities = ToolCapabilities(
         name="fasttree",
         container="quay.io/biocontainers/fasttree:2.2.0--h7b50bb2_1",
@@ -23,6 +22,7 @@ class FasttreeBuilder(TreeBuilder):
         # make FastTree read an alignment from stdin.
         required_binaries=(BinarySpec("FastTree", version_args=("-help",), min_version="2.1"),),
         recommended_max_genomes=5000,
+        accepted_extras=frozenset({"gamma"}),
     )
     input_kind = InputKind.MSA_FASTA
 
@@ -52,6 +52,10 @@ class FasttreeBuilder(TreeBuilder):
                 "constant-site counts"
             )
         cmd: list = [binary, "-nt", "-gtr"]
+        if parse_extra_bool(params.extra, "gamma", False):
+            # Rescale the branch lengths under the Gamma20 likelihood after
+            # the CAT search; FastTree's own recommendation for comparable lengths.
+            cmd.append("-gamma")
         if params.bootstrap > 0:
             # FastTree's SH-like local supports are computed from `-boot N`
             # resamples (default 1000); --bootstrap N sets N instead of being

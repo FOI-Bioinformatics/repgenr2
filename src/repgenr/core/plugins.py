@@ -33,6 +33,22 @@ def parse_extra_int(extra: Mapping[str, object], key: str, default: int) -> int:
         raise UserInputError(f"Extra parameter '{key}' must be an integer, got {raw!r}.") from exc
 
 
+def parse_extra_bool(extra: Mapping[str, object], key: str, default: bool) -> bool:
+    """Read a boolean tool override (``true``/``false``, ``1``/``0``, ``yes``/``no``);
+    an absent key or an empty value gives ``default``."""
+    raw = extra.get(key, default)
+    if isinstance(raw, bool):
+        return raw
+    text = str(raw).strip().lower()
+    if text == "":
+        return default
+    if text in ("1", "true", "yes"):
+        return True
+    if text in ("0", "false", "no"):
+        return False
+    raise UserInputError(f"Extra parameter '{key}' must be true or false, got {raw!r}.")
+
+
 @dataclass(frozen=True)
 class ToolCapabilities:
     """Declarative metadata for one tool adapter.
