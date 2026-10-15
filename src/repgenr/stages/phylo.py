@@ -49,7 +49,7 @@ from ..core.contracts import (
     parse_genome_filename,
     record_name,
 )
-from ..core.errors import UserInputError, WorkdirError
+from ..core.errors import PluginError, UserInputError, WorkdirError
 from ..core.inputs import file_digest, paths_stat_digest
 from ..core.integrity import check_genome_completeness, check_representatives_consistency
 from ..core.plugins import ToolCapabilities, auto_select, scale_warning, warn_ignored_params
@@ -414,21 +414,69 @@ def build_msa(
     separately: the Nextflow layer runs the two as their own tasks so that
     changing the tree builder does not repeat the alignment.
     """
-    builder = treebuilder_registry.create(_resolve_treebuilder(params, len(genomes), logger))
+    n_leaves = len(genomes) + (0 if outgroup_file is None else 1)
+    builder = treebuilder_registry.create(
+        _resolve_treebuilder(params, n_leaves, logger, alignment_given="--msa-only")
+    )
     if builder.input_kind == InputKind.GENOMES:
         raise UserInputError(
             f"Tree builder '{builder.capabilities.name}' builds from genomes, not from an "
-            "alignment, so there is no alignment to build separately."
+            "alignment, so there is no alignment to build separately. Choose a builder "
+            f"that consumes one ({', '.join(_msa_builder_names())}) or build the tree in "
+            "one step."
         )
     return _msa_with_reuse(genomes, outgroup_file, dirs, params, logger, reuse=reuse)
 
 
-def _resolve_treebuilder(params: PhyloParams, n_genomes: int, logger: logging.Logger) -> str:
-    """The tree builder to use, resolving 'auto' and warning past its scale."""
+def _msa_builder_names() -> list[str]:
+    """Registered tree builders that consume an alignment."""
+    names = []
+    for name in treebuilder_registry.names():
+        try:
+            cls = treebuilder_registry.get(name)
+        except (PluginError, KeyError):
+            continue
+        if cls.input_kind != InputKind.GENOMES:
+            names.append(name)
+    return names
+
+
+def _wants_alignment(params: PhyloParams) -> str | None:
+    """The request that only an alignment-consuming builder can honour, or None."""
+    if str(params.extra.get("mask", "none")) not in ("none", ""):
+        return f"--mask {params.extra['mask']}"
+    if params.msa_source == "snptype":
+        return "--msa-source snptype"
+    return None
+
+
+def _resolve_treebuilder(
+    params: PhyloParams,
+    n_genomes: int,
+    logger: logging.Logger,
+    *,
+    alignment_given: str | None = None,
+) -> str:
+    """The tree builder to use, resolving 'auto' and warning past its scale.
+
+    ``n_genomes`` counts every leaf the tree will have, the outgroup included.
+    With 'auto', a request that only an alignment can honour (a SNP source, a
+    masker, or ``alignment_given``, the flag under which the caller builds or
+    supplies the alignment itself) restricts the choice to builders that
+    consume one; otherwise a large set would be handed to an alignment-free
+    builder and the request silently dropped.
+    """
     treebuilder = params.treebuilder
     if treebuilder == "auto":
-        treebuilder = auto_select(treebuilder_registry, n_genomes) or "iqtree"
-        logger.info("Auto-selected tree builder '%s' for %d genomes", treebuilder, n_genomes)
+        wants = alignment_given or _wants_alignment(params)
+        allowed = _msa_builder_names() if wants else None
+        treebuilder = auto_select(treebuilder_registry, n_genomes, allowed) or "iqtree"
+        logger.info(
+            "Auto-selected tree builder '%s' for %d genomes%s",
+            treebuilder,
+            n_genomes,
+            f" among builders that consume an alignment ({wants})" if wants else "",
+        )
         return treebuilder
     warn = scale_warning(treebuilder_registry, treebuilder, n_genomes)
     if warn:
@@ -469,8 +517,21 @@ def build_tree(
     # Decided before any tool runs, so an impossible request costs nothing.
     root = resolve_root(params.root, outgroup_leaf, params.no_outgroup)
 
-    treebuilder = _resolve_treebuilder(params, len(genomes), logger)
+    n_leaves = len(genomes) + (0 if outgroup_file is None else 1)
+    treebuilder = _resolve_treebuilder(
+        params, n_leaves, logger, alignment_given=None if msa is None else "--msa"
+    )
     builder = treebuilder_registry.create(treebuilder)
+    if (
+        builder.input_kind != InputKind.GENOMES
+        and params.bootstrap == 0
+        and not builder.supports_without_bootstrap
+    ):
+        logger.info(
+            "No bootstrap replicates requested (-B not set): the %s tree will carry no "
+            "support values, so tree2tax --collapse-support has nothing to act on",
+            treebuilder,
+        )
     versions = builder.preflight()
 
     # One warning for the whole stage: the tree builder and the MSA source share

@@ -20,11 +20,17 @@ class IqtreeBuilder(TreeBuilder):
         name="iqtree",
         container="quay.io/biocontainers/iqtree:3.1.3--h8471819_0",
         conda=("bioconda::iqtree",),
+        # model=: the substitution model passed as -m (for example GTR+G).
+        # Without it IQ-TREE runs ModelFinder, a model-selection pass before
+        # the tree search.
+        accepted_extras=frozenset({"model"}),
         # 2.0: -B (ultrafast bootstrap) and --threads-max as passed below.
         required_binaries=(BinarySpec("iqtree", version_args=("--version",), min_version="2.0"),),
         recommended_max_genomes=500,
     )
     input_kind = InputKind.MSA_FASTA
+    # Without -B the tree carries no support values at all.
+    supports_without_bootstrap = False
 
     # IQ-TREE's ultrafast bootstrap (-B) rejects fewer than 1000 replicates.
     MIN_BOOTSTRAP = 1000
@@ -63,6 +69,14 @@ class IqtreeBuilder(TreeBuilder):
             "DNA",
             "-redo",  # overwrite checkpoints from a previous run at this path
         ]
+        model = str(params.extra.get("model", "")).strip()
+        if model:
+            cmd += ["-m", model]
+        else:
+            logger.info(
+                "iqtree: no model given, so IQ-TREE runs ModelFinder before the tree "
+                "search; model=GTR+G (--aligner-arg) skips the selection"
+            )
         if params.outgroup:
             cmd += ["-o", params.outgroup]
         if params.bootstrap > 0:

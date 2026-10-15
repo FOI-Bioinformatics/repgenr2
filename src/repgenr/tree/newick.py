@@ -71,9 +71,18 @@ def neighbor_joining(labels: list[str], dist: list[list[float]]) -> str:
     return f"({names[i]}:{d_final / 2:.6f},{names[j]}:{d_final / 2:.6f});"
 
 
+_NEEDS_QUOTES = frozenset(" ()[]:,;'\t\r\n")
+
+
 def _sanitize(label: str) -> str:
-    """Make a label safe for Newick (no spaces, parentheses, commas, colons)."""
-    out = label
-    for ch in " ()[]:,;'":
-        out = out.replace(ch, "_")
-    return out
+    """Make a label safe for Newick without changing it.
+
+    A label holding a reserved character (space, parentheses, brackets, colon,
+    comma, semicolon, quote) is written in single quotes with an embedded quote
+    doubled, as the Newick grammar allows. Replacing the characters instead
+    could map two distinct labels onto one leaf name, which no later step can
+    undo; quoting is reversible and dendropy reads the label back as written.
+    """
+    if any(ch in _NEEDS_QUOTES for ch in label):
+        return "'" + label.replace("'", "''") + "'"
+    return label

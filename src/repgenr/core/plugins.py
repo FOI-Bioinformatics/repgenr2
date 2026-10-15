@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import logging
 import shutil
-from collections.abc import Mapping
+from collections.abc import Collection, Mapping
 from dataclasses import dataclass, field, fields, is_dataclass
 from importlib.metadata import entry_points
 
@@ -289,8 +289,12 @@ def _preference_rank(name: str) -> int:
         return len(_PREFERRED_ORDER)
 
 
-def auto_select(registry: Registry, n_items: int) -> str | None:
+def auto_select(
+    registry: Registry, n_items: int, allowed: Collection[str] | None = None
+) -> str | None:
     """Pick the best *available* registered tool for ``n_items`` inputs.
+
+    ``allowed`` restricts the candidates to the named tools.
 
     Preference order: runnable in the current environment (container-aware),
     then fits the recommended scale, then the TIGHTEST fitting limit --
@@ -302,6 +306,8 @@ def auto_select(registry: Registry, n_items: int) -> str | None:
     inf = float("inf")
     best: tuple[tuple, str] | None = None
     for name in registry.names():
+        if allowed is not None and name not in allowed:
+            continue
         cap = _capabilities_of(registry, name)
         if cap is None:
             if name not in registry._skip_warned:

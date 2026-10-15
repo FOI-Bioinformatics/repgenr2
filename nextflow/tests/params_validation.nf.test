@@ -17,6 +17,20 @@ nextflow_pipeline {
         }
     }
 
+    test("phylo_split_msa with an alignment-free builder fails before any stage runs") {
+        when {
+            params {
+                phylo_split_msa = true
+                phylo_args = '--treebuilder mashtree'
+            }
+        }
+        then {
+            assert !workflow.success
+            assert workflow.stdout.join('\n').contains('needs a tree builder that consumes an alignment') ||
+                   workflow.stderr.join('\n').contains('needs a tree builder that consumes an alignment')
+        }
+    }
+
     test("a third-party dereplicator name passes schema validation") {
         // The enum was dropped so pip-installed plugins are usable from
         // Nextflow; RepGenR2's own registry validation rejects unknown names

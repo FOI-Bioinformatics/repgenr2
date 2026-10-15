@@ -28,8 +28,13 @@ def test_four_taxa_groups_close_pairs() -> None:
     assert nwk.endswith(");")
 
 
-def test_labels_sanitized() -> None:
-    nwk = neighbor_joining(["a b", "c:d", "e(f)"], [[0, 1, 1], [1, 0, 1], [1, 1, 0]])
-    for bad in (" ", ":", "(", ")"):
-        # sanitized labels must not reintroduce structural characters in names
-        assert f"a{bad}b" not in nwk
+def test_labels_with_reserved_characters_are_quoted_not_rewritten() -> None:
+    import dendropy
+
+    labels = ["a b", "c:d", "e(f)"]
+    nwk = neighbor_joining(labels, [[0, 1, 1], [1, 0, 1], [1, 1, 0]])
+    # Quoting keeps the structural characters out of the grammar while the
+    # label itself survives the round trip unchanged.
+    assert "'a b'" in nwk and "'c:d'" in nwk and "'e(f)'" in nwk
+    tree = dendropy.Tree.get(data=nwk, schema="newick", preserve_underscores=True)
+    assert sorted(t.label for t in tree.taxon_namespace) == sorted(labels)

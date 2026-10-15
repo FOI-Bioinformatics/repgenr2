@@ -191,11 +191,16 @@ multi-threaded RAxML build when given more than one thread; see
 
 | Builder | Input | Scaling | Resolution | Rooting by the builder |
 |---|---|---|---|---|
-| `iqtree` | MSA | Declared 500. Poor beyond that. | Good on both diverse and clonal sets. Use at least 1000 ultrafast bootstrap replicates for supports. | Roots on the outgroup. |
+| `iqtree` | MSA | Declared 500. Poor beyond that. Without `--aligner-arg model=...` it runs ModelFinder first; `model=GTR+G` skips that pass. | Good on both diverse and clonal sets. Use at least 1000 ultrafast bootstrap replicates for supports; without `-B` the tree has none, and the stage says so. | Roots on the outgroup. |
 | `raxmlng` | MSA | Declared 1000. Slow beyond that. | Supports from its own bootstrap procedure. | Roots on the outgroup. |
 | `fasttree` | MSA | Declared 5000. Good to about 5000. | Approximate. Weaker resolution on clonal sets. | Unrooted. |
 | `mashtree` | Genomes | Declared 10000. 53 min and 7.6 GB measured at 5000. | Poor on clonal sets. No supports. | Unrooted. |
 | `sourmash` | Genomes | Declared 2000. Cubic in the neighbour-joining step. | Poor on clonal sets. No supports. | Unrooted. |
+
+`--treebuilder auto` picks the builder whose declared scale fits the leaf
+count, the outgroup included. When `--msa-source snptype` or `--mask` is
+given, the choice is made among the builders that consume an alignment, so
+the request is honoured rather than dropped.
 
 The stage adds the outgroup to the input and passes it to builders that can
 root. Whatever the builder, `phylo` then roots `tree/tree.nwk` itself

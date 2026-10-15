@@ -977,8 +977,8 @@ Two alternatives to the whole-genome alignment in the bacterial example (see
 repgenr dereplicate -wd $WD --tool skder
 repgenr phylo -wd $WD --treebuilder mashtree
 
-# SNP-based phylogeny (core-SNP alignment as the MSA source)
-repgenr snptype -wd $WD --tool simple
+# SNP-based phylogeny (core-SNP alignment as the MSA source); phylo types the
+# genomes itself under tree/msa/, so no separate snptype run is needed
 repgenr phylo -wd $WD --msa-source snptype --treebuilder iqtree --mask gubbins
 ```
 

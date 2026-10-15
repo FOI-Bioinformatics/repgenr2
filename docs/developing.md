@@ -81,8 +81,10 @@ The phylo stage composes three independent choices:
 
 The stage adds the outgroup genome to the input set and passes it to builders
 that can root (iqtree, raxmlng); mashtree, fasttree and sourmash emit an
-unrooted tree. The tree2tax stage then roots every tree on the outgroup edge,
-so the taxonomy always splits the outgroup from a single ingroup clade. An
+unrooted tree. `phylo --root` then roots the published tree (on the outgroup
+edge by default, at the midpoint, or not at all) and keeps the builder's
+output as `tree/tree.unrooted.nwk`. tree2tax reroots on the outgroup only when
+the tree is not already rooted there, and keeps a midpoint root as it is. An
 outgroup that is not a leaf of the tree is an error (exit 3); a tree that
 `phylo` built without an outgroup is left unrooted.
 

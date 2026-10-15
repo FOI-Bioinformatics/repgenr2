@@ -95,7 +95,7 @@ is 'vmetadata --source'. --platform filters the sequencing platform with
 | `--all-genomes` | off | Use all genomes, not only the representatives. |
 | `-B`, `--bootstrap` | `0` | Bootstrap replicates. 0 turns bootstrapping off; IQ-TREE needs at least 1000 when it is on. |
 | `--reference` |  | Reference genome filename. |
-| `--aligner-arg` |  | Aligner tuning as key=value (repeatable), e.g. kmer=15 (sibeliaz) or seed_weight=11 (progressivemauve). |
+| `--aligner-arg` |  | Aligner, SNP typer, masker or tree builder tuning as key=value (repeatable), e.g. kmer=15 (sibeliaz), seed_weight=11 (progressivemauve) or model=GTR+G (iqtree, raxmlng). |
 | `--mask` | `none` | Recombination masking of the SNP alignment: none, gubbins. Needs --msa-source snptype or --with-snptype. |
 | `--node-basename` |  | Name internal nodes <basename><n>. Without it, internal nodes receive names derived from a hash of their descendant leaves. |
 | `--root-name` | `root` | Label of the top node. FlexTaxD expects 'root'. |
@@ -329,7 +329,7 @@ Build a phylogenetic tree from an alignment, SNP alignment, or directly.
 | `--root` |  | How phylo roots tree/tree.nwk: outgroup (on the branch to the outgroup), midpoint, or none (as the tree builder wrote it). Default: outgroup when an outgroup is staged and --no-outgroup is not given, else none. |
 | `-B`, `--bootstrap` | `0` | Bootstrap replicates. 0 turns bootstrapping off; IQ-TREE needs at least 1000 when it is on. |
 | `--reference` |  | Reference genome filename. |
-| `--aligner-arg` |  | Aligner tuning as key=value (repeatable), e.g. kmer=15 (sibeliaz) or seed_weight=11 (progressivemauve). |
+| `--aligner-arg` |  | Aligner, SNP typer, masker or tree builder tuning as key=value (repeatable), e.g. kmer=15 (sibeliaz), seed_weight=11 (progressivemauve) or model=GTR+G (iqtree, raxmlng). |
 | `-t`, `--threads` | `16` | Threads for the external tool (default 16, or the CPU limit when lower). |
 | `--mask` | `none` | Recombination masking of the SNP alignment: none, gubbins. Needs --msa-source snptype. |
 | `--allow-incomplete` | off | Proceed with a warning when the input genome set is incomplete. |
@@ -592,7 +592,7 @@ Here --outgroup-accession takes a file that names the accession, not the accessi
 | `--root` |  | How phylo roots tree/tree.nwk: outgroup (on the branch to the outgroup), midpoint, or none (as the tree builder wrote it). Default: outgroup when an outgroup is staged and --no-outgroup is not given, else none. |
 | `-B`, `--bootstrap` | `0` | Bootstrap replicates. 0 turns bootstrapping off; IQ-TREE needs at least 1000 when it is on. |
 | `--reference` |  | Reference genome filename. |
-| `--aligner-arg` |  | Aligner tuning as key=value (repeatable), e.g. kmer=15 (sibeliaz) or seed_weight=11 (progressivemauve). |
+| `--aligner-arg` |  | Aligner, SNP typer, masker or tree builder tuning as key=value (repeatable), e.g. kmer=15 (sibeliaz), seed_weight=11 (progressivemauve) or model=GTR+G (iqtree, raxmlng). |
 | `-t`, `--threads` | `16` | Threads for the external tool (default 16, or the CPU limit when lower). |
 | `--mask` | `none` | Recombination masking of the SNP alignment: none, gubbins. Needs --msa-source snptype. |
 | `--msa-only` | off | Build the alignment and stop, writing msa.fasta (for a separate tree step). |

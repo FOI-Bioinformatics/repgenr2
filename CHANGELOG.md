@@ -12,6 +12,24 @@ All notable changes to RepGenR2 are documented here. The format follows
   that later entries implement (batches A to D; E deferred).
 
 ### Changed
+- `phylo`: `--treebuilder auto` counts the outgroup as a leaf and, when
+  `--msa-source snptype` or `--mask` is given, chooses among the builders that
+  consume an alignment instead of dropping the request with a warning; the
+  same applies when the alignment is built on its own (`phylo-build
+  --msa-only`) or given (`--msa`). The log notes an IQ-TREE run without
+  bootstrap replicates, since that tree carries no support values.
+  `phylo-build --msa-only` with an alignment-free builder names the builders
+  that consume one. The Nextflow pipeline refuses `phylo_split_msa`
+  with an alignment-free builder before any stage runs.
+- `phylo --treebuilder iqtree`: `--aligner-arg model=...` is passed as `-m`;
+  without it the log says that IQ-TREE runs ModelFinder first.
+- The sourmash tree builder writes a leaf label holding a reserved Newick
+  character in quotes instead of replacing the character, so two labels can no
+  longer merge into one leaf.
+- Documentation: the simple typer's N masking (#232) and concurrency (#166)
+  are stated where the audit records still said otherwise; the SNP-phylogeny
+  example no longer runs `snptype` first, since `phylo` types the genomes
+  itself; the rooting description follows `phylo --root`.
 - `tree2tax`: the FlexTaxD contract is stated in `docs/output.md` and held
   by a test that mirrors FlexTaxD's reader (header rule, label-keyed nodes,
   a top node named `root`, no empty field, no header on the genome map).

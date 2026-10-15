@@ -114,8 +114,9 @@ HELP_BOOTSTRAP = (
 HELP_REFERENCE = "Reference genome filename."
 HELP_MSA_SOURCE = "aligner or snptype."
 HELP_ALIGNER_ARG = (
-    "Aligner tuning as key=value (repeatable), e.g. kmer=15 (sibeliaz) "
-    "or seed_weight=11 (progressivemauve)."
+    "Aligner, SNP typer, masker or tree builder tuning as key=value (repeatable), "
+    "e.g. kmer=15 (sibeliaz), seed_weight=11 (progressivemauve) or model=GTR+G "
+    "(iqtree, raxmlng)."
 )
 HELP_DEREP_TOOL_ARG = "Tool tuning as key=value (repeatable), e.g. mode=greedy."
 HELP_KEEPER = (
