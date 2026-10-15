@@ -28,6 +28,7 @@ from .base import (
     HELP_KEEP_FILES,
     HELP_KEEP_ROOT,
     HELP_MSA_SOURCE,
+    HELP_NAMING,
     HELP_NO_OUTGROUP,
     HELP_NODE_BASENAME,
     HELP_PRIMARY_ANI,
@@ -278,6 +279,7 @@ def tree2tax_relations_cmd(
         "are listed under their isolate's leaf.",
     ),
     node_basename: str | None = typer.Option(None, "--node-basename", help=HELP_NODE_BASENAME),
+    naming: str = typer.Option("leafset", "--naming", help=HELP_NAMING),
     root_name: str = typer.Option("root", "--root-name", help=HELP_ROOT_NAME),
     remove_outgroup: bool = typer.Option(False, "--remove-outgroup", help=HELP_REMOVE_OUTGROUP),
     no_outgroup: bool = typer.Option(False, "--no-outgroup", help=HELP_NO_OUTGROUP),
@@ -312,10 +314,11 @@ def tree2tax_relations_cmd(
 
     Here --outgroup-accession takes a file that names the accession, not the accession itself.
     """
-    from ..stages.tree2tax import Tree2taxStepParams, tree2tax_relations
+    from ..stages.tree2tax import NAMING_RULES, Tree2taxStepParams, tree2tax_relations
 
     logger = configure_logging(None, level=_RUN_STATE["log_level"])
     with stage_errors(logger):
+        _require_choice(naming, set(NAMING_RULES), "--naming")
         tree2tax_relations(
             Tree2taxStepParams(
                 tree=tree,
@@ -324,6 +327,7 @@ def tree2tax_relations_cmd(
                 outgroup_dir=outgroup_dir,
                 outgroup_accession=outgroup_accession,
                 node_basename=node_basename,
+                naming=naming,
                 root_name=root_name,
                 remove_outgroup=remove_outgroup,
                 include_dereplicated=include_dereplicated,

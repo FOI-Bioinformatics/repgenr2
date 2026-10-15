@@ -7,6 +7,14 @@ All notable changes to RepGenR2 are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- `tree2tax --naming lca` (also on `tree2tax-relations` and `run`) names an
+  internal node by a hash of the smallest leaf label under each of its
+  children, the set whose last common ancestor it is, so a genome added with
+  a later-sorting accession that splits a branch leaves existing names
+  unchanged; one joining a multifurcation, sorting below a child's minimum,
+  or being removed renames the nodes concerned. `leafset`, the default,
+  keeps the hash of the whole leaf set. An unknown rule is refused before any
+  stage runs; the record carries the rule, or null under `--node-basename`.
 - `tree2tax --collapse-diameter D` (also on `tree2tax-relations` and `run`):
   the fewest clades whose leaf-to-leaf distance stays within D are kept and
   every node inside each is merged into it, so a distance cutoff such as a

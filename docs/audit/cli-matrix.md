@@ -3,7 +3,7 @@
 Generated from `tests/audit/cli_matrix.yaml` by `scripts/render_cli_matrix.py`;
 `tests/unit/test_cli_matrix.py` keeps both in step with the command tree.
 
-30 commands, 354 flags (354 with a live test or an n/a reason, 0 pending).
+30 commands, 357 flags (357 with a live test or an n/a reason, 0 pending).
 
 ## Global flags
 
@@ -359,6 +359,7 @@ dispatch: `stage`
 | `--pre-primary-ani` |  | DereplicateParams.pre_primary_ani | unit_interval | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: forwarded to the stage builder unchanged (wiring test); the stage flag is covered live | docs/cli-reference.md, docs/audit/cli-matrix.md |
 | `--pre-secondary-ani` |  | DereplicateParams.pre_secondary_ani | unit_interval | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: forwarded to the stage builder unchanged (wiring test); the stage flag is covered live | docs/cli-reference.md, docs/audit/cli-matrix.md |
 | `--node-basename` |  | Tree2taxParams.node_basename | none | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: forwarded to the stage builder unchanged (wiring test); the stage flag is covered live | docs/cli-reference.md, docs/audit/cli-matrix.md |
+| `--naming` |  | Tree2taxParams.naming | choice | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: covered offline in tests/unit/test_tree2tax_naming.py | docs/cli-reference.md, docs/usage.md, docs/audit/cli-matrix.md |
 | `--root-name` |  | Tree2taxParams.root_name | none | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: forwarded to the stage builder unchanged (wiring test); the stage flag is covered live | docs/cli-reference.md, docs/audit/cli-matrix.md |
 | `--remove-outgroup` |  | Tree2taxParams.remove_outgroup | none | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: forwarded to the stage builder unchanged (wiring test); the stage flag is covered live | docs/cli-reference.md, docs/audit/cli-matrix.md |
 | `--dataset` | -d | MetadataParams.dataset | choice | n/a: workdir command; the Nextflow layer uses the stateless steps | tests/live/test_network.py::test_run_bacterial_chain_end_to_end | docs/cli-reference.md, docs/audit/cli-matrix.md |
@@ -438,6 +439,7 @@ dispatch: `stage`
 |---|---|---|---|---|---|---|
 | `--workdir` | -wd | workdir | stage | n/a: workdir command; the Nextflow layer uses the stateless steps | tests/live/test_smoke.py::test_offline_chain_sourmash_mashtree | docs/cli-reference.md, docs/usage.md, docs/output.md, docs/audit/cli-matrix.md |
 | `--node-basename` |  | Tree2taxParams.node_basename | none | n/a: workdir command; the Nextflow layer uses the stateless steps | tests/live/test_species_set.py::test_tree2tax_workdir_flags | docs/cli-reference.md, docs/audit/cli-matrix.md |
+| `--naming` |  | Tree2taxParams.naming | choice | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: covered offline in tests/unit/test_tree2tax_naming.py | docs/cli-reference.md, docs/usage.md, docs/audit/cli-matrix.md |
 | `--root-name` |  | Tree2taxParams.root_name | none | n/a: workdir command; the Nextflow layer uses the stateless steps | tests/live/test_species_set.py::test_tree2tax_workdir_flags | docs/cli-reference.md, docs/audit/cli-matrix.md |
 | `--remove-outgroup` |  | Tree2taxParams.remove_outgroup | none | n/a: workdir command; the Nextflow layer uses the stateless steps | tests/live/test_species_set.py::test_tree2tax_workdir_flags | docs/cli-reference.md, docs/audit/cli-matrix.md |
 | `--include-dereplicated` |  | Tree2taxParams.include_dereplicated | none | n/a: workdir command; the Nextflow layer uses the stateless steps | tests/live/test_smoke.py::test_offline_chain_sourmash_mashtree | docs/usage.md, docs/cli-reference.md, docs/audit/cli-matrix.md |
@@ -458,6 +460,7 @@ dispatch: `step:repgenr.stages.tree2tax.tree2tax_relations`
 | `--outgroup-accession` |  | Tree2taxStepParams.outgroup_accession | none | module: fixed by the process script | tests/live/test_steps.py::test_phylo_build_and_tree2tax_relations_with_outgroup | docs/cli-reference.md, docs/audit/cli-matrix.md |
 | `--segments` |  | Tree2taxStepParams.segments | stage | module: staged from VACQUIRE on the viral path; an empty list elsewhere | n/a: covered offline in tests/integration/test_dataflow_phylo_steps.py | docs/cli-reference.md, docs/audit/cli-matrix.md |
 | `--node-basename` |  | Tree2taxStepParams.node_basename | none | params.tree2tax_args | tests/live/test_steps.py::test_phylo_build_and_tree2tax_relations_with_outgroup | docs/cli-reference.md, docs/audit/cli-matrix.md |
+| `--naming` |  | Tree2taxStepParams.naming | choice | params.tree2tax_args | n/a: covered offline in tests/unit/test_tree2tax_naming.py | docs/cli-reference.md, docs/usage.md, docs/audit/cli-matrix.md |
 | `--root-name` |  | Tree2taxStepParams.root_name | none | params.tree2tax_args | tests/live/test_steps.py::test_phylo_build_and_tree2tax_relations_with_outgroup | docs/cli-reference.md, docs/audit/cli-matrix.md |
 | `--remove-outgroup` |  | Tree2taxStepParams.remove_outgroup | none | params.tree2tax_args | tests/live/test_steps.py::test_phylo_build_and_tree2tax_relations_with_outgroup | docs/cli-reference.md, docs/audit/cli-matrix.md |
 | `--no-outgroup` |  | Tree2taxStepParams.no_outgroup | none | params.phylo_args | n/a: covered offline in tests/integration/test_dataflow_phylo_steps.py | docs/usage.md, docs/cli-reference.md, docs/audit/cli-matrix.md |

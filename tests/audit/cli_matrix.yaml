@@ -2551,6 +2551,16 @@ commands:
         nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
         live: 'n/a: forwarded to the stage builder unchanged (wiring test); the stage flag is covered
           live'
+      --naming:
+        param: Tree2taxParams.naming
+        value: lca
+        validated: choice
+        docs:
+        - docs/cli-reference.md
+        - docs/usage.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
+        live: 'n/a: covered offline in tests/unit/test_tree2tax_naming.py'
       --root-name:
         param: Tree2taxParams.root_name
         value: TOP
@@ -3221,6 +3231,16 @@ commands:
         nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
         live: tests/live/test_species_set.py::test_tree2tax_workdir_flags
         observable: internal node names carry the prefix
+      --naming:
+        param: Tree2taxParams.naming
+        value: lca
+        validated: choice
+        docs:
+        - docs/cli-reference.md
+        - docs/usage.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
+        live: 'n/a: covered offline in tests/unit/test_tree2tax_naming.py'
       --root-name:
         param: Tree2taxParams.root_name
         value: top
@@ -3361,6 +3381,16 @@ commands:
         nextflow: params.tree2tax_args
         live: tests/live/test_steps.py::test_phylo_build_and_tree2tax_relations_with_outgroup
         observable: internal node names carry the prefix
+      --naming:
+        param: Tree2taxStepParams.naming
+        value: lca
+        validated: choice
+        docs:
+        - docs/cli-reference.md
+        - docs/usage.md
+        - docs/audit/cli-matrix.md
+        nextflow: params.tree2tax_args
+        live: 'n/a: covered offline in tests/unit/test_tree2tax_naming.py'
       --root-name:
         param: Tree2taxStepParams.root_name
         value: top

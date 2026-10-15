@@ -42,13 +42,23 @@ from ..core.contracts import (
     write_node_table,
     write_tree2tax,
 )
-from ..core.errors import WorkdirError
+from ..core.errors import UserInputError, WorkdirError
 from ..tree.rooting import ROOT_MIDPOINT, root_on_outgroup
+
+NAMING_LEAFSET = "leafset"
+NAMING_LCA = "lca"
+NAMING_RULES = (NAMING_LEAFSET, NAMING_LCA)
 
 
 @dataclass
 class Tree2taxParams:
     node_basename: str | None = None
+    # How internal nodes are named without a basename: by a hash of their
+    # whole leaf set (any change of the set renames every ancestor), or by a
+    # hash of the smallest leaf label under each child (the node is the last
+    # common ancestor of those leaves, so a genome added with a later
+    # accession leaves most existing names unchanged; see _name_nodes).
+    naming: str = NAMING_LEAFSET
     root_name: str = "root"
     remove_outgroup: bool = False
     # Default on: the genomes_map deliverable lists redundant genomes under
@@ -75,6 +85,7 @@ class Tree2taxStepParams:
     outgroup_dir: Path | None = None
     outgroup_accession: Path | None = None
     node_basename: str | None = None
+    naming: str = NAMING_LEAFSET
     root_name: str = "root"
     remove_outgroup: bool = False
     # On by default, as on the workdir command and `run`: the genomes_map
@@ -105,6 +116,7 @@ def _emit_relations(
     redundant: dict[str, list[str]],
     *,
     node_basename: str | None,
+    naming: str = NAMING_LEAFSET,
     root_name: str,
     remove_outgroup: bool,
     out_tree2tax: Path,
@@ -174,7 +186,7 @@ def _emit_relations(
     }
     if any(v is not None and v > 1.0 for v in supports.values()):
         supports = {k: (None if v is None else v / 100.0) for k, v in supports.items()}
-    leaves = _name_nodes(tree, node_basename)
+    leaves = _name_nodes(tree, node_basename, naming=naming)
     tree.seed_node.label = root_name
 
     write_tree2tax(out_tree2tax, _edges(tree))
@@ -310,6 +322,7 @@ def tree2tax_relations(params: Tree2taxStepParams, logger: logging.Logger) -> tu
         outgroup_leaf,
         redundant,
         node_basename=params.node_basename,
+        naming=params.naming,
         root_name=params.root_name,
         remove_outgroup=params.remove_outgroup,
         out_tree2tax=params.out_dir / TREE2TAX_TSV,
@@ -354,6 +367,7 @@ def run(ctx: WorkdirContext, params: Tree2taxParams) -> tuple[Path, Path]:
         outgroup_leaf,
         redundant,
         node_basename=params.node_basename,
+        naming=params.naming,
         root_name=params.root_name,
         remove_outgroup=params.remove_outgroup,
         out_tree2tax=ctx.workdir / TREE2TAX_TSV,
@@ -378,6 +392,8 @@ def run(ctx: WorkdirContext, params: Tree2taxParams) -> tuple[Path, Path]:
             "include_dereplicated": params.include_dereplicated,
             "root_name": params.root_name,
             "node_basename": params.node_basename,
+            # The rule that named the nodes; None when a basename numbered them.
+            "naming": None if params.node_basename else params.naming,
             "collapse_support": params.collapse_support,
             "collapse_length": params.collapse_length,
             "collapse_diameter": params.collapse_diameter,
@@ -646,8 +662,21 @@ def _prune_leaf(tree: dendropy.Tree, label: str) -> None:
         parent = grandparent
 
 
-def _name_nodes(tree: dendropy.Tree, node_basename: str | None) -> list[str]:
+def _name_nodes(
+    tree: dendropy.Tree, node_basename: str | None, *, naming: str = NAMING_LEAFSET
+) -> list[str]:
     """Give every internal (non-root) node a stable name; return the leaf names.
+
+    With ``naming="lca"`` a node is named by the hash of the sorted smallest
+    leaf labels under each of its children (length-prefixed, so the join is
+    injective): the node is the last common ancestor of those leaves, so the
+    name is unique per node and takes the same single pass. A genome whose
+    label sorts after the present ones and attaches by splitting a branch
+    leaves every existing name unchanged; one that joins a multifurcation as
+    a further child renames that node, one that sorts below a child's current
+    minimum renames the ancestors where it becomes the minimum, and removing
+    a child or a minimum renames the nodes it was part of. The leaf-set rule
+    below is the default.
 
     An internal node is named by a hash of its descendant leaf set: the sum
     of the leaves' 128-bit label hashes, which is independent of the order
@@ -661,9 +690,12 @@ def _name_nodes(tree: dendropy.Tree, node_basename: str | None) -> list[str]:
     basename, nodes are numbered in preorder instead. Keyed on ``is_leaf``,
     so an internal support label is never taken for a taxon.
     """
+    if naming not in NAMING_RULES:
+        raise UserInputError(f"--naming must be one of {', '.join(NAMING_RULES)}, not {naming!r}")
     leaves: list[str] = []
     sums: dict[int, int] = {}  # plain leaf-set sum, passed upward
     names: dict[int, int] = {}  # the value a node is labelled with
+    minima: dict[int, str] = {}  # the smallest leaf label below a node (lca rule)
     with_leaf_set: set[int] = set()  # internal nodes that hold a labelled leaf
     counter = 0
     for node in tree.postorder_node_iter():
@@ -672,14 +704,21 @@ def _name_nodes(tree: dendropy.Tree, node_basename: str | None) -> list[str]:
             if name:
                 leaves.append(name)
                 sums[id(node)] = names[id(node)] = _leaf_hash(name)
+                minima[id(node)] = name
             continue
         contributing = [child for child in node.child_nodes() if id(child) in sums]
         if not contributing:
             continue  # only unlabelled leaves below: no leaf set, no name, no row
         sums[id(node)] = sum(sums.pop(id(child)) for child in contributing) % _HASH_MOD
+        child_minima = sorted(minima.pop(id(child)) for child in contributing)
+        minima[id(node)] = child_minima[0]
         with_leaf_set.add(id(node))
         if len(contributing) >= 2:
-            names[id(node)] = sums[id(node)]
+            names[id(node)] = (
+                sums[id(node)]
+                if naming == NAMING_LEAFSET
+                else _leaf_hash("".join(f"{len(m)}:{m}" for m in child_minima) + "/lca")
+            )
         else:
             # The same leaf set as the one child: mix that child's own name,
             # so a chain of such nodes gets a distinct name at every level.

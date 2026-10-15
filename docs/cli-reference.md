@@ -98,6 +98,7 @@ is 'vmetadata --source'. --platform filters the sequencing platform with
 | `--aligner-arg` |  | Aligner, SNP typer, masker or tree builder tuning as key=value (repeatable), e.g. kmer=15 (sibeliaz), seed_weight=11 (progressivemauve) or model=GTR+G (iqtree, raxmlng). |
 | `--mask` | `none` | Recombination masking of the SNP alignment: none, gubbins. Needs --msa-source snptype or --with-snptype. |
 | `--node-basename` |  | Name internal nodes <basename><n>. Without it, internal nodes receive names derived from a hash of their descendant leaves. |
+| `--naming` | `leafset` | How internal nodes are named without --node-basename: 'leafset' (a hash of the whole leaf set) or 'lca' (a hash of the smallest leaf label under each child, so most names survive genomes added with later-sorting accessions). |
 | `--root-name` | `root` | Label of the top node. FlexTaxD expects 'root'. |
 | `--remove-outgroup` | off | Leave the outgroup out of the taxonomy after rooting. |
 | `--include-dereplicated`, `--no-include-dereplicated` | on | List redundant genomes under their representative in the taxonomy. |
@@ -343,6 +344,7 @@ Emit FlexTaxD-compatible taxonomy relations from the tree.
 |---|---|---|
 | `-wd`, `--workdir` | required | Working directory. |
 | `--node-basename` |  | Name internal nodes <basename><n>. Without it, internal nodes receive names derived from a hash of their descendant leaves. |
+| `--naming` | `leafset` | How internal nodes are named without --node-basename: 'leafset' (a hash of the whole leaf set) or 'lca' (a hash of the smallest leaf label under each child, so most names survive genomes added with later-sorting accessions). |
 | `--root-name` | `root` | Label of the top node. FlexTaxD expects 'root'. |
 | `--remove-outgroup` | off | Leave the outgroup out of the taxonomy after rooting. |
 | `--include-dereplicated`, `--no-include-dereplicated` | on | List redundant genomes under their representative in the taxonomy. |
@@ -617,6 +619,7 @@ Here --outgroup-accession takes a file that names the accession, not the accessi
 | `--outgroup-accession` |  | File naming the outgroup accession. |
 | `--segments` |  | segments.tsv from vgenome --group-segments: member segment accessions are listed under their isolate's leaf. |
 | `--node-basename` |  | Name internal nodes <basename><n>. Without it, internal nodes receive names derived from a hash of their descendant leaves. |
+| `--naming` | `leafset` | How internal nodes are named without --node-basename: 'leafset' (a hash of the whole leaf set) or 'lca' (a hash of the smallest leaf label under each child, so most names survive genomes added with later-sorting accessions). |
 | `--root-name` | `root` | Label of the top node. FlexTaxD expects 'root'. |
 | `--remove-outgroup` | off | Leave the outgroup out of the taxonomy after rooting. |
 | `--no-outgroup` | off | Do not root with an outgroup. |

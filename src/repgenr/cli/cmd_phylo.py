@@ -17,6 +17,7 @@ from .base import (
     HELP_COLLAPSE_SUPPORT,
     HELP_INCLUDE_DEREPLICATED,
     HELP_MSA_SOURCE,
+    HELP_NAMING,
     HELP_NO_OUTGROUP,
     HELP_NODE_BASENAME,
     HELP_REFERENCE,
@@ -143,6 +144,7 @@ def phylo(
 def tree2tax(
     workdir: Path = typer.Option(..., "-wd", "--workdir", help=HELP_WORKDIR),
     node_basename: str | None = typer.Option(None, "--node-basename", help=HELP_NODE_BASENAME),
+    naming: str = typer.Option("leafset", "--naming", help=HELP_NAMING),
     root_name: str = typer.Option("root", "--root-name", help=HELP_ROOT_NAME),
     remove_outgroup: bool = typer.Option(False, "--remove-outgroup", help=HELP_REMOVE_OUTGROUP),
     include_dereplicated: bool = typer.Option(
@@ -176,6 +178,7 @@ def tree2tax(
     def build():
         return tree2tax_params(
             node_basename=node_basename,
+            naming=naming,
             root_name=root_name,
             remove_outgroup=remove_outgroup,
             include_dereplicated=include_dereplicated,
