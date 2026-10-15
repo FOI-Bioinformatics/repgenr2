@@ -1602,6 +1602,23 @@ count, depth, branch length, support, relative evolutionary divergence, the
 lineage of each genome) and is the place to look when choosing a threshold;
 see [output.md](output.md).
 
+Internal nodes are named by a hash of their leaf set unless `--node-basename`
+numbers them. A leaf set changes whenever a genome joins or leaves it, so
+every ancestor of the change is renamed on the next run. `--naming lca`
+names a node by a hash of the smallest leaf label under each of its children
+instead: the node is the last common ancestor of those leaves and the name is
+unique per node. Names then change less often, not never: a genome whose
+label sorts after the present ones (string order, which is not always
+chronological across GCA, GCF and viral prefixes) and attaches by splitting
+a branch leaves every existing name unchanged; one that joins a
+multifurcation (which the collapse options produce) as a further child
+renames that node; one that sorts below a child's current smallest label
+renames the ancestors where it becomes the minimum; and removing a genome
+renames the nodes whose minimum or child it was. The tree is also inferred
+anew on each run, so a topology change elsewhere renames the nodes it
+touches. Names are opaque identifiers in either case; the record carries the
+rule, or null when a basename numbered the nodes.
+
 ## Nextflow
 
 ```bash

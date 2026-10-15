@@ -6,6 +6,7 @@ import logging
 from pathlib import Path
 
 import dendropy
+import pytest
 
 from repgenr.stages.tree2tax import _edges, _emit_relations, _name_nodes, _prune_leaf
 
@@ -204,3 +205,114 @@ def test_a_node_over_unlabelled_leaves_only_gets_no_name_and_no_row() -> None:
     assert {c for c, _ in _edges(tree)} == {"C", "D", other.label}
     _name_nodes(tree, "N")  # the basename path numbers the same nodes
     assert empty.label is None and other.label == "N0"
+
+
+def _lca_names(text: str) -> dict[frozenset[str], str]:
+    tree = _tree(text)
+    _name_nodes(tree, None, naming="lca")
+    return {
+        frozenset(lf.taxon.label for lf in node.leaf_iter()): node.label
+        for node in tree.internal_nodes()
+        if node is not tree.seed_node
+    }
+
+
+def test_lca_names_survive_a_genome_added_with_a_later_accession() -> None:
+    before = _lca_names("(((A01,A02),A03),(B01,B02));")
+    after = _lca_names("(((A01,(A02,A09)),A03),(B01,B02));")  # A09 sorts after every present label
+    for key in (
+        frozenset({"A01", "A02"}),
+        frozenset({"A01", "A02", "A03"}),
+        frozenset({"B01", "B02"}),
+    ):
+        assert key in before
+    assert before[frozenset({"A01", "A02"})] == after[frozenset({"A01", "A02", "A09"})]
+    assert (
+        before[frozenset({"A01", "A02", "A03"})] == after[frozenset({"A01", "A02", "A03", "A09"})]
+    )
+    assert before[frozenset({"B01", "B02"})] == after[frozenset({"B01", "B02"})]
+    # The leaf-set rule renames every ancestor of the change.
+    old = _names("(((A01,A02),A03),(B01,B02));")
+    new = _names("(((A01,(A02,A09)),A03),(B01,B02));")
+    assert old[frozenset({"A01", "A02"})] != new[frozenset({"A01", "A02", "A09"})]
+    assert old[frozenset({"B01", "B02"})] == new[frozenset({"B01", "B02"})]
+
+
+def test_lca_names_are_distinct_per_node_and_change_below_a_new_minimum() -> None:
+    names = _lca_names("((((A,B),C),D),(E,F));")
+    assert len(set(names.values())) == len(names) == 4
+    # A label that sorts below a clade's current minimum renames that clade.
+    moved = _lca_names("((((A,B),C),(D,0X)),(E,F));")
+    assert names[frozenset("ABCD")] != moved[frozenset({"A", "B", "C", "D", "0X"})]
+    assert names[frozenset("ABC")] == moved[frozenset("ABC")]
+
+
+def test_lca_keeps_unary_chains_distinct_and_refuses_an_unknown_rule() -> None:
+    from repgenr.core.errors import UserInputError
+
+    tree = _tree("((((A,B))),(C,D));")
+    _name_nodes(tree, None, naming="lca")
+    labels = [n.label for n in tree.internal_nodes() if n is not tree.seed_node]
+    assert len(labels) == len(set(labels)) == 4
+    with pytest.raises(UserInputError, match="--naming"):
+        _name_nodes(_tree("((A,B),(C,D));"), None, naming="nope")
+
+
+def test_lca_renames_a_multifurcation_that_gains_a_child_and_a_clade_that_loses_its_minimum() -> (
+    None
+):
+    before = _lca_names("((A1,A2,A3),(B1,B2));")
+    after = _lca_names("((A1,A2,A3,A9),(B1,B2));")
+    assert before[frozenset({"A1", "A2", "A3"})] != after[frozenset({"A1", "A2", "A3", "A9"})]
+    assert before[frozenset({"B1", "B2"})] == after[frozenset({"B1", "B2"})]
+    kept = _lca_names("(((A1,A2),A3),(B1,B2));")
+    dropped = _lca_names("((A2,A3),(B1,B2));")
+    assert kept[frozenset({"A1", "A2", "A3"})] != dropped[frozenset({"A2", "A3"})]
+
+
+def test_basename_wins_over_the_naming_rule() -> None:
+    tree = _tree("((A,B),(C,D));")
+    _name_nodes(tree, "N", naming="lca")
+    assert sorted(n.label for n in tree.internal_nodes() if n is not tree.seed_node) == ["N0", "N1"]
+
+
+def test_lca_names_and_supports_both_reach_the_node_table(tmp_path: Path) -> None:
+    # Naming runs once, after the supports are read off the internal labels.
+    _emit_relations(
+        "((A:1,B:1)0.9:1,(C:1,D:1)0.8:1);",
+        None,
+        {},
+        node_basename=None,
+        naming="lca",
+        root_name="root",
+        remove_outgroup=False,
+        keep_root=True,
+        out_tree2tax=tmp_path / "t.tsv",
+        out_map=tmp_path / "m.tsv",
+        out_nodes=tmp_path / "n.tsv",
+        logger=_LOG,
+    )
+    rows = [ln.split("\t") for ln in (tmp_path / "n.tsv").read_text().splitlines()[1:]]
+    inner = {r[0]: r[5] for r in rows if r[0] not in ("root", "A", "B", "C", "D")}
+    assert sorted(inner.values()) == ["0.8000", "0.9000"]
+    leafset = _lca_names("((A,B),(C,D));")
+    assert set(inner) == set(leafset.values())
+
+
+def test_lca_reaches_the_relations_table(tmp_path: Path) -> None:
+    def rows(naming: str) -> set[str]:
+        t2t, _, _ = _emit_relations(
+            "((A,B),(C,D));",
+            None,
+            {},
+            node_basename=None,
+            naming=naming,
+            root_name="root",
+            remove_outgroup=False,
+            out_tree2tax=tmp_path / f"{naming}.tsv",
+            out_map=tmp_path / f"{naming}-map.tsv",
+            logger=_LOG,
+        )
+        return {line.split("\t")[1] for line in t2t.read_text().splitlines()[1:]}
+
+    assert rows("leafset") != rows("lca")

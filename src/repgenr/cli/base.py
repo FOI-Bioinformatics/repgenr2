@@ -146,6 +146,11 @@ HELP_TARGET_REPS = (
     "(0 = off; re-runs dereplication per search step)."
 )
 HELP_ALLOW_INCOMPLETE = "Proceed with a warning when the input genome set is incomplete."
+HELP_NAMING = (
+    "How internal nodes are named without --node-basename: 'leafset' (a hash of the whole "
+    "leaf set) or 'lca' (a hash of the smallest leaf label under each child, so most names "
+    "survive genomes added with later-sorting accessions)."
+)
 HELP_NODE_BASENAME = (
     "Name internal nodes <basename><n>. Without it, internal nodes receive names "
     "derived from a hash of their descendant leaves."

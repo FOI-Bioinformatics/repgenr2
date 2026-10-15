@@ -383,3 +383,23 @@ def test_run_dry_run_warns_about_collapse_support_with_mashtree(
     assert result.exit_code == 0, result.stdout
     logged = any("carries no support values" in r.getMessage() for r in caplog.records)
     assert logged or "carries no support values" in result.output
+
+
+def test_run_refuses_an_unknown_naming_rule_before_any_stage(monkeypatch, tmp_path) -> None:
+    calls = _record(monkeypatch)
+    result = _runner.invoke(
+        app,
+        [
+            "run",
+            "-wd",
+            str(tmp_path),
+            "--dry-run",
+            "-l",
+            "genus",
+            "-tg",
+            "francisella",
+            "--naming",
+            "nope",
+        ],
+    )
+    assert result.exit_code == 2 and calls == [] and "--naming" in result.output

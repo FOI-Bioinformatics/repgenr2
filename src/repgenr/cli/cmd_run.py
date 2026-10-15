@@ -37,6 +37,7 @@ from .base import (
     HELP_LIMIT,
     HELP_METADATA_PATH,
     HELP_MSA_SOURCE,
+    HELP_NAMING,
     HELP_NO_OUTGROUP,
     HELP_NODE_BASENAME,
     HELP_NODOWNLOAD,
@@ -333,6 +334,7 @@ def run(
         "--node-basename",
         help=HELP_NODE_BASENAME,
     ),
+    naming: str = typer.Option("leafset", "--naming", help=HELP_NAMING),
     root_name: str = typer.Option("root", "--root-name", help=HELP_ROOT_NAME),
     remove_outgroup: bool = typer.Option(False, "--remove-outgroup", help=HELP_REMOVE_OUTGROUP),
     include_dereplicated: bool = typer.Option(
@@ -406,6 +408,7 @@ def run(
         _require_choice(metadata_source, METADATA_SOURCES, "--metadata-source")
         _require_choice(viral_source, VIRAL_SOURCES, "--viral-source")
         _require_choice(dataset, METADATA_DATASETS, "--dataset")
+        tree2tax_params(naming=naming)
         if level is not None:
             _require_choice(level, METADATA_LEVELS, "--level")
         derep_extra = {
@@ -665,6 +668,7 @@ def run(
         workdir,
         lambda: tree2tax_params(
             node_basename=node_basename,
+            naming=naming,
             root_name=root_name,
             remove_outgroup=remove_outgroup,
             include_dereplicated=include_dereplicated,

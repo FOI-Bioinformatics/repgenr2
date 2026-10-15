@@ -288,3 +288,12 @@ def test_tree2tax_writes_the_node_table_with_lineage(workdir: Path) -> None:
     rows = {ln.split("\t")[0]: ln.split("\t") for ln in lines[1:]}
     assert "root" in rows and rows["Fam_Gen_sp_GCA_000001.1"][-1] == "Fam;Gen;sp"
     assert rows["Fam_Gen_sp_GCA_000002.1"][-1] == ""
+
+
+def test_tree2tax_records_the_naming_rule(workdir: Path) -> None:
+    _setup(workdir)
+    ctx = WorkdirContext(workdir, create=True)
+    tree2tax_run(ctx, Tree2taxParams(naming="lca"))
+    assert ctx.config.stages["tree2tax"].params["naming"] == "lca"
+    tree2tax_run(ctx, Tree2taxParams(node_basename="N", naming="lca"))
+    assert ctx.config.stages["tree2tax"].params["naming"] is None

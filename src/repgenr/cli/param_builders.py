@@ -469,6 +469,7 @@ def phylo_params(
 def tree2tax_params(
     *,
     node_basename: Any = _UNSET,
+    naming: Any = _UNSET,
     root_name: Any = _UNSET,
     remove_outgroup: Any = _UNSET,
     include_dereplicated: Any = _UNSET,
@@ -476,11 +477,14 @@ def tree2tax_params(
     collapse_length: Any = _UNSET,
     collapse_diameter: Any = _UNSET,
 ) -> Tree2taxParams:
-    from ..stages.tree2tax import Tree2taxParams
+    from ..stages.tree2tax import NAMING_RULES, Tree2taxParams
 
+    if naming is not _UNSET:
+        _require_choice(naming, set(NAMING_RULES), "--naming")
     return _build(
         Tree2taxParams,
         node_basename=node_basename,
+        naming=naming,
         root_name=root_name,
         remove_outgroup=remove_outgroup,
         include_dereplicated=include_dereplicated,
