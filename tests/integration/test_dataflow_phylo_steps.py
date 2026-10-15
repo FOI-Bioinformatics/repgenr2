@@ -243,3 +243,39 @@ def test_tree2tax_relations_no_outgroup_ignores_the_outgroup_inputs(tmp_path: Pa
         "Fam_Gen_sp_GCA_000002.1",
         "Fam_Gen_sp_GCA_000003.1",
     }
+
+
+def test_tree2tax_relations_lists_segment_accessions_when_given(tmp_path: Path) -> None:
+    """The step mirrors the workdir stage: with segments.tsv, every member
+    segment accession of a grouped isolate maps to the isolate's leaf."""
+    from repgenr.core.contracts import write_segments
+
+    tree = tmp_path / "tree.nwk"
+    tree.write_text("((Vir_gen_sp_ISO1,Vir_gen_sp_ISO2),Vir_gen_sp_ISO3);\n")
+    segments = tmp_path / "segments.tsv"
+    write_segments(segments, {"ISO1": ["ISO1_S", "ISO1_L"]})
+    t2t, gmap = tree2tax_relations(
+        Tree2taxStepParams(
+            tree=tree, out_dir=tmp_path / "out", no_outgroup=True, segments=segments
+        ),
+        _LOG,
+    )
+    rows = {tuple(line.split("\t")) for line in gmap.read_text().splitlines()}
+    assert ("ISO1_S", "Vir_gen_sp_ISO1") in rows and ("ISO1_L", "Vir_gen_sp_ISO1") in rows
+
+
+def test_tree2tax_relations_refuses_a_missing_segments_table(tmp_path: Path) -> None:
+    from repgenr.core.errors import WorkdirError
+
+    tree = tmp_path / "tree.nwk"
+    tree.write_text("(A,B,C);\n")
+    with pytest.raises(WorkdirError, match="Segments table not found"):
+        tree2tax_relations(
+            Tree2taxStepParams(
+                tree=tree,
+                out_dir=tmp_path / "out",
+                no_outgroup=True,
+                segments=tmp_path / "none.tsv",
+            ),
+            _LOG,
+        )

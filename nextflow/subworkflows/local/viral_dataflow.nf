@@ -61,8 +61,14 @@ workflow VIRAL_DATAFLOW {
         ch_tree = PHYLO.out.tree
     }
 
-    // [meta, tree] joined with [meta, reps, outgroup, accession]
-    def ch_tree2tax_in = ch_tree.join(ch_phylo_in, by: 0)
+    // segments.tsv exists only after vgenome --group-segments; an empty list
+    // stands in for it otherwise (same remainder pattern as the outgroup).
+    def ch_segments = ch_genomes
+        .map { meta, _files -> tuple(meta, []) }
+        .join(VACQUIRE.out.segments, by: 0, remainder: true)
+        .map { meta, _placeholder, file -> tuple(meta, file == null ? [] : file) }
+    // [meta, tree] joined with [meta, reps, outgroup, accession] and [meta, segments]
+    def ch_tree2tax_in = ch_tree.join(ch_phylo_in, by: 0).join(ch_segments, by: 0)
 
     TREE2TAX(ch_tree2tax_in)
     ch_versions = ch_versions.mix(TREE2TAX.out.versions)

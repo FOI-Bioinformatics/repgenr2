@@ -613,6 +613,7 @@ Here --outgroup-accession takes a file that names the accession, not the accessi
 | `--clusters` |  | derep clusters.tsv (for --include-dereplicated). |
 | `--outgroup-dir` |  | Directory holding the outgroup genome file(s). |
 | `--outgroup-accession` |  | File naming the outgroup accession. |
+| `--segments` |  | segments.tsv from vgenome --group-segments: member segment accessions are listed under their isolate's leaf. |
 | `--node-basename` |  | Name internal nodes <basename><n>. Without it, internal nodes receive names derived from a hash of their descendant leaves. |
 | `--root-name` | `root` | Label of the top node. FlexTaxD expects 'root'. |
 | `--remove-outgroup` | off | Leave the outgroup out of the taxonomy after rooting. |

@@ -2,8 +2,10 @@
 //
 // Calls the stateless `repgenr tree2tax-relations` step directly on the staged
 // channel files: the tree, the merged representatives' clusters.tsv (for
-// --include-dereplicated) and the outgroup directory. Emits tree2tax.tsv and
-// genomes_map.tsv as channel outputs; there is no shared working directory.
+// --include-dereplicated), the outgroup directory and, on the viral path, the
+// segments.tsv of grouped isolates (an empty list elsewhere). Emits
+// tree2tax.tsv and genomes_map.tsv as channel outputs; there is no shared
+// working directory.
 // Tool flags arrive as task.ext.args from conf/modules.config; publishing is
 // configured there too.
 
@@ -12,7 +14,7 @@ process TREE2TAX {
     tag "${meta.id}"
 
     input:
-    tuple val(meta), path(tree), path(reps_dir), path(outgroup, stageAs: 'outgroup/*'), path(outgroup_accession)
+    tuple val(meta), path(tree), path(reps_dir), path(outgroup, stageAs: 'outgroup/*'), path(outgroup_accession), path(segments)
 
     output:
     tuple val(meta), path("tree2tax.tsv")   , emit: tree2tax
@@ -25,6 +27,7 @@ process TREE2TAX {
     script:
     def args = task.ext.args ?: ''
     def opts = task.ext.repgenr_opts ?: ''
+    def segments_arg = segments ? "--segments ${segments}" : ''
     """
     # Forward tool exit codes (OOM kill -> 137) so errorStrategy can retry.
     export REPGENR_PROPAGATE_TOOL_EXIT=1
@@ -33,7 +36,7 @@ process TREE2TAX {
         --tree ${tree} \\
         --clusters ${reps_dir}/clusters.tsv \\
         --outgroup-dir outgroup \\
-        --outgroup-accession ${outgroup_accession} \\
+        --outgroup-accession ${outgroup_accession} ${segments_arg} \\
         -o . ${args} \\
         --versions-out tool_versions.yml
 
@@ -44,6 +47,7 @@ process TREE2TAX {
     def args = task.ext.args ?: ''
     """
     echo "ext.args: ${args}"
+    if [ -f segments.tsv ]; then echo "segments: staged"; else echo "segments: none"; fi
     printf 'child\\tparent\\n' > tree2tax.tsv
     for f in ${reps_dir}/representatives/*; do
         leaf=\$(basename \$f | sed 's/\\.[^.]*\$//')

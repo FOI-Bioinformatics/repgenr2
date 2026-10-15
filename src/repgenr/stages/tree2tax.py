@@ -26,6 +26,7 @@ from ..core.context import WorkdirContext
 from ..core.contracts import (
     CLUSTERS_TSV,
     GENOMES_MAP_TSV,
+    OUTGROUP_ACCESSION_TXT,
     SEGMENTS_TSV,
     TREE2TAX_TSV,
     TREE_NWK,
@@ -81,6 +82,9 @@ class Tree2taxStepParams:
     # The tree is already rooted as wanted (phylo --root midpoint): do not
     # reroot it on the outgroup. The outgroup is still read for --remove-outgroup.
     keep_root: bool = False
+    # vgenome --group-segments writes segments.tsv; with it, every member
+    # segment accession of a grouped isolate reaches genomes_map.tsv.
+    segments: Path | None = None
 
 
 # FlexTaxD pre-creates a node with this name and validates the tree from it.
@@ -166,6 +170,9 @@ def tree2tax_relations(params: Tree2taxStepParams, logger: logging.Logger) -> tu
         # An explicit path that is absent would otherwise drop every dereplicated
         # member from genomes_map.tsv without notice.
         raise WorkdirError(f"Clusters table not found: {params.clusters}.")
+    if params.segments is not None and not params.segments.exists():
+        raise WorkdirError(f"Segments table not found: {params.segments}.")
+    segments = read_segments(params.segments) if params.segments is not None else None
     outgroup_leaf = None
     if params.no_outgroup and params.keep_root:
         logger.info("No outgroup (--no-outgroup); the tree's own root is kept (--keep-root)")
@@ -199,6 +206,7 @@ def tree2tax_relations(params: Tree2taxStepParams, logger: logging.Logger) -> tu
         logger=logger,
         collapse_support=params.collapse_support,
         collapse_length=params.collapse_length,
+        segments=segments,
         tree_source=params.tree,
         keep_root=params.keep_root,
     )
@@ -253,6 +261,7 @@ def run(ctx: WorkdirContext, params: Tree2taxParams) -> tuple[Path, Path]:
             "remove_outgroup": params.remove_outgroup,
             "include_dereplicated": params.include_dereplicated,
             "root_name": params.root_name,
+            "node_basename": params.node_basename,
             "collapse_support": params.collapse_support,
             "collapse_length": params.collapse_length,
             "collapsed_nodes": collapsed,
@@ -284,7 +293,7 @@ def _resolve_outgroup_leaf(ctx: WorkdirContext, logger, *, quiet: bool = False) 
         if not quiet:
             logger.warning("phylo built the tree without an outgroup; tree is left unrooted")
         return None
-    acc_file = ctx.workdir / "outgroup_accession.txt"
+    acc_file = ctx.workdir / OUTGROUP_ACCESSION_TXT
     if not acc_file.exists() or not ctx.outgroup_dir.exists():
         if not quiet:
             logger.warning("No outgroup available; tree is left unrooted")

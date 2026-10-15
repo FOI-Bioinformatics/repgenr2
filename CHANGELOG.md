@@ -12,6 +12,13 @@ All notable changes to RepGenR2 are documented here. The format follows
   that later entries implement (batches A to D; E deferred).
 
 ### Changed
+- `tree2tax-relations --segments`: the stateless step lists the member
+  segment accessions of grouped viral isolates in `genomes_map.tsv`, as the
+  workdir stage does; the Nextflow viral path stages `segments.tsv` from the
+  acquisition task when `vgenome --group-segments` wrote it. The resume
+  fingerprint of `tree2tax` digests `segments.tsv`, `outgroup_accession.txt`
+  and `outgroup/` when present, and the stage record carries
+  `node_basename`.
 - `tree2tax`: internal nodes are named in one pass over the tree (the sum of
   the descendant leaves' label hashes), so a ladder-shaped tree from clonal
   data no longer costs time proportional to the square of its size; the name

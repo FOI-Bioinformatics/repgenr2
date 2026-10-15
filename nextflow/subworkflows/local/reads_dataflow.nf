@@ -50,7 +50,7 @@ workflow READS_DATAFLOW {
         ch_tree = PHYLO.out.tree
     }
 
-    TREE2TAX(ch_tree.join(ch_phylo_in, by: 0))
+    TREE2TAX(ch_tree.join(ch_phylo_in, by: 0).map { it -> it + [[]] })
     ch_versions = ch_versions.mix(TREE2TAX.out.versions)
 
     emit:
