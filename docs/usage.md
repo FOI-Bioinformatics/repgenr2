@@ -1566,7 +1566,10 @@ the leaves never collapse. A collapsed node's branch length is added to its
 children's. Provenance records both thresholds and the number of nodes
 collapsed, so changing a threshold re-runs the stage. On the 171-leaf
 Wolbachia mashtree tree, `--collapse-length 0.0005` removes 26 of 168 internal
-nodes.
+nodes. `tree2tax_nodes.tsv` beside the two tables describes every node (leaf
+count, depth, branch length, support, relative evolutionary divergence, the
+lineage of each genome) and is the place to look when choosing a threshold;
+see [output.md](output.md).
 
 ## Nextflow
 

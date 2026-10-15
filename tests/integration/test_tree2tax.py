@@ -272,3 +272,19 @@ def test_unmatched_outgroup_accession_names_the_outgroup_directory(tmp_path: Pat
     messages = [r.getMessage() for r in caplog.records]
     assert any("No file in" in m and "GCA_999999.1" in m for m in messages), messages
     assert not any("among tree leaves" in m for m in messages)
+
+
+def test_tree2tax_writes_the_node_table_with_lineage(workdir: Path) -> None:
+    from repgenr.core.contracts import TREE2TAX_NODES_TSV
+    from repgenr.core.manifest import GenomeRecord
+
+    _setup(workdir)
+    ctx = WorkdirContext(workdir, create=True)
+    ctx.manifest.upsert(
+        GenomeRecord(accession="GCA_000001.1", family="Fam", genus="Gen", species="sp")
+    )
+    tree2tax_run(ctx, Tree2taxParams())
+    lines = (workdir / TREE2TAX_NODES_TSV).read_text().splitlines()
+    rows = {ln.split("\t")[0]: ln.split("\t") for ln in lines[1:]}
+    assert "root" in rows and rows["Fam_Gen_sp_GCA_000001.1"][-1] == "Fam;Gen;sp"
+    assert rows["Fam_Gen_sp_GCA_000002.1"][-1] == ""

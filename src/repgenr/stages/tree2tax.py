@@ -28,8 +28,10 @@ from ..core.contracts import (
     GENOMES_MAP_TSV,
     OUTGROUP_ACCESSION_TXT,
     SEGMENTS_TSV,
+    TREE2TAX_NODES_TSV,
     TREE2TAX_TSV,
     TREE_NWK,
+    NodeRow,
     accession_from_filename,
     list_fasta,
     newick_is_complete,
@@ -37,6 +39,7 @@ from ..core.contracts import (
     read_segments,
     strip_fasta_suffix,
     write_genomes_map,
+    write_node_table,
     write_tree2tax,
 )
 from ..core.errors import WorkdirError
@@ -107,6 +110,8 @@ def _emit_relations(
     segments: dict[str, list[str]] | None = None,
     tree_source: Path | None = None,
     keep_root: bool = False,
+    out_nodes: Path | None = None,
+    lineage: dict[str, str] | None = None,
 ) -> tuple[Path, Path, int]:
     """Build FlexTaxD relations from a tree and write the two output tables.
 
@@ -153,13 +158,95 @@ def _emit_relations(
             root_name,
             FLEXTAXD_ROOT,
         )
+    # Supports sit on the internal labels, which naming replaces.
+    supports = {
+        id(n): _parse_support(n.label) for n in tree.internal_nodes() if n is not tree.seed_node
+    }
     leaves = _name_nodes(tree, node_basename)
     tree.seed_node.label = root_name
 
     write_tree2tax(out_tree2tax, _edges(tree))
     write_genomes_map(out_map, _genome_map(leaves, redundant, segments))
-    logger.info("Wrote %s and %s", out_tree2tax.name, out_map.name)
+    if out_nodes is not None:
+        rooted = (
+            keep_root
+            or (outgroup_leaf is not None and not remove_outgroup)
+            or (outgroup_leaf is not None)
+        )
+        write_node_table(
+            out_nodes, _node_rows(tree, supports, rooted=rooted, lineage=lineage or {})
+        )
+        logger.info("Wrote %s, %s and %s", out_tree2tax.name, out_map.name, out_nodes.name)
+    else:
+        logger.info("Wrote %s and %s", out_tree2tax.name, out_map.name)
     return out_tree2tax, out_map, stats.collapsed
+
+
+def _node_rows(
+    tree: dendropy.Tree,
+    supports: dict[int, float | None],
+    *,
+    rooted: bool,
+    lineage: dict[str, str],
+) -> list[NodeRow]:
+    """One row per node of the taxonomy (the root included), in preorder.
+
+    Depth, branch length and relative evolutionary divergence need every
+    branch length; without them, or without a root that means something (an
+    outgroup or midpoint root), those columns are NA and the rest stands.
+    ``lineage`` maps a genome accession to its family;genus;species.
+    """
+    lengths_known = all(
+        n.edge.length is not None for n in tree.preorder_node_iter() if n is not tree.seed_node
+    )
+    measured = lengths_known and rooted
+    n_leaves: dict[int, int] = {}
+    mean_tip: dict[int, float] = {}  # mean distance from a node to its leaves
+    for node in tree.postorder_node_iter():
+        if node.is_leaf():
+            n_leaves[id(node)] = 1
+            mean_tip[id(node)] = 0.0
+            continue
+        kids = node.child_nodes()
+        n_leaves[id(node)] = sum(n_leaves[id(c)] for c in kids)
+        if measured:
+            total = sum((mean_tip[id(c)] + float(c.edge.length)) * n_leaves[id(c)] for c in kids)
+            mean_tip[id(node)] = total / n_leaves[id(node)]
+    depth: dict[int, float] = {id(tree.seed_node): 0.0}
+    red: dict[int, float] = {id(tree.seed_node): 0.0}
+    rows: list[NodeRow] = []
+    for node in tree.preorder_node_iter():
+        parent = node.parent_node
+        name = _leaf_label(node) if node.is_leaf() else node.label
+        if not name:
+            continue
+        d = b = r = None
+        if parent is not None and measured:
+            b = float(node.edge.length)
+            d = depth[id(parent)] + b
+            depth[id(node)] = d
+            if node.is_leaf():
+                r = 1.0
+            else:
+                u = mean_tip[id(parent)]
+                r = red[id(parent)] + (b / u) * (1.0 - red[id(parent)]) if u > 0 else 1.0
+                r = min(r, 1.0)
+            red[id(node)] = r
+        elif parent is None and measured:
+            d, r = 0.0, 0.0
+        rows.append(
+            NodeRow(
+                node=name,
+                parent=None if parent is None else parent.label,
+                n_leaves=n_leaves[id(node)],
+                depth=d,
+                branch_length=b,
+                support=None if node.is_leaf() else supports.get(id(node)),
+                red=r,
+                lineage=lineage.get(_accession(name)) if node.is_leaf() else None,
+            )
+        )
+    return rows
 
 
 def tree2tax_relations(params: Tree2taxStepParams, logger: logging.Logger) -> tuple[Path, Path]:
@@ -209,6 +296,7 @@ def tree2tax_relations(params: Tree2taxStepParams, logger: logging.Logger) -> tu
         segments=segments,
         tree_source=params.tree,
         keep_root=params.keep_root,
+        out_nodes=params.out_dir / TREE2TAX_NODES_TSV,
     )
     return out_tree2tax, out_map
 
@@ -251,6 +339,8 @@ def run(ctx: WorkdirContext, params: Tree2taxParams) -> tuple[Path, Path]:
         segments=segments,
         tree_source=tree_file,
         keep_root=keep_root,
+        out_nodes=ctx.workdir / TREE2TAX_NODES_TSV,
+        lineage=_leaf_lineages(ctx),
     )
 
     ctx.config.record_stage(
@@ -521,6 +611,19 @@ def _edges(tree: dendropy.Tree) -> list[tuple[str, str]]:
         if child and parent:
             edges.append((child, parent))
     return edges
+
+
+def _leaf_lineages(ctx: WorkdirContext) -> dict[str, str]:
+    """Accession -> family;genus;species from the manifest, for the node table."""
+    out: dict[str, str] = {}
+    try:
+        records = ctx.manifest.all_genomes(include_outgroup=True)
+    except Exception:  # noqa: BLE001 - the table is an annotation, never a failure
+        return out
+    for rec in records:
+        if rec.family or rec.genus or rec.species:
+            out[rec.accession] = ";".join(x or "" for x in (rec.family, rec.genus, rec.species))
+    return out
 
 
 def _load_redundant(ctx: WorkdirContext) -> dict[str, list[str]]:
