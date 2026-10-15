@@ -174,7 +174,12 @@ class PanarooBuilder(CoreGeneBuilder):
                 core_genes,
                 f"{DEFAULT_THRESHOLD:g}",
             )
-        return CoreGeneResult(alignment=alignment, tables=tables, core_genes=core_genes)
+        return CoreGeneResult(
+            alignment=alignment,
+            tables=tables,
+            core_genes=core_genes,
+            clustering_identity=identity,
+        )
 
 
 def _unit(raw: object, flag: str) -> float:

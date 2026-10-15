@@ -58,6 +58,7 @@ The stages below shell out to external tools; cite the ones your run uses.
   - [Bakta](https://doi.org/10.1099/mgen.0.000685) (Schwengers et al. 2021, Microbial Genomics)
   - [Prokka](https://doi.org/10.1093/bioinformatics/btu153) (Seemann 2014, Bioinformatics)
   - [Panaroo](https://doi.org/10.1186/s13059-020-02090-4) (Tonkin-Hill et al. 2020, Genome Biology)
+  - [PPanGGOLiN](https://doi.org/10.1371/journal.pcbi.1007732) (Gautreau et al. 2020, PLOS Computational Biology), with [MMseqs2](https://doi.org/10.1038/nbt.3988) (Steinegger and Soding 2017, Nature Biotechnology)
   - [MAFFT](https://doi.org/10.1093/molbev/mst010) (Katoh and Standley 2013, Molecular Biology and Evolution)
 
 - **Read assembly (reads chain)**

@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import shutil
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -22,7 +23,7 @@ from pathlib import Path
 from ..core.annotations import AnnotationRecord, gff_path, index_digest, read_index
 from ..core.contracts import CORE_GENE_FASTA, CORE_GENE_STATS, PANGENOME_DIR, atomic_path
 from ..core.errors import UserInputError, WorkdirError
-from ..core.plugins import scale_warning, warn_unconsumed_extras
+from ..core.plugins import scale_warning, warn_ignored_params, warn_unconsumed_extras
 from ..core.process import remove_tree
 from ..coregenes.base import CoreGeneParams, CoreGeneResult
 from ..coregenes.base import registry as coregene_registry
@@ -109,7 +110,11 @@ def coregene_core(
         warn_unconsumed_extras(
             builder.capabilities, params.extra, logger, family="Core-gene builder"
         )
+    warn_ignored_params(builder.capabilities, params, logger, family="Core-gene builder")
     versions = builder.preflight()
+    # Builders pass paths under scratch to tools that run with cwd inside it,
+    # so a relative scratch (phylo-build -o .) would not resolve.
+    scratch = Path(os.path.abspath(scratch))
     remove_tree(scratch)
     scratch.mkdir(parents=True, exist_ok=True)
     logger.info("Building the core-gene alignment of %d genomes with %s", len(gffs), tool)
@@ -118,7 +123,16 @@ def coregene_core(
     msa_dir.mkdir(parents=True, exist_ok=True)
     alignment = msa_dir / CORE_GENE_FASTA
     with atomic_path(alignment) as tmp:
-        shutil.copy2(result.alignment, tmp)
+        # A builder that writes every genome (PPanGGOLiN fills a missing family
+        # with gaps) can leave a genome that shares no selected gene as a row
+        # of gaps; dropped here, it meets the same checks as an absent one.
+        empty = _copy_without_gap_only_records(result.alignment, tmp)
+    if empty:
+        logger.info(
+            "Removed %d record(s) of gaps only from the core-gene alignment: %s",
+            len(empty),
+            ", ".join(empty[:5]) + (" ..." if len(empty) > 5 else ""),
+        )
     tables_dir = msa_dir / PANGENOME_DIR
     remove_tree(tables_dir)
     tables_dir.mkdir(parents=True, exist_ok=True)
@@ -158,12 +172,22 @@ def coregene_core(
         "alignment_length": length,
         "genomes": genomes,
         "core_threshold": params.core_threshold,
-        # The identity of the builder's clustering pass, when it has one and the
-        # user set it; it governs how many genes cluster at all.
-        "clustering_identity": params.extra.get("threshold"),
-        "clean_mode": params.clean_mode,
-        "filtered": params.filtered,
+        # The identity the builder clustered genes at; it governs how many
+        # genes cluster at all.
+        "clustering_identity": (
+            result.clustering_identity
+            if result.clustering_identity is not None
+            else params.extra.get("threshold")
+        ),
     }
+    if result.settings:
+        stats["builder_settings"] = dict(result.settings)
+    # Settings the builder does not read are left out rather than recorded as
+    # if they had shaped the result (Panaroo's cleaning under PPanGGOLiN).
+    ignored = builder.capabilities.ignored_params
+    for key in ("clean_mode", "filtered"):
+        if key not in ignored:
+            stats[key] = getattr(params, key)
     with atomic_path(msa_dir / CORE_GENE_STATS) as tmp:
         tmp.write_text(json.dumps(stats, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     logger.info(
@@ -177,6 +201,41 @@ def coregene_core(
     return CoreGeneResult(
         alignment=alignment, tables=sorted(tables_dir.iterdir()), core_genes=result.core_genes
     ), versions
+
+
+_GAPS = frozenset("-.?")
+
+
+def _copy_without_gap_only_records(src: Path, dst: Path) -> list[str]:
+    """Copy the FASTA ``src`` to ``dst`` leaving out records of gaps only.
+
+    Streams one record at a time. Returns the names left out.
+    """
+    removed: list[str] = []
+    with (
+        open(src, encoding="utf-8", errors="replace") as fi,
+        open(dst, "w", encoding="utf-8") as fo,
+    ):
+        header: str | None = None
+        lines: list[str] = []
+
+        def flush() -> None:
+            if header is None:
+                return
+            if any(set(line.strip()) - _GAPS for line in lines):
+                fo.write(header)
+                fo.writelines(lines)
+            else:
+                removed.append(header[1:].split()[0] if header[1:].split() else "")
+
+        for line in fi:
+            if line.startswith(">"):
+                flush()
+                header, lines = line, []
+            else:
+                lines.append(line if line.endswith("\n") else line + "\n")
+        flush()
+    return removed
 
 
 def _shape(alignment: Path) -> tuple[list[str], int]:

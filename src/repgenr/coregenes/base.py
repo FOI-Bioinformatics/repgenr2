@@ -42,6 +42,11 @@ class CoreGeneResult:
     # The builder's tables (presence/absence, summary) to publish beside it.
     tables: list[Path] = field(default_factory=list)
     core_genes: int | None = None
+    # The identity the builder clustered genes at, as it ran (default or set),
+    # for the stats file: it governs how many genes cluster at all.
+    clustering_identity: float | None = None
+    # Builder-specific settings that shaped the result, for the stats file.
+    settings: dict = field(default_factory=dict)
 
 
 class CoreGeneBuilder(ABC):

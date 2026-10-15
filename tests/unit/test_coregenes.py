@@ -290,3 +290,112 @@ def test_the_gene_count_falls_back_and_then_gives_up(tmp_path: Path, monkeypatch
     assert any("before the entropy filter" in r.getMessage() for r in caplog.records)
     (out / "core_alignment_header.embl").unlink()
     assert mod._core_genes(out / "core_alignment_header.embl", out, _LOG) is None
+
+
+class _IgnoringBuilder(_FakeBuilder):
+    """A builder without Panaroo's cleaning or entropy filter, like ppanggolin."""
+
+    capabilities = registry.get("ppanggolin").capabilities
+
+    def call(self, gffs, out_dir, params, logger) -> CoreGeneResult:
+        result = super().call(gffs, out_dir, params, logger)
+        result.clustering_identity = 0.8
+        return result
+
+
+def test_settings_a_builder_ignores_warn_and_stay_out_of_the_stats(
+    tmp_path: Path, register_tool, caplog
+) -> None:
+    from repgenr.core.contracts import CORE_GENE_STATS
+
+    register_tool(registry, "fakeign", _IgnoringBuilder)
+    with caplog.at_level(logging.WARNING, logger=_LOG.name):
+        coregene_core(
+            _gffs(tmp_path),
+            tmp_path / "msa",
+            tmp_path / "scratch",
+            CoreGeneParams(clean_mode="sensitive"),
+            "fakeign",
+            _LOG,
+        )
+    assert "does not use clean_mode" in caplog.text
+    stats = json.loads((tmp_path / "msa" / CORE_GENE_STATS).read_text(encoding="utf-8"))
+    assert "clean_mode" not in stats and "filtered" not in stats
+    # The identity the builder reports wins over an extra it does not read.
+    assert stats["clustering_identity"] == 0.8
+
+
+class _GapRowBuilder(_FakeBuilder):
+    """Writes every genome, the last as a row of gaps (as PPanGGOLiN does)."""
+
+    def call(self, gffs, out_dir, params, logger) -> CoreGeneResult:
+        out_dir.mkdir(parents=True, exist_ok=True)
+        aln = out_dir / "aln.fasta"
+        rows = [f">{g.stem}\nACGTAC\nACG\n" for g in gffs[:-1]]
+        rows.append(f">{gffs[-1].stem}\n------\n---\n")
+        aln.write_text("".join(rows), encoding="utf-8")
+        return CoreGeneResult(alignment=aln, tables=[], core_genes=7)
+
+
+def test_gap_only_records_are_dropped_and_a_required_one_refused(
+    tmp_path: Path, register_tool, caplog
+) -> None:
+    from repgenr.core.contracts import CORE_GENE_STATS
+
+    register_tool(registry, "fakegap", _GapRowBuilder)
+    gffs = _gffs(tmp_path)
+    with caplog.at_level(logging.INFO, logger=_LOG.name):
+        result, _ = coregene_core(
+            gffs, tmp_path / "msa", tmp_path / "scratch", CoreGeneParams(), "fakegap", _LOG
+        )
+    text = result.alignment.read_text(encoding="utf-8")
+    assert gffs[-1].stem not in text and text.count(">") == 2
+    # Multi-line records survive intact.
+    assert "ACGTAC\nACG\n" in text
+    stats = json.loads((tmp_path / "msa" / CORE_GENE_STATS).read_text(encoding="utf-8"))
+    assert stats["genomes"] == 2 and stats["alignment_length"] == 9
+    assert "Removed 1 record(s) of gaps only" in caplog.text
+    assert "not in the core-gene alignment" in caplog.text
+    with pytest.raises(WorkdirError, match="does not hold"):
+        coregene_core(
+            gffs,
+            tmp_path / "m2",
+            tmp_path / "s2",
+            CoreGeneParams(),
+            "fakegap",
+            _LOG,
+            required=(gffs[-1].stem,),
+        )
+
+
+def test_a_relative_scratch_is_resolved(tmp_path: Path, register_tool, monkeypatch) -> None:
+    """phylo-build -o . hands a relative scratch to builders that set cwd inside it."""
+    seen: list[Path] = []
+
+    class _Seeing(_FakeBuilder):
+        def call(self, gffs, out_dir, params, logger) -> CoreGeneResult:
+            seen.append(out_dir)
+            return super().call(gffs, out_dir, params, logger)
+
+    register_tool(registry, "fakesee", _Seeing)
+    gffs = _gffs(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    coregene_core(gffs, Path("msa"), Path("scratch"), CoreGeneParams(), "fakesee", _LOG)
+    assert seen and seen[0].is_absolute() and seen[0] == tmp_path / "scratch" / "fakesee"
+
+
+def test_builder_settings_reach_the_stats(tmp_path: Path, register_tool) -> None:
+    from repgenr.core.contracts import CORE_GENE_STATS
+
+    class _Settings(_FakeBuilder):
+        def call(self, gffs, out_dir, params, logger) -> CoreGeneResult:
+            result = super().call(gffs, out_dir, params, logger)
+            result.settings = {"partition": "core"}
+            return result
+
+    register_tool(registry, "fakeset", _Settings)
+    coregene_core(
+        _gffs(tmp_path), tmp_path / "msa", tmp_path / "s", CoreGeneParams(), "fakeset", _LOG
+    )
+    stats = json.loads((tmp_path / "msa" / CORE_GENE_STATS).read_text(encoding="utf-8"))
+    assert stats["builder_settings"] == {"partition": "core"}

@@ -7,6 +7,30 @@ All notable changes to RepGenR2 are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- `--coregene ppanggolin`: a second core-gene builder. PPanGGOLiN clusters
+  the proteins with MMseqs2 at 80% identity and coverage
+  (`--aligner-arg identity=`, `coverage=`), partitions the pangenome graph
+  and concatenates the DNA alignments of the selected families. The
+  selection defaults to the soft core at `--core-threshold`;
+  `partition=core` and `partition=persistent` select the strict core and
+  the statistical partition, the latter with a warning below 15 genomes.
+  Single-copy families only by default (`single_copy=false`). On 24
+  Wolbachia genomes, where Panaroo's defaults found no gene in 95% of
+  them, it selected 398 families and the stage finished in under four
+  minutes (`docs/verification.md`). `envs/ppanggolin.yml` installs it on
+  linux-64, osx-64 and osx-arm64.
+- The core-gene stage warns when a setting the builder does not read
+  (`--clean-mode`, `filtered=`) is given, and `core_gene_stats.json`
+  records the identity the builder actually clustered at, the builder's own
+  settings, and leaves out settings it ignored.
+
+### Fixed
+- Core-gene alignments: a genome left as a row of gaps (one that shares no
+  selected gene) is removed and reported as dropped, so an outgroup in that
+  state is refused rather than used for rooting.
+- `phylo-build --msa-source coregene -o .` passed paths relative to a
+  directory the tool did not run in; the scratch directory is now made
+  absolute before the builder runs.
 - `--msa-source coregene` takes `--aligner-arg threshold=` (Panaroo's `-c`,
   the identity of its first clustering pass, 0.98 by default). It groups
   only genes at least that identical, so on a divergent set most
