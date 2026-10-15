@@ -3318,6 +3318,15 @@ commands:
         - docs/audit/cli-matrix.md
         nextflow: 'module: fixed by the process script'
         live: tests/live/test_steps.py::test_phylo_build_and_tree2tax_relations_with_outgroup
+      --segments:
+        param: Tree2taxStepParams.segments
+        value: '{alt_file}'
+        validated: stage
+        docs:
+        - docs/cli-reference.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'module: staged from VACQUIRE on the viral path; an empty list elsewhere'
+        live: 'n/a: covered offline in tests/integration/test_dataflow_phylo_steps.py'
       --node-basename:
         param: Tree2taxStepParams.node_basename
         value: node

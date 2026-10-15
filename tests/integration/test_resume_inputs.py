@@ -236,7 +236,13 @@ def test_tree2tax_inputs_track_tree_manifest_and_clusters(tmp_path: Path) -> Non
     tree.write_text("(a,b);\n", encoding="utf-8")
 
     plain = _digests(ctx, "tree2tax", SimpleNamespace(include_dereplicated=False))
-    assert set(plain) == {f"tree/{TREE_NWK}", "manifest"}
+    assert set(plain) == {
+        f"tree/{TREE_NWK}",
+        "manifest",
+        "segments.tsv",
+        "outgroup_accession.txt",
+        "outgroup",
+    }
 
     withderep = _digests(ctx, "tree2tax", SimpleNamespace(include_dereplicated=True))
     clusters_key = f"derep/{CLUSTERS_TSV}"
@@ -390,3 +396,29 @@ def test_metadata_nodownload_first_run_that_downloads_skips_next_time(
     cli._run("metadata", wd, build_params, create=True)
     assert len(downloads) == 1
     assert read_log().count("already completed") == 1
+
+
+def test_tree2tax_inputs_include_the_outgroup_and_segments_when_present(tmp_path: Path) -> None:
+    """The rooting, --remove-outgroup and the segment rows of genomes_map.tsv
+    depend on these files, so a change to them must rerun the stage."""
+    ctx = WorkdirContext(tmp_path, create=True)
+    ctx.tree_dir.mkdir(parents=True, exist_ok=True)
+    (ctx.tree_dir / TREE_NWK).write_text("(a,b);\n", encoding="utf-8")
+    params = SimpleNamespace(include_dereplicated=False)
+    plain = _digests(ctx, "tree2tax", params)
+    assert {plain["outgroup_accession.txt"], plain["outgroup"], plain["segments.tsv"]} == {ABSENT}
+    (ctx.workdir / "outgroup_accession.txt").write_text("GCF_9\n", encoding="utf-8")
+    (ctx.workdir / "outgroup").mkdir()
+    (ctx.workdir / "outgroup" / "GCF_9.fasta").write_text(">o\nACGT\n", encoding="utf-8")
+    (ctx.workdir / "segments.tsv").write_text("isolate\taccession\tsegment\tsegment_label\n")
+    withfiles = _digests(ctx, "tree2tax", params)
+    assert ABSENT not in {
+        withfiles["outgroup_accession.txt"],
+        withfiles["outgroup"],
+        withfiles["segments.tsv"],
+    }
+    (ctx.workdir / "outgroup_accession.txt").write_text("GCF_8\n", encoding="utf-8")
+    assert (
+        _digests(ctx, "tree2tax", params)["outgroup_accession.txt"]
+        != withfiles["outgroup_accession.txt"]
+    )

@@ -32,7 +32,8 @@
                         "outgroup_accession.txt:md5,e184a94cf0ccec767fdfce0f1794b0e0"
                     ]
                 ],
-                "3": [
+                "3": [],
+                "4": [
                     "versions.yml:md5,d41d8cd98f00b204e9800998ecf8427e"
                 ],
                 "genomes": [
@@ -65,6 +66,7 @@
                         "outgroup_accession.txt:md5,e184a94cf0ccec767fdfce0f1794b0e0"
                     ]
                 ],
+                "segments": [],
                 "versions": [
                     "versions.yml:md5,d41d8cd98f00b204e9800998ecf8427e"
                 ]

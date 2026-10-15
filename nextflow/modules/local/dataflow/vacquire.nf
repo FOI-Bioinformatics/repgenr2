@@ -19,6 +19,7 @@ process VACQUIRE {
     tuple val(meta), path("out/genomes/*")         , emit: genomes
     tuple val(meta), path("out/outgroup/*")        , emit: outgroup, optional: true
     tuple val(meta), path("outgroup_accession.txt"), emit: outgroup_accession
+    tuple val(meta), path("segments.tsv")          , emit: segments, optional: true
     path "versions.yml"                            , emit: versions
 
     when:
@@ -43,6 +44,10 @@ process VACQUIRE {
     else
         : > outgroup_accession.txt
     fi
+    # Written by vgenome --group-segments; absent otherwise (optional output).
+    if [ -f wd/segments.tsv ]; then
+        cp wd/segments.tsv segments.tsv
+    fi
 
     repgenr versions -wd wd --versions-out tool_versions.yml
     repgenr_versions_fragment "${task.process}" tool_versions.yml
@@ -65,6 +70,11 @@ process VACQUIRE {
             mkdir -p out/outgroup
             printf '>x\\nACGT\\n' > out/outgroup/Vir_out_grp_iso9.fasta
             printf 'iso9\\n' > outgroup_accession.txt ;;
+    esac
+    case "${args2}" in
+        *--group-segments*)
+            printf 'isolate\\taccession\\tsegment\\tsegment_label\\n' > segments.tsv
+            printf 'iso1\\tiso1_S\\tS\\tS\\n' >> segments.tsv ;;
     esac
     touch versions.yml
     """

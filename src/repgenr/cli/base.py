@@ -29,7 +29,9 @@ from ..core.contracts import (
     CORE_SNP_FASTA,
     GENOME_STATUS_TSV,
     GENOMES_MAP_TSV,
+    OUTGROUP_ACCESSION_TXT,
     READS_TSV,
+    SEGMENTS_TSV,
     SELECTION_TSV,
     TREE2TAX_TSV,
     TREE_NWK,
@@ -308,6 +310,14 @@ def _tree2tax_inputs(ctx: WorkdirContext, params: Any) -> list[Path]:
     paths = [ctx.tree_dir / TREE_NWK]
     if getattr(params, "include_dereplicated", False):
         paths.append(ctx.derep_dir / CLUSTERS_TSV)
+    # Read when present: the outgroup files decide the rooting and
+    # --remove-outgroup, segments.tsv adds rows to genomes_map.tsv. A missing
+    # one digests to the ABSENT sentinel, so appearing later reruns the stage.
+    paths += [
+        ctx.workdir / SEGMENTS_TSV,
+        ctx.workdir / OUTGROUP_ACCESSION_TXT,
+        ctx.outgroup_dir,
+    ]
     return paths
 
 

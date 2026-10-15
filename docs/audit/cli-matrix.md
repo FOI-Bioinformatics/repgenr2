@@ -3,7 +3,7 @@
 Generated from `tests/audit/cli_matrix.yaml` by `scripts/render_cli_matrix.py`;
 `tests/unit/test_cli_matrix.py` keeps both in step with the command tree.
 
-30 commands, 350 flags (350 with a live test or an n/a reason, 0 pending).
+30 commands, 351 flags (351 with a live test or an n/a reason, 0 pending).
 
 ## Global flags
 
@@ -454,6 +454,7 @@ dispatch: `step:repgenr.stages.tree2tax.tree2tax_relations`
 | `--clusters` |  | Tree2taxStepParams.clusters | none | module: fixed by the process script | tests/live/test_steps.py::test_phylo_build_and_tree2tax_relations_with_outgroup | docs/cli-reference.md, docs/audit/cli-matrix.md |
 | `--outgroup-dir` |  | Tree2taxStepParams.outgroup_dir | none | module: fixed by the process script | tests/live/test_steps.py::test_phylo_build_and_tree2tax_relations_with_outgroup | docs/cli-reference.md, docs/audit/cli-matrix.md |
 | `--outgroup-accession` |  | Tree2taxStepParams.outgroup_accession | none | module: fixed by the process script | tests/live/test_steps.py::test_phylo_build_and_tree2tax_relations_with_outgroup | docs/cli-reference.md, docs/audit/cli-matrix.md |
+| `--segments` |  | Tree2taxStepParams.segments | stage | module: staged from VACQUIRE on the viral path; an empty list elsewhere | n/a: covered offline in tests/integration/test_dataflow_phylo_steps.py | docs/cli-reference.md, docs/audit/cli-matrix.md |
 | `--node-basename` |  | Tree2taxStepParams.node_basename | none | params.tree2tax_args | tests/live/test_steps.py::test_phylo_build_and_tree2tax_relations_with_outgroup | docs/cli-reference.md, docs/audit/cli-matrix.md |
 | `--root-name` |  | Tree2taxStepParams.root_name | none | params.tree2tax_args | tests/live/test_steps.py::test_phylo_build_and_tree2tax_relations_with_outgroup | docs/cli-reference.md, docs/audit/cli-matrix.md |
 | `--remove-outgroup` |  | Tree2taxStepParams.remove_outgroup | none | params.tree2tax_args | tests/live/test_steps.py::test_phylo_build_and_tree2tax_relations_with_outgroup | docs/cli-reference.md, docs/audit/cli-matrix.md |

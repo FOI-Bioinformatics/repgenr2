@@ -20,7 +20,8 @@ nextflow_process {
                     file("${projectDir}/nextflow/tests/data/tree.nwk"),
                     file("${projectDir}/nextflow/tests/data/derep_out"),
                     [ file("${projectDir}/nextflow/tests/data/outgroup/Fam_Out_grp_GCF_000009.1.fasta") ],
-                    file("${projectDir}/nextflow/tests/data/outgroup_accession.txt")
+                    file("${projectDir}/nextflow/tests/data/outgroup_accession.txt"),
+                    []
                 )
                 """
             }
@@ -47,7 +48,8 @@ nextflow_process {
                     file("${projectDir}/nextflow/tests/data/tree.nwk"),
                     file("${projectDir}/nextflow/tests/data/derep_out"),
                     [ file("${projectDir}/nextflow/tests/data/outgroup/Fam_Out_grp_GCF_000009.1.fasta") ],
-                    file("${projectDir}/nextflow/tests/data/outgroup_accession.txt")
+                    file("${projectDir}/nextflow/tests/data/outgroup_accession.txt"),
+                    []
                 )
                 """
             }
@@ -73,7 +75,8 @@ nextflow_process {
                     file("${projectDir}/nextflow/tests/data/tree.nwk"),
                     file("${projectDir}/nextflow/tests/data/derep_out"),
                     [ file("${projectDir}/nextflow/tests/data/outgroup/Fam_Out_grp_GCF_000009.1.fasta") ],
-                    file("${projectDir}/nextflow/tests/data/outgroup_accession.txt")
+                    file("${projectDir}/nextflow/tests/data/outgroup_accession.txt"),
+                    []
                 )
                 """
             }
@@ -100,7 +103,8 @@ nextflow_process {
                     file("${projectDir}/nextflow/tests/data/tree.nwk"),
                     file("${projectDir}/nextflow/tests/data/derep_out"),
                     [ file("${projectDir}/nextflow/tests/data/outgroup/Fam_Out_grp_GCF_000009.1.fasta") ],
-                    file("${projectDir}/nextflow/tests/data/outgroup_accession.txt")
+                    file("${projectDir}/nextflow/tests/data/outgroup_accession.txt"),
+                    []
                 )
                 """
             }
@@ -127,7 +131,8 @@ nextflow_process {
                     file("${projectDir}/nextflow/tests/data/tree.nwk"),
                     file("${projectDir}/nextflow/tests/data/derep_out"),
                     [ file("${projectDir}/nextflow/tests/data/outgroup/Fam_Out_grp_GCF_000009.1.fasta") ],
-                    file("${projectDir}/nextflow/tests/data/outgroup_accession.txt")
+                    file("${projectDir}/nextflow/tests/data/outgroup_accession.txt"),
+                    []
                 )
                 """
             }

@@ -270,6 +270,12 @@ def tree2tax_relations_cmd(
     outgroup_accession: Path | None = typer.Option(
         None, "--outgroup-accession", help="File naming the outgroup accession."
     ),
+    segments: Path | None = typer.Option(
+        None,
+        "--segments",
+        help="segments.tsv from vgenome --group-segments: member segment accessions "
+        "are listed under their isolate's leaf.",
+    ),
     node_basename: str | None = typer.Option(None, "--node-basename", help=HELP_NODE_BASENAME),
     root_name: str = typer.Option("root", "--root-name", help=HELP_ROOT_NAME),
     remove_outgroup: bool = typer.Option(False, "--remove-outgroup", help=HELP_REMOVE_OUTGROUP),
@@ -319,6 +325,7 @@ def tree2tax_relations_cmd(
                 collapse_length=collapse_length,
                 no_outgroup=no_outgroup,
                 keep_root=keep_root,
+                segments=segments,
             ),
             logger,
         )

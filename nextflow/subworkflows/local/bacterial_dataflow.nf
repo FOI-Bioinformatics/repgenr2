@@ -66,8 +66,11 @@ workflow BACTERIAL_DATAFLOW {
         ch_tree = PHYLO.out.tree
     }
 
-    // [meta, tree] joined with [meta, reps, outgroup, accession]
-    def ch_tree2tax_in = ch_tree.join(ch_phylo_in, by: 0)
+    // [meta, tree] joined with [meta, reps, outgroup, accession]; no segments
+    // table on the bacterial path
+    def ch_tree2tax_in = ch_tree
+        .join(ch_phylo_in, by: 0)
+        .map { m, t, reps_dir, og, acc -> tuple(m, t, reps_dir, og, acc, []) }
 
     TREE2TAX(ch_tree2tax_in)
     ch_versions = ch_versions.mix(TREE2TAX.out.versions)

@@ -51,6 +51,7 @@ GENOMES_MAP_TSV = "genomes_map.tsv"
 # isolate token used as the genome's accession -> its member accessions, so
 # tree2tax can list the real accessions under the isolate's leaf.
 SEGMENTS_TSV = "segments.tsv"
+OUTGROUP_ACCESSION_TXT = "outgroup_accession.txt"
 # Accessions the genome stage requested but NCBI returned nothing for;
 # the completeness guard excuses them (core.integrity).
 MISSING_ACCESSIONS_TXT = "missing_accessions.txt"
