@@ -82,9 +82,8 @@ def test_argv_outputs_and_default_softcore(tmp_path: Path, monkeypatch) -> None:
     assert msa[msa.index("--soft_core") + 1] == "0.9"
     assert msa[msa.index("--source") + 1] == "dna" and "--phylo" in msa
     assert "--single_copy" in msa
-    # Temporary files stay under the builder's directory.
-    tmp = str(tmp_path / "out" / "tmp")
-    assert workflow[workflow.index("--tmpdir") + 1] == tmp == msa[msa.index("--tmpdir") + 1]
+    # One temporary directory for both calls that take one.
+    assert workflow[workflow.index("--tmpdir") + 1] == msa[msa.index("--tmpdir") + 1]
     assert result.settings == {
         "partition": "softcore",
         "coverage": 0.8,
@@ -206,3 +205,60 @@ def test_settings_a_partition_ignores_are_named(tmp_path: Path, monkeypatch, cap
         )
     assert "does not read --core-threshold" in caplog.text
     assert "dup_margin applies only with single_copy" in caplog.text
+
+
+def test_the_temporary_directory_follows_nem_path_limit(tmp_path: Path, monkeypatch) -> None:
+    """NEM keeps file names in fixed buffers: a long work path must not reach it."""
+    calls: list[list[str]] = []
+    monkeypatch.setattr(mod, "run_tool", _fake(calls))
+    # A short path is used as it is, under the builder's directory.
+    monkeypatch.setattr(mod, "_TMPDIR_MAX", 10_000)
+    mod.PPanGGOLiNBuilder().call(_gffs(tmp_path), tmp_path / "o1", CoreGeneParams(), _LOG)
+    assert calls[0][calls[0].index("--tmpdir") + 1] == str(tmp_path / "o1" / "tmp")
+
+    # A long one is reached through a short link, so the files stay on the
+    # work volume; the link goes afterwards, the directory stays.
+    calls.clear()
+    work_tmp = tmp_path / "o2" / "tmp"
+    monkeypatch.setattr(mod, "_TMPDIR_MAX", len(str(work_tmp)) - 1)
+    seen: list[str] = []
+
+    def recording(caps, cmd, **k):
+        argv = [str(c) for c in cmd]
+        if "--tmpdir" in argv:
+            used = Path(argv[argv.index("--tmpdir") + 1])
+            assert used.is_symlink() and used.resolve() == work_tmp.resolve()
+            mounts = [str(m) for m in k["extra_mounts"]]
+            assert str(used.parent) in mounts and str(work_tmp) in mounts
+            seen.append(str(used))
+        return _fake(calls)(caps, cmd, **k)
+
+    made: list[str] = []
+    monkeypatch.setattr(
+        mod.tempfile, "mkdtemp", lambda prefix: made.append(prefix) or str(_short(tmp_path))
+    )
+    monkeypatch.setattr(mod, "run_tool", recording)
+    mod.PPanGGOLiNBuilder().call(_gffs(tmp_path), tmp_path / "o2", CoreGeneParams(), _LOG)
+    assert made == ["repgenr-ppg-"]
+    assert len(seen) == 2 and seen[0] == seen[1] == str(tmp_path / "r" / "t")
+    assert not (tmp_path / "r").exists() and work_tmp.is_dir()
+
+    # The link goes when a call fails too.
+    def failing(caps, cmd, **k):
+        raise WorkdirError("ppanggolin failed")
+
+    monkeypatch.setattr(mod, "run_tool", failing)
+    with pytest.raises(WorkdirError, match="ppanggolin failed"):
+        mod.PPanGGOLiNBuilder().call(_gffs(tmp_path), tmp_path / "o2", CoreGeneParams(), _LOG)
+    assert not (tmp_path / "r").exists()
+
+    # Both too long: refused with the remedy.
+    monkeypatch.setattr(mod, "_TMPDIR_MAX", 3)
+    with pytest.raises(WorkdirError, match="set TMPDIR to a short path"):
+        mod.PPanGGOLiNBuilder().call(_gffs(tmp_path), tmp_path / "o3", CoreGeneParams(), _LOG)
+
+
+def _short(tmp_path: Path) -> Path:
+    d = tmp_path / "r"
+    d.mkdir()
+    return d

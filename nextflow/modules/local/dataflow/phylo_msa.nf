@@ -6,14 +6,15 @@
 // params.phylo_split_msa; otherwise PHYLO does both halves in one task.
 // A staged sketches/ directory is passed as --sketches-dir, as in PHYLO:
 // the mapping SNP typers and the aligners pick their reference genome (the
-// medoid) from the sketches.
+// medoid) from the sketches. Staged annotations/ (the ANNOTATE records,
+// --msa-source coregene) are indexed and passed as --annotations-dir.
 
 process PHYLO_MSA {
     tag "${meta.id}"
     label 'process_high'
 
     input:
-    tuple val(meta), path(reps_dir), path(outgroup, stageAs: 'outgroup/*'), path(outgroup_accession)
+    tuple val(meta), path(reps_dir), path(outgroup, stageAs: 'outgroup/*'), path(outgroup_accession), path(annotations, stageAs: 'annotations/*')
     path sketches, stageAs: 'sketches'
 
     output:
@@ -34,6 +35,7 @@ process PHYLO_MSA {
     script:
     def args = task.ext.args ?: ''
     def opts = task.ext.repgenr_opts ?: ''
+    def annotator = task.ext.annotator ?: 'bakta'
     """
     # Forward tool exit codes (OOM kill -> 137) so errorStrategy can retry.
     export REPGENR_PROPAGATE_TOOL_EXIT=1
@@ -41,11 +43,19 @@ process PHYLO_MSA {
     sk=""
     [ -d sketches ] && sk="--sketches-dir sketches"
 
+    # The ANNOTATE record directories (--msa-source coregene), gathered here:
+    # index them so phylo-build reads them instead of annotating every genome.
+    an=""
+    if [ -d annotations ]; then
+        repgenr ${opts} annotate-index --annotations-dir annotations --tool ${annotator}
+        an="--annotations-dir annotations"
+    fi
+
     repgenr ${opts} phylo-build \\
         --genomes-dir ${reps_dir}/representatives \\
         --outgroup-dir outgroup \\
         --outgroup-accession ${outgroup_accession} \\
-        -o . -t ${task.cpus} ${args} \$sk \\
+        -o . -t ${task.cpus} ${args} \$sk \$an \\
         --msa-only \\
         --versions-out tool_versions.yml
 
@@ -59,6 +69,11 @@ process PHYLO_MSA {
     echo "ext.args: ${args}"
     echo "ext.repgenr_opts: ${opts}"
     if [ -d sketches ]; then echo "sketches: staged"; else echo "sketches: none"; fi
+    if [ -d annotations ]; then
+        echo "annotations: staged (\$(ls annotations | wc -l | tr -d ' ') records)"
+    else
+        echo "annotations: none"
+    fi
     for genome in ${reps_dir}/representatives/*; do
         name=\$(basename "\$genome" | sed 's/\\.[^.]*\$//')
         echo ">\${name}"

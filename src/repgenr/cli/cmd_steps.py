@@ -207,6 +207,27 @@ def annotate_build_cmd(
         )
 
 
+@app.command(name="annotate-index", rich_help_panel=PANEL_STEPS)
+def annotate_index_cmd(
+    annotations_dir: Path = typer.Option(
+        ...,
+        "--annotations-dir",
+        help="Directory holding the record directories annotate-build wrote "
+        "(<dir>/<name>/<name>.gff3).",
+    ),
+    tool: str = typer.Option("bakta", "--tool", help=HELP_ANNOTATOR),
+) -> None:
+    """Index gathered annotate-build outputs (stateless data-channel step; writes
+    <dir>/annotations.tsv, which phylo-build --annotations-dir reads)."""
+    from ..annotators.base import registry as _annot_registry
+    from ..stages.annotate import AnnotateIndexParams, annotate_index
+
+    logger = configure_logging(None, level=_RUN_STATE["log_level"])
+    with stage_errors(logger):
+        _require_choice(tool, set(_annot_registry.names()), "--tool")
+        annotate_index(AnnotateIndexParams(annotations_dir=annotations_dir, tool=tool), logger)
+
+
 @app.command(name="phylo-build", rich_help_panel=PANEL_STEPS)
 def phylo_build_cmd(
     genomes_dir: Path = typer.Option(

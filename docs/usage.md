@@ -1859,6 +1859,9 @@ Run `nextflow run nextflow/main.nf --help` for the parameter summary.
 | `--phylo_args` | `--treebuilder mashtree` | Aligner or tree builder for the phylogeny, and the rooting (`--root outgroup\|midpoint\|none`). |
 | `--phylo_split_msa` | `false` | Run the alignment and the tree as separate tasks. |
 | `--sketch` | `false` | Bacterial mode: sketch the genomes and the outgroup with sourmash, publish `sketches/`, and stage them into the dereplication and tree tasks. |
+| `--annotator` | `bakta` | With `--msa-source coregene` in `--phylo_args`: the annotator `ANNOTATE` runs on each representative and the outgroup (`bakta` or `prokka`). |
+| `--bakta_db` | `null` | bakta database directory, staged into each `ANNOTATE` task; without it bakta reads `BAKTA_DB` from the task environment. |
+| `--annotate_args` | (empty) | Extra `annotate-build` arguments (`--tool-arg key=value`). |
 | `--tree2tax_args` | (empty) | tree-to-taxonomy (FlexTaxD) arguments; redundant genomes are listed by default (`--no-include-dereplicated` to omit them). `--no-outgroup` is added when `phylo_args` contains it, and `--keep-root` when it contains `--root midpoint`. |
 
 `--phylo_split_msa` splits the phylogeny into `PHYLO_MSA` and `PHYLO_TREE`.
@@ -1879,6 +1882,26 @@ run without sourmash is unaffected; the viral and reads paths do not stage
 sketches. In the stateless steps a sketch is matched to a genome by record
 name only, without the digest check of a working directory, which holds
 because `SKETCH` sketches the same genome files the steps receive.
+
+With `--msa-source coregene` in `--phylo_args`, the bacterial and reads
+paths annotate before the phylogeny. `ANNOTATE` runs `repgenr annotate-build`
+once per representative, and once for the outgroup unless `--phylo_args`
+holds `--no-outgroup`, so the annotations run in parallel and Nextflow
+caches them genome by genome; a re-run with another tree builder or core-gene
+builder annotates nothing again. The record directories are published under
+`annotations/` and gathered into the `PHYLO` task (or `PHYLO_MSA` with
+`--phylo_split_msa`), which indexes them with `repgenr annotate-index` and
+passes them to `phylo-build` as `--annotations-dir`. The route is detected
+from `--phylo_args` (quotes around a value are dropped and the last
+`--msa-source` wins, as on the command line); a `withName` override of the
+phylo task's `ext.args` is not seen. `--bakta_db` is linked into each task;
+under `stageInMode 'copy'`, or on a cloud executor without a shared file
+system, it would be copied once per genome, so there give the tasks a path
+they can read through `BAKTA_DB` instead. The viral path has no
+annotation step, since the annotators are prokaryotic. The annotator, the
+core-gene builder and the tree builder must each be reachable from their
+tasks: with `--repgenr_opts '--bin-dir bakta=<env>/bin --bin-dir
+ppanggolin=<env>/bin'` for satellite environments, or a container profile.
 
 Parameters are validated against `nextflow/nextflow_schema.json` at launch.
 

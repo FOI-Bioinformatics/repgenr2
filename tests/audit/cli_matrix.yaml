@@ -2021,7 +2021,7 @@ commands:
         - docs/cli-reference.md
         - docs/usage.md
         - docs/audit/cli-matrix.md
-        nextflow: 'module: a later release stages it'
+        nextflow: 'module: the ANNOTATE records, staged and indexed by PHYLO and PHYLO_MSA'
         live: 'n/a: covered offline in tests/unit/test_phylo_coregene.py (the live run needs bakta, panaroo and the bakta database)'
         with_args:
         - --msa-source
@@ -2034,7 +2034,7 @@ commands:
         - docs/cli-reference.md
         - docs/usage.md
         - docs/audit/cli-matrix.md
-        nextflow: 'module: a later release stages it'
+        nextflow: 'n/a: ANNOTATE uses params.annotator; phylo-build reads this flag, from params.phylo_args, only when no records are staged'
         live: 'n/a: covered offline in tests/unit/test_phylo_coregene.py (the live run needs bakta, panaroo and the bakta database)'
         with_args:
         - --msa-source
@@ -2047,7 +2047,7 @@ commands:
         - docs/cli-reference.md
         - docs/install.md
         - docs/audit/cli-matrix.md
-        nextflow: 'module: a later release stages it'
+        nextflow: 'n/a: ANNOTATE uses params.bakta_db; phylo-build reads this flag, from params.phylo_args, only when no records are staged'
         live: 'n/a: covered offline in tests/unit/test_phylo_coregene.py (the live run needs bakta, panaroo and the bakta database)'
         with_args:
         - --msa-source
@@ -2136,6 +2136,31 @@ commands:
         - docs/audit/cli-matrix.md
         nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
         live: 'n/a: covered offline in tests/unit/test_annotate_stage.py (the live run needs bakta and its database)'
+  annotate-index:
+    dispatch: step:repgenr.stages.annotate.annotate_index
+    base_args:
+    - --annotations-dir
+    - '{dir}'
+    flags:
+      --annotations-dir:
+        param: AnnotateIndexParams.annotations_dir
+        value: '{alt_dir}'
+        validated: stage
+        docs:
+        - docs/cli-reference.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'module: fixed by the PHYLO and PHYLO_MSA scripts'
+        live: 'n/a: covered offline in tests/unit/test_annotate_stage.py::test_annotate_index_step'
+      --tool:
+        param: AnnotateIndexParams.tool
+        value: prokka
+        validated: registry
+        invalid: nope
+        docs:
+        - docs/cli-reference.md
+        - docs/audit/cli-matrix.md
+        nextflow: params.annotator
+        live: 'n/a: covered offline in tests/unit/test_annotate_stage.py::test_annotate_index_step'
   annotate-build:
     dispatch: step:repgenr.stages.annotate.annotate_build
     base_args:
@@ -2151,7 +2176,7 @@ commands:
         docs:
         - docs/cli-reference.md
         - docs/audit/cli-matrix.md
-        nextflow: 'module: fixed by the process script (a later release)'
+        nextflow: 'module: fixed by the ANNOTATE script'
         live: 'n/a: covered offline in tests/unit/test_annotate_stage.py::test_annotate_build_step_writes_versions'
       --out:
         aliases:
@@ -2162,7 +2187,7 @@ commands:
         docs:
         - docs/cli-reference.md
         - docs/audit/cli-matrix.md
-        nextflow: 'module: fixed by the process script (a later release)'
+        nextflow: 'module: fixed by the ANNOTATE script'
         live: 'n/a: covered offline in tests/unit/test_annotate_stage.py::test_annotate_build_step_writes_versions'
       --record-name:
         param: AnnotateBuildParams.record_name
@@ -2171,7 +2196,7 @@ commands:
         docs:
         - docs/cli-reference.md
         - docs/audit/cli-matrix.md
-        nextflow: 'module: fixed by the process script (a later release)'
+        nextflow: 'n/a: the ANNOTATE task names the record after the genome file'
         live: 'n/a: covered offline in tests/unit/test_annotate_stage.py::test_annotate_build_step_writes_versions'
       --tool:
         param: AnnotateBuildParams.tool
@@ -2181,7 +2206,7 @@ commands:
         - docs/cli-reference.md
         - docs/usage.md
         - docs/audit/cli-matrix.md
-        nextflow: 'module: fixed by the process script (a later release)'
+        nextflow: params.annotator
         live: 'n/a: covered offline in tests/unit/test_annotate_stage.py::test_annotate_build_step_writes_versions'
       --bakta-db:
         param: AnnotateBuildParams.bakta_db
@@ -2191,7 +2216,7 @@ commands:
         - docs/cli-reference.md
         - docs/install.md
         - docs/audit/cli-matrix.md
-        nextflow: 'module: fixed by the process script (a later release)'
+        nextflow: 'module: params.bakta_db, staged into the task'
         live: 'n/a: covered offline in tests/unit/test_annotate_stage.py::test_annotate_build_step_writes_versions'
       --threads:
         aliases:
@@ -2203,7 +2228,7 @@ commands:
         docs:
         - docs/cli-reference.md
         - docs/audit/cli-matrix.md
-        nextflow: 'module: fixed by the process script (a later release)'
+        nextflow: 'module: task.cpus'
         live: 'n/a: covered offline in tests/unit/test_annotate_stage.py::test_annotate_build_step_writes_versions'
       --tool-arg:
         param: AnnotateBuildParams.extra
@@ -2213,7 +2238,7 @@ commands:
         docs:
         - docs/cli-reference.md
         - docs/audit/cli-matrix.md
-        nextflow: 'module: fixed by the process script (a later release)'
+        nextflow: params.annotate_args
         live: 'n/a: covered offline in tests/unit/test_annotate_stage.py::test_annotate_build_step_writes_versions'
       --versions-out:
         param: AnnotateBuildParams.versions_out
@@ -2222,7 +2247,7 @@ commands:
         docs:
         - docs/cli-reference.md
         - docs/audit/cli-matrix.md
-        nextflow: 'module: fixed by the process script (a later release)'
+        nextflow: 'module: fixed by the ANNOTATE script'
         live: 'n/a: covered offline in tests/unit/test_annotate_stage.py::test_annotate_build_step_writes_versions'
   assemble:
     dispatch: stage

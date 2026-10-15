@@ -1,0 +1,111 @@
+nextflow_pipeline {
+
+    name "BACTERIAL_DATAFLOW with --msa-source coregene (stub)"
+    script "../tests/bacterial_dataflow.nf"
+    tag "stub"
+    options "-stub"
+    config "./annotate_debug.config"
+
+    test("each representative and the outgroup is annotated and staged into PHYLO") {
+        when {
+            params {
+                outdir = "$outputDir"
+                phylo_args = '--msa-source coregene --coregene panaroo --treebuilder iqtree'
+            }
+        }
+        then {
+            assert workflow.success
+            def names = workflow.trace.succeeded().collect { t -> t.name }
+            def annotated = names.count { n -> n.startsWith('BACTERIAL_DATAFLOW:ANNOTATE_SCATTER:ANNOTATE') }
+            assert annotated >= 2
+            // Every record reaches the one PHYLO task.
+            assert workflow.stdout.any { line -> line.contains("annotations: staged (${annotated} records)") }
+            assert workflow.stdout.any { line -> line.contains('ext.args: --tool bakta') }
+            // One record is the outgroup.
+            def published = new File("$outputDir/annotations").list().findAll { n -> !n.startsWith('.') }
+            assert published.size() == annotated
+            assert published.any { n -> n.contains('Out') || n.contains('out') }
+            assert path("$outputDir/pipeline_info/software_versions.yml").text.contains("ANNOTATE")
+        }
+    }
+
+    test("--no-outgroup leaves the outgroup unannotated") {
+        when {
+            params {
+                outdir = "$outputDir"
+                phylo_args = '--msa-source=coregene --treebuilder iqtree --no-outgroup --root midpoint'
+                annotator = 'prokka'
+            }
+        }
+        then {
+            assert workflow.success
+            def names = workflow.trace.succeeded().collect { t -> t.name }
+            def annotated = names.count { n -> n.contains('ANNOTATE_SCATTER:ANNOTATE') }
+            assert annotated >= 1
+            assert workflow.stdout.any { line -> line.contains("annotations: staged (${annotated} records)") }
+            assert workflow.stdout.any { line -> line.contains('ext.args: --tool prokka') }
+            def published = new File("$outputDir/annotations").list().findAll { n -> !n.startsWith('.') }
+            assert !published.any { n -> n.contains('Out') }
+        }
+    }
+
+    test("with phylo_split_msa the records go to PHYLO_MSA") {
+        when {
+            params {
+                outdir = "$outputDir"
+                phylo_split_msa = true
+                phylo_args = '--msa-source coregene --treebuilder fasttree'
+            }
+        }
+        then {
+            assert workflow.success
+            def names = workflow.trace.succeeded().collect { t -> t.name }
+            assert names.any { n -> n.contains('PHYLO_MSA (francisella)') }
+            def annotated = names.count { n -> n.contains('ANNOTATE_SCATTER:ANNOTATE') }
+            assert workflow.stdout.count { line -> line.contains("annotations: staged (${annotated} records)") } == 1
+        }
+    }
+
+    test("without --msa-source coregene nothing is annotated or staged") {
+        when {
+            params {
+                outdir = "$outputDir"
+            }
+        }
+        then {
+            assert workflow.success
+            def names = workflow.trace.succeeded().collect { t -> t.name }
+            assert !names.any { n -> n.contains('ANNOTATE') }
+            assert !new File("$outputDir/annotations").exists()
+            assert workflow.stdout.any { line -> line.contains('annotations: none') }
+        }
+    }
+
+    test("phylo_args is read as on the command line: quotes dropped, the last --msa-source wins") {
+        when {
+            params {
+                outdir = "$outputDir"
+                phylo_args = '--msa-source aligner --msa-source "coregene" --treebuilder iqtree'
+            }
+        }
+        then {
+            assert workflow.success
+            def names = workflow.trace.succeeded().collect { t -> t.name }
+            assert names.any { n -> n.contains('ANNOTATE_SCATTER:ANNOTATE') }
+        }
+    }
+
+    test("a later --msa-source turns the route off") {
+        when {
+            params {
+                outdir = "$outputDir"
+                phylo_args = '--msa-source=coregene --msa-source snptype --treebuilder iqtree'
+            }
+        }
+        then {
+            assert workflow.success
+            def names = workflow.trace.succeeded().collect { t -> t.name }
+            assert !names.any { n -> n.contains('ANNOTATE') }
+        }
+    }
+}

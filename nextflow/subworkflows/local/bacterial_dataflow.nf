@@ -8,12 +8,18 @@
 // it instead of sketching. SKETCH calls sourmash itself, so it is off by
 // default and a run without sourmash is unaffected.
 //
+// With --msa-source coregene in phylo_args, ANNOTATE_SCATTER annotates every
+// representative (and the outgroup) in its own task, and the record
+// directories are staged into PHYLO or PHYLO_MSA.
+//
 // Genomes, representatives, the tree and the taxonomy flow between processes as
 // staged channel files; there is no shared working directory. This is the
 // data-channel replacement for the legacy done-signal BACTERIAL subworkflow.
 
 include { ACQUIRE             } from './acquire'
 include { DEREPLICATE_SCATTER } from './dereplicate_scatter'
+include { ANNOTATE_SCATTER    } from './annotate_scatter'
+include { phylo_uses_coregene } from './annotate_scatter'
 include { SKETCH              } from '../../modules/local/dataflow/sketch'
 include { PHYLO               } from '../../modules/local/dataflow/phylo'
 include { PHYLO_MSA           } from '../../modules/local/dataflow/phylo_msa'
@@ -50,11 +56,20 @@ workflow BACTERIAL_DATAFLOW {
         .join(ACQUIRE.out.outgroup, by: 0)
         .join(ACQUIRE.out.outgroup_accession, by: 0)
 
+    // The core-gene route's annotations, or an empty list in their place.
+    def ch_build_in = ch_phylo_in.map { m, reps, og, acc -> tuple(m, reps, og, acc, []) }
+    if (phylo_uses_coregene(params.phylo_args)) {
+        ANNOTATE_SCATTER(DEREPLICATE_SCATTER.out.reps, ACQUIRE.out.outgroup)
+        ch_versions = ch_versions.mix(ANNOTATE_SCATTER.out.versions)
+        // failOnMismatch: a run whose annotations are missing stops here.
+        ch_build_in = ch_phylo_in.join(ANNOTATE_SCATTER.out.annotations, by: 0, failOnMismatch: true)
+    }
+
     // With params.phylo_split_msa the alignment and the tree are separate
     // tasks, so changing the tree builder re-runs only the tree.
     def ch_tree = null
     if (params.phylo_split_msa) {
-        PHYLO_MSA(ch_phylo_in, ch_sketches_dir)
+        PHYLO_MSA(ch_build_in, ch_sketches_dir)
         ch_versions = ch_versions.mix(PHYLO_MSA.out.versions)
         // alignment_stats.json exists for a SNP-typer alignment only; an empty
         // list stands in for it otherwise (same remainder pattern as the outgroup).
@@ -67,7 +82,7 @@ workflow BACTERIAL_DATAFLOW {
         ch_tree = PHYLO_TREE.out.tree
     }
     else {
-        PHYLO(ch_phylo_in, ch_sketches_dir)
+        PHYLO(ch_build_in, ch_sketches_dir)
         ch_versions = ch_versions.mix(PHYLO.out.versions)
         ch_tree = PHYLO.out.tree
     }

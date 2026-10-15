@@ -1,0 +1,72 @@
+nextflow_process {
+
+    name "ANNOTATE (stub)"
+    script "../modules/local/dataflow/annotate.nf"
+    tag "stub"
+    process "ANNOTATE"
+    options "-stub"
+    config "./annotate_debug.config"
+
+    test("writes one record directory named after the genome") {
+        when {
+            process {
+                """
+                input[0] = tuple(
+                    [id: 'test', mode: 'bacterial'],
+                    file("${projectDir}/nextflow/tests/data/derep_out/representatives/Fam_Gen_sp1_GCF_000001.1.fasta")
+                )
+                input[1] = []
+                """
+            }
+        }
+        then {
+            assert process.success
+            with(process.out.annotation.get(0)) {
+                assert get(0).id == 'test'
+                def record = new File(get(1).toString())
+                assert record.name == 'Fam_Gen_sp1_GCF_000001.1'
+                assert new File(record, 'Fam_Gen_sp1_GCF_000001.1.gff3').text.contains('##FASTA')
+                assert new File(record, 'Fam_Gen_sp1_GCF_000001.1.faa').exists()
+                assert new File(record, 'Fam_Gen_sp1_GCF_000001.1.ffn').exists()
+            }
+            assert process.stdout.any { line -> line.contains('bakta_db: none') }
+        }
+    }
+
+    test("a given database directory is staged") {
+        when {
+            process {
+                """
+                input[0] = tuple(
+                    [id: 'test', mode: 'bacterial'],
+                    file("${projectDir}/nextflow/tests/data/outgroup/Fam_Out_grp_GCF_000009.1.fasta")
+                )
+                input[1] = file("${projectDir}/nextflow/tests/data/sketches")
+                """
+            }
+        }
+        then {
+            assert process.success
+            assert process.stdout.any { line -> line.contains('bakta_db: staged') }
+            assert new File(process.out.annotation.get(0).get(1).toString()).name == 'Fam_Out_grp_GCF_000009.1'
+        }
+    }
+
+    test("a gzipped genome is named without its suffixes") {
+        when {
+            process {
+                """
+                input[0] = tuple(
+                    [id: 'test', mode: 'bacterial'],
+                    file("${projectDir}/nextflow/tests/data/annotate_gz/Fam_Gen_sp2_GCF_000002.1.fasta.gz")
+                )
+                input[1] = []
+                """
+            }
+        }
+        then {
+            assert process.success
+            assert new File(process.out.annotation.get(0).get(1).toString()).name == 'Fam_Gen_sp2_GCF_000002.1'
+        }
+    }
+}

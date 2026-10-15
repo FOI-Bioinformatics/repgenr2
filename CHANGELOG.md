@@ -7,6 +7,16 @@ All notable changes to RepGenR2 are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- Nextflow: the core-gene route. With `--msa-source coregene` in
+  `phylo_args`, the bacterial and reads paths run `ANNOTATE` once per
+  representative and for the outgroup (unless `--no-outgroup`), in parallel
+  and cached genome by genome, publish the records under `annotations/`, and
+  stage them into `PHYLO` or `PHYLO_MSA`, which index them and pass them to
+  `phylo-build --annotations-dir`. New parameters `annotator`, `bakta_db` and
+  `annotate_args`. Before, the phylo task annotated every genome itself, one
+  after another.
+- `repgenr annotate-index --annotations-dir DIR --tool T`: a stateless step
+  that writes `annotations.tsv` for gathered `annotate-build` records.
 - `--coregene orthofinder`: a fourth core-gene builder. OrthoFinder compares
   every proteome against every other (DIAMOND by default, `search=`) and
   clusters orthogroups with MCL (`inflation=`); the adapter stops it after
@@ -174,6 +184,14 @@ All notable changes to RepGenR2 are documented here. The format follows
   the column and rejects an empty rank.
 
 ### Fixed
+- PPanGGOLiN hung without end under a long work path, as in a Nextflow
+  task: NEM, its partitioning code, keeps file names in 200-character
+  buffers, and `--tmpdir` under the work directory overflowed them, so a
+  partitioning worker failed and the pool waited for it. Past 120
+  characters the adapter now gives PPanGGOLiN a short link, under the system
+  temporary directory, to the temporary directory it would have used, so
+  the files stay on the work volume; the link is mounted for a container
+  and removed afterwards.
 - Version probes ignore terminal colour codes; OrthoFinder 3 colours its
   version, which split "3.1.5" so that no version was read.
 - Core-gene alignments: a genome left as a row of gaps (one that shares no
