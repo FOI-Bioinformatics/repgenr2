@@ -1891,7 +1891,13 @@ caches them genome by genome; a re-run with another tree builder or core-gene
 builder annotates nothing again. The record directories are published under
 `annotations/` and gathered into the `PHYLO` task (or `PHYLO_MSA` with
 `--phylo_split_msa`), which indexes them with `repgenr annotate-index` and
-passes them to `phylo-build` as `--annotations-dir`. The viral path has no
+passes them to `phylo-build` as `--annotations-dir`. The route is detected
+from `--phylo_args` (quotes around a value are dropped and the last
+`--msa-source` wins, as on the command line); a `withName` override of the
+phylo task's `ext.args` is not seen. `--bakta_db` is linked into each task;
+under `stageInMode 'copy'`, or on a cloud executor without a shared file
+system, it would be copied once per genome, so there give the tasks a path
+they can read through `BAKTA_DB` instead. The viral path has no
 annotation step, since the annotators are prokaryotic. The annotator, the
 core-gene builder and the tree builder must each be reachable from their
 tasks: with `--repgenr_opts '--bin-dir bakta=<env>/bin --bin-dir

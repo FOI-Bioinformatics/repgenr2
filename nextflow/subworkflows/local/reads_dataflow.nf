@@ -40,13 +40,13 @@ workflow READS_DATAFLOW {
 
     // As on the bacterial path: --msa-source coregene annotates each
     // representative (and the outgroup) in its own task.
-    def ch_annotations = ch_phylo_in.map { m, _reps, _og, _acc -> tuple(m, []) }
+    def ch_build_in = ch_phylo_in.map { m, reps, og, acc -> tuple(m, reps, og, acc, []) }
     if (phylo_uses_coregene(params.phylo_args)) {
         ANNOTATE_SCATTER(DEREPLICATE_SCATTER.out.reps, ACQUIRE_READS.out.outgroup)
         ch_versions = ch_versions.mix(ANNOTATE_SCATTER.out.versions)
-        ch_annotations = ANNOTATE_SCATTER.out.annotations
+        // failOnMismatch: a run whose annotations are missing stops here.
+        ch_build_in = ch_phylo_in.join(ANNOTATE_SCATTER.out.annotations, by: 0, failOnMismatch: true)
     }
-    def ch_build_in = ch_phylo_in.join(ch_annotations, by: 0)
 
     def ch_tree = null
     if (params.phylo_split_msa) {

@@ -147,7 +147,8 @@ class PPanGGOLiNBuilder(CoreGeneBuilder):
         with _partition_tmpdir(out_dir / "tmp", logger) as tmp_dir:
             self._run(
                 params, partition, identity, coverage, single_copy, dup_margin,
-                listing, pan_dir, h5, out_dir, tmp_dir, [*mounts, str(tmp_dir)], common, logger,
+                listing, pan_dir, h5, out_dir, tmp_dir,
+                [*mounts, str(tmp_dir.parent), str(out_dir / "tmp")], common, logger,
             )  # fmt: skip
 
         soft_core = f"{params.core_threshold:g}"
@@ -255,38 +256,48 @@ class PPanGGOLiNBuilder(CoreGeneBuilder):
 
 
 # NEM, the partitioning code PPanGGOLiN bundles, keeps file names in buffers of
-# 200 characters, and PPanGGOLiN builds them under --tmpdir with about 40 more.
-# A longer name makes a partitioning worker fail and the whole run wait for it
-# without end (seen under a Nextflow work directory). Beyond this length the
-# adapter uses a short temporary directory of its own.
+# 200 characters (nem_exe.c: name_out_stderr), and PPanGGOLiN builds them as
+# <tmpdir>/tmpXXXXXXXX/eval_partitions/nem_file_init_NN.m and similar, 47
+# characters more. A longer name makes a partitioning worker fail and the run
+# wait for it without end (seen under a Nextflow work directory), so the hard
+# limit is about 152 characters; 120 leaves a margin. Beyond it the adapter
+# hands PPanGGOLiN a short path that links to the directory it would have used.
 _TMPDIR_MAX = 120
 
 
 @contextlib.contextmanager
 def _partition_tmpdir(preferred: Path, logger: logging.Logger) -> Iterator[Path]:
-    """``preferred`` when its path is short enough for NEM, else a short one
-    under the system temporary directory, removed afterwards."""
+    """The ``--tmpdir`` to pass: ``preferred`` when its path is short enough for
+    NEM, else a short link to it under the system temporary directory.
+
+    The files stay in ``preferred`` either way, on the work volume, so a large
+    run does not fill a small node-local temporary directory; only the path
+    NEM sees is short. The link and its directory are removed afterwards.
+    """
+    preferred.mkdir(parents=True, exist_ok=True)
     if len(os.path.abspath(preferred)) <= _TMPDIR_MAX:
-        preferred.mkdir(parents=True, exist_ok=True)
         yield preferred
         return
-    own = Path(tempfile.mkdtemp(prefix="repgenr-ppg-"))
-    if len(str(own)) > _TMPDIR_MAX:
-        shutil.rmtree(own, ignore_errors=True)
+    holder = Path(tempfile.mkdtemp(prefix="repgenr-ppg-"))
+    link = holder / "t"
+    if len(str(link)) > _TMPDIR_MAX:
+        shutil.rmtree(holder, ignore_errors=True)
         raise WorkdirError(
             f"ppanggolin needs a temporary directory path of at most {_TMPDIR_MAX} "
             f"characters (its partitioning code keeps file names in fixed buffers), and "
             f"both {preferred} and the system one are longer; set TMPDIR to a short path."
         )
+    link.symlink_to(os.path.abspath(preferred), target_is_directory=True)
     logger.info(
-        "The work path is too long for ppanggolin's partitioning code; its temporary "
-        "files go to %s instead",
-        own,
+        "The work path is too long for ppanggolin's partitioning code; it is given %s, "
+        "a link to %s",
+        link,
+        preferred,
     )
     try:
-        yield own
+        yield link
     finally:
-        shutil.rmtree(own, ignore_errors=True)
+        shutil.rmtree(holder, ignore_errors=True)
 
 
 def _unit(raw: object, flag: str) -> float:

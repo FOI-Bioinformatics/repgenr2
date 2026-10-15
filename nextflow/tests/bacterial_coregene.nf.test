@@ -80,4 +80,32 @@ nextflow_pipeline {
             assert workflow.stdout.any { line -> line.contains('annotations: none') }
         }
     }
+
+    test("phylo_args is read as on the command line: quotes dropped, the last --msa-source wins") {
+        when {
+            params {
+                outdir = "$outputDir"
+                phylo_args = '--msa-source aligner --msa-source "coregene" --treebuilder iqtree'
+            }
+        }
+        then {
+            assert workflow.success
+            def names = workflow.trace.succeeded().collect { t -> t.name }
+            assert names.any { n -> n.contains('ANNOTATE_SCATTER:ANNOTATE') }
+        }
+    }
+
+    test("a later --msa-source turns the route off") {
+        when {
+            params {
+                outdir = "$outputDir"
+                phylo_args = '--msa-source=coregene --msa-source snptype --treebuilder iqtree'
+            }
+        }
+        then {
+            assert workflow.success
+            def names = workflow.trace.succeeded().collect { t -> t.name }
+            assert !names.any { n -> n.contains('ANNOTATE') }
+        }
+    }
 }

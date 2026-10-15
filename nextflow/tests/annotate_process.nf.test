@@ -51,4 +51,22 @@ nextflow_process {
             assert new File(process.out.annotation.get(0).get(1).toString()).name == 'Fam_Out_grp_GCF_000009.1'
         }
     }
+
+    test("a gzipped genome is named without its suffixes") {
+        when {
+            process {
+                """
+                input[0] = tuple(
+                    [id: 'test', mode: 'bacterial'],
+                    file("${projectDir}/nextflow/tests/data/annotate_gz/Fam_Gen_sp2_GCF_000002.1.fasta.gz")
+                )
+                input[1] = []
+                """
+            }
+        }
+        then {
+            assert process.success
+            assert new File(process.out.annotation.get(0).get(1).toString()).name == 'Fam_Gen_sp2_GCF_000002.1'
+        }
+    }
 }

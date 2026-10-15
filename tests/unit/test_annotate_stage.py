@@ -12,7 +12,7 @@ from repgenr.annotators import bakta as bk
 from repgenr.annotators.base import AnnotateParams, AnnotateResult, Annotator, registry
 from repgenr.core import annotations as cache
 from repgenr.core.context import WorkdirContext
-from repgenr.core.errors import UserInputError
+from repgenr.core.errors import UserInputError, WorkdirError
 from repgenr.core.plugins import ToolCapabilities
 from repgenr.stages.annotate import AnnotateStageParams, annotate_core, run
 
@@ -407,6 +407,10 @@ def test_annotate_index_step(tmp_path: Path, monkeypatch) -> None:
         annotate_index(
             AnnotateIndexParams(annotations_dir=gathered, tool="nope"), logging.getLogger("t")
         )
+    unfinished = tmp_path / "unfinished"
+    (unfinished / "Fam_Gen_sp_GCA_3.1").mkdir(parents=True)
+    with pytest.raises(WorkdirError, match="did not finish"):
+        annotate_index(AnnotateIndexParams(annotations_dir=unfinished), logging.getLogger("t"))
     empty = tmp_path / "empty"
     empty.mkdir()
     with pytest.raises(UserInputError, match="No annotated records"):

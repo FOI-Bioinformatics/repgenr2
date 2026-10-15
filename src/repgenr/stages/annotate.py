@@ -23,7 +23,7 @@ from ..core import annotations as cache
 from ..core.annotations import AnnotationRecord
 from ..core.context import WorkdirContext
 from ..core.contracts import list_fasta, record_name
-from ..core.errors import UserInputError
+from ..core.errors import UserInputError, WorkdirError
 from ..core.plugins import warn_unconsumed_extras
 from ..core.process import remove_tree, stage_plain_inputs
 from .phylo import _resolve_outgroup
@@ -220,6 +220,21 @@ def annotate_index(params: AnnotateIndexParams, logger: logging.Logger) -> Path:
         )
     if not params.annotations_dir.is_dir():
         raise UserInputError(f"--annotations-dir {params.annotations_dir} is not a directory.")
+    # Every gathered record is a finished annotate-build output; one without
+    # its GFF3 is an incomplete task, not a record to skip.
+    incomplete = sorted(
+        p.name
+        for p in params.annotations_dir.iterdir()
+        if p.is_dir()
+        and not p.name.startswith(".")
+        and not cache.gff_path(params.annotations_dir, p.name).is_file()
+    )
+    if incomplete:
+        raise WorkdirError(
+            f"{len(incomplete)} annotation record(s) under {params.annotations_dir} hold no "
+            f"GFF3 ({', '.join(incomplete[:5])}); the annotate-build task that wrote them "
+            "did not finish."
+        )
     index = index_from_directories(params.annotations_dir, params.tool, logger, probe_version=False)
     logger.info("Indexed the annotations under %s in %s", params.annotations_dir, index.name)
     return index

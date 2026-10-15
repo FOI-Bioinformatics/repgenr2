@@ -726,12 +726,14 @@ satellite environments given through `--repgenr_opts '--bin-dir ...'`.
   the optimal number of partitions" with every worker idle. Run directly,
   the same command finished in five seconds without `--tmpdir` and stalled
   with the task's 189-character `--tmpdir`. NEM, the partitioning code
-  PPanGGOLiN bundles, keeps file names in 200-character buffers. The
-  adapter now uses a short private temporary directory past 120 characters.
+  PPanGGOLiN bundles, keeps file names in 200-character buffers. Past 120
+  characters the adapter now passes a short link to its temporary
+  directory instead, so the files stay on the work volume.
 - With that fix and `-resume`, the dereplication and the three annotations
   came from the cache and `PHYLO` built 611 genes and 615353 columns with
   PPanGGOLiN and a three-leaf tree with IQ-TREE, about one minute for the
-  task; the private temporary directory was removed.
+  task. A fresh run without `-resume`, all six tasks executed, gave the
+  same 611 genes through the link, which was removed afterwards.
 
 ## Gzipped genomes in the aligners and typers (2026-10-08)
 

@@ -188,8 +188,10 @@ All notable changes to RepGenR2 are documented here. The format follows
   task: NEM, its partitioning code, keeps file names in 200-character
   buffers, and `--tmpdir` under the work directory overflowed them, so a
   partitioning worker failed and the pool waited for it. Past 120
-  characters the adapter now uses a short private temporary directory,
-  mounted for a container and removed afterwards.
+  characters the adapter now gives PPanGGOLiN a short link, under the system
+  temporary directory, to the temporary directory it would have used, so
+  the files stay on the work volume; the link is mounted for a container
+  and removed afterwards.
 - Version probes ignore terminal colour codes; OrthoFinder 3 colours its
   version, which split "3.1.5" so that no version was read.
 - Core-gene alignments: a genome left as a row of gaps (one that shares no

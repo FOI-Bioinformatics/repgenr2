@@ -81,9 +81,10 @@
                 },
                 "bakta_db": {
                     "type": ["string", "null"],
+                    "format": "directory-path",
                     "default": null,
                     "description": "bakta database directory (bakta_db download --output DIR --type light), staged into each ANNOTATE task.",
-                    "help_text": "Without it, bakta reads BAKTA_DB from the task environment. Not needed with --annotator prokka.",
+                    "help_text": "Without it, bakta reads BAKTA_DB from the task environment. Not needed with --annotator prokka. The directory is linked into each task by default; under stageInMode 'copy', or on a cloud executor without a shared file system, it is copied or downloaded once per genome, which for the light database (about 4 GB) is costly; there, give a path the tasks can read directly through BAKTA_DB instead.",
                     "fa_icon": "fas fa-database"
                 },
                 "annotate_args": {

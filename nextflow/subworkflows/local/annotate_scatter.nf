@@ -10,14 +10,22 @@
 
 include { ANNOTATE } from '../../modules/local/dataflow/annotate'
 
-// True when the phylo arguments select the core-gene alignment source.
+// True when the phylo arguments select the core-gene alignment source. Read
+// from params.phylo_args only (a withName ext.args override is not seen).
+// Quotes around a value are dropped, and the last --msa-source wins, as on
+// the repgenr command line.
 def phylo_uses_coregene(args) {
-    def tokens = (args ?: '').toString().tokenize()
-    if (tokens.contains('--msa-source=coregene')) {
-        return true
+    def tokens = (args ?: '').toString().tokenize().collect { t -> t.replaceAll(/^["']|["']$/, '') }
+    def source = null
+    tokens.eachWithIndex { t, i ->
+        if (t.startsWith('--msa-source=')) {
+            source = t.substring('--msa-source='.length()).replaceAll(/^["']|["']$/, '')
+        }
+        else if (t == '--msa-source' && i + 1 < tokens.size()) {
+            source = tokens[i + 1]
+        }
     }
-    def at = tokens.indexOf('--msa-source')
-    return at >= 0 && at + 1 < tokens.size() && tokens[at + 1] == 'coregene'
+    return source == 'coregene'
 }
 
 // True when the phylo arguments keep the outgroup in the tree.
@@ -31,8 +39,13 @@ workflow ANNOTATE_SCATTER {
     ch_outgroup  // [meta, outgroup file or list of files, possibly empty]
 
     main:
+    // Listed through the Path API, so a work directory on object storage
+    // (s3://, gs://, az://) keeps its scheme.
     def ch_genomes = ch_reps.flatMap { meta, reps_dir ->
-        files("${reps_dir}/representatives/*").collect { genome -> tuple(meta, genome) }
+        reps_dir.resolve('representatives').listFiles()
+            .findAll { f -> f.isFile() && !f.name.startsWith('.') }
+            .sort { f -> f.name }
+            .collect { genome -> tuple(meta, genome) }
     }
     if (phylo_keeps_outgroup(params.phylo_args)) {
         ch_genomes = ch_genomes.mix(

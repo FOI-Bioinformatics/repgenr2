@@ -216,19 +216,21 @@ def test_the_temporary_directory_follows_nem_path_limit(tmp_path: Path, monkeypa
     mod.PPanGGOLiNBuilder().call(_gffs(tmp_path), tmp_path / "o1", CoreGeneParams(), _LOG)
     assert calls[0][calls[0].index("--tmpdir") + 1] == str(tmp_path / "o1" / "tmp")
 
-    # A long one is replaced by a short private directory, removed afterwards.
+    # A long one is reached through a short link, so the files stay on the
+    # work volume; the link goes afterwards, the directory stays.
     calls.clear()
-    # The work path is just over the limit; the private one ("r") is under it.
-    monkeypatch.setattr(mod, "_TMPDIR_MAX", len(str(tmp_path / "o2" / "tmp")) - 1)
+    work_tmp = tmp_path / "o2" / "tmp"
+    monkeypatch.setattr(mod, "_TMPDIR_MAX", len(str(work_tmp)) - 1)
     seen: list[str] = []
 
     def recording(caps, cmd, **k):
         argv = [str(c) for c in cmd]
         if "--tmpdir" in argv:
-            used = argv[argv.index("--tmpdir") + 1]
-            assert Path(used).is_dir()
-            seen.append(used)
-            assert used in [str(m) for m in k["extra_mounts"]]
+            used = Path(argv[argv.index("--tmpdir") + 1])
+            assert used.is_symlink() and used.resolve() == work_tmp.resolve()
+            mounts = [str(m) for m in k["extra_mounts"]]
+            assert str(used.parent) in mounts and str(work_tmp) in mounts
+            seen.append(str(used))
         return _fake(calls)(caps, cmd, **k)
 
     made: list[str] = []
@@ -238,8 +240,17 @@ def test_the_temporary_directory_follows_nem_path_limit(tmp_path: Path, monkeypa
     monkeypatch.setattr(mod, "run_tool", recording)
     mod.PPanGGOLiNBuilder().call(_gffs(tmp_path), tmp_path / "o2", CoreGeneParams(), _LOG)
     assert made == ["repgenr-ppg-"]
-    assert len(seen) == 2 and seen[0] == seen[1] == str(tmp_path / "r")
-    assert not Path(seen[0]).exists()
+    assert len(seen) == 2 and seen[0] == seen[1] == str(tmp_path / "r" / "t")
+    assert not (tmp_path / "r").exists() and work_tmp.is_dir()
+
+    # The link goes when a call fails too.
+    def failing(caps, cmd, **k):
+        raise WorkdirError("ppanggolin failed")
+
+    monkeypatch.setattr(mod, "run_tool", failing)
+    with pytest.raises(WorkdirError, match="ppanggolin failed"):
+        mod.PPanGGOLiNBuilder().call(_gffs(tmp_path), tmp_path / "o2", CoreGeneParams(), _LOG)
+    assert not (tmp_path / "r").exists()
 
     # Both too long: refused with the remedy.
     monkeypatch.setattr(mod, "_TMPDIR_MAX", 3)

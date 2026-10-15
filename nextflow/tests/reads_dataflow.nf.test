@@ -33,4 +33,25 @@ nextflow_pipeline {
             assert names.any { n -> n.contains('TREE2TAX (francisella)') }
         }
     }
+
+    test("with --msa-source coregene the assembled representatives are annotated and staged") {
+        config "./annotate_debug.config"
+        when {
+            params {
+                outdir = "$outputDir"
+                mode = 'reads'
+                reads_args = '-tg francisella --platform illumina --max-runs 5'
+                derep_process_size = 1
+                derep_tool = 'sourmash'
+                phylo_args = '--msa-source coregene --treebuilder iqtree'
+            }
+        }
+        then {
+            assert workflow.success
+            def names = workflow.trace.succeeded().collect { t -> t.name }
+            def annotated = names.count { n -> n.contains('ANNOTATE_SCATTER:ANNOTATE') }
+            assert annotated >= 1
+            assert workflow.stdout.any { line -> line.contains("annotations: staged (${annotated} records)") }
+        }
+    }
 }
