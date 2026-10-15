@@ -1692,6 +1692,51 @@ commands:
         - docs/audit/cli-matrix.md
         nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
         live: tests/live/test_species_set.py::test_ska2_source_with_reference_and_allow_incomplete
+      --coregene:
+        param: PhyloParams.coregene
+        value: panaroo
+        validated: registry
+        docs:
+        - docs/cli-reference.md
+        - docs/usage.md
+        - docs/choosing-tools.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
+        live: 'n/a: covered offline in tests/unit/test_phylo_coregene.py (the live run needs bakta, panaroo and the bakta database)'
+        wiring: 'n/a: the only registered builder is the default; the wiring is covered by tests/unit/test_phylo_coregene.py'
+        with_args:
+        - --msa-source
+        - coregene
+      --core-threshold:
+        param: PhyloParams.extra
+        value: '0.9'
+        validated: range
+        invalid: '2'
+        docs:
+        - docs/cli-reference.md
+        - docs/usage.md
+        - docs/choosing-tools.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
+        live: 'n/a: covered offline in tests/unit/test_phylo_coregene.py (the live run needs bakta, panaroo and the bakta database)'
+        with_args:
+        - --msa-source
+        - coregene
+      --clean-mode:
+        param: PhyloParams.extra
+        value: moderate
+        validated: choice
+        invalid: turbo
+        docs:
+        - docs/cli-reference.md
+        - docs/usage.md
+        - docs/choosing-tools.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
+        live: 'n/a: covered offline in tests/unit/test_phylo_coregene.py (the live run needs bakta, panaroo and the bakta database)'
+        with_args:
+        - --msa-source
+        - coregene
   phylo-build:
     dispatch: step:repgenr.stages.phylo.phylo_build
     base_args:
@@ -1925,6 +1970,90 @@ commands:
         with_args:
         - --msa-source
         - snptype
+      --coregene:
+        param: PhyloBuildParams.phylo.coregene
+        value: panaroo
+        validated: registry
+        docs:
+        - docs/cli-reference.md
+        - docs/usage.md
+        - docs/choosing-tools.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'params.phylo_args'
+        live: 'n/a: covered offline in tests/unit/test_phylo_coregene.py (the live run needs bakta, panaroo and the bakta database)'
+        wiring: 'n/a: the only registered builder is the default; the wiring is covered by tests/unit/test_phylo_coregene.py'
+        with_args:
+        - --msa-source
+        - coregene
+      --core-threshold:
+        param: PhyloBuildParams.phylo.extra
+        value: '0.9'
+        validated: range
+        invalid: '2'
+        docs:
+        - docs/cli-reference.md
+        - docs/usage.md
+        - docs/choosing-tools.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'params.phylo_args'
+        live: 'n/a: covered offline in tests/unit/test_phylo_coregene.py (the live run needs bakta, panaroo and the bakta database)'
+        with_args:
+        - --msa-source
+        - coregene
+      --clean-mode:
+        param: PhyloBuildParams.phylo.extra
+        value: moderate
+        validated: choice
+        invalid: turbo
+        docs:
+        - docs/cli-reference.md
+        - docs/usage.md
+        - docs/choosing-tools.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'params.phylo_args'
+        live: 'n/a: covered offline in tests/unit/test_phylo_coregene.py (the live run needs bakta, panaroo and the bakta database)'
+        with_args:
+        - --msa-source
+        - coregene
+      --annotations-dir:
+        param: PhyloBuildParams.annotations_dir
+        value: '{alt_dir}'
+        validated: stage
+        docs:
+        - docs/cli-reference.md
+        - docs/usage.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'module: a later release stages it'
+        live: 'n/a: covered offline in tests/unit/test_phylo_coregene.py (the live run needs bakta, panaroo and the bakta database)'
+        with_args:
+        - --msa-source
+        - coregene
+      --annotator:
+        param: PhyloBuildParams.annotator
+        value: prokka
+        validated: registry
+        docs:
+        - docs/cli-reference.md
+        - docs/usage.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'module: a later release stages it'
+        live: 'n/a: covered offline in tests/unit/test_phylo_coregene.py (the live run needs bakta, panaroo and the bakta database)'
+        with_args:
+        - --msa-source
+        - coregene
+      --bakta-db:
+        param: PhyloBuildParams.bakta_db
+        value: '{alt_dir}'
+        validated: stage
+        docs:
+        - docs/cli-reference.md
+        - docs/install.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'module: a later release stages it'
+        live: 'n/a: covered offline in tests/unit/test_phylo_coregene.py (the live run needs bakta, panaroo and the bakta database)'
+        with_args:
+        - --msa-source
+        - coregene
   annotate:
     dispatch: stage
     base_args:
@@ -3310,6 +3439,77 @@ commands:
         nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
         live: 'n/a: forwarded to the stage builder unchanged (wiring test); the stage flag is covered
           live'
+      --coregene:
+        param: PhyloParams.coregene
+        value: panaroo
+        validated: registry
+        docs:
+        - docs/cli-reference.md
+        - docs/usage.md
+        - docs/choosing-tools.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
+        live: 'n/a: covered offline in tests/unit/test_phylo_coregene.py (the live run needs bakta, panaroo and the bakta database)'
+        wiring: 'n/a: the only registered builder is the default; the wiring is covered by tests/unit/test_phylo_coregene.py'
+        with_args:
+        - --msa-source
+        - coregene
+      --core-threshold:
+        param: PhyloParams.extra
+        value: '0.9'
+        validated: range
+        invalid: '2'
+        docs:
+        - docs/cli-reference.md
+        - docs/usage.md
+        - docs/choosing-tools.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
+        live: 'n/a: covered offline in tests/unit/test_phylo_coregene.py (the live run needs bakta, panaroo and the bakta database)'
+        with_args:
+        - --msa-source
+        - coregene
+      --clean-mode:
+        param: PhyloParams.extra
+        value: moderate
+        validated: choice
+        invalid: turbo
+        docs:
+        - docs/cli-reference.md
+        - docs/usage.md
+        - docs/choosing-tools.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
+        live: 'n/a: covered offline in tests/unit/test_phylo_coregene.py (the live run needs bakta, panaroo and the bakta database)'
+        with_args:
+        - --msa-source
+        - coregene
+      --annotator:
+        param: AnnotateStageParams.tool
+        value: prokka
+        validated: registry
+        docs:
+        - docs/cli-reference.md
+        - docs/usage.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
+        live: 'n/a: covered offline in tests/unit/test_phylo_coregene.py (the live run needs bakta, panaroo and the bakta database)'
+        with_args:
+        - --msa-source
+        - coregene
+      --bakta-db:
+        param: AnnotateStageParams.bakta_db
+        value: '{alt_dir}'
+        validated: stage
+        docs:
+        - docs/cli-reference.md
+        - docs/install.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
+        live: 'n/a: covered offline in tests/unit/test_phylo_coregene.py (the live run needs bakta, panaroo and the bakta database)'
+        with_args:
+        - --msa-source
+        - coregene
   snptype:
     dispatch: stage
     base_args:

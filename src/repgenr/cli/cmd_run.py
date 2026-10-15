@@ -23,11 +23,16 @@ from .base import (
     HELP_ALIGNER_ARG,
     HELP_ALL_GENOMES,
     HELP_ALLOW_INCOMPLETE,
+    HELP_ANNOTATOR,
+    HELP_BAKTA_DB,
     HELP_BOOTSTRAP,
+    HELP_CLEAN_MODE,
     HELP_COLLAPSE_DIAMETER,
     HELP_COLLAPSE_LENGTH,
     HELP_COLLAPSE_SUPPORT,
     HELP_CORE_FRACTION,
+    HELP_CORE_THRESHOLD,
+    HELP_COREGENE,
     HELP_DATASET,
     HELP_DEREP_TOOL_ARG,
     HELP_GTDB_RELEASE,
@@ -106,6 +111,9 @@ def _preflight_tools(
     mask: str = "none",
     with_snptype: bool = False,
     assembler: str | None = None,
+    coregene: str = "panaroo",
+    annotator: str = "bakta",
+    bakta_db: str | None = None,
 ) -> None:
     """Check every external tool the chain will need before the first stage runs.
 
@@ -150,6 +158,15 @@ def _preflight_tools(
             from ..maskers.base import registry as masker_registry
 
             masker_registry.create(mask).preflight()
+    elif msa_source == "coregene":
+        from ..annotators.base import registry as annot_registry
+        from ..coregenes.base import registry as cg_registry
+        from ..stages.annotate import _database
+
+        cg_registry.create(coregene).preflight()
+        ann = annot_registry.create(annotator)
+        ann.preflight()
+        _database(annotator, ann, bakta_db)
 
 
 def _check_rank_request(
@@ -205,6 +222,8 @@ def _msa_source_summary(treebuilder: str, msa_source: str, aligner: str, snptype
         return " (alignment-free)"
     if msa_source == "snptype":
         return f", snptyper={snptyper}"
+    if msa_source == "coregene":
+        return ", coregene (annotate first)"
     return f", aligner={aligner}"
 
 
@@ -368,6 +387,13 @@ def run(
     core_fraction: float | None = typer.Option(
         None, "--core-fraction", min=0.0, max=1.0, help=HELP_CORE_FRACTION
     ),
+    coregene: str = typer.Option("panaroo", "--coregene", help=HELP_COREGENE),
+    annotator: str = typer.Option("bakta", "--annotator", help=HELP_ANNOTATOR),
+    bakta_db: str | None = typer.Option(None, "--bakta-db", help=HELP_BAKTA_DB),
+    core_threshold: float | None = typer.Option(
+        None, "--core-threshold", min=0.0, max=1.0, help=HELP_CORE_THRESHOLD
+    ),
+    clean_mode: str | None = typer.Option(None, "--clean-mode", help=HELP_CLEAN_MODE),
     collapse_support: float | None = typer.Option(
         None,
         "--collapse-support",
@@ -454,7 +480,19 @@ def run(
             **_parse_key_values(aligner_arg, "--aligner-arg"),
             **({"mask": mask} if mask_for_phylo else {}),
             **({"core_fraction": core_fraction} if core_for_phylo else {}),
+            **({"core_threshold": core_threshold} if core_threshold is not None else {}),
+            **({"clean_mode": clean_mode} if clean_mode is not None else {}),
         }
+        if msa_source == "coregene":
+            from ..annotators.base import registry as _annot_registry
+
+            _require_choice(annotator, set(_annot_registry.names()), "--annotator")
+        elif bakta_db is not None or annotator != "bakta":
+            logger.warning(
+                "--annotator and --bakta-db apply to --msa-source coregene, which this run "
+                "does not use (%s); they are ignored.",
+                msa_source,
+            )
         dereplicate_params(
             tool=derep_tool,
             primary_ani=primary_ani,
@@ -472,6 +510,7 @@ def run(
             msa_source=msa_source,
             aligner=aligner,
             snptyper=snptyper,
+            coregene=coregene,
             no_outgroup=no_outgroup,
             root=root,
             extra=phylo_extra,
@@ -521,6 +560,9 @@ def run(
         if with_snptype:
             i = chain.index("phylo")
             chain = (*chain[:i], "snptype", *chain[i:])
+        if msa_source == "coregene":
+            i = chain.index("phylo")
+            chain = (*chain[:i], "annotate", *chain[i:])
         lineage = "reads" if reads else "local" if local else "viral" if viral else "bacterial"
         typer.echo(f"[dry-run] {lineage} pipeline in {workdir}:")
         for stage in chain:
@@ -558,6 +600,9 @@ def run(
             mask,
             with_snptype,
             assembler if reads else None,
+            coregene=coregene,
+            annotator=annotator,
+            bakta_db=bakta_db,
         )
 
     if reads:
@@ -678,6 +723,20 @@ def run(
                 extra=_parse_key_values(aligner_arg, "--aligner-arg"),
             ),
         )
+    if msa_source == "coregene":
+        from ..stages.annotate import AnnotateStageParams
+
+        _run(
+            "annotate",
+            workdir,
+            lambda: AnnotateStageParams(
+                tool=annotator,
+                threads=threads,
+                all_genomes=all_genomes,
+                bakta_db=bakta_db,
+                allow_incomplete=allow_incomplete,
+            ),
+        )
     _run(
         "phylo",
         workdir,
@@ -686,6 +745,7 @@ def run(
             msa_source=msa_source,
             aligner=aligner,
             snptyper=snptyper,
+            coregene=coregene,
             no_outgroup=no_outgroup,
             root=root,
             all_genomes=all_genomes,

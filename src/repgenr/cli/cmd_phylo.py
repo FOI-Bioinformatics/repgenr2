@@ -14,10 +14,13 @@ from .base import (
     HELP_ANNOTATOR,
     HELP_BAKTA_DB,
     HELP_BOOTSTRAP,
+    HELP_CLEAN_MODE,
     HELP_COLLAPSE_DIAMETER,
     HELP_COLLAPSE_LENGTH,
     HELP_COLLAPSE_SUPPORT,
     HELP_CORE_FRACTION,
+    HELP_CORE_THRESHOLD,
+    HELP_COREGENE,
     HELP_INCLUDE_DEREPLICATED,
     HELP_MSA_SOURCE,
     HELP_NAMING,
@@ -160,6 +163,11 @@ def phylo(
     core_fraction: float | None = typer.Option(
         None, "--core-fraction", min=0.0, max=1.0, help=HELP_CORE_FRACTION
     ),
+    coregene: str = typer.Option("panaroo", "--coregene", help=HELP_COREGENE),
+    core_threshold: float | None = typer.Option(
+        None, "--core-threshold", min=0.0, max=1.0, help=HELP_CORE_THRESHOLD
+    ),
+    clean_mode: str | None = typer.Option(None, "--clean-mode", help=HELP_CLEAN_MODE),
     allow_incomplete: bool = typer.Option(
         False,
         "--allow-incomplete",
@@ -175,6 +183,7 @@ def phylo(
             msa_source=msa_source,
             aligner=aligner,
             snptyper=snptyper,
+            coregene=coregene,
             all_genomes=all_genomes,
             no_outgroup=no_outgroup,
             root=root,
@@ -185,6 +194,8 @@ def phylo(
                 **_parse_key_values(aligner_arg, "--aligner-arg"),
                 **({"mask": mask} if mask != "none" else {}),
                 **({"core_fraction": core_fraction} if core_fraction is not None else {}),
+                **({"core_threshold": core_threshold} if core_threshold is not None else {}),
+                **({"clean_mode": clean_mode} if clean_mode is not None else {}),
             },
             allow_incomplete=allow_incomplete,
         )

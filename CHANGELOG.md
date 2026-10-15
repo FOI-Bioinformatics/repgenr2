@@ -7,6 +7,26 @@ All notable changes to RepGenR2 are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- `phylo --msa-source coregene` (also on `phylo-build` and `run`): a tree
+  from a concatenated core-gene alignment. A new family, core-gene builders,
+  with `panaroo` (`panaroo -i LIST -o DIR --clean-mode MODE -a core
+  --aligner mafft --core_threshold T -t N`; the entropy-filtered alignment
+  unless `--aligner-arg filtered=false`), reads the annotations the
+  `annotate` stage wrote and refuses a set with missing records or mixed
+  annotators. `--coregene`, `--core-threshold` (0.95) and `--clean-mode`
+  (strict) are the settings; `run` inserts `annotate` before `phylo`
+  (`--annotator`, `--bakta-db`) and preflights all three tools. The
+  alignment keeps its invariant sites, so no ascertainment-bias correction
+  applies; `tree/msa/core_gene_alignment.fasta`, the Panaroo tables under
+  `tree/msa/pangenome/` and `core_gene_stats.json` are the outputs; the
+  reuse stamp (version 4) holds the annotation index digest. `phylo-build`
+  takes `--annotations-dir`, or annotates its inputs with `--annotator`.
+  `envs/panaroo.yml` is a new satellite environment. Declared limit 500
+  genomes, not measured here. The first live run (Wolbachia, see
+  `docs/verification.md`) gave 45 core genes and 52050 columns from three
+  related genomes in about 70 seconds, and no core at all across Wolbachia
+  supergroups, so `core_gene_stats.json` reports the core size to check
+  before trusting the tree.
 - `repgenr annotate`: a new stage and a new tool family, annotators
   (`bakta`, the default, and `prokka`). It annotates the representatives
   (or every genome with `--all-genomes`) and the outgroup once, into

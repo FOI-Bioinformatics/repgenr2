@@ -1,0 +1,9 @@
+# Panaroo and mafft for the core-gene route; kept out of core (Panaroo's dependency set brings prokka, which has no osx-arm64 build). Platforms: linux-64, osx-64.
+name: repgenr-panaroo
+channels:
+  - conda-forge
+  - bioconda
+  - nodefaults
+dependencies:
+  - panaroo>=1.3
+  - mafft>=7.0

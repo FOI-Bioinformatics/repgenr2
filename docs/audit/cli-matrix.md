@@ -3,7 +3,7 @@
 Generated from `tests/audit/cli_matrix.yaml` by `scripts/render_cli_matrix.py`;
 `tests/unit/test_cli_matrix.py` keeps both in step with the command tree.
 
-32 commands, 382 flags (382 with a live test or an n/a reason, 0 pending).
+32 commands, 396 flags (396 with a live test or an n/a reason, 0 pending).
 
 ## Global flags
 
@@ -257,6 +257,9 @@ dispatch: `stage`
 | `--mask` |  | PhyloParams.extra | registry | n/a: workdir command; the Nextflow layer uses the stateless steps | tests/live/test_species_set.py::test_phylo_mask_gubbins | README.md, docs/developing.md, docs/choosing-tools.md, docs/cli-reference.md, docs/output.md, docs/usage.md, docs/audit/cli-matrix.md |
 | `--core-fraction` |  | PhyloParams.extra | range | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: shares the phylo builder (wiring test); the typing pass is covered offline in tests/integration/test_snptype_stage.py | docs/cli-reference.md, docs/usage.md, docs/audit/cli-matrix.md |
 | `--allow-incomplete` |  | PhyloParams.allow_incomplete | none | n/a: workdir command; the Nextflow layer uses the stateless steps | tests/live/test_species_set.py::test_ska2_source_with_reference_and_allow_incomplete | docs/cli-reference.md, docs/audit/cli-matrix.md |
+| `--coregene` |  | PhyloParams.coregene | registry | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: covered offline in tests/unit/test_phylo_coregene.py (the live run needs bakta, panaroo and the bakta database) | docs/cli-reference.md, docs/usage.md, docs/choosing-tools.md, docs/audit/cli-matrix.md |
+| `--core-threshold` |  | PhyloParams.extra | range | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: covered offline in tests/unit/test_phylo_coregene.py (the live run needs bakta, panaroo and the bakta database) | docs/cli-reference.md, docs/usage.md, docs/choosing-tools.md, docs/audit/cli-matrix.md |
+| `--clean-mode` |  | PhyloParams.extra | choice | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: covered offline in tests/unit/test_phylo_coregene.py (the live run needs bakta, panaroo and the bakta database) | docs/cli-reference.md, docs/usage.md, docs/choosing-tools.md, docs/audit/cli-matrix.md |
 
 ## phylo-build
 
@@ -284,6 +287,12 @@ dispatch: `step:repgenr.stages.phylo.phylo_build`
 | `--msa` |  | PhyloBuildParams.msa | stage | module: PHYLO_TREE | tests/live/test_steps.py::test_phylo_build_split_into_msa_and_tree | docs/cli-reference.md, docs/usage.md, docs/audit/cli-matrix.md |
 | `--mask` |  | PhyloBuildParams.phylo.extra | registry | params.phylo_args | n/a: the mask path is exercised on phylo (test_phylo_mask_gubbins); the step shares the builder | docs/choosing-tools.md, docs/cli-reference.md, docs/audit/cli-matrix.md |
 | `--core-fraction` |  | PhyloBuildParams.phylo.extra | range | params.phylo_args | n/a: shares the phylo builder (wiring test); the typing pass is covered offline in tests/integration/test_snptype_stage.py | docs/cli-reference.md, docs/usage.md, docs/audit/cli-matrix.md |
+| `--coregene` |  | PhyloBuildParams.phylo.coregene | registry | params.phylo_args | n/a: covered offline in tests/unit/test_phylo_coregene.py (the live run needs bakta, panaroo and the bakta database) | docs/cli-reference.md, docs/usage.md, docs/choosing-tools.md, docs/audit/cli-matrix.md |
+| `--core-threshold` |  | PhyloBuildParams.phylo.extra | range | params.phylo_args | n/a: covered offline in tests/unit/test_phylo_coregene.py (the live run needs bakta, panaroo and the bakta database) | docs/cli-reference.md, docs/usage.md, docs/choosing-tools.md, docs/audit/cli-matrix.md |
+| `--clean-mode` |  | PhyloBuildParams.phylo.extra | choice | params.phylo_args | n/a: covered offline in tests/unit/test_phylo_coregene.py (the live run needs bakta, panaroo and the bakta database) | docs/cli-reference.md, docs/usage.md, docs/choosing-tools.md, docs/audit/cli-matrix.md |
+| `--annotations-dir` |  | PhyloBuildParams.annotations_dir | stage | module: a later release stages it | n/a: covered offline in tests/unit/test_phylo_coregene.py (the live run needs bakta, panaroo and the bakta database) | docs/cli-reference.md, docs/usage.md, docs/audit/cli-matrix.md |
+| `--annotator` |  | PhyloBuildParams.annotator | registry | module: a later release stages it | n/a: covered offline in tests/unit/test_phylo_coregene.py (the live run needs bakta, panaroo and the bakta database) | docs/cli-reference.md, docs/usage.md, docs/audit/cli-matrix.md |
+| `--bakta-db` |  | PhyloBuildParams.bakta_db | stage | module: a later release stages it | n/a: covered offline in tests/unit/test_phylo_coregene.py (the live run needs bakta, panaroo and the bakta database) | docs/cli-reference.md, docs/install.md, docs/audit/cli-matrix.md |
 
 ## annotate
 
@@ -440,6 +449,11 @@ dispatch: `stage`
 | `--ranks` |  | Tree2taxParams.ranks | none | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: forwarded to the stage builder unchanged (wiring test); the stage flag is covered live | docs/cli-reference.md, docs/usage.md, docs/audit/cli-matrix.md |
 | `--rank-red` |  | Tree2taxParams.rank_red | stage | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: forwarded to the stage builder unchanged (wiring test); the stage flag is covered live | docs/cli-reference.md, docs/usage.md, docs/audit/cli-matrix.md |
 | `--allow-incomplete` |  | DereplicateParams.allow_incomplete | none | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: forwarded to the stage builder unchanged (wiring test); the stage flag is covered live | docs/cli-reference.md, docs/audit/cli-matrix.md |
+| `--coregene` |  | PhyloParams.coregene | registry | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: covered offline in tests/unit/test_phylo_coregene.py (the live run needs bakta, panaroo and the bakta database) | docs/cli-reference.md, docs/usage.md, docs/choosing-tools.md, docs/audit/cli-matrix.md |
+| `--core-threshold` |  | PhyloParams.extra | range | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: covered offline in tests/unit/test_phylo_coregene.py (the live run needs bakta, panaroo and the bakta database) | docs/cli-reference.md, docs/usage.md, docs/choosing-tools.md, docs/audit/cli-matrix.md |
+| `--clean-mode` |  | PhyloParams.extra | choice | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: covered offline in tests/unit/test_phylo_coregene.py (the live run needs bakta, panaroo and the bakta database) | docs/cli-reference.md, docs/usage.md, docs/choosing-tools.md, docs/audit/cli-matrix.md |
+| `--annotator` |  | AnnotateStageParams.tool | registry | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: covered offline in tests/unit/test_phylo_coregene.py (the live run needs bakta, panaroo and the bakta database) | docs/cli-reference.md, docs/usage.md, docs/audit/cli-matrix.md |
+| `--bakta-db` |  | AnnotateStageParams.bakta_db | stage | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: covered offline in tests/unit/test_phylo_coregene.py (the live run needs bakta, panaroo and the bakta database) | docs/cli-reference.md, docs/install.md, docs/audit/cli-matrix.md |
 
 ## snptype
 

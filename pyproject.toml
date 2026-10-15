@@ -77,6 +77,9 @@ ska2 = "repgenr.snptypers.ska2:Ska2Typer"
 bakta = "repgenr.annotators.bakta:BaktaAnnotator"
 prokka = "repgenr.annotators.prokka:ProkkaAnnotator"
 
+[project.entry-points."repgenr.coregenes"]
+panaroo = "repgenr.coregenes.panaroo:PanarooBuilder"
+
 [project.entry-points."repgenr.maskers"]
 gubbins = "repgenr.maskers.gubbins:GubbinsMasker"
 

@@ -9,6 +9,7 @@ from repgenr.aligners.base import registry as aligners
 from repgenr.annotators.base import registry as annotators
 from repgenr.assemblers.base import registry as assemblers
 from repgenr.classifiers.base import registry as classifiers
+from repgenr.coregenes.base import registry as coregenes
 from repgenr.dereplicators.base import registry as dereplicators
 from repgenr.maskers.base import registry as maskers
 from repgenr.polishers.base import registry as polishers
@@ -31,6 +32,7 @@ def _specs():
         classifiers,
         polishers,
         annotators,
+        coregenes,
     ):
         for name in reg.names():
             for spec in reg.get(name).capabilities.required_binaries:

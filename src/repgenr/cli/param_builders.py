@@ -412,6 +412,7 @@ def phylo_params(
     msa_source: Any = _UNSET,
     aligner: Any = _UNSET,
     snptyper: Any = _UNSET,
+    coregene: Any = _UNSET,
     all_genomes: Any = _UNSET,
     no_outgroup: Any = _UNSET,
     root: Any = _UNSET,
@@ -435,12 +436,25 @@ def phylo_params(
         _require_choice(root, set(ROOT_METHODS), "--root")
         check_root_request(root, no_outgroup is not _UNSET and bool(no_outgroup))
     effective_source = msa_source if msa_source is not _UNSET else "aligner"
-    _require_choice(effective_source, {"aligner", "snptype"}, "--msa-source")
+    _require_choice(effective_source, {"aligner", "snptype", "coregene"}, "--msa-source")
     if effective_source == "aligner":
         if aligner is not _UNSET:
             _require_choice(aligner, set(_aln_registry.names()), "--aligner")
-    elif snptyper is not _UNSET:
-        _require_choice(snptyper, set(_snp_registry.names()), "--snptyper")
+    elif effective_source == "snptype":
+        if snptyper is not _UNSET:
+            _require_choice(snptyper, set(_snp_registry.names()), "--snptyper")
+    elif coregene is not _UNSET:
+        from ..coregenes.base import registry as _cg_registry
+
+        _require_choice(coregene, set(_cg_registry.names()), "--coregene")
+    # The core-gene settings are read by that pass only.
+    for key, flag in (("core_threshold", "--core-threshold"), ("clean_mode", "--clean-mode")):
+        if extra is not _UNSET and extra.get(key) is not None and effective_source != "coregene":
+            raise UserInputError(f"{flag} applies only with --msa-source coregene.")
+    if extra is not _UNSET and extra.get("clean_mode") is not None:
+        from ..coregenes.base import CLEAN_MODES
+
+        _require_choice(str(extra["clean_mode"]), set(CLEAN_MODES), "--clean-mode")
     # The phylo stage reads extra["mask"] only on the snptype path; a mask
     # requested with the aligner source would be dropped without a trace.
     mask = extra.get("mask") if extra is not _UNSET else None
@@ -461,6 +475,7 @@ def phylo_params(
         msa_source=msa_source,
         aligner=aligner,
         snptyper=snptyper,
+        coregene=coregene,
         all_genomes=all_genomes,
         no_outgroup=no_outgroup,
         root=root,

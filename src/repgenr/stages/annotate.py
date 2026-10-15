@@ -154,6 +154,43 @@ def annotate_build(params: AnnotateBuildParams, logger: logging.Logger) -> Annot
     return result
 
 
+def index_from_directories(directory: Path, tool: str, logger: logging.Logger) -> Path:
+    """Write ``annotations.tsv`` for the record directories under ``directory``
+    (``annotate-build`` outputs gathered by a workflow). The genome digest is
+    unknown there, so the rows carry the GFF digest and the tool only; the
+    core-gene pass needs no more."""
+    from ..annotators.base import registry as annotator_registry
+
+    version = ""
+    try:
+        version = annotator_registry.create(tool).preflight().get(tool, "")
+    except Exception:  # noqa: BLE001 - the index is written on a host without the tool too
+        version = ""
+    records: dict[str, AnnotationRecord] = {}
+    for entry in sorted(
+        p for p in directory.iterdir() if p.is_dir() and not p.name.startswith(".")
+    ):
+        gff = cache.gff_path(directory, entry.name)
+        if not gff.is_file():
+            logger.warning("%s holds no %s; skipped", entry, gff.name)
+            continue
+        records[entry.name] = AnnotationRecord(
+            record_name=entry.name,
+            set=cache.SET_GENOMES,
+            genome_path="",
+            genome_digest="",
+            annotator=tool,
+            annotator_version=version,
+            db_version="",
+            extra="",
+            gff_digest=cache.gff_digest(gff),
+            completed=datetime.now(UTC).isoformat(),
+        )
+    if not records:
+        raise UserInputError(f"No annotated records under {directory}")
+    return cache.write_index(directory, records)
+
+
 def run(ctx: WorkdirContext, params: AnnotateStageParams) -> AnnotateSummary:
     logger = ctx.logger
     if params.tool not in annotator_registry.names():

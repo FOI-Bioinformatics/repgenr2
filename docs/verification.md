@@ -551,6 +551,41 @@ they are recorded here and not fixed.
 | Environment | dRep 3.4.5 in the local environment fails in fastANI parsing (`read_csv` no longer accepts `delim_whitespace` in the installed pandas); ANImf (`--virus`) runs. The container pin is dRep 3.7.1. Seen again on 2026-10-08 (pandas 3.0.6; this dRep has no skani option). |
 | dereplicate | The workdir stage applies the keeper once to the final clusters; the Nextflow steps apply it per chunk and after the merge. Final representatives agreed on clonal_50 with skDER, sourmash and galah at -s 25, apart from ties among equal scores. |
 
+## Core-gene route on Wolbachia (2026-10-15)
+
+First live run of `annotate` and `phylo --msa-source coregene`, on an Apple
+Silicon laptop: bakta 1.12.2 with the light database (osx-arm64), Panaroo
+1.8.0 with mafft (osx-64 under Rosetta; Panaroo's dependency chain pulls
+prokka, which has no arm64 build), IQ-TREE from `envs/core.yml`, each tool
+reached through `--bin-dir`.
+
+- **Annotation.** bakta annotated a 1.0 to 1.5 Mb Wolbachia genome in 38 to
+  47 seconds with 8 threads (1270 CDS for wMel), far below the 5 to 15
+  minutes its README quotes for a typical bacterial genome. Every GFF3
+  carried the `##FASTA` section Panaroo needs. A second `annotate` reused
+  every record.
+- **Panaroo reads bakta's GFF3** from a list file, one path per line, and
+  names its samples after the file stem, which is the genome's record name
+  (`Wolbachiaceae_wolbachia_sp_GCF_000008025.1`), so the tree leaves match
+  the genome set.
+- **The core collapses across Wolbachia supergroups.** On wMel and wRi
+  (supergroup A), wBm (D) and wOo (C), Panaroo found no gene in all four:
+  548 genes in one genome, 1050 in two, 5 in three. `--clean-mode moderate`
+  and `sensitive`, and `--family_threshold` at 0.5 and 0.3, gave the same
+  result. The two supergroup-A genomes shared 1054 genes, so the clustering
+  works within a group and not across them. Panaroo is built for
+  within-species pangenomes, and these supergroups sit near 80% identity.
+  The stage refuses that case with the message Panaroo's own behaviour
+  produces.
+- **End to end**, on three supergroup-A genomes (wMel, wRi, wHa), with
+  `--clean-mode sensitive`: 45 core genes, 52050 columns, three records,
+  about 70 seconds for Panaroo and 11 for IQ-TREE; `tree/tree.nwk` named
+  all three. The pair wMel and wRi alone shared 1054 genes, so the third
+  genome, whose branch is ten times longer, is what reduces the core. Read
+  `tree/msa/core_gene_stats.json` before trusting a core-gene tree: a small
+  core means the set is too diverse for de-novo clustering, whatever the
+  tree looks like.
+
 ## Gzipped genomes in the aligners and typers (2026-10-08)
 
 Each tool was given gzipped genomes from `pureclone_20` (three or four

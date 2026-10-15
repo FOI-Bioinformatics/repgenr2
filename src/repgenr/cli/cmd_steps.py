@@ -22,10 +22,13 @@ from .base import (
     HELP_ANNOTATOR,
     HELP_BAKTA_DB,
     HELP_BOOTSTRAP,
+    HELP_CLEAN_MODE,
     HELP_COLLAPSE_DIAMETER,
     HELP_COLLAPSE_LENGTH,
     HELP_COLLAPSE_SUPPORT,
     HELP_CORE_FRACTION,
+    HELP_CORE_THRESHOLD,
+    HELP_COREGENE,
     HELP_DEREP_TOOL_ARG,
     HELP_INCLUDE_DEREPLICATED,
     HELP_KEEP_FILES,
@@ -226,6 +229,20 @@ def phylo_build_cmd(
     core_fraction: float | None = typer.Option(
         None, "--core-fraction", min=0.0, max=1.0, help=HELP_CORE_FRACTION
     ),
+    coregene: str = typer.Option("panaroo", "--coregene", help=HELP_COREGENE),
+    core_threshold: float | None = typer.Option(
+        None, "--core-threshold", min=0.0, max=1.0, help=HELP_CORE_THRESHOLD
+    ),
+    clean_mode: str | None = typer.Option(None, "--clean-mode", help=HELP_CLEAN_MODE),
+    annotations_dir: Path | None = typer.Option(
+        None,
+        "--annotations-dir",
+        help="With --msa-source coregene: an annotations/ directory the annotate stage or "
+        "annotate-build wrote (its index names the records); without it the step annotates "
+        "the genomes itself with --annotator.",
+    ),
+    annotator: str = typer.Option("bakta", "--annotator", help=HELP_ANNOTATOR),
+    bakta_db: str | None = typer.Option(None, "--bakta-db", help=HELP_BAKTA_DB),
     reference: str | None = typer.Option(None, "--reference", help=HELP_REFERENCE),
     aligner_arg: list[str] = typer.Option([], "--aligner-arg", help=HELP_ALIGNER_ARG),
     threads: int = typer.Option(
@@ -257,14 +274,28 @@ def phylo_build_cmd(
     logger = configure_logging(None, level=_RUN_STATE["log_level"])
     with stage_errors(logger):
         _require_choice(treebuilder, {"auto", *_tb_registry.names()}, "--treebuilder")
-        _require_choice(msa_source, {"aligner", "snptype"}, "--msa-source")
+        _require_choice(msa_source, {"aligner", "snptype", "coregene"}, "--msa-source")
         if root is not None:
             _require_choice(root, set(ROOT_METHODS), "--root")
             check_root_request(root, no_outgroup)
         if msa_source == "aligner":
             _require_choice(aligner, set(_aln_registry.names()), "--aligner")
-        else:
+        elif msa_source == "snptype":
             _require_choice(snptyper, set(_snp_registry.names()), "--snptyper")
+        else:
+            from ..annotators.base import registry as _annot_registry
+            from ..coregenes.base import registry as _cg_registry
+
+            _require_choice(coregene, set(_cg_registry.names()), "--coregene")
+            _require_choice(annotator, set(_annot_registry.names()), "--annotator")
+        if (core_threshold is not None or clean_mode is not None) and msa_source != "coregene":
+            raise UserInputError(
+                "--core-threshold and --clean-mode apply only with --msa-source coregene."
+            )
+        if clean_mode is not None:
+            from ..coregenes.base import CLEAN_MODES
+
+            _require_choice(clean_mode, set(CLEAN_MODES), "--clean-mode")
         require_mask(mask)
         if mask != "none" and msa_source != "snptype":
             raise UserInputError("--mask applies only with --msa-source snptype.")
@@ -287,10 +318,13 @@ def phylo_build_cmd(
             bootstrap=bootstrap,
             reference=reference,
             threads=threads,
+            coregene=coregene,
             extra={
                 **_parse_key_values(aligner_arg, "--aligner-arg"),
                 **({"mask": mask} if mask != "none" else {}),
                 **({"core_fraction": core_fraction} if core_fraction is not None else {}),
+                **({"core_threshold": core_threshold} if core_threshold is not None else {}),
+                **({"clean_mode": clean_mode} if clean_mode is not None else {}),
             },
         )
         phylo_build(
@@ -304,6 +338,9 @@ def phylo_build_cmd(
                 msa_only=msa_only,
                 msa=msa,
                 sketches_dir=sketches_dir,
+                annotations_dir=annotations_dir,
+                annotator=annotator,
+                bakta_db=bakta_db,
             ),
             logger,
         )

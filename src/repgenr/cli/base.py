@@ -124,7 +124,23 @@ HELP_CORE_FRACTION = (
     "base (a soft core, 0 to 1). Unset keeps every variable column and the log reports what "
     "0.95 would keep."
 )
-HELP_MSA_SOURCE = "aligner or snptype."
+HELP_MSA_SOURCE = (
+    "aligner, snptype or coregene (a concatenated core-gene alignment from the annotations "
+    "the annotate stage wrote)."
+)
+HELP_COREGENE = (
+    "Core-gene alignment builder for --msa-source coregene: panaroo. Its tuning goes "
+    "through --aligner-arg (filtered=false for the unfiltered alignment, merge_paralogs, "
+    "remove_invalid_genes, family_threshold, len_dif_percent)."
+)
+HELP_CORE_THRESHOLD = (
+    "With --msa-source coregene: a gene is core when present in at least this fraction "
+    "of the genomes (0.95)."
+)
+HELP_CLEAN_MODE = (
+    "With --msa-source coregene: Panaroo's cleaning of annotation errors, strict (default), "
+    "moderate or sensitive."
+)
 HELP_ALIGNER_ARG = (
     "Aligner, SNP typer, masker or tree builder tuning as key=value (repeatable), "
     "e.g. kmer=15 (sibeliaz), seed_weight=11 (progressivemauve) or model=GTR+G "
@@ -273,10 +289,14 @@ def _phylo_inputs(ctx: WorkdirContext, params: Any) -> list[Path]:
     # set itself, and the MSA stamp under tree/msa/ decides whether the typed
     # alignment is reused. Declaring its own output would force a rerun on
     # every second invocation.
-    return [
+    inputs = [
         ctx.genomes_dir if getattr(params, "all_genomes", False) else ctx.representatives_dir,
         ctx.outgroup_dir,
     ]
+    if getattr(params, "msa_source", None) == "coregene":
+        # The index carries the GFF digests, so it stands for the whole cache.
+        inputs.append(ctx.annotations_dir / ANNOTATIONS_TSV)
+    return inputs
 
 
 def _annotate_inputs(ctx: WorkdirContext, params: Any) -> list[Path]:
