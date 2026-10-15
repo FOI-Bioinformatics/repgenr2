@@ -114,7 +114,10 @@ HELP_ALL_GENOMES = "Use all genomes, not only the representatives."
 HELP_BOOTSTRAP = (
     "Bootstrap replicates. 0 turns bootstrapping off; IQ-TREE needs at least 1000 when it is on."
 )
-HELP_REFERENCE = "Reference genome filename."
+HELP_REFERENCE = (
+    "Reference genome: a filename, 'medoid' (the default: the genome nearest to all others by "
+    "sketch ANI, when the genomes are sketched and sourmash is at hand) or 'first'."
+)
 HELP_MSA_SOURCE = "aligner or snptype."
 HELP_ALIGNER_ARG = (
     "Aligner, SNP typer, masker or tree builder tuning as key=value (repeatable), "

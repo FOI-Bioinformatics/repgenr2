@@ -51,7 +51,7 @@ nextflow_pipeline {
         }
     }
 
-    test("params.sketch with phylo_split_msa stages the sketches into PHYLO_TREE") {
+    test("params.sketch with phylo_split_msa stages the sketches into PHYLO_MSA and PHYLO_TREE") {
         when {
             params {
                 outdir = "$outputDir"
@@ -65,9 +65,11 @@ nextflow_pipeline {
         then {
             assert workflow.success
             def names = workflow.trace.succeeded().collect { t -> t.name }
+            assert names.any { n -> n.contains('PHYLO_MSA (francisella)') }
             assert names.any { n -> n.contains('PHYLO_TREE (francisella)') }
             def chunks = names.count { n -> n.contains('DEREP_CHUNK') }
-            assert workflow.stdout.count { line -> line.contains('sketches: staged') } == chunks + 2
+            // DEREP_CHUNK x chunks, DEREP_MERGE, PHYLO_MSA and PHYLO_TREE
+            assert workflow.stdout.count { line -> line.contains('sketches: staged') } == chunks + 3
         }
     }
 }

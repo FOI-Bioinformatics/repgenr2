@@ -61,6 +61,16 @@ from ..core.sketches import (
     workdir_provider,
 )
 from ..tree.alignment import ALIGNMENT_STATS, copy_alignment_stats, read_constant_sites
+from ..tree.medoid import (
+    REFERENCE_RULES as REFERENCE_RULES_ALL,
+)
+from ..tree.medoid import (
+    ReferenceChoice,
+    clear_reference_note,
+    note_reference,
+    read_reference_choice,
+    resolve_reference,
+)
 from ..tree.rooting import (
     ROOT_METHODS,
     ROOT_NONE,
@@ -258,7 +268,12 @@ def _msa_artifact(dirs: PhyloDirs, params: PhyloParams) -> Path:
     return dirs.msa_dir / CORE_SNP_FASTA
 
 
-def _msa_key(genomes: Sequence[Path], outgroup_file: Path | None, params: PhyloParams) -> str:
+def _msa_key(
+    genomes: Sequence[Path],
+    outgroup_file: Path | None,
+    params: PhyloParams,
+    reference: Path | None = None,
+) -> str:
     """Hash of everything that determines the MSA, and nothing else.
 
     Deliberately excludes the tree builder, the bootstrap and the thread count:
@@ -270,7 +285,9 @@ def _msa_key(genomes: Sequence[Path], outgroup_file: Path | None, params: PhyloP
         "msa_source": params.msa_source,
         "aligner": params.aligner if params.msa_source == "aligner" else None,
         "snptyper": params.snptyper if params.msa_source == "snptype" else None,
-        "reference": params.reference,
+        # The genome the alignment is projected onto, not the rule that chose
+        # it: a medoid that changes with the genome set rebuilds the alignment.
+        "reference": reference.name if reference is not None else params.reference,
         "all_genomes": params.all_genomes,
         "no_outgroup": params.no_outgroup,
         "mask": str(params.extra.get("mask", "none")),
@@ -357,9 +374,12 @@ def _msa_with_reuse(
     logger: logging.Logger,
     *,
     reuse: bool,
+    sketch_provider: SketchProvider | None = None,
 ) -> tuple[Path, dict[str, str]]:
     """Build the MSA, or reuse the one a previous run left with the same inputs."""
-    key = _msa_key(genomes, outgroup_file, params)
+    choice = _reference_for_source(genomes, outgroup_file, dirs, params, logger, sketch_provider)
+    reference = choice.genome if choice is not None else None
+    key = _msa_key(genomes, outgroup_file, params, reference)
     artifact = _msa_artifact(dirs, params)
     if reuse:
         stamp = _read_msa_stamp(artifact, key)
@@ -379,8 +399,20 @@ def _msa_with_reuse(
                 "as the run that built it (--force rebuilds it).",
                 artifact,
             )
+            # The same genome under a different rule (the medoid turned out to
+            # be the first genome, say) reuses the alignment; the note and the
+            # record then follow this run's rule.
+            if choice is not None:
+                note_reference(artifact.parent, choice)
             return artifact, dict(stamp.get("versions") or {})
-    msa, versions = _build_msa(genomes, outgroup_file, dirs, params, logger)
+    msa, versions = _build_msa(genomes, outgroup_file, dirs, params, logger, reference)
+    # The note names the reference the alignment was built against; written
+    # after the build, so a failed build cannot leave a note for an older
+    # alignment, and cleared when no reference applies.
+    if choice is not None:
+        note_reference(msa.parent, choice)
+    else:
+        clear_reference_note(msa.parent)
     if msa.resolve() == artifact.resolve():
         _write_msa_stamp(artifact, key, versions)
     return msa, versions
@@ -413,6 +445,7 @@ def build_msa(
     logger: logging.Logger,
     *,
     reuse: bool = True,
+    sketch_provider: SketchProvider | None = None,
 ) -> tuple[Path, dict[str, str]]:
     """Build only the alignment a tree builder would consume.
 
@@ -431,7 +464,9 @@ def build_msa(
             f"that consumes one ({', '.join(_msa_builder_names())}) or build the tree in "
             "one step."
         )
-    return _msa_with_reuse(genomes, outgroup_file, dirs, params, logger, reuse=reuse)
+    return _msa_with_reuse(
+        genomes, outgroup_file, dirs, params, logger, reuse=reuse, sketch_provider=sketch_provider
+    )
 
 
 def _msa_builder_names() -> list[str]:
@@ -508,6 +543,7 @@ def build_tree(
     reuse_msa: bool = True,
     msa: Path | None = None,
     sketch_provider: SketchProvider | None = None,
+    reference_provider: SketchProvider | None = None,
 ) -> PhyloOutcome:
     """Build a phylogeny from explicit inputs into ``dirs`` (stateless; no config).
 
@@ -605,7 +641,15 @@ def build_tree(
             source_versions: dict[str, str] = {}
         else:
             msa, source_versions = _msa_with_reuse(
-                genomes, outgroup_file, dirs, params, logger, reuse=reuse_msa
+                genomes,
+                outgroup_file,
+                dirs,
+                params,
+                logger,
+                reuse=reuse_msa,
+                sketch_provider=reference_provider
+                if reference_provider is not None
+                else sketch_provider,
             )
         versions = {**versions, **source_versions}
         _warn_low_diversity(msa, logger)
@@ -919,7 +963,18 @@ def phylo_build(params: PhyloBuildParams, logger: logging.Logger) -> Path:
         scratch_dir=params.out_dir / "scratch",
     )
     if params.msa_only:
-        msa, versions = build_msa(genomes, outgroup_file, dirs, params.phylo, logger)
+        msa, versions = build_msa(
+            genomes,
+            outgroup_file,
+            dirs,
+            params.phylo,
+            logger,
+            sketch_provider=(
+                None
+                if params.sketches_dir is None
+                else directory_provider(params.sketches_dir, logger, "phylo-build")
+            ),
+        )
         published = params.out_dir / MSA_FASTA
         if msa.resolve() != published.resolve():
             with atomic_path(published) as tmp:
@@ -1001,9 +1056,17 @@ def run(ctx: WorkdirContext, params: PhyloParams) -> Path:
         # --force means recompute this stage, cached alignment included.
         reuse_msa=not ctx.force,
         sketch_provider=workdir_provider(ctx, logger, params.threads, "phylo"),
+        reference_provider=workdir_provider(ctx, logger, params.threads, "reference", write=False),
     )
 
     is_msa = treebuilder_registry.create(outcome.treebuilder).input_kind == InputKind.MSA_FASTA
+    reference_choice = (
+        read_reference_choice(
+            ctx.phylo_msa_dir if params.msa_source == "snptype" else ctx.align_dir
+        )
+        if is_msa
+        else None
+    )
     ctx.config.record_stage(
         "phylo",
         tool=outcome.treebuilder,
@@ -1019,6 +1082,11 @@ def run(ctx: WorkdirContext, params: PhyloParams) -> Path:
             "outgroup": None if params.no_outgroup else outcome.outgroup_leaf,
             # The rooting applied to tree.nwk; tree2tax keeps a midpoint root.
             "root": outcome.root,
+            # The genome the alignment was projected onto and the rule that
+            # chose it (medoid, first, first-fallback, name), from the note the
+            # MSA source leaves beside it (None for ska2 or an alignment-free builder).
+            "reference_genome": reference_choice.genome.name if reference_choice else None,
+            "reference_rule": reference_choice.rule if reference_choice else None,
             # What produced the alignment: the reference a mapping typer or
             # aligner used, the masker if any, and the adapter tuning. Without
             # them the record could not tell a masked tree from an unmasked one.
@@ -1078,12 +1146,53 @@ def resolve_outgroup_files(
     return None, None
 
 
+def snp_registry_requires_reference(name: str) -> bool:
+    """Whether the SNP typer ``name`` maps against a reference."""
+    from ..snptypers.base import registry as snp_registry
+
+    return bool(getattr(snp_registry.get(name), "requires_reference", True))
+
+
+def _reference_for_source(
+    genomes: Sequence[Path],
+    outgroup_file: Path | None,
+    dirs: PhyloDirs,
+    params: PhyloParams,
+    logger: logging.Logger,
+    sketch_provider: SketchProvider | None,
+) -> ReferenceChoice | None:
+    """The reference the MSA source projects onto, or None when it needs none
+    (a reference-free typer; a name given there is still checked). Resolved
+    before the reuse check, so the cached
+    alignment is reused only for the same genome."""
+    if params.msa_source == "snptype" and not snp_registry_requires_reference(params.snptyper):
+        if params.reference and params.reference not in REFERENCE_RULES_ALL:
+            # The name is still checked, so a typo is not swallowed silently.
+            resolve_reference(params.reference, genomes, outgroup_file, logger)
+            logger.info(
+                "SNP typer '%s' is reference-free; --reference %s is not used",
+                params.snptyper,
+                params.reference,
+            )
+        return None
+    return resolve_reference(
+        params.reference,
+        genomes,
+        outgroup_file,
+        logger,
+        sketch_provider=sketch_provider,
+        scratch_dir=dirs.scratch_dir,
+        threads=params.threads,
+    )
+
+
 def _build_msa(
     genomes: list[Path],
     outgroup_file: Path | None,
     dirs: PhyloDirs,
     params: PhyloParams,
     logger: logging.Logger,
+    reference: Path | None = None,
 ) -> tuple[Path, dict[str, str]]:
     inputs = list(genomes)
     if outgroup_file is not None:
@@ -1102,7 +1211,10 @@ def _build_msa(
             )
         aligner = aligner_registry.create(params.aligner)
         versions = aligner.preflight()
-        reference = _resolve_reference(params.reference, genomes, outgroup_file, logger)
+        if reference is None:
+            choice = _reference_for_source(genomes, outgroup_file, dirs, params, logger, None)
+            assert choice is not None
+            reference = choice.genome
         _warn_divergence(params.aligner, inputs, logger)
         # An aligner that cannot read gzip aligns decompressed copies, named by
         # record name; the MSA key and stamp keep using the original paths.
@@ -1144,11 +1256,10 @@ def _build_msa(
             # Every typer names records by record_name.
             mask_exclude=(record_name(outgroup_file),) if outgroup_file is not None else (),
         )
-        snp_reference: Path | None = (
-            _resolve_reference(params.reference, genomes, outgroup_file, logger)
-            if params.reference
-            else None
-        )
+        # None lets a reference-free typer (ska2) ignore it; a mapping typer
+        # gets the medoid, a name, or the first genome, as the aligner path does.
+        snp_reference: Path | None = reference
+
         # The outgroup must be typed with the ingroup (`inputs`, as on the
         # aligner path); typing `genomes` alone left it out of the alignment,
         # so the tree had no outgroup leaf to root on.
@@ -1166,33 +1277,6 @@ def _build_msa(
         return snp_result.core_snp_fasta, versions
 
     raise UserInputError(f"Unknown msa-source '{params.msa_source}' (aligner|snptype)")
-
-
-def _resolve_reference(
-    reference_name: str | None,
-    genomes: Sequence[Path],
-    outgroup_file: Path | None,
-    logger: logging.Logger,
-) -> Path:
-    """Resolve a named reference by basename against the genome set (else genomes[0])."""
-    if reference_name:
-        pool = list(genomes)
-        if outgroup_file is not None:
-            pool.append(outgroup_file)
-        for p in pool:
-            if p.name == reference_name:
-                logger.info("Using reference genome %s", p.name)
-                return p
-        raise UserInputError(f"Reference genome not found: {reference_name}")
-    logger.warning(
-        "No --reference given; projecting onto the alphabetically first genome "
-        "'%s'. Every aligner builds the MSA relative to this choice, which can "
-        "bias the tree -- on sets with an over-represented genotype the first "
-        "filename is usually one of its members. Pass --reference to choose "
-        "deliberately.",
-        genomes[0].name,
-    )
-    return genomes[0]
 
 
 def _taxonomic_spread(genomes: Sequence[Path]) -> tuple[int, int]:

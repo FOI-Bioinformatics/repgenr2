@@ -48,7 +48,7 @@ def test_default_reference_is_reported(tmp_path, caplog) -> None:
     genomes = [Path("b.fasta"), Path("c.fasta")]
     with caplog.at_level(logging.WARNING):
         assert _reference_path(ctx, None, genomes, logging.getLogger("t")) == Path("b.fasta")
-    assert "No --reference given" in caplog.text and "b.fasta" in caplog.text
+    assert "alphabetically first genome" in caplog.text and "b.fasta" in caplog.text
 
 
 def test_reference_resolves_in_the_active_genome_set_first(tmp_path: Path) -> None:

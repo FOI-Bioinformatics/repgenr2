@@ -22,6 +22,24 @@ All notable changes to RepGenR2 are documented here. The format follows
   that later entries implement (batches A to D; E deferred).
 
 ### Changed
+- `--reference` on `phylo`, `phylo-build`, `snptype` and `run` takes a
+  genome filename, `medoid` or `first`. The default is now `medoid`: the
+  genome with the largest summed sketch ANI to the others, computed from the
+  workdir sketches (`--sketch`, `repgenr sketch`) with sourmash, ties by
+  filename; only sketches that exist are read, none are written for this.
+  Without a sketch for every genome, or without sourmash, the first genome
+  is used as before, with a warning. The medoid is a less arbitrary choice
+  than the alphabetically first genome and is expected to reduce the
+  reference bias (swapping the reference changed 72 of 94 splits on a
+  50-genome set); it does not remove it. The chosen genome, the rule and the
+  medoid's mean ANI are kept in `reference.txt` beside the alignment and in
+  the stage record as `reference_genome` and `reference_rule`. The alignment
+  cache key holds the chosen genome, so a cached alignment is reused only
+  for the same reference; an existing workdir whose sketches now give a
+  medoid realigns once. Under Nextflow, `PHYLO_MSA` now takes the staged
+  sketches directory like `PHYLO` and `PHYLO_TREE` (bacterial path with
+  `params.sketch`); the viral and reads paths have no sketches and use the
+  first genome.
 - `--mask gubbins`: unless `gubbins_first_tree_builder` is given, the first
   iteration uses rapidnj with the JC model when rapidnj is available, and the
   resolved builder thereafter; Gubbins' own final tree is kept as
