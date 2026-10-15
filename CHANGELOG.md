@@ -14,10 +14,12 @@ All notable changes to RepGenR2 are documented here. The format follows
 ### Changed
 - `phylo`: `--treebuilder auto` counts the outgroup as a leaf and, when
   `--msa-source snptype` or `--mask` is given, chooses among the builders that
-  consume an alignment instead of dropping the request with a warning. A
-  bootstrap of 0 with IQ-TREE is announced, since that tree carries no support
-  values. `phylo-build --msa-only` with an alignment-free builder names the
-  builders that consume one. The Nextflow pipeline refuses `phylo_split_msa`
+  consume an alignment instead of dropping the request with a warning; the
+  same applies when the alignment is built on its own (`phylo-build
+  --msa-only`) or given (`--msa`). The log notes an IQ-TREE run without
+  bootstrap replicates, since that tree carries no support values.
+  `phylo-build --msa-only` with an alignment-free builder names the builders
+  that consume one. The Nextflow pipeline refuses `phylo_split_msa`
   with an alignment-free builder before any stage runs.
 - `phylo --treebuilder iqtree`: `--aligner-arg model=...` is passed as `-m`;
   without it the log says that IQ-TREE runs ModelFinder first.
