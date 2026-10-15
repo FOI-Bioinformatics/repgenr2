@@ -45,6 +45,12 @@ class FasttreeBuilder(TreeBuilder):
             binary = "fasttree"
         else:
             binary = "FastTree" if host_which("FastTree", self.capabilities.name) else "fasttree"
+        if params.constant_sites is not None:
+            logger.info(
+                "fasttree applies no ascertainment-bias correction: the branch lengths of "
+                "this variable-site alignment are inflated; iqtree or raxmlng use the "
+                "constant-site counts"
+            )
         cmd: list = [binary, "-nt", "-gtr"]
         if params.bootstrap > 0:
             # FastTree's SH-like local supports are computed from `-boot N`

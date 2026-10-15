@@ -1293,3 +1293,67 @@ def test_auto_is_not_restricted_by_an_aligner_choice_alone(
         ),
     )
     assert seen["allowed"] is None
+
+
+class _FullSnpTyper(_FakeSnpTyper):
+    """A typer with a whole-genome alignment, so the stage counts constant sites."""
+
+    capabilities = ToolCapabilities(name="fullsnptyper")
+
+    def call(self, genomes, reference, out_dir, params, logger) -> SnpResult:
+        out_dir.mkdir(parents=True, exist_ok=True)
+        core = out_dir / "core.fasta"
+        full = out_dir / "full.fasta"
+        core.write_text("".join(f">{record_name(g)}\nACGT\n" for g in genomes))
+        full.write_text("".join(f">{record_name(g)}\nAACCGGTTACGT\n" for g in genomes))
+        return SnpResult(core_snp_fasta=core, full_alignment=full)
+
+
+class _CountingMsaTreeBuilder(_MsaTreeBuilder):
+    capabilities = ToolCapabilities(name="faketree_counting")
+    seen_constant: tuple | None = None
+
+    def build(self, msa_or_genomes, out_dir, params, logger) -> Path:
+        type(self).seen_constant = params.constant_sites
+        return super().build(msa_or_genomes, out_dir, params, logger)
+
+
+def test_constant_sites_reach_the_tree_builder_and_survive_reuse(
+    workdir: Path, fake_phylo_tools, register_tool, caplog
+) -> None:
+    register_tool(snp_registry, "fullsnptyper", _FullSnpTyper)
+    register_tool(tb_registry, "faketree_counting", _CountingMsaTreeBuilder)
+    _make_reps(workdir)
+    ctx = WorkdirContext(workdir, create=True, logger=logging.getLogger("test-phylo"))
+    params = PhyloParams(
+        treebuilder="faketree_counting",
+        msa_source="snptype",
+        snptyper="fullsnptyper",
+        no_outgroup=True,
+    )
+    run(ctx, params)
+    assert _CountingMsaTreeBuilder.seen_constant == (3, 3, 3, 3)
+    _CountingMsaTreeBuilder.seen_constant = None
+    with caplog.at_level(logging.INFO, logger="test-phylo"):
+        run(ctx, params)
+    assert any("Reusing the alignment" in r.getMessage() for r in caplog.records)
+    assert _CountingMsaTreeBuilder.seen_constant == (3, 3, 3, 3)
+
+
+def test_snp_source_without_counts_warns_about_branch_lengths(
+    workdir: Path, fake_phylo_tools, fake_snptyper, caplog
+) -> None:
+    _make_reps(workdir)
+    ctx = WorkdirContext(workdir, create=True, logger=logging.getLogger("test-phylo"))
+    with caplog.at_level(logging.WARNING, logger="test-phylo"):
+        run(
+            ctx,
+            PhyloParams(
+                treebuilder="faketree_msa",
+                msa_source="snptype",
+                snptyper="fakesnptyper",
+                no_outgroup=True,
+            ),
+        )
+    assert any("No constant-site counts" in r.getMessage() for r in caplog.records)
+    assert _MsaTreeBuilder.seen_extra is not None

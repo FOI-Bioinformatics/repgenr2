@@ -30,6 +30,7 @@ from ..core.plugins import scale_warning, warn_ignored_params, warn_unconsumed_e
 from ..core.process import remove_tree, stage_plain_inputs
 from ..snptypers.base import SnpParams, SnpResult
 from ..snptypers.base import registry as snp_registry
+from ..tree.alignment import ALIGNMENT_STATS, constant_site_counts, write_alignment_stats
 
 
 @dataclass
@@ -184,10 +185,28 @@ def snptype_core(
         with atomic_path(snp_dir / "snp_distance_matrix.tsv") as tmp:
             shutil.copy2(result.snp_distance_matrix, tmp)
     full_alignment_out: Path | None = None
+    constant_sites: tuple[int, int, int, int] | None = None
     if result.full_alignment is not None:
         full_alignment_out = snp_dir / "full_alignment.fasta"
         with atomic_path(full_alignment_out) as tmp:
             shutil.copy2(result.full_alignment, tmp)
+        # Constant columns of the whole-genome alignment: the tree builder
+        # adds them back as counts, which keeps branch lengths on scale.
+        # Counted before masking: masking turns bases into N, which cannot
+        # make a constant column variable; a column it makes constant is
+        # missed, so after --mask the counts are a slight undercount.
+        constant_sites, variable = constant_site_counts(full_alignment_out, logger)
+        write_alignment_stats(
+            core, constant_sites, variable, source=full_alignment_out.name, masked=masked
+        )
+        logger.info(
+            "Constant sites in %s: A %d, C %d, G %d, T %d (%d variable columns)",
+            full_alignment_out.name,
+            *constant_sites,
+            variable,
+        )
+    else:
+        (snp_dir / ALIGNMENT_STATS).unlink(missing_ok=True)
 
     return (
         SnpResult(
@@ -198,6 +217,7 @@ def snptype_core(
             else None,
             masked=masked,
             full_alignment=full_alignment_out,
+            constant_sites=constant_sites,
         ),
         versions,
     )

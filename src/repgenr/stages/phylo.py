@@ -60,6 +60,7 @@ from ..core.sketches import (
     directory_provider,
     workdir_provider,
 )
+from ..tree.alignment import read_constant_sites
 from ..tree.rooting import (
     ROOT_METHODS,
     ROOT_NONE,
@@ -237,7 +238,9 @@ MSA_STAMP = "msa_source.json"
 # '.ref', and '.' replaced by '_'); an older alignment would keep them.
 # The SNP typing pass moved from snp/ to tree/msa/ without a version change: a
 # stamp left in snp/ is never read, so such a workdir is typed once more.
-_MSA_STAMP_VERSION = 3
+# 4: the typing pass writes alignment_stats.json (constant-site counts) beside
+# the alignment; an older alignment has none and is typed once more.
+_MSA_STAMP_VERSION = 4
 # Scratch subdirectory of the SNP typing pass; the snptype stage uses
 # scratch/snptype, and each stage clears its own at the start.
 _TYPING_SCRATCH = "phylo_snptype"
@@ -593,6 +596,7 @@ def build_tree(
         finally:
             remove_tree(inputs_dir)
     else:
+        given_msa = msa
         if msa is not None:
             logger.info("Building tree from the alignment given on the command line: %s", msa)
             source_versions: dict[str, str] = {}
@@ -602,6 +606,24 @@ def build_tree(
             )
         versions = {**versions, **source_versions}
         _warn_low_diversity(msa, logger)
+        tree_params.constant_sites = read_constant_sites(msa)
+        if (
+            tree_params.constant_sites is None
+            and msa is not given_msa
+            and params.msa_source == "snptype"
+        ):
+            logger.warning(
+                "No constant-site counts beside %s (SNP typer '%s' writes no whole-genome "
+                "alignment): the tree's branch lengths carry no ascertainment-bias "
+                "correction and are inflated",
+                msa,
+                params.snptyper,
+            )
+        elif tree_params.constant_sites is not None:
+            logger.info(
+                "Constant sites given to the tree builder: A %d, C %d, G %d, T %d",
+                *tree_params.constant_sites,
+            )
         logger.info("Building tree with %s from MSA %s", treebuilder, msa)
         _clear_previous_builder_files(dirs.tree_dir)
         tree = builder.build(msa, dirs.tree_dir, tree_params, logger)

@@ -1443,13 +1443,20 @@ gubbins`) runs on the typer's whole-genome alignment and replaces the
 core-SNP alignment with Gubbins' filtered polymorphic sites. Typers that only
 emit variable sites cannot be masked.
 
-Branch lengths from a variable-site-only alignment (`snp/core_snp.fasta`, or
-`tree/msa/core_snp.fasta` from the typing pass of `phylo`) are
-inflated, because the alignment carries no ascertainment-bias correction.
-Compare topologies and supports rather than lengths, or build the tree from the
-whole-genome alignment (`snp/full_alignment.fasta`, written by `simple`,
-`snippy` and `parsnp`, not by `ska2`) where branch lengths matter (for example `phylo-build --msa
-snp/full_alignment.fasta`).
+A tree from a variable-site-only alignment overestimates branch lengths
+unless the builder is told how many invariant sites the alignment lost. When
+the typer writes a whole-genome alignment (`simple`, `snippy`, `parsnp`), the
+typing pass counts its constant A, C, G and T columns into
+`alignment_stats.json` beside `core_snp.fasta`, and `phylo` passes them on:
+IQ-TREE receives them as `-fconst`, RAxML-NG as `+ASC_STAM{...}` on its
+model; both are first given the alignment without any invariant column that
+masking left, and those columns join the counts. `--aligner-arg asc=lewis`
+uses the Lewis correction (`+ASC`, `+ASC_LEWIS`) instead of the counts.
+FastTree applies no correction and says so. The counts are taken before
+masking, so after `--mask` they are a slight undercount. `ska2` writes no
+whole-genome alignment, so its tree has no correction and `phylo` warns;
+compare topologies and supports rather than lengths there, or build the tree
+from a whole-genome alignment (`phylo-build --msa snp/full_alignment.fasta`).
 
 Gubbins expects isolates of one species. The masker estimates how much of the
 alignment is variable, warns above 10%, and repeats the figure if Gubbins
