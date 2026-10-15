@@ -146,7 +146,11 @@ def _core_genes(header: Path, out_dir: Path, logger: logging.Logger) -> int | No
             )
             if candidate != header:
                 logger.info(
-                    "Gene count read from %s (the filtered header is absent)", candidate.name
+                    "panaroo wrote no %s, so the gene count (%d) comes from %s and counts the "
+                    "genes before the entropy filter",
+                    header.name,
+                    genes,
+                    candidate.name,
                 )
             return genes
     logger.info("panaroo wrote no alignment header; the core-gene count is unknown")

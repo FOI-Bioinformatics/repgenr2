@@ -203,8 +203,7 @@ def test_the_gene_count_falls_back_and_then_gives_up(tmp_path: Path, monkeypatch
     (out / "core_alignment_filtered_header.embl").unlink()
     with caplog.at_level(logging.INFO, logger="test-coregene"):
         again = mod._core_genes(out / "core_alignment_filtered_header.embl", out, _LOG)
-    assert again == 20 and any(
-        "filtered header is absent" in r.getMessage() for r in caplog.records
-    )
+    assert again == 20
+    assert any("before the entropy filter" in r.getMessage() for r in caplog.records)
     (out / "core_alignment_header.embl").unlink()
     assert mod._core_genes(out / "core_alignment_header.embl", out, _LOG) is None

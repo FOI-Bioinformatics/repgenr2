@@ -1147,13 +1147,21 @@ def _step_annotations(
                 f"phylo-build: --annotations-dir {params.annotations_dir} is not a directory."
             )
         return params.annotations_dir
+    from ..core.annotations import gff_path, read_index
     from .annotate import AnnotateBuildParams, annotate_build, index_from_directories
 
     out = params.out_dir / "annotations"
     inputs = list(genomes) + ([outgroup_file] if outgroup_file is not None else [])
-    from ..core.annotations import gff_path
-
-    todo = [g for g in inputs if not gff_path(out, record_name(g)).is_file()]
+    # Reuse only what this annotator wrote: a rerun with another --annotator
+    # must not leave prokka output indexed as bakta's.
+    existing = read_index(out)
+    todo = [
+        g
+        for g in inputs
+        if not gff_path(out, record_name(g)).is_file()
+        or existing.get(record_name(g), None) is None
+        or existing[record_name(g)].annotator != params.annotator
+    ]
     logger.info(
         "Annotating %d of %d genomes with %s under %s (the rest are already there)",
         len(todo),
@@ -1503,6 +1511,7 @@ def _build_msa(
             params.coregene,
             logger,
             warn_extras=False,
+            required=(record_name(outgroup_file),) if outgroup_file is not None else (),
         )
         return cg_result.alignment, versions
 

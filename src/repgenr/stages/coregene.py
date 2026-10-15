@@ -80,8 +80,14 @@ def coregene_core(
     logger: logging.Logger,
     *,
     warn_extras: bool = True,
+    required: Sequence[str] = (),
 ) -> tuple[CoreGeneResult, dict[str, str]]:
-    """Run the core-gene builder ``tool`` over ``gffs`` into ``msa_dir``."""
+    """Run the core-gene builder ``tool`` over ``gffs`` into ``msa_dir``.
+
+    ``required`` names records the tree cannot do without (the outgroup):
+    one missing from the alignment is an error here rather than a rooting
+    failure two steps later.
+    """
     if tool not in coregene_registry.names():
         raise UserInputError(
             f"Unknown core-gene builder '{tool}'. Choose from: "
@@ -129,6 +135,14 @@ def coregene_core(
             "the annotation files, so the tree leaves would not match the genome set."
         )
     dropped = sorted(expected - set(names))
+    missing_required = sorted(set(required) & set(dropped))
+    if missing_required:
+        raise WorkdirError(
+            f"The core-gene alignment does not hold {', '.join(missing_required)}, which the "
+            "tree needs (it is the outgroup): it shares no core gene with the rest at "
+            f"--core-threshold {params.core_threshold:g}. Lower the threshold, or build the "
+            "tree without it (--no-outgroup --root midpoint)."
+        )
     if dropped:
         logger.warning(
             "%d genome(s) are not in the core-gene alignment and will be missing from the "

@@ -320,3 +320,69 @@ def test_phylo_build_msa_only_and_given_msa(tmp_path: Path, tools) -> None:
     )
     assert tree.is_file() and not _FakeCoreGene.calls
     assert not (out2 / "annotations").exists()
+
+
+def test_a_dropped_outgroup_is_an_error_not_a_warning(tmp_path: Path, register_tool) -> None:
+    from repgenr.core.errors import WorkdirError
+    from repgenr.coregenes.base import CoreGeneParams
+    from repgenr.stages.coregene import coregene_core
+
+    class _DroppingBuilder(_FakeCoreGene):
+        def call(self, gffs, out_dir, params, logger) -> CoreGeneResult:
+            out_dir.mkdir(parents=True, exist_ok=True)
+            aln = out_dir / "aln.fasta"
+            # The outgroup shares no core gene and is left out.
+            kept = [g for g in gffs if not g.stem.startswith("Out_")]
+            aln.write_text("".join(f">{g.stem}\nACGT\n" for g in kept), encoding="utf-8")
+            return CoreGeneResult(alignment=aln, tables=[], core_genes=1)
+
+    register_tool(cg_registry, "dropping", _DroppingBuilder)
+    gffs = []
+    for n in ("Fam_gen_sp_GCA_1", "Fam_gen_sp_GCA_2", "Out_gen_sp_GCA_9"):
+        p = tmp_path / f"{n}.gff3"
+        p.write_text("##gff-version 3\n##FASTA\n>c\nACGT\n", encoding="utf-8")
+        gffs.append(p)
+    with pytest.raises(WorkdirError, match="Out_gen_sp_GCA_9.*outgroup"):
+        coregene_core(
+            gffs,
+            tmp_path / "msa",
+            tmp_path / "s",
+            CoreGeneParams(),
+            "dropping",
+            _LOG,
+            required=("Out_gen_sp_GCA_9",),
+        )
+    # Without that requirement a dropped ingroup genome is only a warning.
+    result, _ = coregene_core(
+        gffs, tmp_path / "msa2", tmp_path / "s2", CoreGeneParams(), "dropping", _LOG
+    )
+    assert result.alignment.is_file()
+
+
+def test_phylo_build_re_annotates_when_the_annotator_changes(tmp_path: Path, tools) -> None:
+    gdir = tmp_path / "genomes"
+    gdir.mkdir()
+    for i in range(1, 4):
+        (gdir / f"Fam_gen_sp_GCA_00000{i}.fasta").write_text(f">s{i}\nACGT\n", encoding="utf-8")
+    out = tmp_path / "out"
+    phylo_build(
+        PhyloBuildParams(genomes_dir=gdir, out_dir=out, phylo=_params(), annotator="fakeannot"),
+        _LOG,
+    )
+    first = cache.read_index(out / "annotations")
+    assert {r.annotator for r in first.values()} == {"fakeannot"}
+    # Another annotator must not leave its output indexed under the first one.
+    register = annot_registry.create("fakeannot")
+    annot_registry.register("fakeannot2", type(register), replace=True)
+    try:
+        phylo_build(
+            PhyloBuildParams(
+                genomes_dir=gdir, out_dir=out, phylo=_params(), annotator="fakeannot2"
+            ),
+            _LOG,
+        )
+        assert {r.annotator for r in cache.read_index(out / "annotations").values()} == {
+            "fakeannot2"
+        }
+    finally:
+        annot_registry.unregister("fakeannot2")
