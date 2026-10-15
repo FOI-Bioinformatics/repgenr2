@@ -254,6 +254,8 @@ def test_a_masker_precheck_runs_before_the_typer(workdir, genome_files, register
     with pytest.raises(UserInputError, match="before typing"):
         run(ctx, SnptypeParams(tool="countingtyper", all_genomes=True, mask="precheckmask"))
     assert calls == []
+
+
 def test_full_alignment_typer_writes_constant_site_counts(
     workdir, genome_files, register_tool, fake_typer
 ) -> None:
