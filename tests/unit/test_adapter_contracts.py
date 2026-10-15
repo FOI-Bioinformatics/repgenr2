@@ -136,6 +136,20 @@ def _fake_skani_triangle(cmd: list[str]) -> None:
     Path(_flag_value(cmd, "-o")).write_text("\n".join(rows) + "\n", encoding="utf-8")
 
 
+def _fake_ska_distance(cmd: list[str]) -> None:
+    skf = Path(cmd[-1])
+    listing = skf.parent / "genomes.tsv"
+    names = [ln.split("\t")[0] for ln in listing.read_text(encoding="utf-8").splitlines()]
+    rows = ["Sample1\tSample2\tDistance\tMismatches (proportion)\tMatch count\tMismatch count"]
+    for i, a in enumerate(names):
+        for b in names[i + 1 :]:
+            same = _REP_OF[a + ".fasta"] == _REP_OF[b + ".fasta"]
+            rows.append(
+                f"{a}\t{b}\t{1.0 if same else 40.0:.2f}\t{0.01 if same else 0.3:.5f}\t300\t10"
+            )
+    Path(_flag_value(cmd, "-o")).write_text("\n".join(rows) + "\n", encoding="utf-8")
+
+
 def _make_fake_run_tool(recorded: list[list[str]]):
     def fake_run_tool(caps, command, *, logger, stdout_path=None, **kwargs):
         cmd = [str(part) for part in command]
@@ -154,6 +168,10 @@ def _make_fake_run_tool(recorded: list[list[str]]):
             _fake_sourmash_compare(cmd)
         elif cmd[:2] == ["skani", "triangle"]:
             _fake_skani_triangle(cmd)
+        elif cmd[:2] == ["ska", "build"]:
+            Path(_flag_value(cmd, "-o") + ".skf").write_bytes(b"skf")
+        elif cmd[:2] == ["ska", "distance"]:
+            _fake_ska_distance(cmd)
         elif cmd[0] in ("mashtree", "FastTree", "fasttree", "VeryFastTree"):
             Path(stdout_path).write_text(_NEWICK, encoding="utf-8")
         elif cmd[0] == "iqtree":
@@ -292,6 +310,7 @@ _TREE_PARAM_TOKENS = {
     "raxmlng": ["--threads", "auto{5}"],
     "sourmash": ["k=31,scaled=1000", "--processes", "5"],
     "skani": ["triangle", "-t", "5", "--full-matrix", "--distance"],
+    "ska2": ["distance", "--threads", "5"],
 }
 
 

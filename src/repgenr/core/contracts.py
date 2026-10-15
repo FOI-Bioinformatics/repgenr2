@@ -25,7 +25,7 @@ import csv
 import os
 import re
 from collections import defaultdict
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
@@ -183,6 +183,20 @@ def sanitise_taxon_tokens(family: str, genus: str, species: str) -> tuple[str, s
 
     species = species.replace(genus, "") if genus else species
     return clean(family), clean(genus), clean(species)
+
+
+def taxonomic_spread(genomes: Sequence[Path]) -> tuple[int, int]:
+    """Distinct (genera, species) among ``genomes``, read from the canonical
+    ``Family_Genus_species_Accession.fasta`` filenames, so it works without a
+    manifest (shared-workdir and data-channel paths alike)."""
+    genera: set[str] = set()
+    species: set[tuple[str, str]] = set()
+    for g in genomes:
+        _family, genus, sp, _acc = parse_genome_filename(Path(g).name)
+        if genus:
+            genera.add(genus.lower())
+            species.add((genus.lower(), sp.lower()))
+    return len(genera), len(species)
 
 
 # An NCBI assembly accession leading a filename stem: GCA_/GCF_, digits, version.

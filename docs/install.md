@@ -275,6 +275,7 @@ the `envs/` files, and the environment that holds each tool is listed in
 | Tree builder | mashtree | `mashtree` | yes | `mashtree:1.4.6` | none |
 | Tree builder | sourmash | `sourmash` | yes | `sourmash:4.9.4` | `rapidnj` for the joining step; without it more than 5000 leaves are refused (optional; `rapidnj:2.3.3` under a container backend) |
 | Tree builder | skani | `skani` | yes | `skani:0.3.2` | `rapidnj` for the joining step above a few thousand leaves (optional; `rapidnj:2.3.3` under a container backend) |
+| Tree builder | ska2 | `ska2` | yes | `ska2:0.5.1` | `rapidnj` for the joining step above a few thousand leaves (optional) |
 | Assembler | skesa | `skesa` | yes | `skesa:2.5.1` | none |
 | Assembler | shovill | `shovill` | no | `shovill:1.4.2` | none |
 | Assembler | flye | `flye` | yes | `flye:2.9.6` | none |

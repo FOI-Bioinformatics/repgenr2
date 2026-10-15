@@ -80,6 +80,9 @@ class ToolCapabilities:
     # safe side for a new adapter), the stages hand an aligner, SNP typer or
     # genome-input tree builder decompressed copies (core.process.stage_plain_inputs).
     reads_gzip: bool = False
+    # False for a tool that suits one kind of input only (the ska2 tree
+    # builder, clonal sets), so ``auto`` never picks it; it must be named.
+    auto_eligible: bool = True
 
 
 def warn_unconsumed_extras(
@@ -333,6 +336,8 @@ def auto_select(
                     name,
                     registry.group,
                 )
+            continue
+        if not cap.auto_eligible:
             continue
         limit = cap.recommended_max_genomes
         limit_value = inf if limit is None else float(limit)

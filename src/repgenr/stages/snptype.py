@@ -33,7 +33,12 @@ from ..core.contracts import (
 )
 from ..core.errors import UserInputError, WorkdirError
 from ..core.integrity import check_genome_completeness, check_representatives_consistency
-from ..core.plugins import scale_warning, warn_ignored_params, warn_unconsumed_extras
+from ..core.plugins import (
+    parse_extra_bool,
+    scale_warning,
+    warn_ignored_params,
+    warn_unconsumed_extras,
+)
 from ..core.process import remove_tree, stage_plain_inputs
 from ..snptypers.base import SnpParams, SnpResult
 from ..snptypers.base import registry as snp_registry
@@ -116,6 +121,11 @@ def snptype_core(
             ", ".join(alts) or "none",
         )
     typer = snp_registry.create(params.tool)
+    if getattr(typer, "divergence_sensitive", False):
+        from ..treebuilders.ska2 import warn_ska2_divergence
+
+        # The outgroup (mask_exclude names it) is another species by design.
+        warn_ska2_divergence(genomes, logger, exclude=params.mask_exclude)
     masker = None
     if params.mask not in ("none", ""):
         from ..maskers.base import registry as masker_registry
@@ -213,9 +223,15 @@ def snptype_core(
     # from the variable-site alignment, or their number is reported.
     if params.core_fraction is not None:
         if params.tool == "ska2":
+            own = (
+                "sites with at most a fraction lo_missing of missing data (default 0.1)"
+                if parse_extra_bool(params.extra, "lo", False)
+                else "split k-mers present in a fraction min_freq of the samples (default 0.9)"
+            )
             logger.info(
-                "ska2 already keeps split k-mers present in a fraction min_freq of the samples "
-                "(default 0.9); --core-fraction %.2f applies a second threshold on its columns",
+                "ska2 already keeps %s; --core-fraction %.2f applies a second threshold on "
+                "its columns",
+                own,
                 params.core_fraction,
             )
         with atomic_path(core) as tmp:

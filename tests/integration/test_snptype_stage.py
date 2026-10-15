@@ -356,3 +356,31 @@ def test_core_fraction_without_a_full_alignment_filters_and_writes_no_sidecar(
     assert all(
         len(ln) == 2 for ln in result.core_snp_fasta.read_text().splitlines() if ln[0] != ">"
     )
+
+
+def test_ska2_warns_on_a_multi_species_set(workdir, register_tool, monkeypatch, caplog) -> None:
+    """The stage warns before typing with ska2 when the names span species."""
+    import logging
+
+    from repgenr.snptypers import ska2 as ska_mod
+
+    def fake(caps, argv, **kw):  # noqa: ANN001
+        argv = [str(a) for a in argv]
+        if argv[1] == "build":
+            Path(argv[argv.index("-o") + 1] + ".skf").write_bytes(b"skf")
+        elif argv[1] == "align":
+            Path(argv[argv.index("-o") + 1]).write_text(
+                ">Fam_Gen_spA_GCA_1\nA\n>Fam_Gen_spB_GCA_2\nC\n", encoding="utf-8"
+            )
+        return 0
+
+    monkeypatch.setattr(ska_mod, "run_tool", fake)
+    monkeypatch.setattr(ska_mod.Ska2Typer, "preflight", lambda self: {"ska": "0.5.1"})
+    gdir = workdir / "genomes"
+    gdir.mkdir(parents=True)
+    for n in ("Fam_Gen_spA_GCA_1", "Fam_Gen_spB_GCA_2"):
+        (gdir / f"{n}.fasta").write_text(f">{n}\nACGT\n", encoding="utf-8")
+    ctx = WorkdirContext(workdir, create=True, logger=logging.getLogger("test-snptype"))
+    with caplog.at_level(logging.WARNING, logger="test-snptype"):
+        run(ctx, SnptypeParams(tool="ska2", all_genomes=True))
+    assert any("spanning 2 species" in r.getMessage() for r in caplog.records)

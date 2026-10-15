@@ -43,7 +43,7 @@ the core (see [docs/developing.md](docs/developing.md)).
 | Aligners | `progressivemauve`, `sibeliaz`, `cactus` |
 | SNP typers | `simple` (samtools/bcftools), `snippy`, `parsnp`, `ska2` (reference-free) |
 | Maskers | `gubbins` (recombination masking via `--mask`) |
-| Tree builders | `iqtree`, `fasttree`, `veryfasttree`, `raxmlng` (MSA), `mashtree`, `sourmash`, `skani` (alignment-free) |
+| Tree builders | `iqtree`, `fasttree`, `veryfasttree`, `raxmlng` (MSA), `mashtree`, `sourmash`, `skani`, `ska2` (alignment-free) |
 | Assemblers | `skesa`, `shovill` (Illumina), `flye` (ONT, PacBio); used by the reads chain |
 | Classifiers | `sourmash` (gather against a GTDB sketch); verifies the organism of an assembled run |
 | Polishers | `medaka` (ONT), `racon` with minimap2 (PacBio CLR); correct long-read assemblies in the reads chain |
