@@ -177,3 +177,67 @@ def test_registered_and_never_auto() -> None:
     assert "orthofinder" in registry.names()
     caps = registry.get("orthofinder").capabilities
     assert caps.auto_eligible is False and caps.recommended_max_genomes == 200
+
+
+def test_selenocysteine_is_aligned_as_x(tmp_path: Path, monkeypatch) -> None:
+    """mafft refuses U and O; bakta writes U into a recoded protein."""
+    sent: list[str] = []
+
+    def chain(caps, steps, **k):
+        for _, argv in steps:
+            argv = [str(c) for c in argv]
+            text = Path(argv[-1]).read_text(encoding="utf-8")
+            sent.append(text)
+            Path(argv[argv.index("--out") + 1]).write_text(text, encoding="utf-8")
+
+    gffs = _gffs(tmp_path)
+    faa = gffs[0].with_suffix(".faa")
+    faa.write_text(faa.read_text(encoding="utf-8").replace("MKLM", "MKUM"), "utf-8")
+    monkeypatch.setattr(mod, "run_tool", _fake([]))
+    monkeypatch.setattr(mod, "run_chain", chain)
+    result = mod.OrthoFinderBuilder().call(gffs, tmp_path / "o", CoreGeneParams(), _LOG)
+    assert any("MKXM" in t for t in sent) and not any("U" in t.split("\n", 1)[1] for t in sent)
+    # The codons still map: X keeps the protein length.
+    first = result.alignment.read_text(encoding="utf-8").split(">")[1].split("\n")[1]
+    assert first.startswith("ATGAAACTGATG")
+
+
+def test_failures_inside_the_run(tmp_path: Path, monkeypatch) -> None:
+    # A gene OrthoFinder names that the protein file lacks.
+    monkeypatch.setattr(mod, "run_tool", _fake([], rows=[["OG0000000", "zz1", "a2", "a3"]]))
+    monkeypatch.setattr(mod, "run_chain", _fake_chain([]))
+    with pytest.raises(WorkdirError, match="'zz1'"):
+        mod.OrthoFinderBuilder().call(_gffs(tmp_path), tmp_path / "o1", CoreGeneParams(), _LOG)
+
+    # No Orthogroups.tsv at all.
+    monkeypatch.setattr(mod, "run_tool", lambda caps, cmd, **k: 0)
+    with pytest.raises(WorkdirError, match="no Orthogroups.tsv"):
+        mod.OrthoFinderBuilder().call(_gffs(tmp_path), tmp_path / "o2", CoreGeneParams(), _LOG)
+
+    # A failing mafft batch fails the call.
+    def broken(caps, steps, **k):
+        raise WorkdirError("mafft failed")
+
+    monkeypatch.setattr(mod, "run_tool", _fake([]))
+    monkeypatch.setattr(mod, "run_chain", broken)
+    with pytest.raises(WorkdirError, match="mafft failed"):
+        mod.OrthoFinderBuilder().call(
+            _gffs(tmp_path), tmp_path / "o3", CoreGeneParams(threads=4), _LOG
+        )
+
+
+def test_a_path_with_a_space_is_refused(tmp_path: Path, monkeypatch) -> None:
+    calls: list[list[str]] = []
+    monkeypatch.setattr(mod, "run_tool", _fake(calls))
+    with pytest.raises(UserInputError, match="space"):
+        mod.OrthoFinderBuilder().call(
+            _gffs(tmp_path), tmp_path / "with space", CoreGeneParams(), _LOG
+        )
+    assert calls == []
+
+
+def test_the_default_inflation_is_recorded(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setattr(mod, "run_tool", _fake([]))
+    monkeypatch.setattr(mod, "run_chain", _fake_chain([]))
+    result = mod.OrthoFinderBuilder().call(_gffs(tmp_path), tmp_path / "o", CoreGeneParams(), _LOG)
+    assert result.settings["inflation"] == mod.DEFAULT_INFLATION

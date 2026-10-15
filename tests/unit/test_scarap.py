@@ -199,7 +199,7 @@ def test_orthofinder_methods_need_orthofinder_beside_scarap(tmp_path: Path, monk
     )
     assert calls[0][calls[0].index("-d") + 1] == "O-D"
     # O-B searches with BLAST, which is not.
-    with pytest.raises(UserInputError, match="needs blastp"):
+    with pytest.raises(UserInputError, match="needs blastp, makeblastdb"):
         mod.ScarapBuilder().call(
             _gffs(tmp_path), tmp_path / "o2", CoreGeneParams(extra={"method": "O-B"}), _LOG
         )

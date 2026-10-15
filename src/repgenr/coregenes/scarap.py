@@ -188,10 +188,10 @@ def _check_orthofinder_method(caps: ToolCapabilities, method: str) -> None:
     if not runs_on_host(caps):
         raise UserInputError(
             f"scarap method {method} needs OrthoFinder, which the SCARAP image does not "
-            "include. Run natively from the environment envs/scarap.yml builds (with "
-            "--bin-dir scarap=<env>/bin), or choose another method."
+            "include. Run without --container or --wave, from the environment "
+            "envs/scarap.yml builds (--bin-dir scarap=<env>/bin), or choose another method."
         )
-    needed = ["orthofinder"] + (["blastp"] if method == "O-B" else ["diamond"])
+    needed = ["orthofinder"] + (["blastp", "makeblastdb"] if method == "O-B" else ["diamond"])
     missing = [b for b in needed if host_which(b, "scarap") is None]
     if missing:
         raise UserInputError(

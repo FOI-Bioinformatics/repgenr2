@@ -1566,7 +1566,9 @@ present in a single copy in at least `--core-threshold` of the genomes,
 aligns each one's proteins with mafft and back-translates the alignment to
 codons from the `.ffn` files, so the result is a DNA alignment like the
 other builders'. A gene whose length does not match its protein is a gap,
-and the log counts them. On the 24 genomes it kept 585 orthogroups, and its
+and the log counts them; selenocysteine and pyrrolysine, which mafft does
+not accept, are aligned as X. With `search=mmseqs` OrthoFinder uses fixed
+file names under `/tmp`, so two such runs on one host can collide. On the 24 genomes it kept 585 orthogroups, and its
 tree shared 20 of 21 splits with the PPanGGOLiN tree and 19 with the
 SCARAP one. Its core-gene step took about six minutes, most of it the
 search, close to SCARAP's. The search is all against all, so its cost grows

@@ -685,7 +685,9 @@ OrthoFinder 3.1.5 (noarch) with DIAMOND 2.2.8, on the same bakta proteomes.
   at least 95% of the genomes.
 - **End to end**, `repgenr phylo --all-genomes --msa-source coregene
   --coregene orthofinder --treebuilder iqtree --no-outgroup --root
-  midpoint -t 8` on the 24 genomes: 585 orthogroups, 619944 columns, every
+  midpoint -t 8` on the 24 genomes: 585 orthogroups (the adapter's
+  selection gives 584 on the direct run's table, so the one-orthogroup
+  difference is between the two OrthoFinder runs), 619944 columns, every
   gene back-translated to codons with no length mismatch; the search took
   293 seconds, the 585 mafft alignments 62, and the stage 515 with IQ-TREE.
 - **SCARAP's O-B and O-D methods failed at first:** OrthoFinder finished,

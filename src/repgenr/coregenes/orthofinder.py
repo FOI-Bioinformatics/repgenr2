@@ -8,8 +8,9 @@ concatenated alignment, and they are the slow part.
 
 1. ``orthofinder -f FAA_DIR -o RES -og -X -S SEARCH -t N -a N`` on one
    ``<record name>.faa`` per genome. OrthoFinder names each genome after the
-   file stem, which is the record name; ``-X`` keeps the gene identifiers
-   as they are, so they can be looked up in the ``.faa`` and ``.ffn`` files.
+   file stem, which is the record name, and each gene after the first word
+   of its FASTA header, which is how the ``.faa`` and ``.ffn`` files name it
+   (``-X`` affects only the gene-tree outputs ``-og`` skips).
 2. The adapter selects the orthogroups present in a single copy in at least
    ``--core-threshold`` of the genomes from ``Orthogroups.tsv``, aligns the
    proteins of each with mafft (``--auto``), and back-translates the
@@ -20,6 +21,11 @@ concatenated alignment, and they are the slow part.
 
 The alignments run in batches, one ``mafft`` per orthogroup, each batch in
 one container when a container backend is active.
+
+With ``search=mmseqs`` OrthoFinder writes to fixed names under ``/tmp``, so
+two such runs on one host can collide. A path with a space is refused
+before the run: OrthoFinder refuses it and builds its search commands as
+shell strings.
 
 The search is all against all, so its cost grows roughly with the square
 of the genome count: about 6 minutes for 24 Wolbachia genomes on 8 threads
@@ -32,12 +38,12 @@ import csv
 import logging
 import shutil
 from collections.abc import Sequence
-from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from ..core.binaries import BinarySpec
 from ..core.containers import run_chain, run_tool
 from ..core.errors import UserInputError, WorkdirError
+from ..core.executors import parallel_map
 from ..core.plugins import ToolCapabilities
 from .base import CoreGeneBuilder, CoreGeneParams, CoreGeneResult, annotation_sidecars
 
@@ -48,6 +54,11 @@ SELECTED = "core_orthogroups.txt"
 _SMALL_CORE = 100
 # Orthogroups aligned per container start.
 _BATCH = 50
+# OrthoFinder's own MCL inflation default, recorded when none is given.
+DEFAULT_INFLATION = 1.2
+# mafft refuses selenocysteine (U) and pyrrolysine (O), which bakta writes into
+# the protein of a recoded gene; X keeps the length, so the codons still map.
+_MAFFT_UNSAFE = str.maketrans({"U": "X", "O": "X", "u": "x", "o": "x"})
 
 
 class OrthoFinderBuilder(CoreGeneBuilder):
@@ -87,6 +98,11 @@ class OrthoFinderBuilder(CoreGeneBuilder):
                 f"orthofinder search must be one of {', '.join(SEARCHES)}, not {search!r}"
             )
         inflation = _inflation(params.extra.get("inflation"))
+        if " " in str(out_dir.resolve()):
+            raise UserInputError(
+                f"orthofinder cannot run under a path with a space ({out_dir.resolve()}); "
+                "move the workdir or output directory."
+            )
         faas, ffns = annotation_sidecars(gffs, "orthofinder")
         names = [g.stem for g in gffs]
 
@@ -134,7 +150,14 @@ class OrthoFinderBuilder(CoreGeneBuilder):
             dst = aln_dir / f"{og}.aln"
             with open(src, "w", encoding="utf-8") as fo:
                 for genome, gene in members.items():
-                    fo.write(f">{genome}\n{proteins[genome][gene]}\n")
+                    protein = proteins[genome].get(gene)
+                    if protein is None:
+                        raise WorkdirError(
+                            f"orthofinder placed gene {gene!r} of {genome} in {og}, but the "
+                            f"protein file has no record of that name; the annotation's "
+                            "identifiers are probably not unique in their first word."
+                        )
+                    fo.write(f">{genome}\n{protein.translate(_MAFFT_UNSAFE)}\n")
             jobs.append((og, src, dst))
             if len(members) > 1:
                 to_align.append((og, src, dst))
@@ -157,14 +180,14 @@ class OrthoFinderBuilder(CoreGeneBuilder):
                 "--core-threshold, or leave the most divergent genomes out.",
                 len(selected),
             )
-        tables = [p for p in (table.parent / "Orthogroups.GeneCount.tsv", out_dir / SELECTED)]
+        tables = [table.parent / "Orthogroups.GeneCount.tsv", out_dir / SELECTED]
         return CoreGeneResult(
             alignment=alignment,
             tables=[t for t in tables if t.is_file()],
             core_genes=len(selected),
             settings={
                 "search": search,
-                "inflation": inflation,
+                "inflation": inflation if inflation is not None else DEFAULT_INFLATION,
                 "clustering_on": "protein, all against all",
             },
         )
@@ -190,9 +213,8 @@ class OrthoFinderBuilder(CoreGeneBuilder):
             )
 
         logger.info("Aligning %d orthogroups with mafft", len(jobs))
-        with ThreadPoolExecutor(max_workers=max(1, threads)) as pool:
-            for future in [pool.submit(run, b) for b in batches]:
-                future.result()
+        # The first failure cancels the batches not yet started.
+        parallel_map(run, batches, max(1, threads), logger=logger)
 
 
 def _inflation(raw: object) -> float | None:
@@ -306,6 +328,8 @@ def _write_supermatrix(
         if not dst.is_file() or dst.stat().st_size == 0:
             raise WorkdirError(f"mafft wrote no alignment for {og}")
         aligned = _read_alignment(dst)
+        if not aligned:
+            raise WorkdirError(f"mafft wrote an empty alignment for {og}")
         width = len(next(iter(aligned.values()))) * 3
         for genome in names:
             gene = members.get(genome)
