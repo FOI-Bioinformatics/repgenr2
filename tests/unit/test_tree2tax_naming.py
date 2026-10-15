@@ -49,6 +49,30 @@ def test_a_unary_node_is_not_named_like_its_child() -> None:
     assert len(labels) == len(set(labels)) == 3
 
 
+def test_a_unary_node_does_not_rename_its_ancestors() -> None:
+    plain = _names("(((A,B),E),(C,D));")
+    with_unary = _names("((((A,B)),E),(C,D));")
+    for key in (frozenset("AB"), frozenset("ABE"), frozenset("CD")):
+        assert plain[key] == with_unary[key]
+
+
+def test_an_unlabelled_leaf_does_not_make_a_node_share_its_childs_name() -> None:
+    taxa = dendropy.TaxonNamespace()
+    tree = dendropy.Tree(taxon_namespace=taxa)
+    top = tree.seed_node.new_child()
+    inner = top.new_child()
+    for label in ("A", "B"):
+        inner.new_child().taxon = taxa.require_taxon(label=label)
+    top.new_child()  # a leaf without a label contributes nothing to the sum
+    other = tree.seed_node.new_child()
+    for label in ("C", "D"):
+        other.new_child().taxon = taxa.require_taxon(label=label)
+    _name_nodes(tree, None)
+    assert top.label != inner.label
+    tree.seed_node.label = "root"
+    assert all(child != parent for child, parent in _edges(tree))
+
+
 def test_basename_numbers_internal_nodes_in_preorder() -> None:
     tree = _tree("((A,B),(C,D));")
     leaves = _name_nodes(tree, "N")

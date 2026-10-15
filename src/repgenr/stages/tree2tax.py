@@ -457,11 +457,13 @@ def _name_nodes(tree: dendropy.Tree, node_basename: str | None) -> list[str]:
     of the leaves' 128-bit label hashes, which is independent of the order
     the leaves are met in and takes one post-order pass over the tree, so a
     long ladder costs the same per node as a balanced tree. The name does not
-    depend on how the clade is resolved inside. A node with a single child
-    (left by a tool, never by this stage) would otherwise share its child's
-    name, so its hash is mixed once more. With a basename, nodes are numbered
-    in preorder instead. Keyed on ``is_leaf``, so an internal support label
-    is never taken for a taxon.
+    depend on how the clade is resolved inside. A node whose leaf set equals
+    one child's (a single child, or one labelled child beside unlabelled
+    leaves; left by a tool, never by this stage) would share that child's
+    name, so its label is mixed once more while the plain sum still passes
+    upward, so the ancestors' names stay those of their leaf sets. With a
+    basename, nodes are numbered in preorder instead. Keyed on ``is_leaf``,
+    so an internal support label is never taken for a taxon.
     """
     leaves: list[str] = []
     hashes: dict[int, int] = {}
@@ -473,13 +475,15 @@ def _name_nodes(tree: dendropy.Tree, node_basename: str | None) -> list[str]:
                 leaves.append(name)
                 hashes[id(node)] = _leaf_hash(name)
             continue
-        children = node.child_nodes()
-        total = sum(hashes.pop(id(child), 0) for child in children) % _HASH_MOD
-        if len(children) == 1:
-            total = _leaf_hash(f"{total:032x}/unary")
+        contributing = [
+            hashes.pop(id(child)) for child in node.child_nodes() if id(child) in hashes
+        ]
+        total = sum(contributing) % _HASH_MOD
         hashes[id(node)] = total
-        if node is not tree.seed_node and not node_basename:
-            node.label = f"{total:032x}"
+        if node is tree.seed_node or node_basename:
+            continue
+        label = total if len(contributing) >= 2 else _leaf_hash(f"{total:032x}/same-leaf-set")
+        node.label = f"{label:032x}"
     if node_basename:
         for node in tree.preorder_node_iter():
             if node is not tree.seed_node and not node.is_leaf():
