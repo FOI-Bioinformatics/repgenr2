@@ -468,6 +468,7 @@ def _name_nodes(tree: dendropy.Tree, node_basename: str | None) -> list[str]:
     leaves: list[str] = []
     sums: dict[int, int] = {}  # plain leaf-set sum, passed upward
     names: dict[int, int] = {}  # the value a node is labelled with
+    with_leaf_set: set[int] = set()  # internal nodes that hold a labelled leaf
     counter = 0
     for node in tree.postorder_node_iter():
         if node.is_leaf():
@@ -480,6 +481,7 @@ def _name_nodes(tree: dendropy.Tree, node_basename: str | None) -> list[str]:
         if not contributing:
             continue  # only unlabelled leaves below: no leaf set, no name, no row
         sums[id(node)] = sum(sums.pop(id(child)) for child in contributing) % _HASH_MOD
+        with_leaf_set.add(id(node))
         if len(contributing) >= 2:
             names[id(node)] = sums[id(node)]
         else:
@@ -492,7 +494,7 @@ def _name_nodes(tree: dendropy.Tree, node_basename: str | None) -> list[str]:
             node.label = f"{names[id(node)]:032x}"
     if node_basename:
         for node in tree.preorder_node_iter():
-            if node is not tree.seed_node and not node.is_leaf():
+            if node is not tree.seed_node and not node.is_leaf() and id(node) in with_leaf_set:
                 node.label = f"{node_basename}{counter}"
                 counter += 1
     return leaves

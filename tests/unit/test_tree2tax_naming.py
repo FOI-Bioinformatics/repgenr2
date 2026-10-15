@@ -202,3 +202,5 @@ def test_a_node_over_unlabelled_leaves_only_gets_no_name_and_no_row() -> None:
     assert empty.label is None
     tree.seed_node.label = "root"
     assert {c for c, _ in _edges(tree)} == {"C", "D", other.label}
+    _name_nodes(tree, "N")  # the basename path numbers the same nodes
+    assert empty.label is None and other.label == "N0"
