@@ -1083,3 +1083,125 @@ def test_gzipped_genomes_and_outgroup_are_named_without_their_suffix(
     assert seen["outgroup"] == "Fam_gen_og_GCA_000009"
     # One name form: every typer names records by record_name.
     assert seen["mask_exclude"] == ("Fam_gen_og_GCA_000009",)
+
+
+class _NoSupportMsaTreeBuilder(_MsaTreeBuilder):
+    """An MSA builder whose tree has no support values unless a bootstrap runs."""
+
+    capabilities = ToolCapabilities(name="faketree_nosupport")
+    supports_without_bootstrap = False
+
+
+def _stage_outgroup(workdir: Path) -> None:
+    og = workdir / "outgroup"
+    og.mkdir()
+    (og / "GCF_000009.1.fasta").write_text(">o\nACGTACGT\n")
+    (workdir / "outgroup_accession.txt").write_text("GCF_000009.1\n")
+
+
+def _spy_auto_select(monkeypatch, result: str) -> dict:
+    """Replace the registry-wide choice with ``result`` and record what the
+    stage asked for; the choice itself is covered by the auto_select unit tests."""
+    from repgenr.stages import phylo as phylo_mod
+
+    seen: dict = {}
+
+    def fake(registry, n_items, allowed=None):
+        seen.update(n=n_items, allowed=None if allowed is None else sorted(allowed))
+        return result
+
+    monkeypatch.setattr(phylo_mod, "auto_select", fake)
+    return seen
+
+
+def test_auto_restricts_to_alignment_builders_when_a_snp_source_is_requested(
+    workdir: Path, fake_phylo_tools, fake_snptyper, monkeypatch
+) -> None:
+    """'auto' would otherwise hand the set to an alignment-free builder and
+    drop --msa-source snptype with only a warning."""
+    seen = _spy_auto_select(monkeypatch, "faketree_msa")
+    _make_reps(workdir)
+    ctx = WorkdirContext(workdir, create=True)
+    run(
+        ctx,
+        PhyloParams(
+            treebuilder="auto", msa_source="snptype", snptyper="fakesnptyper", no_outgroup=True
+        ),
+    )
+    assert "faketree_msa" in seen["allowed"] and "faketree_genomes" not in seen["allowed"]
+    assert ctx.config.stages["phylo"].tool == "faketree_msa"
+
+
+def test_auto_without_an_alignment_request_considers_every_builder(
+    workdir: Path, fake_phylo_tools, monkeypatch
+) -> None:
+    seen = _spy_auto_select(monkeypatch, "faketree_genomes")
+    _make_reps(workdir)
+    ctx = WorkdirContext(workdir, create=True)
+    run(ctx, PhyloParams(treebuilder="auto", no_outgroup=True))
+    assert seen["allowed"] is None and seen["n"] == 3
+    assert ctx.config.stages["phylo"].tool == "faketree_genomes"
+
+
+def test_auto_counts_the_outgroup_as_a_leaf(workdir: Path, fake_phylo_tools, monkeypatch) -> None:
+    seen = _spy_auto_select(monkeypatch, "faketree_genomes")
+    _make_reps(workdir)
+    _stage_outgroup(workdir)
+    ctx = WorkdirContext(workdir, create=True)
+    run(ctx, PhyloParams(treebuilder="auto"))
+    assert seen["n"] == 4
+
+
+def test_bootstrap_zero_warns_when_the_tree_would_carry_no_supports(
+    workdir: Path, fake_phylo_tools, register_tool, caplog
+) -> None:
+    register_tool(tb_registry, "faketree_nosupport", _NoSupportMsaTreeBuilder)
+    _make_reps(workdir)
+    ctx = WorkdirContext(workdir, create=True, logger=logging.getLogger("test-phylo"))
+    with caplog.at_level(logging.WARNING, logger="test-phylo"):
+        run(
+            ctx,
+            PhyloParams(
+                treebuilder="faketree_nosupport",
+                msa_source="aligner",
+                aligner="fakealigner",
+                no_outgroup=True,
+            ),
+        )
+    assert any("No bootstrap requested" in r.getMessage() for r in caplog.records)
+    caplog.clear()
+    with caplog.at_level(logging.WARNING, logger="test-phylo"):
+        run(
+            ctx,
+            PhyloParams(
+                treebuilder="faketree_msa",
+                msa_source="aligner",
+                aligner="fakealigner",
+                no_outgroup=True,
+            ),
+        )
+    assert not any("No bootstrap requested" in r.getMessage() for r in caplog.records)
+
+
+def test_split_alignment_refusal_names_the_builders_that_consume_one(
+    workdir: Path, fake_phylo_tools
+) -> None:
+    from repgenr.core.errors import UserInputError
+    from repgenr.stages.phylo import PhyloDirs, build_msa
+
+    _make_reps(workdir)
+    genomes = sorted((workdir / "derep" / "representatives").glob("*.fasta"))
+    dirs = PhyloDirs(
+        tree_dir=workdir / "tree",
+        align_dir=workdir / "align",
+        msa_dir=workdir / "tree" / "msa",
+        scratch_dir=workdir / "scratch",
+    )
+    with pytest.raises(UserInputError, match="faketree_msa"):
+        build_msa(
+            genomes,
+            None,
+            dirs,
+            PhyloParams(treebuilder="faketree_genomes"),
+            logging.getLogger("test-phylo"),
+        )

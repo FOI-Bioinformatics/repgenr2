@@ -54,3 +54,32 @@ def test_sequence_type_is_stated(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setattr(mod, "run_tool", fake)
     mod.IqtreeBuilder().build(_msa(tmp_path), tmp_path / "out", TreeParams(), _LOG)
     assert calls[0][calls[0].index("-st") + 1] == "DNA"
+
+
+def _run_capturing(tmp_path: Path, monkeypatch, params: TreeParams) -> list[str]:
+    calls: list[list[str]] = []
+
+    def fake(caps, cmd, **k):
+        cmd = [str(c) for c in cmd]
+        calls.append(cmd)
+        Path(cmd[cmd.index("-s") + 1] + ".treefile").write_text("(a,b);\n", encoding="utf-8")
+
+    monkeypatch.setattr(mod, "run_tool", fake)
+    mod.IqtreeBuilder().build(_msa(tmp_path), tmp_path / "out", params, _LOG)
+    (cmd,) = calls
+    return cmd
+
+
+def test_model_extra_is_passed_as_m(tmp_path: Path, monkeypatch) -> None:
+    cmd = _run_capturing(tmp_path, monkeypatch, TreeParams(extra={"model": "GTR+G"}))
+    assert cmd[cmd.index("-m") + 1] == "GTR+G"
+    assert "model" in mod.IqtreeBuilder.capabilities.accepted_extras
+
+
+def test_without_model_modelfinder_is_left_to_iqtree_and_said(
+    tmp_path: Path, monkeypatch, caplog
+) -> None:
+    with caplog.at_level(logging.INFO, logger="test"):
+        cmd = _run_capturing(tmp_path, monkeypatch, TreeParams())
+    assert "-m" not in cmd
+    assert any("ModelFinder" in r.getMessage() for r in caplog.records)

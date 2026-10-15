@@ -38,7 +38,12 @@ def test_four_taxa_recovers_expected_grouping() -> None:
     assert re.search(r"\(C:[0-9.]+,D:[0-9.]+\)", nwk) or re.search(r"\(D:[0-9.]+,C:[0-9.]+\)", nwk)
 
 
-def test_labels_are_sanitized() -> None:
-    nwk = neighbor_joining(["a b", "c(d)"], [[0.0, 2.0], [2.0, 0.0]])
-    assert "a_b" in nwk and "c_d_" in nwk
-    assert " " not in nwk and "(" in nwk  # only the structural parens remain
+def test_labels_with_reserved_characters_are_quoted() -> None:
+    import dendropy
+
+    labels = ["a b", "c(d)", "a_b", "it's"]
+    dist = [[0.0, 2.0, 3.0, 3.0], [2.0, 0.0, 3.0, 3.0], [3.0, 3.0, 0.0, 2.0], [3.0, 3.0, 2.0, 0.0]]
+    nwk = neighbor_joining(labels, dist)
+    assert "'a b'" in nwk and "'c(d)'" in nwk and "'it''s'" in nwk and "a_b" in nwk
+    tree = dendropy.Tree.get(data=nwk, schema="newick", preserve_underscores=True)
+    assert sorted(t.label for t in tree.taxon_namespace) == sorted(labels)

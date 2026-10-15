@@ -39,6 +39,12 @@ workflow {
     }
 
     validateParameters()
+    // phylo_split_msa runs the alignment and the tree as separate tasks, which
+    // needs a tree builder that consumes an alignment; the alignment-free
+    // builders would fail inside the first task.
+    if (params.phylo_split_msa && (params.phylo_args =~ /--treebuilder[ =](mashtree|sourmash)\b/)) {
+        error "phylo_split_msa needs a tree builder that consumes an alignment (iqtree, raxmlng, fasttree); phylo_args is '${params.phylo_args}'"
+    }
     log.info paramsSummaryLog(workflow)
 
     def ch_meta = channel.value(run_meta(params))

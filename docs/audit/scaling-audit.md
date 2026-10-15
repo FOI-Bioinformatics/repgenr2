@@ -26,7 +26,7 @@ detailed per-stage SWOT and gap analyses follow as appendices A to C.
 | phylo: sourmash NJ | yes (~2.4 min) | extrapolated ~1.5-2 h | pure-Python NJ; measured n^3 fit below |
 | phylo: sibeliaz -> fasttree/iqtree | no | no | times out (>1 h) already at n=20 |
 | phylo: progressivemauve -> fasttree | not measured | not measured | ~10 min at n=20, ~22 min at n=50 per build (B4/B5 runs, Docker on Rosetta); adapter recommends at most 500 genomes |
-| snptype: simple | untested at scale | untested | serial, O(n^2 S) RAM (see Appendix B) |
+| snptype: simple | untested at scale | untested | one worker per genome since #166; O(n^2 S) RAM (see Appendix B) |
 
 ## Benchmark design
 

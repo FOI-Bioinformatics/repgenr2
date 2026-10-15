@@ -54,6 +54,10 @@ class TreeParams:
 class TreeBuilder(ABC):
     capabilities: ToolCapabilities
     input_kind: InputKind = InputKind.MSA_FASTA
+    # False for a builder whose tree has no support values unless a bootstrap
+    # is requested (IQ-TREE). FastTree writes SH-like local supports anyway and
+    # RAxML-NG bootstraps by default, so the stage warns only where -B matters.
+    supports_without_bootstrap: bool = True
 
     def preflight(self) -> dict[str, str]:
         return preflight(self.capabilities)
