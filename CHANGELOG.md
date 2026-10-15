@@ -16,7 +16,7 @@ All notable changes to RepGenR2 are documented here. The format follows
   iteration uses rapidnj with the JC model when rapidnj is available, and the
   resolved builder thereafter; Gubbins' own final tree is kept as
   `masker_tree.nwk` beside the masked alignment. Masking is refused when more
-  than 12 % of the columns are variable (`gubbins_divergence_limit=FRACTION`
+  than 12% of the columns are variable (`gubbins_divergence_limit=FRACTION`
   moves the limit) or when the genome names span more than one species;
   `gubbins_force=true` runs it anyway, with a warning. The species check
   reads only names whose last token is an accession, so a user's own

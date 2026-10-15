@@ -188,9 +188,9 @@ DIVERGENCE_REFUSE_FRACTION = 0.12
 # divergence (a handful of columns is often all variable), so neither the
 # warning nor the refusal applies.
 MIN_COLUMNS_FOR_DIVERGENCE = 1000
-# Gubbins' default first tree (RAxML or IQ-TREE under the resolved builder)
-# took most of a 87-minute run where a rapidnj/JC first tree took minutes;
-# the final tree is still built by the resolved builder.
+# With IQ-TREE as Gubbins' tree builder, tree building took 76 of 87 minutes
+# on a genus-level set (docs/verification.md); a rapidnj first tree makes the
+# first iteration cheap, and the resolved builder still builds the later ones.
 DEFAULT_FIRST_TREE_BUILDER = ("rapidnj", "JC")
 
 
@@ -235,7 +235,12 @@ def check_species_spread(names: list[str], extra: dict, logger: logging.Logger) 
 
 
 def _forced(extra: dict) -> bool:
-    return str(extra.get("gubbins_force", "")).strip().lower() in ("1", "true", "yes")
+    raw = str(extra.get("gubbins_force", "")).strip().lower()
+    if raw in ("", "0", "false", "no"):
+        return False
+    if raw in ("1", "true", "yes"):
+        return True
+    raise UserInputError(f"gubbins_force must be true or false, got {extra.get('gubbins_force')!r}")
 
 
 def variable_fraction(records: dict[str, str], sample: int = 200_000) -> tuple[float, int]:
@@ -292,6 +297,7 @@ class GubbinsMasker(Masker):
         """What can be refused before SNP typing: a set spanning more than one
         species by genome name, and an unusable gubbins_divergence_limit."""
         _divergence_limit(extra)
+        _forced(extra)
         check_species_spread(names, extra, logger)
 
     def tree_output(self) -> Path | None:
@@ -401,11 +407,15 @@ class GubbinsMasker(Masker):
         user_args = shlex.split(str(params.extra.get("gubbins_args", "")))
         if first:
             argv += ["--first-tree-builder", str(first)]
-        elif "--first-tree-builder" not in user_args and self._rapidnj_available():
+        elif (
+            "--first-tree-builder" not in user_args
+            and not any(
+                a.startswith("--first-model") or a == "--custom-first-model" for a in user_args
+            )
+            and self._rapidnj_available()
+        ):
             builder_name, model = DEFAULT_FIRST_TREE_BUILDER
-            argv += ["--first-tree-builder", builder_name]
-            if "--first-model" not in user_args:
-                argv += ["--first-model", model]
+            argv += ["--first-tree-builder", builder_name, "--first-model", model]
             logger.info(
                 "Gubbins first tree: %s with the %s model (gubbins_first_tree_builder=... "
                 "to change); later iterations use %s.",

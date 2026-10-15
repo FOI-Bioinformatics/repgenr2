@@ -1476,15 +1476,17 @@ such build it switches to IQ-TREE (or to one thread when IQ-TREE is missing
 too) and says so in the log. `--tool-arg gubbins_tree_builder=raxmlng`,
 `--tool-arg gubbins_first_tree_builder=rapidnj` and
 `--tool-arg gubbins_args="--min-snps 5"` pass the choice, the first-iteration
-builder and any further `run_gubbins.py` arguments through. Unless the
-first-iteration builder is given, repgenr asks for `rapidnj` with the JC model
-when rapidnj is available (it ships with Gubbins): on a genus-level set the
-first tree alone took most of an 87-minute run under IQ-TREE and minutes
-under rapidnj, and later iterations still use the resolved builder. Gubbins'
+builder and any further `run_gubbins.py` arguments through. Unless a
+first-iteration builder or model is given, repgenr asks for `rapidnj` with the
+JC model when rapidnj is available (it ships with Gubbins): with IQ-TREE as
+Gubbins' tree builder, tree building took 76 of 87 minutes on a genus-level
+set (`verification.md`), and a rapidnj first tree makes the first iteration
+cheap while later iterations still use the resolved builder. Gubbins'
 own final tree, its recombination-aware maximum-likelihood tree, is kept as
 `masker_tree.nwk` beside the masked alignment for comparison with the tree
 repgenr builds from the filtered sites. Masking is refused (exit 2) when more
-than 12 % of the columns are variable, where Gubbins has died, or when the
+than 12% of the columns are variable, near where Gubbins has failed (13% in
+`verification.md`), or when the
 genome names (canonical `Family_Genus_species_Accession` names only, read
 where the last token is an accession) span more than one species; the
 species check runs before SNP typing. `--tool-arg

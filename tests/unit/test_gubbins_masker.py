@@ -543,3 +543,34 @@ def test_precheck_refuses_before_any_typing(caplog) -> None:
     with pytest.raises(UserInputError, match="gubbins_divergence_limit"):
         masker.precheck(["a"], {"gubbins_divergence_limit": "2"}, logging.getLogger("t"))
     masker.precheck(["Fam_Gen_alpha_GCF_1.1", "Fam_Gen_alpha_GCF_2.1"], {}, logging.getLogger("t"))
+
+
+def test_gubbins_force_accepts_only_booleans() -> None:
+    from repgenr.core.errors import UserInputError
+
+    for raw, expected in (
+        ("true", True),
+        ("1", True),
+        ("yes", True),
+        ("false", False),
+        ("", False),
+    ):
+        assert mod._forced({"gubbins_force": raw}) is expected
+    with pytest.raises(UserInputError, match="gubbins_force"):
+        mod._forced({"gubbins_force": "ture"})
+
+
+def test_a_user_first_model_suppresses_the_rapidnj_default(tmp_path: Path, monkeypatch) -> None:
+    calls: list = []
+    _fake_gubbins(monkeypatch, calls)
+    monkeypatch.setattr(mod, "runs_on_host", lambda caps: True)
+    monkeypatch.setattr(mod, "host_which", lambda name, tool: "/usr/bin/rapidnj")
+    full = tmp_path / "full.fasta"
+    full.write_text(">a\nACGT\n>b\nACGA\n", encoding="utf-8")
+    mod.GubbinsMasker().mask(
+        full,
+        tmp_path / "gub",
+        MaskParams(extra={"gubbins_args": "--first-model GTR"}),
+        logging.getLogger("t"),
+    )
+    assert "--first-tree-builder" not in calls[0] and calls[0].count("--first-model") == 1
