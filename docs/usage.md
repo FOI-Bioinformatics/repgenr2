@@ -1575,7 +1575,7 @@ Run `nextflow run nextflow/main.nf --help` for the parameter summary.
 | `--outdir` | `results` | Published results and execution reports. |
 | `--mode` | `bacterial` | `bacterial` (GTDB), `viral` (NCBI Virus; BV-BRC via `--vmetadata_args "--source bvbrc"`) or `reads` (ENA/SRA sequencing runs, assembled per run). |
 | `--metadata_args` | see config | Arguments for the bacterial metadata stage. |
-| `--vmetadata_args` / `--vgenome_args` | see config | Viral metadata / genome selection arguments. |
+| `--vmetadata_args` / `--vgenome_args` | see config | Viral metadata / genome selection arguments. With `--group-segments` in `--vgenome_args`, the acquisition task passes `segments.tsv` to `tree2tax-relations`, so `genomes_map.tsv` lists the member segment accessions of each grouped isolate; `segments.tsv` itself is not published. |
 | `--reads_args` | see config | Arguments for the reads stage (ENA/SRA run selection by taxon or accession). |
 | `--assembler` | `auto` | Assembler for every run in reads mode (`auto` picks by platform). |
 | `--assemble_args` | (empty) | Extra `assemble-run` flags in reads mode (`--polisher`, `--min-contig-length`, `--tool-arg`). |

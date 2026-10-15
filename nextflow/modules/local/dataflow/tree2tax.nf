@@ -59,6 +59,10 @@ process TREE2TAX {
         acc=\$(echo \$leaf | awk -F_ '{print \$(NF-1)"_"\$NF}')
         printf '%s\\t%s\\n' "\$acc" "\$leaf" >> genomes_map.tsv
     done
+    # As the real step: a staged segments.tsv adds its member accessions.
+    if [ -f segments.tsv ]; then
+        tail -n +2 segments.tsv | awk -F'\\t' '{print \$2"\\t"\$1}' >> genomes_map.tsv
+    fi
     touch versions.yml
     """
 }

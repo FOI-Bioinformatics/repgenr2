@@ -316,7 +316,7 @@ def _tree2tax_inputs(ctx: WorkdirContext, params: Any) -> list[Path]:
     paths += [
         ctx.workdir / SEGMENTS_TSV,
         ctx.workdir / OUTGROUP_ACCESSION_TXT,
-        ctx.workdir / "outgroup",
+        ctx.outgroup_dir,
     ]
     return paths
 

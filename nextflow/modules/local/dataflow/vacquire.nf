@@ -45,7 +45,9 @@ process VACQUIRE {
         : > outgroup_accession.txt
     fi
     # Written by vgenome --group-segments; absent otherwise (optional output).
-    [ -f wd/segments.tsv ] && cp wd/segments.tsv segments.tsv || true
+    if [ -f wd/segments.tsv ]; then
+        cp wd/segments.tsv segments.tsv
+    fi
 
     repgenr versions -wd wd --versions-out tool_versions.yml
     repgenr_versions_fragment "${task.process}" tool_versions.yml

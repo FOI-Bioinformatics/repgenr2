@@ -21,6 +21,22 @@ nextflow_pipeline {
         }
     }
 
+    test("segments.tsv from --group-segments reaches tree2tax and the genome map") {
+        when {
+            params {
+                outdir = "$outputDir"
+                derep_process_size = 1
+                derep_tool = 'sourmash'
+                vgenome_args = '-tg mastadenovirus --group-segments'
+            }
+        }
+        then {
+            assert workflow.success
+            def rows = path("$outputDir/genomes_map.tsv").readLines()
+            assert rows.any { row -> row.startsWith('iso1_S\t') }
+        }
+    }
+
     test("a run without an outgroup still reaches phylo and tree2tax") {
         // The optional outgroup output stays unmatched; the join placeholder
         // keeps the downstream tuples well-formed (live audit finding).

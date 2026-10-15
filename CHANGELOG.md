@@ -17,6 +17,8 @@ All notable changes to RepGenR2 are documented here. The format follows
   workdir stage does; the Nextflow viral path stages `segments.tsv` from the
   acquisition task when `vgenome --group-segments` wrote it. The resume
   fingerprint of `tree2tax` digests `segments.tsv`, `outgroup_accession.txt`
+  and `outgroup/` (an existing workdir therefore reruns `tree2tax` once), and
+  the stage record carries `node_basename`.
   and `outgroup/` when present, and the stage record carries
   `node_basename`.
 - `tree2tax`: internal nodes are named in one pass over the tree (the sum of

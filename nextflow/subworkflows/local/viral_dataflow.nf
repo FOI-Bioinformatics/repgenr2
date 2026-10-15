@@ -66,7 +66,7 @@ workflow VIRAL_DATAFLOW {
     def ch_segments = ch_genomes
         .map { meta, _files -> tuple(meta, []) }
         .join(VACQUIRE.out.segments, by: 0, remainder: true)
-        .map { meta, _placeholder, file -> tuple(meta, file == null ? [] : file) }
+        .map { meta, _placeholder, seg -> tuple(meta, seg == null ? [] : seg) }
     // [meta, tree] joined with [meta, reps, outgroup, accession] and [meta, segments]
     def ch_tree2tax_in = ch_tree.join(ch_phylo_in, by: 0).join(ch_segments, by: 0)
 
