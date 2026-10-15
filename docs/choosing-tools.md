@@ -55,9 +55,15 @@ Notes on the table:
 
 - Times are from one machine (11 cores, 18 GB). Treat them as orders of
   magnitude.
-- The sourmash tree builder uses a pure-Python neighbour-joining step. A fit to
-  the measured times gives about 1.6 hours at 5000 genomes. Its declared limit
-  is 2000, and it refuses input above 5000.
+- The sourmash tree builder joins its distance matrix with rapidNJ when the
+  `rapidnj` binary is installed (`envs/core.yml` has it) and with a
+  pure-Python step otherwise. A fit to the measured times of the Python step
+  gives about 1.6 hours at 5000 genomes, so without rapidNJ more than 5000
+  leaves are refused; with it the joining is reported by rapidNJ's authors to
+  take seconds at that size (not measured here) and the dense `sourmash
+  compare` matrix becomes the limit. The declared limit stays 2000
+  until that is measured. `--aligner-arg nj=python` or `nj=rapidnj` forces
+  one backend.
 - **Most limits are declared, not benchmarked.** The audit found the declared
   `recommended_max_genomes` values to be round numbers with no recorded
   measurement behind them (500, 1000, 2000, 5000, 10000). The scaling audit
@@ -212,7 +218,7 @@ multi-threaded RAxML build when given more than one thread; see
 | `raxmlng` | MSA | Declared 1000. Slow beyond that. | Supports from its own bootstrap procedure. With a SNP alignment the constant-site counts go on the model as `+ASC_STAM`; `asc=lewis` selects `+ASC_LEWIS` instead. | Roots on the outgroup. |
 | `fasttree` | MSA | Declared 5000. Good to about 5000. | Approximate. Weaker resolution on clonal sets. | Unrooted. |
 | `mashtree` | Genomes | Declared 10000. 53 min and 7.6 GB measured at 5000. | Poor on clonal sets. No supports. | Unrooted. |
-| `sourmash` | Genomes | Declared 2000. Cubic in the neighbour-joining step. | Poor on clonal sets. No supports. | Unrooted. |
+| `sourmash` | Genomes | Declared 2000. The joining step runs rapidNJ when installed (`nj=auto`), else a cubic Python step refused above 5000. | Poor on clonal sets. No supports. | Unrooted. |
 
 `--treebuilder auto` picks the builder whose declared scale fits the leaf
 count, the outgroup included. When `--msa-source snptype` or `--mask` is

@@ -7,6 +7,14 @@ All notable changes to RepGenR2 are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- The sourmash tree builder joins its distance matrix with rapidNJ when the
+  `rapidnj` binary is installed (or an image is pinned under a container
+  backend) and with the pure-Python step otherwise (`repgenr.tree.nj`;
+  `--aligner-arg nj=auto|rapidnj|python`). rapidNJ reads a square PHYLIP
+  matrix with integer stand-in names, so labels survive unchanged; negative
+  branch lengths are set to zero as before. The hard refusal above 5000
+  leaves now applies only to the Python step; the declared limit of 2000
+  stays until the dense compare is measured. `envs/core.yml` adds rapidnj.
 - `tree2tax --naming lca` (also on `tree2tax-relations` and `run`) names an
   internal node by a hash of the smallest leaf label under each of its
   children, the set whose last common ancestor it is, so a genome added with
