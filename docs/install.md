@@ -61,6 +61,7 @@ dry-runs each solve on every change to `envs/` and once a week
 | `envs/panaroo.yml` | `repgenr-panaroo` | Panaroo and mafft (core-gene alignment; Panaroo's dependencies bring prokka) | linux-64, osx-64 |
 | `envs/ppanggolin.yml` | `repgenr-ppanggolin` | PPanGGOLiN (core-gene alignment; its dependencies bring MMseqs2 and mafft) | linux-64, osx-64, osx-arm64 |
 | `envs/scarap.yml` | `repgenr-scarap` | SCARAP (core-gene alignment; its dependencies bring MMseqs2 and mafft) | linux-64, osx-64, osx-arm64 |
+| `envs/orthofinder.yml` | `repgenr-orthofinder` | OrthoFinder and DIAMOND (core-gene alignment; its dependencies bring mafft) | linux-64, osx-64, osx-arm64 |
 
 Create the core environment and only the satellites you need. The core file
 installs the package in editable mode from the checkout:
@@ -292,6 +293,7 @@ the `envs/` files, and the environment that holds each tool is listed in
 | Core-gene builder | panaroo | `panaroo`, `mafft` | no (its dependency prokka is not packaged for arm64; `CONDA_SUBDIR=osx-64` works) | `panaroo:1.8.0` | none |
 | Core-gene builder | ppanggolin | `ppanggolin`, `mafft` | yes | `ppanggolin:2.3.2` | none |
 | Core-gene builder | scarap | `scarap`, `mmseqs`, `mafft` | yes | `scarap:1.0.2` | none |
+| Core-gene builder | orthofinder | `orthofinder`, `diamond`, `mafft` | yes | `orthofinder:3.1.5` | none |
 | Quality (reads chain) | checkm2 | `checkm2` | no | `checkm2:1.1.0` | CheckM2 database: `checkm2 database --download`, then `--checkm2-db` or `CHECKM2DB` |
 
 The genome download steps also need `ncbi-datasets-cli`.

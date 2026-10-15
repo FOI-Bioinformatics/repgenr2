@@ -36,13 +36,18 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from ..core.binaries import BinarySpec
-from ..core.containers import run_tool
-from ..core.errors import UserInputError, WorkdirError
+from ..core.bindirs import host_which
+from ..core.containers import run_tool, runs_on_host
+from ..core.errors import ToolExecutionError, UserInputError, WorkdirError
 from ..core.plugins import ToolCapabilities, parse_extra_int
-from .base import CoreGeneBuilder, CoreGeneParams, CoreGeneResult
+from .base import CoreGeneBuilder, CoreGeneParams, CoreGeneResult, annotation_sidecars
 
-# O-B and O-D call OrthoFinder, which the SCARAP package and image do not ship.
-METHODS = ("H", "FH", "FT", "H-nl", "T-nl", "P", "S")
+METHODS = ("H", "FH", "FT", "H-nl", "T-nl", "P", "S", "O-B", "O-D")
+# These build the seed pangenome with OrthoFinder (BLAST or DIAMOND search).
+# The SCARAP package and image do not ship it, and SCARAP 1.0.2 reads its
+# result with a pandas call removed in pandas 2; envs/scarap.yml provides
+# both OrthoFinder and pandas older than 2, so they run natively from it.
+ORTHOFINDER_METHODS = ("O-B", "O-D")
 SUPERMATRIX = "supermatrix_nucs.fasta"
 TABLES = ("genes.tsv",)
 # Below this a core-gene tree rests on very little.
@@ -99,15 +104,9 @@ class ScarapBuilder(CoreGeneBuilder):
                 "scarap max_core_genes must be 0 or more and seeds 1 or more, "
                 f"got {max_core} and {seeds}"
             )
-        faas = [g.with_suffix(".faa") for g in gffs]
-        ffns = [g.with_suffix(".ffn") for g in gffs]
-        missing = [str(p) for p in (*faas, *ffns) if not p.is_file()]
-        if missing:
-            raise WorkdirError(
-                f"scarap reads the protein and gene files the annotate stage writes beside "
-                f"each GFF3, and {len(missing)} are missing ({', '.join(missing[:3])}); "
-                "rerun `repgenr annotate --force`."
-            )
+        if method in ORTHOFINDER_METHODS:
+            _check_orthofinder_method(self.capabilities, method)
+        faas, ffns = annotation_sidecars(gffs, "scarap")
         _refuse_shared_gene_ids(faas)
 
         out_dir.mkdir(parents=True, exist_ok=True)
@@ -124,10 +123,19 @@ class ScarapBuilder(CoreGeneBuilder):
             "-f", f"{params.core_threshold:g}", "-p", f"{prefilter:g}", "-d", method,
             "-m", str(max_core), "-e", str(seeds), "-t", str(params.threads),
         ]  # fmt: skip
-        run_tool(
-            self.capabilities, core, logger=logger, cwd=out_dir,
-            log_prefix="scarap", extra_mounts=mounts,
-        )  # fmt: skip
+        try:
+            run_tool(
+                self.capabilities, core, logger=logger, cwd=out_dir,
+                log_prefix="scarap", extra_mounts=mounts,
+            )  # fmt: skip
+        except ToolExecutionError as exc:
+            if method in ORTHOFINDER_METHODS and "has no attribute 'append'" in (exc.output or ""):
+                raise WorkdirError(
+                    f"scarap method {method} ran OrthoFinder and then failed reading its "
+                    "result: SCARAP 1.0.2 uses a pandas call removed in pandas 2. Run it from "
+                    "the environment envs/scarap.yml builds, which keeps pandas older than 2."
+                ) from exc
+            raise
 
         genes = core_dir / "genes.tsv"
         orthogroups = _core_orthogroups(genes, params.core_threshold, max_core)
@@ -172,6 +180,23 @@ class ScarapBuilder(CoreGeneBuilder):
                 # with no fixed identity cut.
                 "clustering_on": "protein profiles",
             },
+        )
+
+
+def _check_orthofinder_method(caps: ToolCapabilities, method: str) -> None:
+    """Methods O-B and O-D need OrthoFinder (and BLAST for O-B) beside scarap."""
+    if not runs_on_host(caps):
+        raise UserInputError(
+            f"scarap method {method} needs OrthoFinder, which the SCARAP image does not "
+            "include. Run natively from the environment envs/scarap.yml builds (with "
+            "--bin-dir scarap=<env>/bin), or choose another method."
+        )
+    needed = ["orthofinder"] + (["blastp"] if method == "O-B" else ["diamond"])
+    missing = [b for b in needed if host_which(b, "scarap") is None]
+    if missing:
+        raise UserInputError(
+            f"scarap method {method} needs {', '.join(missing)} beside scarap, and it is not "
+            "on scarap's PATH. The environment envs/scarap.yml builds has it."
         )
 
 

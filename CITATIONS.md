@@ -60,6 +60,7 @@ The stages below shell out to external tools; cite the ones your run uses.
   - [Panaroo](https://doi.org/10.1186/s13059-020-02090-4) (Tonkin-Hill et al. 2020, Genome Biology)
   - [PPanGGOLiN](https://doi.org/10.1371/journal.pcbi.1007732) (Gautreau et al. 2020, PLOS Computational Biology), with [MMseqs2](https://doi.org/10.1038/nbt.3988) (Steinegger and Soding 2017, Nature Biotechnology)
   - [SCARAP](https://doi.org/10.1093/bioinformatics/btae735) (Wittouck et al. 2024, Bioinformatics)
+  - [OrthoFinder](https://doi.org/10.1186/s13059-019-1832-y) (Emms and Kelly 2019, Genome Biology), with [DIAMOND](https://doi.org/10.1038/s41592-021-01101-x) (Buchfink et al. 2021, Nature Methods)
   - [MAFFT](https://doi.org/10.1093/molbev/mst010) (Katoh and Standley 2013, Molecular Biology and Evolution)
 
 - **Read assembly (reads chain)**

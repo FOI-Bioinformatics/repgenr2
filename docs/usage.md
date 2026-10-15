@@ -1548,6 +1548,30 @@ genomes it found 577 single-copy core genes, and its IQ-TREE tree shared 20
 of 21 splits with the PPanGGOLiN one. It took about six and a half minutes
 on this machine, against three for PPanGGOLiN. Its declared limit of 10000
 genomes is not measured here; the authors ran it on over 31000.
+`method=O-D` and `method=O-B` build SCARAP's seed pangenome with
+OrthoFinder instead (DIAMOND or BLAST search). They run natively only,
+from the environment `envs/scarap.yml` builds: the SCARAP image has no
+OrthoFinder, and SCARAP 1.0.2 reads OrthoFinder's result with a pandas call
+that pandas 2 removed, so that environment keeps pandas older than 2. On
+the 24 genomes they found 565 (`O-D`) and 568 (`O-B`) core genes, against
+576 for the default method in the same environment, and took several times
+longer; through RepGenR2 `O-D` gave the same tree as the default method.
+
+`--coregene orthofinder` runs OrthoFinder on its own. It compares every
+proteome against every other with DIAMOND (`--aligner-arg search=`, also
+`diamond_ultra_sens`, `blastp` or `mmseqs`), clusters the hits into
+orthogroups with MCL (`inflation=`, 1.2) and stops there (`-og`); the gene
+trees it would build next are not needed. The adapter keeps the orthogroups
+present in a single copy in at least `--core-threshold` of the genomes,
+aligns each one's proteins with mafft and back-translates the alignment to
+codons from the `.ffn` files, so the result is a DNA alignment like the
+other builders'. A gene whose length does not match its protein is a gap,
+and the log counts them. On the 24 genomes it kept 585 orthogroups, and its
+tree shared 20 of 21 splits with the PPanGGOLiN tree and 19 with the
+SCARAP one. Its core-gene step took about six minutes, most of it the
+search, close to SCARAP's. The search is all against all, so its cost grows
+roughly with the square of the genome count; the declared limit of 200
+genomes is not measured.
 
 ### SNP typing and masking
 

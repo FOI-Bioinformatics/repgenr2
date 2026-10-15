@@ -1,4 +1,4 @@
-# SCARAP for the core-gene route; its dependencies bring MMseqs2 and mafft. Platforms: linux-64, osx-64, osx-arm64.
+# SCARAP for the core-gene route, with OrthoFinder for its O-B and O-D methods; pandas older than 2 because SCARAP 1.0.2 reads OrthoFinder's result with a call pandas 2 removed. Its dependencies bring MMseqs2 and mafft. Platforms: linux-64, osx-64, osx-arm64.
 name: repgenr-scarap
 channels:
   - conda-forge
@@ -6,3 +6,5 @@ channels:
   - nodefaults
 dependencies:
   - scarap>=1.0
+  - orthofinder>=3.0
+  - pandas<2

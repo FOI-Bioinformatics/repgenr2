@@ -36,6 +36,9 @@ _STOP_GRACE = 1.0
 # or "GLIBC_2.17" in a loader error is not the tool's version. A leading "v"
 # ("dRep v3.4.5", "hal2maf v2.2") is allowed.
 _VERSION_RE = re.compile(r"(?<![0-9A-UW-Za-uw-z_./])(\d+)\.(\d+)(?:\.(\d+))?")
+# Terminal colour and style codes. OrthoFinder 3 colours its version even
+# when the output is not a terminal, splitting "3.1.5" into "3." and "1.5".
+_ANSI_RE = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
 
 
 @dataclass(frozen=True)
@@ -57,7 +60,7 @@ class BinarySpec:
 
 
 def _parse_version(text: str) -> tuple[int, int, int] | None:
-    match = _VERSION_RE.search(text)
+    match = _VERSION_RE.search(_ANSI_RE.sub("", text))
     if not match:
         return None
     major, minor, patch = match.group(1), match.group(2), match.group(3)

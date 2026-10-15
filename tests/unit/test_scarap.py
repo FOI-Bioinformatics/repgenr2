@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from repgenr.core.errors import UserInputError, WorkdirError
+from repgenr.core.errors import ToolExecutionError, UserInputError, WorkdirError
 from repgenr.coregenes import scarap as mod
 from repgenr.coregenes.base import CoreGeneParams, registry
 
@@ -104,7 +104,6 @@ def test_bad_values_and_missing_files_are_refused_before_any_call(
     monkeypatch.setattr(mod, "run_tool", _fake(calls))
     for extra, match in (
         ({"method": "BLAST"}, "method"),
-        ({"method": "O-D"}, "method"),
         ({"core_prefilter": "1.5"}, "core_prefilter"),
         ({"core_prefilter": "x"}, "core_prefilter"),
         ({"seeds": 0}, "seeds"),
@@ -186,3 +185,51 @@ def test_gene_ids_shared_across_genomes_are_refused(tmp_path: Path, monkeypatch)
     with pytest.raises(WorkdirError, match="g1 is in both"):
         mod.ScarapBuilder().call(gffs, tmp_path / "o", CoreGeneParams(), _LOG)
     assert calls == []
+
+
+def test_orthofinder_methods_need_orthofinder_beside_scarap(tmp_path: Path, monkeypatch) -> None:
+    calls: list[list[str]] = []
+    monkeypatch.setattr(mod, "run_tool", _fake(calls))
+    monkeypatch.setattr(mod, "runs_on_host", lambda caps: True)
+    on_path = {"orthofinder", "diamond"}
+    monkeypatch.setattr(mod, "host_which", lambda b, t: f"/x/{b}" if b in on_path else None)
+    # O-D searches with DIAMOND, which is there.
+    mod.ScarapBuilder().call(
+        _gffs(tmp_path), tmp_path / "o1", CoreGeneParams(extra={"method": "O-D"}), _LOG
+    )
+    assert calls[0][calls[0].index("-d") + 1] == "O-D"
+    # O-B searches with BLAST, which is not.
+    with pytest.raises(UserInputError, match="needs blastp"):
+        mod.ScarapBuilder().call(
+            _gffs(tmp_path), tmp_path / "o2", CoreGeneParams(extra={"method": "O-B"}), _LOG
+        )
+    on_path.clear()
+    with pytest.raises(UserInputError, match="needs orthofinder, diamond"):
+        mod.ScarapBuilder().call(
+            _gffs(tmp_path), tmp_path / "o3", CoreGeneParams(extra={"method": "O-D"}), _LOG
+        )
+    # In the SCARAP image there is no OrthoFinder at all.
+    monkeypatch.setattr(mod, "runs_on_host", lambda caps: False)
+    with pytest.raises(UserInputError, match="SCARAP image does not include"):
+        mod.ScarapBuilder().call(
+            _gffs(tmp_path), tmp_path / "o4", CoreGeneParams(extra={"method": "O-D"}), _LOG
+        )
+    assert len(calls) == 2  # core and concat of the first run only
+
+
+def test_the_pandas_2_failure_is_explained(tmp_path: Path, monkeypatch) -> None:
+    def failing(caps, cmd, **k):
+        raise ToolExecutionError(
+            [str(c) for c in cmd], 1, "AttributeError: 'DataFrame' object has no attribute 'append'"
+        )
+
+    monkeypatch.setattr(mod, "run_tool", failing)
+    monkeypatch.setattr(mod, "runs_on_host", lambda caps: True)
+    monkeypatch.setattr(mod, "host_which", lambda b, t: f"/x/{b}")
+    with pytest.raises(WorkdirError, match="pandas older than 2"):
+        mod.ScarapBuilder().call(
+            _gffs(tmp_path), tmp_path / "o", CoreGeneParams(extra={"method": "O-D"}), _LOG
+        )
+    # Any other failure, and the same failure from another method, pass through.
+    with pytest.raises(ToolExecutionError):
+        mod.ScarapBuilder().call(_gffs(tmp_path), tmp_path / "o2", CoreGeneParams(), _LOG)

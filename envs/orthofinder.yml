@@ -1,0 +1,9 @@
+# OrthoFinder and DIAMOND for the core-gene route; its dependencies bring mafft. Platforms: linux-64, osx-64, osx-arm64.
+name: repgenr-orthofinder
+channels:
+  - conda-forge
+  - bioconda
+  - nodefaults
+dependencies:
+  - orthofinder>=3.0
+  - diamond>=2.0
