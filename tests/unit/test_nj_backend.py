@@ -25,7 +25,7 @@ def test_auto_prefers_rapidnj_when_available(monkeypatch, caplog) -> None:
     monkeypatch.setattr(mod, "tool_available", lambda caps: False)
     with caplog.at_level(logging.INFO, logger="test-nj"):
         assert mod.choose_backend(mod.NJ_AUTO, 10, _LOG) == mod.NJ_PYTHON
-    assert any("rapidnj is not installed" in r.getMessage() for r in caplog.records)
+    assert any("rapidnj is not available" in r.getMessage() for r in caplog.records)
 
 
 def test_explicit_backends_and_the_python_ceiling(monkeypatch) -> None:

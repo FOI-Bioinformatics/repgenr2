@@ -59,8 +59,9 @@ Notes on the table:
   `rapidnj` binary is installed (`envs/core.yml` has it) and with a
   pure-Python step otherwise. A fit to the measured times of the Python step
   gives about 1.6 hours at 5000 genomes, so without rapidNJ more than 5000
-  leaves are refused; with it the joining takes seconds and the dense
-  `sourmash compare` matrix becomes the limit. The declared limit stays 2000
+  leaves are refused; with it the joining is reported by rapidNJ's authors to
+  take seconds at that size (not measured here) and the dense `sourmash
+  compare` matrix becomes the limit. The declared limit stays 2000
   until that is measured. `--aligner-arg nj=python` or `nj=rapidnj` forces
   one backend.
 - **Most limits are declared, not benchmarked.** The audit found the declared

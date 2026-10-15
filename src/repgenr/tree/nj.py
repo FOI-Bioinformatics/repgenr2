@@ -2,8 +2,9 @@
 
 The pure-Python :func:`repgenr.tree.newick.neighbor_joining` is cubic and
 measured at about 1.6 hours for 5000 leaves (docs/audit/scaling-audit.md).
-rapidNJ (Simonsen et al. 2008) joins the same matrix in seconds at that size
-and runs to tens of thousands of leaves, so a distance-based builder calls
+rapidNJ (Simonsen et al. 2008) is reported by its authors to join a matrix
+of that size in seconds and to run to tens of thousands of leaves (not
+measured here), so a distance-based builder calls
 :func:`nj_tree` and gets rapidNJ when the binary is on PATH (or an image is
 pinned under a container backend) and the Python code otherwise.
 
@@ -36,8 +37,6 @@ NJ_BACKENDS = (NJ_AUTO, NJ_RAPIDNJ, NJ_PYTHON)
 
 # Above this the Python joining takes hours; refused unless rapidNJ runs.
 PYTHON_NJ_MAX = 5000
-# Declared, not measured here: rapidNJ's authors report trees of this size.
-RAPIDNJ_MAX = 50000
 
 RAPIDNJ = ToolCapabilities(
     name="rapidnj",
@@ -73,7 +72,7 @@ def choose_backend(requested: str, n: int, logger: logging.Logger) -> str:
         )
     if requested == NJ_AUTO:
         logger.info(
-            "rapidnj is not installed; joining %d leaves in Python (seconds below a few "
+            "rapidnj is not available; joining %d leaves in Python (seconds below a few "
             "hundred leaves, minutes near a thousand, hours near %d)",
             n,
             PYTHON_NJ_MAX,
