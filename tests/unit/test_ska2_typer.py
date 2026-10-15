@@ -101,3 +101,63 @@ def test_ska2_is_registered_as_reference_free() -> None:
     from repgenr.snptypers.base import registry
 
     assert registry.get("ska2").requires_reference is False
+
+
+def test_ska2_lo_replaces_align(tmp_path: Path, monkeypatch) -> None:
+    calls: list[list[str]] = []
+
+    def fake(caps, argv, **kw):  # noqa: ANN001
+        argv = [str(a) for a in argv]
+        calls.append(argv)
+        if argv[1] == "build":
+            Path(argv[argv.index("-o") + 1] + ".skf").write_bytes(b"skf")
+        elif argv[1] == "lo":
+            Path(argv[-1] + "_snps.fas").write_text(">a\nA\n>b\nC\n", encoding="utf-8")
+            Path(argv[-1] + "_indels.vcf").write_text("##fileformat=VCFv4.2\n", encoding="utf-8")
+        return 0
+
+    monkeypatch.setattr(mod, "run_tool", fake)
+    result = mod.Ska2Typer().call(
+        _genomes(tmp_path),
+        None,
+        tmp_path / "out",
+        SnpParams(threads=3, extra={"lo": "true", "lo_missing": 0.2}),
+        _LOG,
+    )
+    build, lo = calls
+    assert lo[:2] == ["ska", "lo"] and lo[lo.index("--threads") + 1] == "3"
+    assert lo[lo.index("-m") + 1] == "0.2" and lo[-2].endswith(".skf")
+    assert result.core_snp_fasta.read_text(encoding="utf-8").startswith(">a")
+    assert result.full_alignment is None
+    assert result.vcf is not None and result.vcf.name == "lo_indels.vcf"
+    assert not any(c[1] == "align" for c in calls)
+
+
+def test_ska2_lo_with_only_headers_is_an_error(tmp_path: Path, monkeypatch) -> None:
+    def fake(caps, argv, **kw):  # noqa: ANN001
+        argv = [str(a) for a in argv]
+        if argv[1] == "build":
+            Path(argv[argv.index("-o") + 1] + ".skf").write_bytes(b"skf")
+        elif argv[1] == "lo":
+            Path(argv[-1] + "_snps.fas").write_text(">a\n\n>b\n\n", encoding="utf-8")
+        return 0
+
+    monkeypatch.setattr(mod, "run_tool", fake)
+    with pytest.raises(WorkdirError, match="no variable sites"):
+        mod.Ska2Typer().call(
+            _genomes(tmp_path), None, tmp_path / "out", SnpParams(extra={"lo": True}), _LOG
+        )
+
+
+def test_ska2_lo_without_output_is_an_error(tmp_path: Path, monkeypatch) -> None:
+    def fake(caps, argv, **kw):  # noqa: ANN001
+        argv = [str(a) for a in argv]
+        if argv[1] == "build":
+            Path(argv[argv.index("-o") + 1] + ".skf").write_bytes(b"skf")
+        return 0
+
+    monkeypatch.setattr(mod, "run_tool", fake)
+    with pytest.raises(WorkdirError, match="ska lo"):
+        mod.Ska2Typer().call(
+            _genomes(tmp_path), None, tmp_path / "out", SnpParams(extra={"lo": True}), _LOG
+        )

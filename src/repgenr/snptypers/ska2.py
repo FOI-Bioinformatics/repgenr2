@@ -9,7 +9,11 @@ refuses ``--mask`` for it with a message naming the alternatives).
 Command surface checked against ska 0.5.1 (bioconda ``ska2``): ``ska build -f
 <name TAB path list> -k K --threads N -o <prefix>`` writes ``<prefix>.skf``;
 ``ska align --min-freq F --filter no-ambig-or-const --threads N -o <out>
-<prefix>.skf`` writes the alignment.
+<prefix>.skf`` writes the alignment. With ``lo=true`` the alignment comes
+from ``ska lo <prefix>.skf <out>`` instead (``<out>_snps.fas``), which
+recovers variants in more diverged samples through local assembly of the
+split k-mer graph (Horsfield et al. 2025); ``lo_missing`` is its maximum
+fraction of missing data per site (0.1).
 """
 
 from __future__ import annotations
@@ -23,8 +27,18 @@ from ..core.binaries import BinarySpec
 from ..core.containers import run_tool
 from ..core.contracts import record_name
 from ..core.errors import WorkdirError
-from ..core.plugins import ToolCapabilities, parse_extra_int
+from ..core.plugins import ToolCapabilities, parse_extra_bool, parse_extra_int
 from .base import SnpParams, SnpResult, SnpTyper
+
+
+def _has_columns(fasta: Path) -> bool:
+    """True when some record of ``fasta`` has at least one column."""
+    with open(fasta, encoding="utf-8") as fo:
+        for line in fo:
+            if line.startswith(">") or not line.strip():
+                continue
+            return True
+    return False
 
 
 class Ska2Typer(SnpTyper):
@@ -37,12 +51,15 @@ class Ska2Typer(SnpTyper):
         # Split k-mer building is linear in the input; the alignment step reads
         # the whole .skf into memory, which is the practical ceiling.
         recommended_max_genomes=5000,
-        default_params={"ksize": 31, "min_freq": 0.9},
-        accepted_extras=frozenset({"ksize", "min_freq"}),
+        default_params={"ksize": 31, "min_freq": 0.9, "lo": False, "lo_missing": 0.1},
+        accepted_extras=frozenset({"ksize", "min_freq", "lo", "lo_missing"}),
     )
     requires_reference = False
     # Split k-mers have no reference coordinates: only a variable-site alignment.
     produces_full_alignment = False
+    # Shared split k-mers shrink with divergence: the stage warns on a set
+    # spanning more than one species.
+    divergence_sensitive = True
 
     def call(
         self,
@@ -94,6 +111,39 @@ class Ska2Typer(SnpTyper):
             raise WorkdirError("ska build did not produce a split k-mer (.skf) file")
 
         core = out_dir / "core_snp.fasta"
+        if parse_extra_bool(params.extra, "lo", False):
+            lo_prefix = out_dir / "lo"
+            defaults = self.capabilities.default_params
+            missing = str(params.extra.get("lo_missing", defaults["lo_missing"]))
+            if "min_freq" in params.extra:
+                logger.info(
+                    "ska lo does not read min_freq; its site filter is lo_missing (%s)", missing
+                )
+            run_tool(
+                self.capabilities,
+                ["ska", "lo", "--threads", str(params.threads), "-m", missing, skf, lo_prefix],
+                logger=logger,
+                cwd=out_dir,
+                log_prefix="ska-lo",
+            )
+            snps = Path(str(lo_prefix) + "_snps.fas")
+            if not snps.exists() or not _has_columns(snps):
+                raise WorkdirError(
+                    "ska lo produced no variable sites (lo_snps.fas is empty); the genomes may "
+                    "be identical, or too divergent for split k-mers at this k."
+                )
+            snps.replace(core)
+            indels = Path(str(lo_prefix) + "_indels.vcf")
+            logger.info(
+                "ska lo: variants recovered by local assembly; the indels are published as "
+                "variants.vcf"
+            )
+            return SnpResult(
+                core_snp_fasta=core,
+                vcf=indels if indels.exists() else None,
+                masked=False,
+                full_alignment=None,
+            )
         run_tool(
             self.capabilities,
             [

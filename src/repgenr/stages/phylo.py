@@ -4,7 +4,8 @@ Three orthogonal choices:
   * genome set    -- dereplicated representatives (default) or all genomes
   * MSA source    -- a whole-genome aligner OR a SNP typer's core-SNP alignment
                      (skipped entirely for alignment-free tree builders)
-  * tree builder  -- iqtree / fasttree / veryfasttree / raxmlng (MSA) or mashtree / sourmash / skani
+  * tree builder  -- iqtree / fasttree / veryfasttree / raxmlng (MSA) or
+                     mashtree / sourmash / skani / ska2 (alignment-free)
                      (alignment-free)
 
 The outgroup genome is added to the input set here and passed to builders that
@@ -46,8 +47,8 @@ from ..core.contracts import (
     accession_from_filename,
     atomic_path,
     list_fasta,
-    parse_genome_filename,
     record_name,
+    taxonomic_spread,
 )
 from ..core.errors import PluginError, UserInputError, WorkdirError
 from ..core.inputs import file_digest, paths_stat_digest
@@ -1319,18 +1320,9 @@ def _build_msa(
 
 
 def _taxonomic_spread(genomes: Sequence[Path]) -> tuple[int, int]:
-    """Distinct (genera, species) among the inputs, read from the canonical
-    ``Family_Genus_species_Accession.fasta`` filenames. Used to gauge divergence
-    without the manifest, so it works in the shared-workdir and data-channel paths.
-    """
-    genera: set[str] = set()
-    species: set[tuple[str, str]] = set()
-    for g in genomes:
-        _family, genus, sp, _acc = parse_genome_filename(Path(g).name)
-        if genus:
-            genera.add(genus.lower())
-            species.add((genus.lower(), sp.lower()))
-    return len(genera), len(species)
+    """Distinct (genera, species) among the inputs; see
+    :func:`repgenr.core.contracts.taxonomic_spread`."""
+    return taxonomic_spread(genomes)
 
 
 _LOW_DIVERSITY_SITES = 10  # fewer variable columns than this makes a meaningless tree

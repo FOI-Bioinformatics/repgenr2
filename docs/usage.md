@@ -1586,7 +1586,22 @@ variable-site alignment only, so it is not compatible with `--mask`. Tune with
 split k-mer must occur in). On the 60 Wolbachia species representatives from
 GTDB, a genus-level set, it returned 708 variable sites in about two minutes;
 it is designed for clonal and outbreak sets, where the shared k-mer space is
-far larger.
+far larger, and the stage says so when the genome names span more than one
+species. `--tool-arg lo=true` replaces `ska align` with `ska lo`, which
+recovers variants in more diverged samples by local assembly of the split
+k-mer graph (Horsfield et al. 2025); the indels it finds are published as
+`snp/variants.vcf`, `lo_missing` (0.1) is its limit on missing data per
+site, and `min_freq` is not read in this mode.
+
+`--treebuilder ska2` builds a tree without an alignment from the same split
+k-mers: `ska distance` counts the SNPs among the k-mers each pair shares
+(`metric=snps`, the default, branch lengths in SNPs) or the fraction of
+mismatching k-mers (`metric=mismatch`), and the matrix is joined with
+rapidNJ when installed. Pairs sharing few k-mers have their SNPs
+undercounted, so the same divergence warning applies (the outgroup is left
+out of the count), and a pair that shares none is refused, since ska
+writes it as distance 0. `min_freq` here is `ska distance`'s own (0 by
+default). `auto` never picks this builder; name it.
 
 ### Collapsing weak splits in tree2tax
 

@@ -77,11 +77,11 @@ The phylo stage composes three independent choices:
 * MSA source: a whole-genome aligner OR a SNP typer's core-SNP alignment
   (skipped for alignment-free tree builders)
 * tree builder: MSA-based (iqtree/fasttree/veryfasttree/raxmlng) or alignment-free
-  (mashtree/sourmash/skani)
+  (mashtree/sourmash/skani/ska2)
 
 The stage adds the outgroup genome to the input set and passes it to builders
-that can root (iqtree, raxmlng); mashtree, fasttree, veryfasttree, sourmash and
-skani emit an
+that can root (iqtree, raxmlng); mashtree, fasttree, veryfasttree, sourmash,
+skani and ska2 emit an
 unrooted tree. `phylo --root` then roots the published tree (on the outgroup
 edge by default, at the midpoint, or not at all) and keeps the builder's
 output as `tree/tree.unrooted.nwk`. tree2tax reroots on the outgroup only when

@@ -20,6 +20,19 @@ All notable changes to RepGenR2 are documented here. The format follows
   `preset`, `nj`. The builder also provides the distance matrix of the
   viral outgroup selection. Declared limit 10000, not measured here.
   Container `skani:0.3.2`; `envs/core.yml` already has the package.
+- `--treebuilder ska2`: a reference-free distance tree from `ska distance`
+  over the split k-mers each pair shares (`metric=snps`, SNP counts, or
+  `metric=mismatch`), joined with rapidNJ when installed; a pair sharing no
+  k-mers is refused. `--snptyper ska2` takes `lo=true` to replace `ska
+  align` with `ska lo` (variants recovered by local assembly of the split
+  k-mer graph; `lo_missing` is its missing-data limit, 0.1). Both the typer
+  and the builder warn when the genome names, the outgroup left out, span
+  more than one species, since shared split k-mers shrink with divergence
+  (708 variable sites on 60 Wolbachia species representatives);
+  `taxonomic_spread` moved to `core.contracts` for that. A pair sharing no
+  split k-mer, which ska writes as distance 0, is refused. The builder is
+  not a candidate of `--treebuilder auto` (`ToolCapabilities.auto_eligible`).
+  Under `lo=true` the indels go to `snp/variants.vcf`.
 - The sourmash tree builder joins its distance matrix with rapidNJ when the
   `rapidnj` binary is installed (or an image is pinned under a container
   backend) and with the pure-Python step otherwise (`repgenr.tree.nj`;

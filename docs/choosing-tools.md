@@ -221,6 +221,7 @@ multi-threaded RAxML build when given more than one thread; see
 | `mashtree` | Genomes | Declared 10000. 53 min and 7.6 GB measured at 5000. | Poor on clonal sets. No supports. | Unrooted. |
 | `sourmash` | Genomes | Declared 2000. The joining step runs rapidNJ when installed (`nj=auto`), else a cubic Python step refused above 5000. | Poor on clonal sets. No supports. | Unrooted. |
 | `skani` | Genomes | Declared 10000, not measured here. ANI from sparse chaining of k-mer sketches, reliable to about 80% identity; pairs below the screen (`screen=80`) get distance 1 and are counted in the log. `preset=fast|medium|slow|small-genomes`, `min_af`, `nj` as extras. Also provides the distance matrix of the viral outgroup selection, with the `small-genomes` preset by default there; when no candidate is within skani's reach no matrix is written and the run proceeds without an outgroup. | Expected to resolve closer pairs than mash distance and more distant ones than Jaccard (skani, Shaw and Yu 2023), not measured here; no supports, and a clonal set resolves only as well as ANI does. | Unrooted. |
+| `ska2` | Genomes | Declared 5000, as the typer. `ska distance` SNP counts (`metric=snps`) or k-mer mismatch fractions (`metric=mismatch`) over the split k-mers each pair shares, joined with rapidNJ when installed. | Good on clonal and outbreak sets, where it is reference-free; undercounts distances once pairs share few k-mers, so it warns on a set spanning several species. No supports. | Unrooted. |
 
 `--treebuilder auto` picks the builder whose declared scale fits the leaf
 count, the outgroup included. When `--msa-source snptype` or `--mask` is
@@ -373,6 +374,7 @@ against the registered adapters by `tests/unit/test_docs_tool_limits.py`.
 | treebuilder | mashtree | 10000 |
 | treebuilder | raxmlng | 1000 |
 | treebuilder | skani | 10000 |
+| treebuilder | ska2 | 5000 |
 | treebuilder | sourmash | 2000 |
 | assembler | flye | unbounded |
 | assembler | shovill | unbounded |
