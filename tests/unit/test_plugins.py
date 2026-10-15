@@ -21,7 +21,7 @@ def test_entry_points_discovered() -> None:
     assert {"simple", "snippy", "parsnp", "ska2"} <= set(snptypers.names())
     assert {"iqtree", "fasttree", "raxmlng", "mashtree", "sourmash"} <= set(treebuilders.names())
     assert {"bakta", "prokka"} <= set(annotators.names())
-    assert {"panaroo", "ppanggolin"} <= set(coregenes.names())
+    assert {"panaroo", "ppanggolin", "scarap"} <= set(coregenes.names())
 
 
 def test_unknown_tool_raises() -> None:

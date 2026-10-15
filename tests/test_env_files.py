@@ -30,6 +30,7 @@ EXPECTED_FILES = {
     "prokka",
     "panaroo",
     "ppanggolin",
+    "scarap",
 }
 FAMILIES = (
     "aligners",

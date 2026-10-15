@@ -650,6 +650,30 @@ defaults (MMseqs2 protein clustering at 80% identity and 80% coverage):
   proteins at 80%. The first suits a species with annotation noise to
   clean, the second a divergent set.
 
+### SCARAP on the same genomes
+
+SCARAP 1.0.2 (noarch build) on the bakta protein and gene files, at its
+defaults (`core -f 0.95`, method `FH`, 100 seed genomes):
+
+- **Three supergroup-A genomes:** 782 core genes; `core` 114 seconds,
+  `concat` 47 seconds.
+- **24 complete genomes:** 576 single-copy core genes in the direct runs,
+  577 through RepGenR2; `core` 159 seconds, `concat` 58 seconds.
+- **End to end**, `repgenr phylo --all-genomes --msa-source coregene
+  --coregene scarap --treebuilder iqtree --no-outgroup --root midpoint -t
+  8`: 577 genes, 618594 columns, 24 records, 388 seconds for the stage;
+  `tree/tree.nwk` named all 24 genomes.
+- **Agreement with PPanGGOLiN.** The two IQ-TREE trees on these 24
+  genomes share 20 of their 21 non-trivial splits (Robinson-Foulds
+  distance 2, normalised 0.048). Panaroo at its defaults gave no tree on
+  this set.
+
+| builder | core genes on 24 Wolbachia genomes | alignment columns | stage time |
+|---|---|---|---|
+| Panaroo (defaults) | 0 at 95% occupancy | none | refused |
+| PPanGGOLiN (soft core 0.95, single copy) | 398 | 419047 | 186 s |
+| SCARAP (core 0.95) | 577 | 618594 | 388 s |
+
 ## Gzipped genomes in the aligners and typers (2026-10-08)
 
 Each tool was given gzipped genomes from `pureclone_20` (three or four
