@@ -676,6 +676,42 @@ defaults (`core -f 0.95`, method `FH`, 100 seed genomes):
 | PPanGGOLiN (soft core 0.95, single copy) | 398 | 419047 | 186 s |
 | SCARAP (core 0.95) | 577 | 618594 | 388 s |
 
+### OrthoFinder, alone and inside SCARAP
+
+OrthoFinder 3.1.5 (noarch) with DIAMOND 2.2.8, on the same bakta proteomes.
+
+- **Orthogroups only** (`-og`), run directly: 25 seconds for three genomes
+  and 343 seconds for 24, which kept 790 and 584 orthogroups single-copy in
+  at least 95% of the genomes.
+- **End to end**, `repgenr phylo --all-genomes --msa-source coregene
+  --coregene orthofinder --treebuilder iqtree --no-outgroup --root
+  midpoint -t 8` on the 24 genomes: 585 orthogroups (the adapter's
+  selection gives 584 on the direct run's table, so the one-orthogroup
+  difference is between the two OrthoFinder runs), 619944 columns, every
+  gene back-translated to codons with no length mismatch; the search took
+  293 seconds, the 585 mafft alignments 62, and the stage 515 with IQ-TREE.
+- **SCARAP's O-B and O-D methods failed at first:** OrthoFinder finished,
+  and SCARAP 1.0.2 then stopped on `DataFrame.append`, removed in pandas 2.
+  With pandas 1.5.3 (Python 3.11) both ran. On three genomes they found 769
+  (`O-D`) and 767 (`O-B`) core genes against 782 for the default `FH`; on
+  24 genomes 565 and 568 against 576, taking 576 and 677 seconds against 99
+  for `FH` (these three ran beside another job, so the times are high, but
+  the ratio holds). `FH` gave the same 576 genes under pandas 1.5 as under
+  pandas 2.3, so keeping pandas older than 2 in `envs/scarap.yml` does not
+  change the default method's result.
+- **Through RepGenR2**, `--coregene scarap --aligner-arg method=O-D`: 564
+  genes, 604140 columns, 380 seconds for the core-gene step and 525 for the
+  stage.
+
+Pairwise Robinson-Foulds comparison of the four IQ-TREE trees on the 24
+genomes (21 non-trivial splits each):
+
+| | PPanGGOLiN | SCARAP `FH` | SCARAP `O-D` | OrthoFinder |
+|---|---|---|---|---|
+| PPanGGOLiN | | 20 shared | 20 shared | 20 shared |
+| SCARAP `FH` | | | 21 shared (identical) | 19 shared |
+| SCARAP `O-D` | | | | 19 shared |
+
 ## Gzipped genomes in the aligners and typers (2026-10-08)
 
 Each tool was given gzipped genomes from `pureclone_20` (three or four

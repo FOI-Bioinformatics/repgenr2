@@ -129,7 +129,8 @@ HELP_MSA_SOURCE = (
     "the annotate stage wrote)."
 )
 HELP_COREGENE = (
-    "Core-gene alignment builder for --msa-source coregene: panaroo, ppanggolin or scarap. "
+    "Core-gene alignment builder for --msa-source coregene: panaroo, ppanggolin, scarap "
+    "or orthofinder. "
     "Tuning goes through --aligner-arg. panaroo: threshold= is the identity at which it "
     "groups genes (0.98; lower it, 0.95 then 0.90, when the core comes out small on a "
     "divergent set), and also filtered=false, merge_paralogs, remove_invalid_genes, "
@@ -137,7 +138,8 @@ HELP_COREGENE = (
     "protein clustering (0.8 each), partition=softcore|core|persistent (softcore, at "
     "--core-threshold), single_copy=false, dup_margin, mode, nb_of_partitions, "
     "translation_table. scarap: method (FH), seeds (100), max_core_genes (0, no cap), "
-    "core_prefilter (the smaller of 0.90 and --core-threshold)."
+    "core_prefilter (the smaller of 0.90 and --core-threshold). orthofinder: "
+    "search=diamond|diamond_ultra_sens|blastp|mmseqs (diamond), inflation (MCL, 1.2)."
 )
 HELP_CORE_THRESHOLD = (
     "With --msa-source coregene: a gene is core when present in at least this fraction "

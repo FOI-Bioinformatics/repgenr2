@@ -31,6 +31,7 @@ EXPECTED_FILES = {
     "panaroo",
     "ppanggolin",
     "scarap",
+    "orthofinder",
 }
 FAMILIES = (
     "aligners",
@@ -47,9 +48,15 @@ FAMILIES = (
 # Binaries with no conda package: cactus is distributed as a container.
 CONTAINER_ONLY = {"cactus-pangenome", "hal2maf"}
 WORKFLOW = ENVS.parent / ".github" / "workflows" / "envs.yml"
-# Packages allowed in more than one file. Empty: a package in two files means
+# Packages allowed in more than one file. Otherwise a package in two files means
 # two environments may put different builds of one tool on PATH.
-SHARED_ALLOWED: set[str] = set()
+SHARED_ALLOWED: set[str] = {
+    # The stand-alone builder and SCARAP's O-B and O-D methods each need it
+    # inside their own environment: SCARAP calls it as a subprocess, and its
+    # environment must keep pandas older than 2, which OrthoFinder's own
+    # environment does not.
+    "orthofinder",
+}
 
 _SPEC_RE = re.compile(r"^([A-Za-z0-9_.\-]+)\s*(>=|==|=)?\s*([^\s#]+)?")
 

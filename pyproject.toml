@@ -81,6 +81,7 @@ prokka = "repgenr.annotators.prokka:ProkkaAnnotator"
 panaroo = "repgenr.coregenes.panaroo:PanarooBuilder"
 ppanggolin = "repgenr.coregenes.ppanggolin:PPanGGOLiNBuilder"
 scarap = "repgenr.coregenes.scarap:ScarapBuilder"
+orthofinder = "repgenr.coregenes.orthofinder:OrthoFinderBuilder"
 
 [project.entry-points."repgenr.maskers"]
 gubbins = "repgenr.maskers.gubbins:GubbinsMasker"

@@ -16,6 +16,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from ..core.errors import WorkdirError
 from ..core.plugins import Registry, ToolCapabilities, preflight
 
 registry: Registry[CoreGeneBuilder] = Registry("repgenr.coregenes")
@@ -67,3 +68,21 @@ class CoreGeneBuilder(ABC):
     ) -> CoreGeneResult:
         """Build the core-gene alignment of ``gffs`` under ``out_dir``."""
         raise NotImplementedError
+
+
+def annotation_sidecars(gffs: Sequence[Path], tool: str) -> tuple[list[Path], list[Path]]:
+    """The ``.faa`` and ``.ffn`` files the annotate stage writes beside each GFF3.
+
+    For builders that read proteins rather than GFF3. Refuses, naming the
+    first missing files, when any is absent.
+    """
+    faas = [g.with_suffix(".faa") for g in gffs]
+    ffns = [g.with_suffix(".ffn") for g in gffs]
+    missing = [str(p) for p in (*faas, *ffns) if not p.is_file()]
+    if missing:
+        raise WorkdirError(
+            f"{tool} reads the protein and gene files the annotate stage writes beside "
+            f"each GFF3, and {len(missing)} are missing ({', '.join(missing[:3])}); "
+            "rerun `repgenr annotate --force`."
+        )
+    return faas, ffns

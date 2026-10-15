@@ -7,6 +7,19 @@ All notable changes to RepGenR2 are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- `--coregene orthofinder`: a fourth core-gene builder. OrthoFinder compares
+  every proteome against every other (DIAMOND by default, `search=`) and
+  clusters orthogroups with MCL (`inflation=`); the adapter stops it after
+  the orthogroups (`-og`), keeps those single-copy in `--core-threshold` of
+  the genomes, aligns their proteins with mafft and back-translates to
+  codons from the `.ffn` files. On 24 Wolbachia genomes it kept 585 genes,
+  and its tree shared 19 and 20 of 21 splits with the SCARAP and PPanGGOLiN
+  trees. Declared limit 200 genomes. `envs/orthofinder.yml`.
+- SCARAP's `method=O-B` and `method=O-D`, which build the seed pangenome
+  with OrthoFinder, run natively from `envs/scarap.yml`, which now carries
+  OrthoFinder and pandas older than 2: SCARAP 1.0.2 reads OrthoFinder's
+  result with a call pandas 2 removed. They are refused under a container
+  backend, and the pandas failure is explained when met.
 - `--coregene scarap`: a third core-gene builder. SCARAP infers the core
   genome directly, through MMseqs2 profile searches against orthogroups
   built on seed genomes, without the whole pangenome; it reads the `.faa`
@@ -31,14 +44,6 @@ All notable changes to RepGenR2 are documented here. The format follows
   (`--clean-mode`, `filtered=`) is given, and `core_gene_stats.json`
   records the identity the builder actually clustered at, the builder's own
   settings, and leaves out settings it ignored.
-
-### Fixed
-- Core-gene alignments: a genome left as a row of gaps (one that shares no
-  selected gene) is removed and reported as dropped, so an outgroup in that
-  state is refused rather than used for rooting.
-- `phylo-build --msa-source coregene -o .` passed paths relative to a
-  directory the tool did not run in; the scratch directory is now made
-  absolute before the builder runs.
 - `--msa-source coregene` takes `--aligner-arg threshold=` (Panaroo's `-c`,
   the identity of its first clustering pass, 0.98 by default). It groups
   only genes at least that identical, so on a divergent set most
@@ -167,6 +172,16 @@ All notable changes to RepGenR2 are documented here. The format follows
   order, and is refused on a tree without branch lengths or a root. Off by
   default; the record carries both values. The FlexTaxD contract test reads
   the column and rejects an empty rank.
+
+### Fixed
+- Version probes ignore terminal colour codes; OrthoFinder 3 colours its
+  version, which split "3.1.5" so that no version was read.
+- Core-gene alignments: a genome left as a row of gaps (one that shares no
+  selected gene) is removed and reported as dropped, so an outgroup in that
+  state is refused rather than used for rooting.
+- `phylo-build --msa-source coregene -o .` passed paths relative to a
+  directory the tool did not run in; the scratch directory is now made
+  absolute before the builder runs.
 
 ### Documentation
 - `docs/audit/phylo-tree2tax-gap-2026-10.md`: gap analysis of the phylo and
