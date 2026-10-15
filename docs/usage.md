@@ -1432,6 +1432,28 @@ Nextflow layer uses these to run the alignment and the tree as separate tasks.
 `scratch/`) in the step's output directory beside `msa.fasta`; they are left
 in place.
 
+### Annotation
+
+`repgenr annotate -wd WD` annotates the genome set once, for the core-gene
+phylogeny route and any later use of the gene calls: the representatives (or
+every genome with `--all-genomes`) and the outgroup, one directory per
+record under `annotations/` with the GFF3 (sequences appended), the
+proteins and the gene nucleotides, and an index `annotations.tsv`. The
+annotator is `bakta` by default, which needs its database: download it once
+with `bakta_db download --output DIR --type light` (about 4 GB; `--type
+full`, 84 GB, gives more specific CDS annotation) and pass `--bakta-db DIR`
+or set `BAKTA_DB`. `--tool prokka` needs no database. bakta takes about 5
+to 15 minutes per genome and runs the genomes one after another with `-t`
+threads each, so a genus-level set is a cluster job; a later run annotates
+only the genomes that are new or whose genome, annotator, tool version,
+database version or tuning changed, removes the records of genomes no
+longer in the set, and reuses the rest. `--force` re-annotates everything.
+Tuning goes through `--tool-arg` (`skip_crispr=true`, `genus=Francisella`,
+`translation_table=11` for bakta; `kingdom=Bacteria`, `gcode=11` for prokka).
+The data-channel step `annotate-build --genome FILE -o DIR` annotates one
+genome. The core-gene route itself (`phylo --msa-source coregene`) follows in
+a later release.
+
 ### SNP typing and masking
 
 The `repgenr snptype` command (and `phylo-build --msa-source snptype`) call a

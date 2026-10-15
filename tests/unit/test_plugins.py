@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 
 from repgenr.aligners.base import registry as aligners
+from repgenr.annotators.base import registry as annotators
 from repgenr.core.binaries import BinarySpec
 from repgenr.core.errors import MissingBinaryError, PluginError
 from repgenr.core.plugins import ToolCapabilities, preflight
@@ -18,6 +19,7 @@ def test_entry_points_discovered() -> None:
     assert {"progressivemauve", "cactus", "sibeliaz"} <= set(aligners.names())
     assert {"simple", "snippy", "parsnp", "ska2"} <= set(snptypers.names())
     assert {"iqtree", "fasttree", "raxmlng", "mashtree", "sourmash"} <= set(treebuilders.names())
+    assert {"bakta", "prokka"} <= set(annotators.names())
 
 
 def test_unknown_tool_raises() -> None:

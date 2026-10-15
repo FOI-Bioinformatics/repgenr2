@@ -19,6 +19,8 @@ from .base import (
     DEFAULT_THREADS,
     HELP_ALIGNED_FRACTION,
     HELP_ALIGNER_ARG,
+    HELP_ANNOTATOR,
+    HELP_BAKTA_DB,
     HELP_BOOTSTRAP,
     HELP_COLLAPSE_DIAMETER,
     HELP_COLLAPSE_LENGTH,
@@ -158,6 +160,45 @@ def dereplicate_chunk_cmd(
                 keeper=keeper,
                 versions_out=versions_out,
                 sketches_dir=sketches_dir,
+            ),
+            logger,
+        )
+
+
+@app.command(name="annotate-build", rich_help_panel=PANEL_STEPS)
+def annotate_build_cmd(
+    genome: Path = typer.Option(..., "--genome", help="Genome FASTA to annotate (gz accepted)."),
+    out_dir: Path = typer.Option(
+        ..., "-o", "--out", help="Output directory; the record's files go under <out>/<name>/."
+    ),
+    name: str | None = typer.Option(
+        None, "--record-name", help="Record name (prefix of the outputs); the genome's by default."
+    ),
+    tool: str = typer.Option("bakta", "--tool", help=HELP_ANNOTATOR),
+    bakta_db: str | None = typer.Option(None, "--bakta-db", help=HELP_BAKTA_DB),
+    threads: int = typer.Option(
+        DEFAULT_THREADS, "-t", "--threads", min=1, help=HELP_THREADS, callback=resolve_threads
+    ),
+    tool_arg: list[str] = typer.Option([], "--tool-arg", help="Annotator tuning as key=value."),
+    versions_out: Path | None = typer.Option(None, "--versions-out", help=HELP_VERSIONS_OUT),
+) -> None:
+    """Annotate one genome (stateless data-channel step; writes <out>/<name>/<name>.gff3)."""
+    from ..annotators.base import registry as _annot_registry
+    from ..stages.annotate import AnnotateBuildParams, annotate_build
+
+    logger = configure_logging(None, level=_RUN_STATE["log_level"])
+    with stage_errors(logger):
+        _require_choice(tool, set(_annot_registry.names()), "--tool")
+        annotate_build(
+            AnnotateBuildParams(
+                genome=genome,
+                out_dir=out_dir,
+                record_name=name,
+                tool=tool,
+                bakta_db=bakta_db,
+                threads=threads,
+                extra=_parse_key_values(tool_arg, "--tool-arg"),
+                versions_out=versions_out,
             ),
             logger,
         )

@@ -1,0 +1,8 @@
+# prokka's Perl and BioPerl chain; kept out of core. No database to download. Platforms: linux-64, osx-64.
+name: repgenr-prokka
+channels:
+  - conda-forge
+  - bioconda
+  - nodefaults
+dependencies:
+  - prokka>=1.14

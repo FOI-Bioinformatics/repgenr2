@@ -18,9 +18,20 @@ import yaml
 from repgenr.core.plugins import ToolCapabilities
 
 ENVS = Path(__file__).resolve().parents[1] / "envs"
-EXPECTED_FILES = {"core", "gubbins", "mashtree", "snippy", "parsnp", "checkm2", "mauve"}
+EXPECTED_FILES = {
+    "core",
+    "gubbins",
+    "mashtree",
+    "snippy",
+    "parsnp",
+    "checkm2",
+    "mauve",
+    "bakta",
+    "prokka",
+}
 FAMILIES = (
     "aligners",
+    "annotators",
     "assemblers",
     "classifiers",
     "dereplicators",

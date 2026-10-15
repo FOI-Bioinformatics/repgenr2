@@ -7,6 +7,18 @@ All notable changes to RepGenR2 are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- `repgenr annotate`: a new stage and a new tool family, annotators
+  (`bakta`, the default, and `prokka`). It annotates the representatives
+  (or every genome with `--all-genomes`) and the outgroup once, into
+  `annotations/<record>/` (GFF3 with the sequences, proteins, genes) with an
+  index `annotations.tsv`, and on a later run annotates only what is new or
+  stale (a changed genome, annotator, tool version, database version or
+  tuning), removing the records of genomes that left the set. bakta needs
+  its database (`bakta_db download --output DIR --type light`, then
+  `--bakta-db DIR` or `BAKTA_DB`); prokka needs none. The data-channel step
+  `annotate-build` annotates one genome. `envs/bakta.yml` and
+  `envs/prokka.yml` are new satellite environments. This is the first half
+  of the core-gene phylogeny route; `phylo --msa-source coregene` follows.
 - `--treebuilder skani`: an alignment-free tree from skani's ANI estimates
   (`skani triangle --full-matrix --distance`, distance `1 - ANI`), joined
   with rapidNJ when installed. ANI from sparse chaining is reliable to about

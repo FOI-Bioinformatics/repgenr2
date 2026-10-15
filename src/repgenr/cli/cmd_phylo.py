@@ -11,6 +11,8 @@ from .base import (
     HELP_ALIGNER_ARG,
     HELP_ALL_GENOMES,
     HELP_ALLOW_INCOMPLETE,
+    HELP_ANNOTATOR,
+    HELP_BAKTA_DB,
     HELP_BOOTSTRAP,
     HELP_COLLAPSE_DIAMETER,
     HELP_COLLAPSE_LENGTH,
@@ -41,6 +43,45 @@ from .base import (
     app,
     resolve_threads,
 )
+
+
+@app.command(rich_help_panel=PANEL_CORE)
+def annotate(
+    workdir: Path = typer.Option(..., "-wd", "--workdir", help=HELP_WORKDIR),
+    tool: str = typer.Option("bakta", "--tool", help=HELP_ANNOTATOR),
+    all_genomes: bool = typer.Option(False, "--all-genomes", help=HELP_ALL_GENOMES),
+    bakta_db: str | None = typer.Option(None, "--bakta-db", help=HELP_BAKTA_DB),
+    threads: int = typer.Option(
+        DEFAULT_THREADS, "-t", "--threads", min=1, help=HELP_THREADS, callback=resolve_threads
+    ),
+    tool_arg: list[str] = typer.Option(
+        [], "--tool-arg", help="Annotator tuning as key=value (repeatable)."
+    ),
+    allow_incomplete: bool = typer.Option(
+        False,
+        "--allow-incomplete",
+        help=HELP_ALLOW_INCOMPLETE,
+    ),
+) -> None:
+    """Annotate the genome set once (GFF3 per genome, cached) for the core-gene route.
+
+    On this command --tool selects the annotator.
+    """
+    from ..annotators.base import registry as _annot_registry
+    from ..stages.annotate import AnnotateStageParams
+
+    def build() -> AnnotateStageParams:
+        _require_choice(tool, set(_annot_registry.names()), "--tool")
+        return AnnotateStageParams(
+            tool=tool,
+            threads=threads,
+            all_genomes=all_genomes,
+            bakta_db=bakta_db,
+            allow_incomplete=allow_incomplete,
+            extra=_parse_key_values(tool_arg, "--tool-arg"),
+        )
+
+    _run("annotate", workdir, build)
 
 
 @app.command(rich_help_panel=PANEL_CORE)

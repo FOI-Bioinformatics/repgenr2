@@ -111,6 +111,7 @@ def known_capabilities() -> dict[str, list[ToolCapabilities]]:
     caps: dict[str, list[ToolCapabilities]] = {}
     for family in (
         "aligners",
+        "annotators",
         "assemblers",
         "classifiers",
         "dereplicators",

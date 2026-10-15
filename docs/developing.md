@@ -57,10 +57,10 @@ tree/                  Newick + neighbor-joining
 
 ### Pluggable tool families
 
-Eight families, each an ABC plus a `Registry` bound to an entry-point group:
+Nine families, each an ABC plus a `Registry` bound to an entry-point group:
 `repgenr.dereplicators`, `repgenr.aligners`, `repgenr.snptypers`,
 `repgenr.treebuilders`, `repgenr.maskers`, `repgenr.assemblers`,
-`repgenr.classifiers`, `repgenr.polishers`. In-tree and
+`repgenr.classifiers`, `repgenr.polishers`, `repgenr.annotators`. In-tree and
 third-party adapters are discovered the same way, so the core never imports a
 concrete adapter.
 

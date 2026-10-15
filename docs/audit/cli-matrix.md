@@ -3,7 +3,7 @@
 Generated from `tests/audit/cli_matrix.yaml` by `scripts/render_cli_matrix.py`;
 `tests/unit/test_cli_matrix.py` keeps both in step with the command tree.
 
-30 commands, 367 flags (367 with a live test or an n/a reason, 0 pending).
+32 commands, 382 flags (382 with a live test or an n/a reason, 0 pending).
 
 ## Global flags
 
@@ -284,6 +284,35 @@ dispatch: `step:repgenr.stages.phylo.phylo_build`
 | `--msa` |  | PhyloBuildParams.msa | stage | module: PHYLO_TREE | tests/live/test_steps.py::test_phylo_build_split_into_msa_and_tree | docs/cli-reference.md, docs/usage.md, docs/audit/cli-matrix.md |
 | `--mask` |  | PhyloBuildParams.phylo.extra | registry | params.phylo_args | n/a: the mask path is exercised on phylo (test_phylo_mask_gubbins); the step shares the builder | docs/choosing-tools.md, docs/cli-reference.md, docs/audit/cli-matrix.md |
 | `--core-fraction` |  | PhyloBuildParams.phylo.extra | range | params.phylo_args | n/a: shares the phylo builder (wiring test); the typing pass is covered offline in tests/integration/test_snptype_stage.py | docs/cli-reference.md, docs/usage.md, docs/audit/cli-matrix.md |
+
+## annotate
+
+dispatch: `stage`
+
+| flag | aliases | param | validated | nextflow | live | docs |
+|---|---|---|---|---|---|---|
+| `--workdir` | -wd | workdir | stage | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: covered offline in tests/unit/test_annotate_stage.py (the live run needs bakta and its database) | docs/cli-reference.md, docs/usage.md, docs/output.md, docs/audit/cli-matrix.md |
+| `--tool` |  | AnnotateStageParams.tool | registry | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: covered offline in tests/unit/test_annotate_stage.py (the live run needs bakta and its database) | README.md, docs/cli-reference.md, docs/usage.md, docs/install.md, docs/audit/cli-matrix.md |
+| `--all-genomes` |  | AnnotateStageParams.all_genomes | none | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: covered offline in tests/unit/test_annotate_stage.py (the live run needs bakta and its database) | docs/cli-reference.md, docs/usage.md, docs/output.md, docs/audit/cli-matrix.md |
+| `--bakta-db` |  | AnnotateStageParams.bakta_db | stage | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: covered offline in tests/unit/test_annotate_stage.py (the live run needs bakta and its database) | docs/cli-reference.md, docs/usage.md, docs/install.md, docs/audit/cli-matrix.md |
+| `--threads` | -t | AnnotateStageParams.threads | range | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: covered offline in tests/unit/test_annotate_stage.py (the live run needs bakta and its database) | docs/cli-reference.md, docs/audit/cli-matrix.md |
+| `--tool-arg` |  | AnnotateStageParams.extra | callback | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: covered offline in tests/unit/test_annotate_stage.py (the live run needs bakta and its database) | docs/cli-reference.md, docs/usage.md, docs/audit/cli-matrix.md |
+| `--allow-incomplete` |  | AnnotateStageParams.allow_incomplete | none | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: covered offline in tests/unit/test_annotate_stage.py (the live run needs bakta and its database) | docs/cli-reference.md, docs/audit/cli-matrix.md |
+
+## annotate-build
+
+dispatch: `step:repgenr.stages.annotate.annotate_build`
+
+| flag | aliases | param | validated | nextflow | live | docs |
+|---|---|---|---|---|---|---|
+| `--genome` |  | AnnotateBuildParams.genome | stage | module: fixed by the process script (a later release) | n/a: covered offline in tests/unit/test_annotate_stage.py::test_annotate_build_step_writes_versions | docs/cli-reference.md, docs/audit/cli-matrix.md |
+| `--out` | -o | AnnotateBuildParams.out_dir | none | module: fixed by the process script (a later release) | n/a: covered offline in tests/unit/test_annotate_stage.py::test_annotate_build_step_writes_versions | docs/cli-reference.md, docs/audit/cli-matrix.md |
+| `--record-name` |  | AnnotateBuildParams.record_name | none | module: fixed by the process script (a later release) | n/a: covered offline in tests/unit/test_annotate_stage.py::test_annotate_build_step_writes_versions | docs/cli-reference.md, docs/audit/cli-matrix.md |
+| `--tool` |  | AnnotateBuildParams.tool | registry | module: fixed by the process script (a later release) | n/a: covered offline in tests/unit/test_annotate_stage.py::test_annotate_build_step_writes_versions | docs/cli-reference.md, docs/usage.md, docs/audit/cli-matrix.md |
+| `--bakta-db` |  | AnnotateBuildParams.bakta_db | stage | module: fixed by the process script (a later release) | n/a: covered offline in tests/unit/test_annotate_stage.py::test_annotate_build_step_writes_versions | docs/cli-reference.md, docs/install.md, docs/audit/cli-matrix.md |
+| `--threads` | -t | AnnotateBuildParams.threads | range | module: fixed by the process script (a later release) | n/a: covered offline in tests/unit/test_annotate_stage.py::test_annotate_build_step_writes_versions | docs/cli-reference.md, docs/audit/cli-matrix.md |
+| `--tool-arg` |  | AnnotateBuildParams.extra | callback | module: fixed by the process script (a later release) | n/a: covered offline in tests/unit/test_annotate_stage.py::test_annotate_build_step_writes_versions | docs/cli-reference.md, docs/audit/cli-matrix.md |
+| `--versions-out` |  | AnnotateBuildParams.versions_out | none | module: fixed by the process script (a later release) | n/a: covered offline in tests/unit/test_annotate_stage.py::test_annotate_build_step_writes_versions | docs/cli-reference.md, docs/audit/cli-matrix.md |
 
 ## assemble
 

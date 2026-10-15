@@ -1925,6 +1925,178 @@ commands:
         with_args:
         - --msa-source
         - snptype
+  annotate:
+    dispatch: stage
+    base_args:
+    - -wd
+    - '{wd}'
+    flags:
+      --workdir:
+        aliases:
+        - -wd
+        param: workdir
+        value: '{alt_dir}'
+        validated: stage
+        docs:
+        - docs/cli-reference.md
+        - docs/usage.md
+        - docs/output.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
+        live: 'n/a: covered offline in tests/unit/test_annotate_stage.py (the live run needs bakta and its database)'
+        observable: annotations/ is populated
+      --tool:
+        param: AnnotateStageParams.tool
+        value: prokka
+        validated: registry
+        docs:
+        - README.md
+        - docs/cli-reference.md
+        - docs/usage.md
+        - docs/install.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
+        live: 'n/a: covered offline in tests/unit/test_annotate_stage.py (the live run needs bakta and its database)'
+      --all-genomes:
+        param: AnnotateStageParams.all_genomes
+        validated: none
+        docs:
+        - docs/cli-reference.md
+        - docs/usage.md
+        - docs/output.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
+        live: 'n/a: covered offline in tests/unit/test_annotate_stage.py (the live run needs bakta and its database)'
+      --bakta-db:
+        param: AnnotateStageParams.bakta_db
+        value: '{alt_dir}'
+        validated: stage
+        docs:
+        - docs/cli-reference.md
+        - docs/usage.md
+        - docs/install.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
+        live: 'n/a: covered offline in tests/unit/test_annotate_stage.py (the live run needs bakta and its database)'
+      --threads:
+        aliases:
+        - -t
+        param: AnnotateStageParams.threads
+        value: '2'
+        validated: range
+        invalid: '0'
+        docs:
+        - docs/cli-reference.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
+        live: 'n/a: covered offline in tests/unit/test_annotate_stage.py (the live run needs bakta and its database)'
+      --tool-arg:
+        param: AnnotateStageParams.extra
+        value: genus=Francisella
+        validated: callback
+        invalid: noequals
+        docs:
+        - docs/cli-reference.md
+        - docs/usage.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
+        live: 'n/a: covered offline in tests/unit/test_annotate_stage.py (the live run needs bakta and its database)'
+      --allow-incomplete:
+        param: AnnotateStageParams.allow_incomplete
+        validated: none
+        docs:
+        - docs/cli-reference.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
+        live: 'n/a: covered offline in tests/unit/test_annotate_stage.py (the live run needs bakta and its database)'
+  annotate-build:
+    dispatch: step:repgenr.stages.annotate.annotate_build
+    base_args:
+    - --genome
+    - '{file}'
+    - -o
+    - '{out}'
+    flags:
+      --genome:
+        param: AnnotateBuildParams.genome
+        value: '{alt_file}'
+        validated: stage
+        docs:
+        - docs/cli-reference.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'module: fixed by the process script (a later release)'
+        live: 'n/a: covered offline in tests/unit/test_annotate_stage.py::test_annotate_build_step_writes_versions'
+      --out:
+        aliases:
+        - -o
+        param: AnnotateBuildParams.out_dir
+        value: '{alt_dir}'
+        validated: none
+        docs:
+        - docs/cli-reference.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'module: fixed by the process script (a later release)'
+        live: 'n/a: covered offline in tests/unit/test_annotate_stage.py::test_annotate_build_step_writes_versions'
+      --record-name:
+        param: AnnotateBuildParams.record_name
+        value: Fam_Gen_sp_GCA_1
+        validated: none
+        docs:
+        - docs/cli-reference.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'module: fixed by the process script (a later release)'
+        live: 'n/a: covered offline in tests/unit/test_annotate_stage.py::test_annotate_build_step_writes_versions'
+      --tool:
+        param: AnnotateBuildParams.tool
+        value: prokka
+        validated: registry
+        docs:
+        - docs/cli-reference.md
+        - docs/usage.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'module: fixed by the process script (a later release)'
+        live: 'n/a: covered offline in tests/unit/test_annotate_stage.py::test_annotate_build_step_writes_versions'
+      --bakta-db:
+        param: AnnotateBuildParams.bakta_db
+        value: '{alt_dir}'
+        validated: stage
+        docs:
+        - docs/cli-reference.md
+        - docs/install.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'module: fixed by the process script (a later release)'
+        live: 'n/a: covered offline in tests/unit/test_annotate_stage.py::test_annotate_build_step_writes_versions'
+      --threads:
+        aliases:
+        - -t
+        param: AnnotateBuildParams.threads
+        value: '2'
+        validated: range
+        invalid: '0'
+        docs:
+        - docs/cli-reference.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'module: fixed by the process script (a later release)'
+        live: 'n/a: covered offline in tests/unit/test_annotate_stage.py::test_annotate_build_step_writes_versions'
+      --tool-arg:
+        param: AnnotateBuildParams.extra
+        value: genus=Francisella
+        validated: callback
+        invalid: noequals
+        docs:
+        - docs/cli-reference.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'module: fixed by the process script (a later release)'
+        live: 'n/a: covered offline in tests/unit/test_annotate_stage.py::test_annotate_build_step_writes_versions'
+      --versions-out:
+        param: AnnotateBuildParams.versions_out
+        value: '{alt_file}'
+        validated: none
+        docs:
+        - docs/cli-reference.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'module: fixed by the process script (a later release)'
+        live: 'n/a: covered offline in tests/unit/test_annotate_stage.py::test_annotate_build_step_writes_versions'
   assemble:
     dispatch: stage
     base_args:

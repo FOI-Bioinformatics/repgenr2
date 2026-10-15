@@ -12,6 +12,7 @@ from pathlib import Path
 import pytest
 
 from repgenr.aligners.base import registry as aligners
+from repgenr.annotators.base import registry as annotators
 from repgenr.assemblers.base import registry as assemblers
 from repgenr.classifiers.base import registry as classifiers
 from repgenr.dereplicators.base import registry as dereplicators
@@ -33,6 +34,7 @@ REGISTRIES = {
     "assembler": assemblers,
     "classifier": classifiers,
     "polisher": polishers,
+    "annotator": annotators,
 }
 
 
