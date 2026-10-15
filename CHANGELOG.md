@@ -7,6 +7,19 @@ All notable changes to RepGenR2 are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- `--treebuilder skani`: an alignment-free tree from skani's ANI estimates
+  (`skani triangle --full-matrix --distance`, distance `1 - ANI`), joined
+  with rapidNJ when installed. ANI from sparse chaining is reliable to about
+  80% identity, where mash distances saturate, and does not compress near
+  identity as Jaccard does. A pair skani does not report (below skani's screen,
+  default 80% identity, or too little aligned) is written as distance 100
+  by skani; the builder sets it to 1 and the log counts such pairs. For the
+  viral outgroup selection the `small-genomes` preset applies by default,
+  and when no selection-to-candidate pair has an ANI no matrix is written,
+  so the candidates are not ranked on ties. Extras `screen`, `min_af`,
+  `preset`, `nj`. The builder also provides the distance matrix of the
+  viral outgroup selection. Declared limit 10000, not measured here.
+  Container `skani:0.3.2`; `envs/core.yml` already has the package.
 - The sourmash tree builder joins its distance matrix with rapidNJ when the
   `rapidnj` binary is installed (or an image is pinned under a container
   backend) and with the pure-Python step otherwise (`repgenr.tree.nj`;

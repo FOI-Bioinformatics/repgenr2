@@ -462,6 +462,7 @@ def _determine_outgroup_records(ctx, records, kept, length_range, params, seqs, 
     label = select_outgroup_from_matrix(matrix, logger) if matrix.exists() else None
     if label is None:
         logger.warning("Could not assign an outgroup; proceeding without one.")
+        _outgroup.cleanup_workdir(outgroup_wd, params.keep_files)
         return None, versions
     acc = label[2:] if label.startswith(("O_", "S_")) else label
     og = rec_by_acc.get(acc)

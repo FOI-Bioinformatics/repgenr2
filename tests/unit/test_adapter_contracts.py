@@ -122,6 +122,20 @@ def _fake_sourmash_compare(cmd: list[str]) -> None:
     csv_path.write_text("\n".join(rows) + "\n", encoding="utf-8")
 
 
+def _fake_skani_triangle(cmd: list[str]) -> None:
+    paths = _read_fofn(_flag_value(cmd, "-l"))
+
+    def dist(a: Path, b: Path) -> float:
+        if a == b:
+            return 0.0
+        return 0.5 if _REP_OF[a.name] == _REP_OF[b.name] else 12.0
+
+    rows = [str(len(paths))]
+    for a in paths:
+        rows.append("\t".join([str(a), *(f"{dist(a, b):.2f}" for b in paths)]))
+    Path(_flag_value(cmd, "-o")).write_text("\n".join(rows) + "\n", encoding="utf-8")
+
+
 def _make_fake_run_tool(recorded: list[list[str]]):
     def fake_run_tool(caps, command, *, logger, stdout_path=None, **kwargs):
         cmd = [str(part) for part in command]
@@ -138,6 +152,8 @@ def _make_fake_run_tool(recorded: list[list[str]]):
             _fake_sourmash_sketch(cmd)
         elif cmd[:2] == ["sourmash", "compare"]:
             _fake_sourmash_compare(cmd)
+        elif cmd[:2] == ["skani", "triangle"]:
+            _fake_skani_triangle(cmd)
         elif cmd[0] in ("mashtree", "FastTree", "fasttree", "VeryFastTree"):
             Path(stdout_path).write_text(_NEWICK, encoding="utf-8")
         elif cmd[0] == "iqtree":
@@ -275,6 +291,7 @@ _TREE_PARAM_TOKENS = {
     "iqtree": ["--threads-max", "5"],
     "raxmlng": ["--threads", "auto{5}"],
     "sourmash": ["k=31,scaled=1000", "--processes", "5"],
+    "skani": ["triangle", "-t", "5", "--full-matrix", "--distance"],
 }
 
 
