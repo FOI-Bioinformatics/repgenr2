@@ -32,7 +32,10 @@ def test_explicit_backends_and_the_python_ceiling(monkeypatch) -> None:
     monkeypatch.setattr(mod, "tool_available", lambda caps: False)
     assert mod.choose_backend(mod.NJ_RAPIDNJ, 10, _LOG) == mod.NJ_RAPIDNJ  # preflight decides
     assert mod.choose_backend(mod.NJ_PYTHON, 10, _LOG) == mod.NJ_PYTHON
-    with pytest.raises(WorkdirError, match="rapidnj"):
+    with pytest.raises(WorkdirError, match="install rapidnj"):
+        mod.choose_backend(mod.NJ_PYTHON, mod.PYTHON_NJ_MAX + 1, _LOG)
+    monkeypatch.setattr(mod, "tool_available", lambda caps: True)
+    with pytest.raises(WorkdirError, match="drop nj=python"):
         mod.choose_backend(mod.NJ_PYTHON, mod.PYTHON_NJ_MAX + 1, _LOG)
     with pytest.raises(UserInputError, match="nj must be one of"):
         mod.choose_backend("fast", 10, _LOG)
@@ -53,6 +56,12 @@ def test_restore_labels_handles_bare_and_quoted_names() -> None:
     assert out == "(('a b':0.05,Fam_Gen_sp_GCA_1:0.05):0.8,'c:d':0.05,e:0.05);"
     # Branch lengths that look like integers are not names: only tokens before ':'.
     assert mod.restore_labels("(0:1,1:2);", ["x", "y"]) == "(x:1,y:2);"
+    # A support value after ')' is not a leaf either.
+    assert mod.restore_labels("((0:1,1:2)95:0.5,2:1);", ["x", "y", "z"]) == "((x:1,y:2)95:0.5,z:1);"
+    with pytest.raises(WorkdirError, match="missing \\[1\\]"):
+        mod.restore_labels("(0:1,0:2);", ["x", "y"])
+    with pytest.raises(WorkdirError, match="unknown leaf"):
+        mod.restore_labels("(0:1,7:2);", ["x", "y"])
 
 
 def test_nj_tree_runs_rapidnj_and_restores_labels(tmp_path: Path, monkeypatch) -> None:
@@ -72,6 +81,9 @@ def test_nj_tree_runs_rapidnj_and_restores_labels(tmp_path: Path, monkeypatch) -
     labels = ["g1", "g 2", "g3", "g4"]
     newick = mod.nj_tree(labels, _DIST, tmp_path, _LOG)
     assert seen["cmd"][:1] == ["rapidnj"] and seen["cmd"][2:5] == ["-i", "pd", "-n"]
+    assert seen["cmd"][seen["cmd"].index("-c") + 1] == "1"
+    assert not (tmp_path / "distances.phylip").exists()
+    assert not (tmp_path / "rapidnj.nwk").exists()
     assert seen["matrix"].startswith("4\n0 0.000000 0.100000")
     assert newick == "(('g 2':0.05,g1:0.05):0.8,g3:0.05,g4:0.05);"
 
@@ -122,7 +134,7 @@ def test_sourmash_builder_passes_the_nj_extra(tmp_path: Path, monkeypatch) -> No
             )
         return 0
 
-    def fake_nj(labels, dist, out_dir, logger, *, backend):
+    def fake_nj(labels, dist, out_dir, logger, *, backend, threads=1):
         seen["backend"] = backend
         seen["labels"] = labels
         return "(a,b,c);"
@@ -136,3 +148,24 @@ def test_sourmash_builder_passes_the_nj_extra(tmp_path: Path, monkeypatch) -> No
         genomes.append(p)
     sm.SourmashBuilder().build(genomes, tmp_path / "out", TreeParams(extra={"nj": "python"}), _LOG)
     assert seen["backend"] == "python" and seen["labels"] == ["a", "b", "c"]
+
+
+def test_sourmash_builder_settles_the_backend_before_any_work(tmp_path: Path, monkeypatch) -> None:
+    from repgenr.treebuilders import sourmash as sm
+    from repgenr.treebuilders.base import TreeParams
+
+    monkeypatch.setattr(mod, "tool_available", lambda caps: False)
+    monkeypatch.setattr(sm, "run_tool", lambda *a, **k: pytest.fail("sourmash ran"))
+    genomes = [tmp_path / f"g{i}.fasta" for i in range(mod.PYTHON_NJ_MAX + 1)]
+    with pytest.raises(WorkdirError, match="Neighbour joining"):
+        sm.SourmashBuilder().build(genomes, tmp_path / "out", TreeParams(), _LOG)
+    with pytest.raises(UserInputError, match="nj must be one of"):
+        sm.SourmashBuilder().build(
+            genomes[:3], tmp_path / "out", TreeParams(extra={"nj": "fast"}), _LOG
+        )
+
+
+def test_rapidnj_is_a_known_bin_dir_tool() -> None:
+    from repgenr.core.bindirs import known_capabilities
+
+    assert "rapidnj" in known_capabilities()

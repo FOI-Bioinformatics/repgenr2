@@ -66,11 +66,23 @@ def test_all_genomes_puts_every_genome_in_the_tree(run_repgenr, derep_wd) -> Non
 def test_rapidnj_joins_a_matrix_with_the_labels_intact(tmp_path: Path) -> None:
     import logging
 
-    from live_helpers import newick_leaves
-
     from repgenr.tree.nj import nj_tree
 
-    labels = ["Fam_Gen_sp_GCA_000001.1", "Fam_Gen_sp_GCA_000002.1", "Out_Gen_sp_GCA_000009.1"]
-    dist = [[0.0, 0.1, 0.8], [0.1, 0.0, 0.8], [0.8, 0.8, 0.0]]
+    labels = [
+        "Fam_Gen_sp_GCA_000001.1",
+        "Fam_Gen_sp_GCA_000002.1",
+        "Out_Gen_sp_GCA_000009.1",
+        "a b",
+    ]
+    dist = [
+        [0.0, 0.1, 0.8, 0.9],
+        [0.1, 0.0, 0.8, 0.9],
+        [0.8, 0.8, 0.0, 0.3],
+        [0.9, 0.9, 0.3, 0.0],
+    ]
     newick = nj_tree(labels, dist, tmp_path, logging.getLogger("live"), backend="rapidnj")
-    assert newick_leaves(newick) == set(labels)
+    import dendropy
+
+    tree = dendropy.Tree.get(data=newick, schema="newick", preserve_underscores=True)
+    assert {t.label for t in tree.taxon_namespace} == set(labels)
+    assert "'a b'" in newick  # quoted by restore_labels, not mangled by rapidnj

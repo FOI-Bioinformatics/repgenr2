@@ -125,7 +125,9 @@ def known_capabilities() -> dict[str, list[ToolCapabilities]]:
                 caps.setdefault(name, [])
                 continue
             caps.setdefault(name, []).append(registry.get(name).capabilities)
-    for extra in (CHECKM2_CAPS, DATASETS_CAPS, _MINIMAP2):
+    from ..tree.nj import RAPIDNJ  # lazy: tree.nj imports core
+
+    for extra in (CHECKM2_CAPS, DATASETS_CAPS, _MINIMAP2, RAPIDNJ):
         caps.setdefault(extra.name, []).append(extra)
     return caps
 
