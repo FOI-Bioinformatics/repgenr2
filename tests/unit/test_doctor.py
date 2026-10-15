@@ -669,3 +669,42 @@ def test_a_record_without_a_fingerprint_is_a_warning(tmp_path: Path) -> None:
     result = _runner.invoke(app, ["doctor", "-wd", str(wd)])
     assert result.exit_code == 0
     assert "[WARN] metadata: completed without a resume fingerprint" in result.stdout
+
+
+def test_tree2tax_child_under_two_parents_is_a_failure(tmp_path: Path) -> None:
+    wd = _base_workdir(tmp_path)
+    (wd / "tree2tax.tsv").write_text(
+        "child\tparent\na\tA\na\tB\nb\tA\nc\tB\nA\troot\nB\troot\n",
+        encoding="utf-8",
+    )
+    (wd / "genomes_map.tsv").write_text(_MAP, encoding="utf-8")
+    assert "under two parents" in _messages(diagnose(wd), "fail")
+
+
+def test_tree2tax_empty_node_name_is_a_failure(tmp_path: Path) -> None:
+    wd = _base_workdir(tmp_path)
+    (wd / "tree2tax.tsv").write_text("child\tparent\na\t\nb\troot\nc\troot\n", encoding="utf-8")
+    (wd / "genomes_map.tsv").write_text(_MAP, encoding="utf-8")
+    assert "empty node name" in _messages(diagnose(wd), "fail")
+
+
+def test_tree2tax_two_top_nodes_is_a_failure(tmp_path: Path) -> None:
+    wd = _base_workdir(tmp_path)
+    (wd / "tree2tax.tsv").write_text(
+        "child\tparent\na\troot\nb\tother\nc\tother\n",
+        encoding="utf-8",
+    )
+    (wd / "genomes_map.tsv").write_text(_MAP, encoding="utf-8")
+    assert "2 top nodes" in _messages(diagnose(wd), "fail")
+
+
+def test_tree2tax_top_node_not_root_is_a_warning(tmp_path: Path) -> None:
+    wd = _base_workdir(tmp_path)
+    (wd / "tree2tax.tsv").write_text(
+        "child\tparent\na\ttop\nb\ttop\nc\ttop\n",
+        encoding="utf-8",
+    )
+    (wd / "genomes_map.tsv").write_text(_MAP, encoding="utf-8")
+    findings = diagnose(wd)
+    assert "FlexTaxD validates" in _messages(findings, "warn")
+    assert "tree2tax" not in _messages(findings, "fail")

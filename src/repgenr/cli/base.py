@@ -143,7 +143,7 @@ HELP_NODE_BASENAME = (
     "Name internal nodes <basename><n>. Without it, internal nodes receive names "
     "derived from a hash of their descendant leaves."
 )
-HELP_ROOT_NAME = "Label of the top node."
+HELP_ROOT_NAME = "Label of the top node. FlexTaxD expects 'root'."
 HELP_REMOVE_OUTGROUP = "Leave the outgroup out of the taxonomy after rooting."
 HELP_INCLUDE_DEREPLICATED = "List redundant genomes under their representative in the taxonomy."
 HELP_COLLAPSE_SUPPORT = "Merge nodes whose support is below this fraction into their parent."

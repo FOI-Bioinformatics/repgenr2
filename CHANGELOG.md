@@ -7,6 +7,13 @@ All notable changes to RepGenR2 are documented here. The format follows
 ## [Unreleased]
 
 ### Changed
+- `tree2tax`: the FlexTaxD contract is stated in `docs/output.md` and held
+  by a test that mirrors FlexTaxD's reader (header rule, label-keyed nodes,
+  a top node named `root`, no empty field, no header on the genome map).
+  `--root-name` other than `root` warns, since FlexTaxD validates its tree
+  from a node of that name. `doctor` also fails a taxonomy with an empty
+  field, a child under two parents or more than one top node, and warns when
+  the top node is not `root`.
 - The project is renamed RepGenR2 and lives at
   <https://github.com/FOI-Bioinformatics/repgenr2>. The distribution name is
   `repgenr2`; the `repgenr` command, the `repgenr` import package, the plugin

@@ -348,6 +348,41 @@ def test_tree2tax_workdir_flags(run_repgenr, wd: Path) -> None:
     assert og not in rel and "\ttop\n" in rel and "\troot\n" not in rel
     children = {line.split("\t")[0] for line in rel.splitlines()[1:]}
     assert children >= reps, "every representative is a child"
+
+
+@pytest.mark.requires_binary("mashtree", "flextaxd")
+def test_tree2tax_tables_import_into_flextaxd(run_repgenr, wd: Path, tmp_path: Path) -> None:
+    """The real FlexTaxD builds a database from the two tables and dumps every
+    leaf back out; the unit test in tests/unit/test_flextaxd_contract.py
+    mirrors its reader where the binary is absent."""
+    import subprocess
+
+    run_repgenr("phylo", "-wd", wd, "--treebuilder", "mashtree", "-t", "4")
+    run_repgenr("tree2tax", "-wd", wd)
+    db = tmp_path / "taxonomy.ftd"
+    subprocess.run(
+        [
+            "flextaxd",
+            "--taxonomy_file",
+            str(wd / TREE2TAX_TSV),
+            "--genomeid2taxid",
+            str(wd / GENOMES_MAP_TSV),
+            "--database",
+            str(db),
+            "--force",
+        ],
+        check=True,
+    )
+    out = tmp_path / "dump"
+    out.mkdir()
+    subprocess.run(
+        ["flextaxd", "--database", str(db), "--dump", "--dump_descriptions", "--outdir", str(out)],
+        check=True,
+    )
+    names = (out / "names.dmp").read_text(encoding="utf-8")
+    leaves = {line.split("\t")[0] for line in (wd / TREE2TAX_TSV).read_text().splitlines()[1:]}
+    reps = {p.stem for p in (wd / "derep" / "representatives").iterdir()}
+    assert reps <= leaves and all(rep in names for rep in reps)
     assert len((wd / GENOMES_MAP_TSV).read_text(encoding="utf-8").splitlines()) == len(reps)
     params = Config.load(wd).stages["tree2tax"].params
     assert params.get("collapse_support") == 0.5
