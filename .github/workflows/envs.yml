@@ -30,7 +30,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        env: [core, gubbins, mashtree, snippy, parsnp, checkm2, mauve, bakta, prokka, panaroo, ppanggolin]
+        env: [core, gubbins, mashtree, snippy, parsnp, checkm2, mauve, bakta, prokka, panaroo, ppanggolin, scarap]
         subdir: [linux-64]
         include:
           - env: core

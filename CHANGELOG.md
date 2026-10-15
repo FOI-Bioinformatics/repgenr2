@@ -7,6 +7,14 @@ All notable changes to RepGenR2 are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- `--coregene scarap`: a third core-gene builder. SCARAP infers the core
+  genome directly, through MMseqs2 profile searches against orthogroups
+  built on seed genomes, without the whole pangenome; it reads the `.faa`
+  and `.ffn` files the annotate stage writes. On 24 Wolbachia genomes it
+  found 577 single-copy core genes, and its tree shared 20 of 21 splits
+  with the PPanGGOLiN one (`docs/verification.md`). Extras `method`,
+  `core_prefilter`, `max_core_genes`, `seeds`. `envs/scarap.yml` installs it
+  on linux-64, osx-64 and osx-arm64.
 - `--coregene ppanggolin`: a second core-gene builder. PPanGGOLiN clusters
   the proteins with MMseqs2 at 80% identity and coverage
   (`--aligner-arg identity=`, `coverage=`), partitions the pangenome graph

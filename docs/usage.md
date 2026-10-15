@@ -1530,6 +1530,25 @@ Panaroo at its defaults found no gene in 95% of them, PPanGGOLiN selected
 four minutes (see [verification.md](verification.md)). Its declared limit
 of 5000 genomes is not measured here.
 
+`--coregene scarap` infers the core directly, without the whole
+pangenome. SCARAP builds orthogroups on a set of seed genomes
+(`--aligner-arg seeds=`, 100), turns them into MMseqs2 profiles and
+searches every genome against them; a gene is core when it is present in a
+single copy in at least `--core-threshold` of the genomes. It reads the
+protein and gene files the annotate stage writes beside each GFF3, not the
+GFF3 itself, and aligns each orthogroup with mafft. The orthogroups come
+from profile searches rather than a fixed identity cut, so there is no
+identity to lower; `method=` chooses the orthogroup inference (`FH`, the
+default) and `max_core_genes=` caps the count. The seed genomes are drawn
+at random with no fixed random seed, so on a set larger than `seeds` two
+runs can select slightly different cores; the final selection is checked
+over all the genomes, not only the seeds. SCARAP aligns with as many
+processes as the machine has CPUs, whatever `-t` says. On the same 24 Wolbachia
+genomes it found 577 single-copy core genes, and its IQ-TREE tree shared 20
+of 21 splits with the PPanGGOLiN one. It took about six and a half minutes
+on this machine, against three for PPanGGOLiN. Its declared limit of 10000
+genomes is not measured here; the authors ran it on over 31000.
+
 ### SNP typing and masking
 
 The `repgenr snptype` command (and `phylo-build --msa-source snptype`) call a

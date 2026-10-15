@@ -1,0 +1,8 @@
+# SCARAP for the core-gene route; its dependencies bring MMseqs2 and mafft. Platforms: linux-64, osx-64, osx-arm64.
+name: repgenr-scarap
+channels:
+  - conda-forge
+  - bioconda
+  - nodefaults
+dependencies:
+  - scarap>=1.0
