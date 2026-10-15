@@ -34,6 +34,7 @@ workflow {
           --derep_tool <tool>    Dereplicator for the scatter-gather step
           --derep_process_size N Genomes per dereplication chunk (large inputs)
           --phylo_args '<str>'   Aligner or tree builder for the phylogeny
+          --annotator, --bakta_db  Annotation for phylo_args with --msa-source coregene
         """.stripIndent()
         return
     }

@@ -368,3 +368,46 @@ def test_a_genome_that_stops_being_a_representative_keeps_its_annotation(
     summary = run(ctx, AnnotateStageParams(tool="fakeannot"))
     assert summary.removed == 0 and summary.reused == 2
     assert cache.gff_path(ctx.annotations_dir, genome_files[2].stem).is_file()
+
+
+def test_annotate_index_step(tmp_path: Path, monkeypatch) -> None:
+    """Gathered annotate-build records, as Nextflow stages them (links to the
+    record directories), are indexed without probing the annotator."""
+    from repgenr.stages.annotate import AnnotateIndexParams, annotate_index
+    from repgenr.stages.coregene import annotated_set
+
+    probed: list[str] = []
+    monkeypatch.setattr(
+        registry.get("bakta"), "preflight", lambda self: probed.append("x") or {}, raising=False
+    )
+    elsewhere = tmp_path / "work"
+    gathered = tmp_path / "annotations"
+    gathered.mkdir()
+    for name in ("Fam_Gen_sp_GCA_1.1", "Fam_Gen_sp_GCA_2.1"):
+        record = elsewhere / name
+        record.mkdir(parents=True)
+        (record / f"{name}.gff3").write_text(f"##gff-version 3\n##FASTA\n>{name}\nACGT\n", "utf-8")
+        (gathered / name).symlink_to(record, target_is_directory=True)
+    index = annotate_index(
+        AnnotateIndexParams(annotations_dir=gathered, tool="bakta"), logging.getLogger("t")
+    )
+    assert index == gathered / cache.ANNOTATIONS_TSV and probed == []
+    rows = cache.read_index(gathered)
+    assert sorted(rows) == ["Fam_Gen_sp_GCA_1.1", "Fam_Gen_sp_GCA_2.1"]
+    assert {r.annotator for r in rows.values()} == {"bakta"}
+    # The core-gene pass reads it as it reads a workdir's.
+    got = annotated_set(gathered, ["Fam_Gen_sp_GCA_2.1", "Fam_Gen_sp_GCA_1.1"])
+    assert [g.name for g in got.gffs] == ["Fam_Gen_sp_GCA_2.1.gff3", "Fam_Gen_sp_GCA_1.1.gff3"]
+
+    with pytest.raises(UserInputError, match="not a directory"):
+        annotate_index(
+            AnnotateIndexParams(annotations_dir=tmp_path / "nope"), logging.getLogger("t")
+        )
+    with pytest.raises(UserInputError, match="Unknown annotator"):
+        annotate_index(
+            AnnotateIndexParams(annotations_dir=gathered, tool="nope"), logging.getLogger("t")
+        )
+    empty = tmp_path / "empty"
+    empty.mkdir()
+    with pytest.raises(UserInputError, match="No annotated records"):
+        annotate_index(AnnotateIndexParams(annotations_dir=empty), logging.getLogger("t"))

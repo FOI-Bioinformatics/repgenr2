@@ -30,7 +30,8 @@ workflow {
 
     def ch_phylo_in = DEREPLICATE_SCATTER.out.reps
         .map { m, dir -> tuple(m, dir, [], file(params.empty_accession)) }
-    PHYLO(ch_phylo_in, [])
+    // No annotation step here; an empty list stands in for the records.
+    PHYLO(ch_phylo_in.map { m, dir, og, acc -> tuple(m, dir, og, acc, []) }, [])
     def ch_tree2tax_in = PHYLO.out.tree
         .join(ch_phylo_in, by: 0)
         .map { m, t, reps_dir, og, acc -> tuple(m, t, reps_dir, og, acc, []) }

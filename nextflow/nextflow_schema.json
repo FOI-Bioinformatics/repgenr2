@@ -71,6 +71,27 @@
                     "help_text": "Bacterial path only. Writes sketches/<record name>.sig.zip (k=21, 31 and 51 at scaled=1000) for every genome and the outgroup, publishes the directory, and stages it into the dereplication and tree tasks. A sourmash dereplicator or tree builder then reads the sketches instead of sketching; other tools ignore them. Needs sourmash.",
                     "fa_icon": "fas fa-fingerprint"
                 },
+                "annotator": {
+                    "type": "string",
+                    "default": "bakta",
+                    "enum": ["bakta", "prokka"],
+                    "description": "Annotator for the core-gene route (phylo_args with --msa-source coregene).",
+                    "help_text": "Bacterial and reads paths. ANNOTATE runs it once per representative genome, and for the outgroup unless phylo_args has --no-outgroup, and the records are staged into the phylo task as --annotations-dir. Without --msa-source coregene nothing is annotated.",
+                    "fa_icon": "fas fa-tags"
+                },
+                "bakta_db": {
+                    "type": ["string", "null"],
+                    "default": null,
+                    "description": "bakta database directory (bakta_db download --output DIR --type light), staged into each ANNOTATE task.",
+                    "help_text": "Without it, bakta reads BAKTA_DB from the task environment. Not needed with --annotator prokka.",
+                    "fa_icon": "fas fa-database"
+                },
+                "annotate_args": {
+                    "type": "string",
+                    "default": "",
+                    "description": "Extra arguments for repgenr annotate-build, after --tool (for example --tool-arg skip_trna=true). Reaches the process as task.ext.args; a site config can override it with withName.",
+                    "fa_icon": "fas fa-sliders-h"
+                },
                 "tree2tax_args": {
                     "type": "string",
                     "default": "",

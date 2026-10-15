@@ -56,6 +56,14 @@ class AnnotateBuildParams:
 
 
 @dataclass
+class AnnotateIndexParams:
+    """The data-channel step that indexes gathered ``annotate-build`` outputs."""
+
+    annotations_dir: Path
+    tool: str = "bakta"
+
+
+@dataclass
 class AnnotateSummary:
     annotated: int
     reused: int
@@ -154,18 +162,26 @@ def annotate_build(params: AnnotateBuildParams, logger: logging.Logger) -> Annot
     return result
 
 
-def index_from_directories(directory: Path, tool: str, logger: logging.Logger) -> Path:
+def index_from_directories(
+    directory: Path, tool: str, logger: logging.Logger, *, probe_version: bool = True
+) -> Path:
     """Write ``annotations.tsv`` for the record directories under ``directory``
     (``annotate-build`` outputs gathered by a workflow). The genome digest is
     unknown there, so the rows carry the GFF digest and the tool only; the
-    core-gene pass needs no more."""
+    core-gene pass needs no more.
+
+    ``probe_version=False`` leaves the annotator version empty instead of
+    asking the tool: a workflow task that only gathers the records usually
+    does not have the annotator, and under a container backend the probe
+    would check the image."""
     from ..annotators.base import registry as annotator_registry
 
     version = ""
-    try:
-        version = annotator_registry.create(tool).preflight().get(tool, "")
-    except Exception:  # noqa: BLE001 - the index is written on a host without the tool too
-        version = ""
+    if probe_version:
+        try:
+            version = annotator_registry.create(tool).preflight().get(tool, "")
+        except Exception:  # noqa: BLE001 - the index is written on a host without the tool too
+            version = ""
     records: dict[str, AnnotationRecord] = {}
     for entry in sorted(
         p for p in directory.iterdir() if p.is_dir() and not p.name.startswith(".")
@@ -189,6 +205,24 @@ def index_from_directories(directory: Path, tool: str, logger: logging.Logger) -
     if not records:
         raise UserInputError(f"No annotated records under {directory}")
     return cache.write_index(directory, records)
+
+
+def annotate_index(params: AnnotateIndexParams, logger: logging.Logger) -> Path:
+    """Write ``annotations.tsv`` for gathered record directories (stateless).
+
+    The annotator version is left empty: the task that gathers the records
+    usually does not have the annotator.
+    """
+    if params.tool not in annotator_registry.names():
+        raise UserInputError(
+            f"Unknown annotator '{params.tool}'. Choose from: "
+            f"{', '.join(annotator_registry.names())}."
+        )
+    if not params.annotations_dir.is_dir():
+        raise UserInputError(f"--annotations-dir {params.annotations_dir} is not a directory.")
+    index = index_from_directories(params.annotations_dir, params.tool, logger, probe_version=False)
+    logger.info("Indexed the annotations under %s in %s", params.annotations_dir, index.name)
+    return index
 
 
 def run(ctx: WorkdirContext, params: AnnotateStageParams) -> AnnotateSummary:

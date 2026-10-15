@@ -712,6 +712,27 @@ genomes (21 non-trivial splits each):
 | SCARAP `FH` | | | 21 shared (identical) | 19 shared |
 | SCARAP `O-D` | | | | 19 shared |
 
+### The core-gene route in Nextflow
+
+A temporary harness wired `DEREPLICATE_SCATTER`, `ANNOTATE_SCATTER` and
+`PHYLO` on the three supergroup-A genomes, with bakta and the light
+database for `ANNOTATE`, `--phylo_args '--msa-source coregene --coregene
+ppanggolin --treebuilder iqtree --no-outgroup --root midpoint'`, and the
+satellite environments given through `--repgenr_opts '--bin-dir ...'`.
+
+- Three `ANNOTATE` tasks ran in parallel, and `PHYLO` indexed the staged
+  records with `annotate-index` and read them through `--annotations-dir`.
+- PPanGGOLiN then stopped making progress: its pool waited at "Estimating
+  the optimal number of partitions" with every worker idle. Run directly,
+  the same command finished in five seconds without `--tmpdir` and stalled
+  with the task's 189-character `--tmpdir`. NEM, the partitioning code
+  PPanGGOLiN bundles, keeps file names in 200-character buffers. The
+  adapter now uses a short private temporary directory past 120 characters.
+- With that fix and `-resume`, the dereplication and the three annotations
+  came from the cache and `PHYLO` built 611 genes and 615353 columns with
+  PPanGGOLiN and a three-leaf tree with IQ-TREE, about one minute for the
+  task; the private temporary directory was removed.
+
 ## Gzipped genomes in the aligners and typers (2026-10-08)
 
 Each tool was given gzipped genomes from `pureclone_20` (three or four

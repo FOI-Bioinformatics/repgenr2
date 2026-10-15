@@ -622,6 +622,16 @@ Annotate one genome (stateless data-channel step; writes <out>/<name>/<name>.gff
 | `--tool-arg` |  | Annotator tuning as key=value. |
 | `--versions-out` |  | Write resolved tool versions (YAML fragment) here. |
 
+### annotate-index
+
+Index gathered annotate-build outputs (stateless data-channel step; writes
+<dir>/annotations.tsv, which phylo-build --annotations-dir reads).
+
+| option | default | description |
+|---|---|---|
+| `--annotations-dir` | required | Directory holding the record directories annotate-build wrote (<dir>/<name>/<name>.gff3). |
+| `--tool` | `bakta` | Annotator: bakta (default; needs its database, --bakta-db or BAKTA_DB) or prokka. |
+
 ### phylo-build
 
 Build a phylogeny from a genomes directory (stateless data-channel step).

@@ -44,12 +44,15 @@ workflow VIRAL_DATAFLOW {
     def ch_phylo_in = DEREPLICATE_SCATTER.out.reps
         .join(ch_outgroup, by: 0)
         .join(VACQUIRE.out.outgroup_accession, by: 0)
+    // No annotation step on the viral path (the annotators are prokaryotic);
+    // an empty list stands in for the annotations the phylo tasks can stage.
+    def ch_build_in = ch_phylo_in.map { m, reps, og, acc -> tuple(m, reps, og, acc, []) }
 
     // See bacterial_dataflow: params.phylo_split_msa runs the alignment and
     // the tree as separate tasks.
     def ch_tree = null
     if (params.phylo_split_msa) {
-        PHYLO_MSA(ch_phylo_in, [])
+        PHYLO_MSA(ch_build_in, [])
         ch_versions = ch_versions.mix(PHYLO_MSA.out.versions)
         // alignment_stats.json exists for a SNP-typer alignment only; an empty
         // list stands in for it otherwise (same remainder pattern as the outgroup).
@@ -62,7 +65,7 @@ workflow VIRAL_DATAFLOW {
         ch_tree = PHYLO_TREE.out.tree
     }
     else {
-        PHYLO(ch_phylo_in, [])
+        PHYLO(ch_build_in, [])
         ch_versions = ch_versions.mix(PHYLO.out.versions)
         ch_tree = PHYLO.out.tree
     }

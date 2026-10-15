@@ -15,7 +15,8 @@ nextflow_process {
                     [id: 'test', mode: 'bacterial'],
                     file("${projectDir}/nextflow/tests/data/derep_out"),
                     [ file("${projectDir}/nextflow/tests/data/outgroup/Fam_Out_grp_GCF_000009.1.fasta") ],
-                    file("${projectDir}/nextflow/tests/data/outgroup_accession.txt")
+                    file("${projectDir}/nextflow/tests/data/outgroup_accession.txt"),
+                    []
                 )
                 input[1] = []
                 """

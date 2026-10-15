@@ -6,13 +6,15 @@
 // emitted as a channel output. Tool flags arrive as task.ext.args from
 // conf/modules.config; publishing is configured there too. A staged sketches/
 // directory is passed as --sketches-dir; the sourmash tree builder reads it.
+// Staged annotations/ (the ANNOTATE records, --msa-source coregene) are
+// indexed and passed as --annotations-dir.
 
 process PHYLO {
     tag "${meta.id}"
     label 'process_high'
 
     input:
-    tuple val(meta), path(reps_dir), path(outgroup, stageAs: 'outgroup/*'), path(outgroup_accession)
+    tuple val(meta), path(reps_dir), path(outgroup, stageAs: 'outgroup/*'), path(outgroup_accession), path(annotations, stageAs: 'annotations/*')
     path sketches, stageAs: 'sketches'
 
     output:
@@ -31,6 +33,7 @@ process PHYLO {
     script:
     def args = task.ext.args ?: ''
     def opts = task.ext.repgenr_opts ?: ''
+    def annotator = task.ext.annotator ?: 'bakta'
     """
     # Forward tool exit codes (OOM kill -> 137) so errorStrategy can retry.
     export REPGENR_PROPAGATE_TOOL_EXIT=1
@@ -38,11 +41,19 @@ process PHYLO {
     sk=""
     [ -d sketches ] && sk="--sketches-dir sketches"
 
+    # The ANNOTATE record directories (--msa-source coregene), gathered here:
+    # index them so phylo-build reads them instead of annotating every genome.
+    an=""
+    if [ -d annotations ]; then
+        repgenr ${opts} annotate-index --annotations-dir annotations --tool ${annotator}
+        an="--annotations-dir annotations"
+    fi
+
     repgenr ${opts} phylo-build \\
         --genomes-dir ${reps_dir}/representatives \\
         --outgroup-dir outgroup \\
         --outgroup-accession ${outgroup_accession} \\
-        -o . -t ${task.cpus} ${args} \$sk \\
+        -o . -t ${task.cpus} ${args} \$sk \$an \\
         --versions-out tool_versions.yml
 
     repgenr_versions_fragment "${task.process}" tool_versions.yml
@@ -55,6 +66,11 @@ process PHYLO {
     echo "ext.args: ${args}"
     echo "ext.repgenr_opts: ${opts}"
     if [ -d sketches ]; then echo "sketches: staged"; else echo "sketches: none"; fi
+    if [ -d annotations ]; then
+        echo "annotations: staged (\$(ls annotations | wc -l | tr -d ' ') records)"
+    else
+        echo "annotations: none"
+    fi
     mkdir -p tree
     names=\$(ls ${reps_dir}/representatives | sed 's/\\.[^.]*\$//' | paste -sd, -)
     echo "(\${names});" > tree/tree.nwk

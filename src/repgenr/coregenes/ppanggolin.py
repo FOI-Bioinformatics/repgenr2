@@ -32,9 +32,12 @@ of gaps throughout, and the stage drops it from the alignment.
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import os
-from collections.abc import Sequence
+import shutil
+import tempfile
+from collections.abc import Iterator, Sequence
 from pathlib import Path
 
 from ..core.binaries import BinarySpec
@@ -141,11 +144,70 @@ class PPanGGOLiNBuilder(CoreGeneBuilder):
         pan_dir = out_dir / "pangenome"
         h5 = pan_dir / "pangenome.h5"
         common = ["-c", str(params.threads), "-f", "-d", "--verbose", "1"]
-        # MMseqs2 and the per-family FASTA files go here, not to the system
-        # temporary directory (or the container's own layer).
-        tmp_dir = out_dir / "tmp"
-        tmp_dir.mkdir(exist_ok=True)
+        with _partition_tmpdir(out_dir / "tmp", logger) as tmp_dir:
+            self._run(
+                params, partition, identity, coverage, single_copy, dup_margin,
+                listing, pan_dir, h5, out_dir, tmp_dir, [*mounts, str(tmp_dir)], common, logger,
+            )  # fmt: skip
 
+        soft_core = f"{params.core_threshold:g}"
+        tables_dir = out_dir / "tables"
+        msa_dir = out_dir / "msa"
+        alignments = sorted(msa_dir.glob("*_genome_alignment.aln"))
+        families = [p for d in msa_dir.glob("msa_*_dna") for p in d.glob("*.aln") if p.is_file()]
+        core_genes = len(families)
+        if not alignments or core_genes == 0 or not _has_columns(alignments[0]):
+            raise WorkdirError(
+                f"ppanggolin selected no gene family for the {partition} partition"
+                + (f" at --core-threshold {soft_core}" if partition == "softcore" else "")
+                + f". Its clustering groups proteins at least {identity:g} identical over "
+                f"{coverage:g} of their length (--aligner-arg identity= and coverage=); on a "
+                "divergent set lower them, or lower --core-threshold. Check too that the GFF3 "
+                "files carry their sequences."
+            )
+        if core_genes < _SMALL_CORE:
+            logger.warning(
+                "Only %d gene families in the %s alignment. On a divergent set lower "
+                "--aligner-arg identity= (now %g) or --core-threshold.",
+                core_genes,
+                partition,
+                identity,
+            )
+        tables = [tables_dir / t for t in TABLES if (tables_dir / t).is_file()]
+        partitions_dir = tables_dir / "partitions"
+        tables += sorted(p for p in partitions_dir.glob("*.txt") if p.is_file())
+        return CoreGeneResult(
+            alignment=alignments[0],
+            tables=tables,
+            core_genes=core_genes,
+            clustering_identity=identity,
+            settings={
+                "partition": partition,
+                "coverage": coverage,
+                "single_copy": single_copy,
+                # MMseqs2 compares proteins; Panaroo's identity is nucleotide.
+                "clustering_on": "protein",
+            },
+        )
+
+    def _run(
+        self,
+        params: CoreGeneParams,
+        partition: str,
+        identity: float,
+        coverage: float,
+        single_copy: bool,
+        dup_margin: float | None,
+        listing: Path,
+        pan_dir: Path,
+        h5: Path,
+        out_dir: Path,
+        tmp_dir: Path,
+        mounts: list[str],
+        common: list[str],
+        logger: logging.Logger,
+    ) -> None:
+        """The three PPanGGOLiN calls: workflow, write_pangenome and msa."""
         workflow: list[str | Path] = [
             "ppanggolin", "workflow", "--anno", listing, "-o", pan_dir,
             "--identity", f"{identity:g}", "--coverage", f"{coverage:g}",
@@ -186,44 +248,45 @@ class PPanGGOLiNBuilder(CoreGeneBuilder):
             msa.append("--single_copy")
             if dup_margin is not None:
                 msa += ["--dup_margin", f"{dup_margin:g}"]
-        run_tool(self.capabilities, msa, logger=logger, cwd=out_dir, log_prefix="ppanggolin")
+        run_tool(
+            self.capabilities, msa, logger=logger, cwd=out_dir,
+            log_prefix="ppanggolin", extra_mounts=mounts,
+        )  # fmt: skip
 
-        alignments = sorted(msa_dir.glob("*_genome_alignment.aln"))
-        families = [p for d in msa_dir.glob("msa_*_dna") for p in d.glob("*.aln") if p.is_file()]
-        core_genes = len(families)
-        if not alignments or core_genes == 0 or not _has_columns(alignments[0]):
-            raise WorkdirError(
-                f"ppanggolin selected no gene family for the {partition} partition"
-                + (f" at --core-threshold {soft_core}" if partition == "softcore" else "")
-                + f". Its clustering groups proteins at least {identity:g} identical over "
-                f"{coverage:g} of their length (--aligner-arg identity= and coverage=); on a "
-                "divergent set lower them, or lower --core-threshold. Check too that the GFF3 "
-                "files carry their sequences."
-            )
-        if core_genes < _SMALL_CORE:
-            logger.warning(
-                "Only %d gene families in the %s alignment. On a divergent set lower "
-                "--aligner-arg identity= (now %g) or --core-threshold.",
-                core_genes,
-                partition,
-                identity,
-            )
-        tables = [tables_dir / t for t in TABLES if (tables_dir / t).is_file()]
-        partitions_dir = tables_dir / "partitions"
-        tables += sorted(p for p in partitions_dir.glob("*.txt") if p.is_file())
-        return CoreGeneResult(
-            alignment=alignments[0],
-            tables=tables,
-            core_genes=core_genes,
-            clustering_identity=identity,
-            settings={
-                "partition": partition,
-                "coverage": coverage,
-                "single_copy": single_copy,
-                # MMseqs2 compares proteins; Panaroo's identity is nucleotide.
-                "clustering_on": "protein",
-            },
+
+# NEM, the partitioning code PPanGGOLiN bundles, keeps file names in buffers of
+# 200 characters, and PPanGGOLiN builds them under --tmpdir with about 40 more.
+# A longer name makes a partitioning worker fail and the whole run wait for it
+# without end (seen under a Nextflow work directory). Beyond this length the
+# adapter uses a short temporary directory of its own.
+_TMPDIR_MAX = 120
+
+
+@contextlib.contextmanager
+def _partition_tmpdir(preferred: Path, logger: logging.Logger) -> Iterator[Path]:
+    """``preferred`` when its path is short enough for NEM, else a short one
+    under the system temporary directory, removed afterwards."""
+    if len(os.path.abspath(preferred)) <= _TMPDIR_MAX:
+        preferred.mkdir(parents=True, exist_ok=True)
+        yield preferred
+        return
+    own = Path(tempfile.mkdtemp(prefix="repgenr-ppg-"))
+    if len(str(own)) > _TMPDIR_MAX:
+        shutil.rmtree(own, ignore_errors=True)
+        raise WorkdirError(
+            f"ppanggolin needs a temporary directory path of at most {_TMPDIR_MAX} "
+            f"characters (its partitioning code keeps file names in fixed buffers), and "
+            f"both {preferred} and the system one are longer; set TMPDIR to a short path."
         )
+    logger.info(
+        "The work path is too long for ppanggolin's partitioning code; its temporary "
+        "files go to %s instead",
+        own,
+    )
+    try:
+        yield own
+    finally:
+        shutil.rmtree(own, ignore_errors=True)
 
 
 def _unit(raw: object, flag: str) -> float:

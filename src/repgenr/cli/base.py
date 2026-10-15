@@ -263,6 +263,7 @@ COMMAND_PANELS: dict[str, tuple[str, ...]] = {
         "dereplicate-chunk",
         "dereplicate-merge",
         "annotate-build",
+        "annotate-index",
         "phylo-build",
         "tree2tax-relations",
         "assemble-run",
