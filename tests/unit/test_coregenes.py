@@ -121,6 +121,60 @@ def test_panaroo_unfiltered_choice_and_errors(tmp_path: Path, monkeypatch) -> No
         )
 
 
+def test_panaroo_threshold_reaches_argv_and_is_checked(tmp_path: Path, monkeypatch) -> None:
+    """``threshold=`` is Panaroo's -c, the identity of its first clustering pass."""
+    calls: list[list[str]] = []
+    monkeypatch.setattr(mod, "run_tool", _fake_panaroo(calls))
+    mod.PanarooBuilder().call(
+        _gffs(tmp_path), tmp_path / "o1", CoreGeneParams(extra={"threshold": "0.90"}), _LOG
+    )
+    (cmd,) = calls
+    assert cmd[cmd.index("-c") + 1] == "0.9"
+    assert "threshold" in mod.PanarooBuilder.capabilities.accepted_extras
+
+    calls.clear()
+    mod.PanarooBuilder().call(_gffs(tmp_path), tmp_path / "o2", CoreGeneParams(), _LOG)
+    (cmd,) = calls
+    assert "-c" not in cmd  # left to panaroo's own default
+
+    for bad in ("high", "1.5", "0"):
+        with pytest.raises(UserInputError, match="threshold"):
+            mod.PanarooBuilder().call(
+                _gffs(tmp_path), tmp_path / "bad", CoreGeneParams(extra={"threshold": bad}), _LOG
+            )
+
+
+def test_a_small_core_names_the_identity_gate(tmp_path: Path, monkeypatch, caplog) -> None:
+    """Under 100 genes the warning points at the parameter that governs it."""
+    monkeypatch.setattr(mod, "run_tool", _fake_panaroo([]))  # the fake header holds 17 genes
+    with caplog.at_level(logging.WARNING, logger=_LOG.name):
+        mod.PanarooBuilder().call(_gffs(tmp_path), tmp_path / "o1", CoreGeneParams(), _LOG)
+    assert "threshold=0.95" in caplog.text and "0.98" in caplog.text
+
+    # Not repeated once the user has set it: they know about the parameter.
+    caplog.clear()
+    with caplog.at_level(logging.WARNING, logger=_LOG.name):
+        mod.PanarooBuilder().call(
+            _gffs(tmp_path), tmp_path / "o2", CoreGeneParams(extra={"threshold": "0.9"}), _LOG
+        )
+    assert "threshold=0.95" not in caplog.text
+
+
+def test_no_core_at_all_refuses_and_names_the_identity_gate(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setattr(mod, "run_tool", _fake_panaroo([], filtered=False, unfiltered=False))
+    with pytest.raises(WorkdirError, match=r"demands 0.98 identity"):
+        mod.PanarooBuilder().call(
+            _gffs(tmp_path), tmp_path / "o1", CoreGeneParams(filtered=False), _LOG
+        )
+    with pytest.raises(WorkdirError, match=r"demands 0.9 identity"):
+        mod.PanarooBuilder().call(
+            _gffs(tmp_path),
+            tmp_path / "o2",
+            CoreGeneParams(filtered=False, extra={"threshold": "0.9"}),
+            _LOG,
+        )
+
+
 def test_panaroo_is_registered_and_never_auto() -> None:
     assert "panaroo" in registry.names()
     assert registry.get("panaroo").capabilities.auto_eligible is False

@@ -130,8 +130,10 @@ HELP_MSA_SOURCE = (
 )
 HELP_COREGENE = (
     "Core-gene alignment builder for --msa-source coregene: panaroo. Its tuning goes "
-    "through --aligner-arg (filtered=false for the unfiltered alignment, merge_paralogs, "
-    "remove_invalid_genes, family_threshold, len_dif_percent)."
+    "through --aligner-arg: threshold= is the identity of its first clustering pass "
+    "(0.98; lower it, 0.95 then 0.90, when the core comes out small on a divergent "
+    "set), and also filtered=false for the unfiltered alignment, merge_paralogs, "
+    "remove_invalid_genes, family_threshold, len_dif_percent."
 )
 HELP_CORE_THRESHOLD = (
     "With --msa-source coregene: a gene is core when present in at least this fraction "

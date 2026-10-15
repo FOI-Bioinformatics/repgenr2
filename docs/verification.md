@@ -568,23 +568,46 @@ reached through `--bin-dir`.
   names its samples after the file stem, which is the genome's record name
   (`Wolbachiaceae_wolbachia_sp_GCF_000008025.1`), so the tree leaves match
   the genome set.
-- **The core collapses across Wolbachia supergroups.** On wMel and wRi
-  (supergroup A), wBm (D) and wOo (C), Panaroo found no gene in all four:
-  548 genes in one genome, 1050 in two, 5 in three. `--clean-mode moderate`
-  and `sensitive`, and `--family_threshold` at 0.5 and 0.3, gave the same
-  result. The two supergroup-A genomes shared 1054 genes, so the clustering
-  works within a group and not across them. Panaroo is built for
-  within-species pangenomes, and these supergroups sit near 80% identity.
-  The stage refuses that case with the message Panaroo's own behaviour
-  produces.
 - **End to end**, on three supergroup-A genomes (wMel, wRi, wHa), with
-  `--clean-mode sensitive`: 45 core genes, 52050 columns, three records,
-  about 70 seconds for Panaroo and 11 for IQ-TREE; `tree/tree.nwk` named
-  all three. The pair wMel and wRi alone shared 1054 genes, so the third
-  genome, whose branch is ten times longer, is what reduces the core. Read
-  `tree/msa/core_gene_stats.json` before trusting a core-gene tree: a small
-  core means the set is too diverse for de-novo clustering, whatever the
-  tree looks like.
+  `--clean-mode sensitive` and otherwise default settings: 45 core genes,
+  52050 columns, three records, about 70 seconds for Panaroo and 11 for
+  IQ-TREE; `tree/tree.nwk` named all three.
+- **The annotator makes no difference.** prokka 1.15.6 on the same three
+  genomes gave the same 45 genes and 52050 columns, and branch lengths
+  equal to six digits. It took 135 seconds against bakta's 45 per genome
+  and needs Rosetta here, so bakta stays the default.
+- **Panaroo's clustering identity is what governs the core.** Its first
+  pass demands `-c` 0.98 by default, which genomes below that identity
+  cannot meet, and `--family_threshold` (0.7, the later protein-family
+  step) does not compensate: at 0.5 and 0.3 the result did not move. On
+  the three supergroup-A genomes, varying `-c` alone:
+
+  | `-c` (`--aligner-arg threshold=`) | genes in all three |
+  |---|---|
+  | 0.98 (Panaroo's default) | 52 |
+  | 0.95 | 226 |
+  | 0.90 | 638 |
+  | 0.80 | 796 |
+
+  (counted from `gene_presence_absence_roary.csv`; the alignment step of the
+  0.80 run was not carried through.)
+
+  Published benchmarks say the same: RIBAP (Genome Biology 2024) records
+  Panaroo's default as 98%, measures a genus-level core of 16.12% for
+  Klebsiella and about 0% for Chlamydia at the defaults, and recovers
+  larger core sets after lowering `-c` through 0.95, 0.9, 0.8, 0.7 and
+  0.6, while warning that too low a value assigns genes that are not
+  orthologues. The Panaroo paper's own benchmarks are species-level (a
+  tuberculosis outbreak, a Klebsiella collection).
+- **Across Wolbachia supergroups the defaults give nothing.** With wBm (D)
+  and wOo (C) beside the supergroup-A pair, no gene was in all four: 548
+  genes in one genome, 1050 in two, 5 in three, unchanged by the cleaning
+  mode. Over 24 complete Wolbachia genomes (9214 clusters) the defaults
+  gave 0 genes at 95% occupancy, 1 at 90%, 4 at 80%, 59 at 70% and 95 at
+  50%, with a spike of 831 genes shared by exactly 10 genomes: the
+  signature of clustering that succeeds only inside a close subgroup.
+  Lower `threshold` before concluding that a set has no core, and read
+  `tree/msa/core_gene_stats.json`, which carries the count.
 
 ## Gzipped genomes in the aligners and typers (2026-10-08)
 

@@ -7,6 +7,17 @@ All notable changes to RepGenR2 are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- `--msa-source coregene` takes `--aligner-arg threshold=` (Panaroo's `-c`,
+  the identity of its first clustering pass, 0.98 by default), which
+  governs how much divergence the core-gene route tolerates. A set below
+  that identity does not cluster, and neither `--core-threshold` nor
+  `family_threshold` compensates: measured on three Wolbachia genomes the
+  core went from 52 genes at 0.98 to 226 at 0.95, 638 at 0.90 and 796 at
+  0.80, and across Wolbachia supergroups the defaults gave none
+  (`docs/verification.md`). The stage now warns when the core falls under
+  100 genes and names the parameter, and the refusal when no core exists
+  says the same. RIBAP (Genome Biology 2024) reports the same effect for
+  other genera.
 - `phylo --msa-source coregene` (also on `phylo-build` and `run`): a tree
   from a concatenated core-gene alignment. A new family, core-gene builders,
   with `panaroo` (`panaroo -i LIST -o DIR --clean-mode MODE -a core

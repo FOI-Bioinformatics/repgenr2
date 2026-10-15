@@ -1482,17 +1482,22 @@ changed (the reuse stamp holds the index digest). Outputs:
 `tree/msa/pangenome/` and `tree/msa/core_gene_stats.json` (see
 [output.md](output.md)).
 
-This route suits a species or a group of closely related genomes, which is
-what Panaroo's de-novo clustering is built for. It does not rescue a
-genuinely diverse set: on four Wolbachia genomes from different supergroups
-(about 80% identity) Panaroo found no gene shared by all four, at every
-cleaning mode and down to `--aligner-arg family_threshold=0.3`, while two
-genomes of one supergroup shared 1054 genes (see
-[verification.md](verification.md)). Read `core_gene_stats.json` before
-trusting the tree: a small core means the set is too diverse for this
-route, and an alignment-free builder is the honest choice there. Within an
-outbreak a SNP tree draws on far more positions and costs no annotation
-pass. Panaroo's declared
+How much divergence this route tolerates is set by one parameter, not by
+the taxonomic rank: Panaroo clusters genes in a first pass at
+`--aligner-arg threshold=` identity, 0.98 by default, and genes from
+genomes below that identity do not cluster at all. `--core-threshold`
+(which fraction of the genomes a gene must be in) and `family_threshold`
+(the later protein-family step) do not compensate. Measured on three
+Wolbachia genomes, the core went from 52 genes at 0.98 to 226 at 0.95, 638
+at 0.90 and 796 at 0.80; across Wolbachia supergroups the defaults gave no
+core at all, and over 24 genomes only 95 genes reached even 50% occupancy
+(see [verification.md](verification.md)). RIBAP (Genome Biology 2024)
+reports the same for other genera and cautions that too low a value starts
+to merge genes that are not orthologues, so lower it in steps and check
+the result. The stage warns when the core comes out under 100 genes.
+`core_gene_stats.json` carries the count, and it is the number to look at
+before trusting the tree. Within an outbreak a SNP tree still draws on far
+more positions and costs no annotation pass. Panaroo's declared
 limit of 500 genomes is not measured here, and neither is its runtime; the
 clustering and the per-gene alignments are the slow parts, after the
 annotation. The data-channel step `phylo-build --msa-source

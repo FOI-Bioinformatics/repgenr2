@@ -37,6 +37,11 @@ TABLES = (
     "core_alignment_filtered_header.embl",
 )
 _FEATURE = re.compile(r"^FT\s+feature\s")
+# Panaroo's own -c default, named so the messages can quote it.
+DEFAULT_THRESHOLD = 0.98
+# Below this a core-gene tree rests on very little, and the identity gate
+# is the first thing to look at.
+_SMALL_CORE = 100
 
 
 class PanarooBuilder(CoreGeneBuilder):
@@ -53,7 +58,14 @@ class PanarooBuilder(CoreGeneBuilder):
         recommended_max_genomes=500,
         auto_eligible=False,
         accepted_extras=frozenset(
-            {"remove_invalid_genes", "merge_paralogs", "family_threshold", "len_dif_percent"}
+            {
+                # Panaroo's -c: the identity of its first clustering pass.
+                "threshold",
+                "remove_invalid_genes",
+                "merge_paralogs",
+                "family_threshold",
+                "len_dif_percent",
+            }
         ),
     )
 
@@ -96,6 +108,8 @@ class PanarooBuilder(CoreGeneBuilder):
             cmd.append("--remove_invalid_genes")
         if parse_extra_bool(params.extra, "merge_paralogs", False):
             cmd.append("--merge_paralogs")
+        if "threshold" in params.extra:
+            cmd += ["-c", f"{_unit(params.extra['threshold'], 'threshold'):g}"]
         for key in ("family_threshold", "len_dif_percent"):
             if key in params.extra:
                 cmd += ["--" + key, str(params.extra[key])]
@@ -110,14 +124,18 @@ class PanarooBuilder(CoreGeneBuilder):
         name = "core_gene_alignment_filtered.aln" if params.filtered else "core_gene_alignment.aln"
         alignment = out_dir / name
         if not alignment.is_file() or alignment.stat().st_size == 0:
+            identity = params.extra.get("threshold", DEFAULT_THRESHOLD)
             if params.filtered and (out_dir / "core_gene_alignment.aln").is_file():
                 raise WorkdirError(
                     "panaroo wrote core_gene_alignment.aln but no filtered alignment; pass "
                     "--aligner-arg filtered=false to use the unfiltered one"
                 )
             raise WorkdirError(
-                f"panaroo wrote no {name}: too few genomes share core genes at "
-                f"--core-threshold {params.core_threshold:g}, or the GFF3 files carry no sequences"
+                f"panaroo wrote no {name}: no gene is in {params.core_threshold:g} of the "
+                f"genomes. Its first clustering pass demands {identity} identity "
+                "(--aligner-arg threshold=), and genomes below that do not cluster, so a "
+                "divergent set needs a lower value (0.95 and 0.90 are the usual steps). "
+                "Check too that the GFF3 files carry their sequences."
             )
         tables = [out_dir / t for t in TABLES if (out_dir / t).is_file()]
         header = out_dir / (
@@ -125,9 +143,29 @@ class PanarooBuilder(CoreGeneBuilder):
             if params.filtered
             else "core_alignment_header.embl"
         )
-        return CoreGeneResult(
-            alignment=alignment, tables=tables, core_genes=_core_genes(header, out_dir, logger)
-        )
+        core_genes = _core_genes(header, out_dir, logger)
+        if core_genes is not None and core_genes < _SMALL_CORE and "threshold" not in params.extra:
+            logger.warning(
+                "Only %d core genes: panaroo's first clustering pass demands %s identity, and "
+                "genomes below that do not cluster. On a divergent set try --aligner-arg "
+                "threshold=0.95, or 0.90; measured on three Wolbachia genomes the core went "
+                "from 52 genes to 226 and then 638.",
+                core_genes,
+                DEFAULT_THRESHOLD,
+            )
+        return CoreGeneResult(alignment=alignment, tables=tables, core_genes=core_genes)
+
+
+def _unit(raw: object, flag: str) -> float:
+    try:
+        value = float(str(raw))
+    except ValueError:
+        raise UserInputError(
+            f"panaroo {flag} must be a number within (0, 1], got {raw!r}"
+        ) from None
+    if not 0.0 < value <= 1.0:
+        raise UserInputError(f"panaroo {flag} must be within (0, 1], got {raw!r}")
+    return value
 
 
 def _core_genes(header: Path, out_dir: Path, logger: logging.Logger) -> int | None:
