@@ -22,7 +22,6 @@ All notable changes to RepGenR2 are documented here. The format follows
   that later entries implement (batches A to D; E deferred).
 
 ### Changed
-  carries the value.
 - `tree2tax` writes `tree2tax_nodes.tsv` beside its two tables: one row per
   node with its parent, leaf count, depth, branch length, support (as a
   fraction), relative evolutionary divergence (Parks et al. 2018, computed as
