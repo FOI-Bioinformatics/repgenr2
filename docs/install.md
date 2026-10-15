@@ -272,7 +272,7 @@ the `envs/` files, and the environment that holds each tool is listed in
 | Tree builder | fasttree | `fasttree` | yes | `fasttree:2.2.0` | none |
 | Tree builder | raxmlng | `raxml-ng` | yes | `raxml-ng:2.0.3` | none |
 | Tree builder | mashtree | `mashtree` | yes | `mashtree:1.4.6` | none |
-| Tree builder | sourmash | `sourmash` | yes | `sourmash:4.9.4` | none |
+| Tree builder | sourmash | `sourmash` | yes | `sourmash:4.9.4` | `rapidnj` for the joining step above a few thousand leaves (optional; `rapidnj:2.3.3` under a container backend) |
 | Assembler | skesa | `skesa` | yes | `skesa:2.5.1` | none |
 | Assembler | shovill | `shovill` | no | `shovill:1.4.2` | none |
 | Assembler | flye | `flye` | yes | `flye:2.9.6` | none |

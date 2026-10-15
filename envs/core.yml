@@ -31,6 +31,7 @@ dependencies:
   - medaka>=2.0
   - racon>=1.4
   - fasttree>=2.1
+  - rapidnj>=2.3           # neighbour joining for the distance tree builders
   - iqtree>=2.0
   - raxml-ng>=1.0
   - pip:

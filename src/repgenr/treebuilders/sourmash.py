@@ -2,7 +2,9 @@
 
 With ``TreeParams.sketches`` the genomes that have a workdir sketch are not
 sketched again: ``sourmash compare -k`` selects the signature at the
-requested k-mer size from each ``.sig.zip``.
+requested k-mer size from each ``.sig.zip``. The joining step runs rapidNJ
+when it is installed and the pure-Python code otherwise (``nj=`` extra;
+see :mod:`repgenr.tree.nj`).
 """
 
 from __future__ import annotations
@@ -19,21 +21,17 @@ from ..core.errors import WorkdirError
 from ..core.plugins import parse_extra_int
 from ..core.process import write_fofn
 from ..core.sourmash import sourmash_capabilities
-from ..tree.newick import neighbor_joining
+from ..tree.nj import NJ_AUTO, nj_tree
 from .base import InputKind, TreeBuilder, TreeParams, as_genome_list
-
-# Measured (docs/audit/scaling-audit.md): the pure-Python NJ is ~30 s of the 142 s
-# total at n=1000 and cubic beyond; refuse sizes that extrapolate to hours.
-_NJ_MAX_GENOMES = 5000
 
 
 class SourmashBuilder(TreeBuilder):
     capabilities = sourmash_capabilities(
         reads_gzip=True,
-        accepted_extras=frozenset({"ksize", "scaled"}),
+        accepted_extras=frozenset({"ksize", "scaled", "nj"}),
         # A distance-based NJ tree has no bootstrap step.
         ignored_params=frozenset({"bootstrap"}),
-        default_params={"ksize": 31, "scaled": 1000},
+        default_params={"ksize": 31, "scaled": 1000, "nj": NJ_AUTO},
         recommended_max_genomes=2000,
     )
     input_kind = InputKind.GENOMES
@@ -53,14 +51,6 @@ class SourmashBuilder(TreeBuilder):
         logger: logging.Logger,
     ) -> Path:
         genomes = as_genome_list(msa_or_genomes)
-        if len(genomes) > _NJ_MAX_GENOMES:
-            raise WorkdirError(
-                f"The sourmash tree builder runs a pure-Python O(n^3) neighbor "
-                f"joining; {len(genomes)} genomes extrapolate to many hours "
-                f"(measured fit: ~1.6 h at 5000, ~12 h at 10000). Use a tool "
-                f"built for this size (e.g. --treebuilder mashtree), or "
-                f"dereplicate further first."
-            )
         out_dir.mkdir(parents=True, exist_ok=True)
         ksize = parse_extra_int(params.extra, "ksize", self.capabilities.default_params["ksize"])
         scaled = parse_extra_int(params.extra, "scaled", self.capabilities.default_params["scaled"])
@@ -103,7 +93,13 @@ class SourmashBuilder(TreeBuilder):
         clean_labels = [named[i] for i in order]
         # distance = 1 - similarity
         dist = [[1.0 - similarity[i][j] for j in order] for i in order]
-        newick = neighbor_joining(clean_labels, dist)
+        newick = nj_tree(
+            clean_labels,
+            dist,
+            out_dir,
+            logger,
+            backend=str(params.extra.get("nj", self.capabilities.default_params["nj"])),
+        )
 
         tree = out_dir / "tree.nwk"
         with atomic_replace(tree) as fo:

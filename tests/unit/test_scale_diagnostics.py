@@ -140,13 +140,14 @@ def test_sourmash_treebuilder_limit_is_measured():
     assert SourmashBuilder.capabilities.recommended_max_genomes == 2000
 
 
-def test_sourmash_treebuilder_hard_guard_above_5000(tmp_path):
-    from repgenr.treebuilders.base import TreeParams
-    from repgenr.treebuilders.sourmash import SourmashBuilder
+def test_python_nj_hard_guard_above_5000(monkeypatch):
+    # The guard moved from the sourmash builder to the joining step: without
+    # rapidnj, more than 5000 leaves are refused before any matrix is built.
+    from repgenr.tree import nj
 
-    genomes = [tmp_path / f"g{i}.fasta" for i in range(5001)]
-    with pytest.raises(WorkdirError, match="neighbor joining"):
-        SourmashBuilder().build(genomes, tmp_path / "out", TreeParams(), _LOGGER)
+    monkeypatch.setattr(nj, "tool_available", lambda caps: False)
+    with pytest.raises(WorkdirError, match="Neighbour joining of 5001 leaves"):
+        nj.choose_backend(nj.NJ_AUTO, 5001, _LOGGER)
 
 
 # --- target-reps non-convergence warning --------------------------------------
