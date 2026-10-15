@@ -1669,6 +1669,21 @@ commands:
         with_args:
         - --msa-source
         - snptype
+      --core-fraction:
+        param: PhyloParams.extra
+        value: '0.95'
+        validated: range
+        invalid: '2'
+        docs:
+        - docs/cli-reference.md
+        - docs/usage.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
+        live: 'n/a: shares the phylo builder (wiring test); the typing pass is covered offline
+          in tests/integration/test_snptype_stage.py'
+        with_args:
+        - --msa-source
+        - snptype
       --allow-incomplete:
         param: PhyloParams.allow_incomplete
         validated: none
@@ -1895,6 +1910,21 @@ commands:
         nextflow: params.phylo_args
         live: 'n/a: the mask path is exercised on phylo (test_phylo_mask_gubbins); the step shares the
           builder'
+      --core-fraction:
+        param: PhyloBuildParams.phylo.extra
+        value: '0.95'
+        validated: range
+        invalid: '2'
+        docs:
+        - docs/cli-reference.md
+        - docs/usage.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'params.phylo_args'
+        live: 'n/a: shares the phylo builder (wiring test); the typing pass is covered offline
+          in tests/integration/test_snptype_stage.py'
+        with_args:
+        - --msa-source
+        - snptype
   assemble:
     dispatch: stage
     base_args:
@@ -3027,6 +3057,21 @@ commands:
         nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
         live: 'n/a: forwarded to the stage builder unchanged (wiring test); the stage flag is covered
           live'
+      --core-fraction:
+        param: PhyloParams.extra
+        value: '0.95'
+        validated: range
+        invalid: '2'
+        docs:
+        - docs/cli-reference.md
+        - docs/usage.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
+        live: 'n/a: shares the phylo builder (wiring test); the typing pass is covered offline
+          in tests/integration/test_snptype_stage.py'
+        with_args:
+        - --msa-source
+        - snptype
       --collapse-support:
         param: Tree2taxParams.collapse_support
         value: '0.5'
@@ -3162,6 +3207,17 @@ commands:
         nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
         live: tests/live/test_species_set.py::test_gubbins_mask_changes_the_core_alignment
         observable: masked alignment differs from unmasked
+      --core-fraction:
+        param: SnptypeParams.core_fraction
+        value: '0.95'
+        validated: range
+        invalid: '2'
+        docs:
+        - docs/cli-reference.md
+        - docs/usage.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
+        live: 'n/a: covered offline in tests/integration/test_snptype_stage.py'
       --threads:
         aliases:
         - -t

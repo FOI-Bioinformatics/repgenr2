@@ -15,6 +15,7 @@ from .base import (
     HELP_COLLAPSE_DIAMETER,
     HELP_COLLAPSE_LENGTH,
     HELP_COLLAPSE_SUPPORT,
+    HELP_CORE_FRACTION,
     HELP_INCLUDE_DEREPLICATED,
     HELP_MSA_SOURCE,
     HELP_NAMING,
@@ -49,6 +50,9 @@ def snptype(
     reference: str | None = typer.Option(None, "--reference", help=HELP_REFERENCE),
     all_genomes: bool = typer.Option(False, "--all-genomes", help=HELP_ALL_GENOMES),
     mask: str = typer.Option("none", "--mask", help=_mask_help()),
+    core_fraction: float | None = typer.Option(
+        None, "--core-fraction", min=0.0, max=1.0, help=HELP_CORE_FRACTION
+    ),
     threads: int = typer.Option(
         DEFAULT_THREADS, "-t", "--threads", min=1, help=HELP_THREADS, callback=resolve_threads
     ),
@@ -79,6 +83,7 @@ def snptype(
             reference=reference,
             all_genomes=all_genomes,
             mask=mask,
+            core_fraction=core_fraction,
             allow_incomplete=allow_incomplete,
             extra=_parse_key_values(tool_arg, "--tool-arg"),
         )
@@ -111,6 +116,9 @@ def phylo(
         "--mask",
         help=_mask_help_msa(),
     ),
+    core_fraction: float | None = typer.Option(
+        None, "--core-fraction", min=0.0, max=1.0, help=HELP_CORE_FRACTION
+    ),
     allow_incomplete: bool = typer.Option(
         False,
         "--allow-incomplete",
@@ -135,6 +143,7 @@ def phylo(
             extra={
                 **_parse_key_values(aligner_arg, "--aligner-arg"),
                 **({"mask": mask} if mask != "none" else {}),
+                **({"core_fraction": core_fraction} if core_fraction is not None else {}),
             },
             allow_incomplete=allow_incomplete,
         )

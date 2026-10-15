@@ -87,7 +87,23 @@ from ..treebuilders.base import registry as treebuilder_registry
 __all__ = ["PhyloParams", "PhyloBuildParams", "build_tree", "phylo_build", "run", "list_fasta"]
 
 # Keys the phylo stage reads itself; never forwarded to an adapter.
-_STAGE_EXTRA_KEYS = frozenset({"mask"})
+_STAGE_EXTRA_KEYS = frozenset({"mask", "core_fraction"})
+
+
+def _core_fraction(extra: Mapping[str, object]) -> float | None:
+    """The --core-fraction carried in the stage extras, or None."""
+    raw = extra.get("core_fraction")
+    if raw is None or str(raw).strip() == "":
+        return None
+    try:
+        value = float(str(raw))
+    except ValueError:
+        raise UserInputError(
+            f"--core-fraction must be a number between 0 and 1, got {raw!r}"
+        ) from None
+    if not 0 <= value <= 1:
+        raise UserInputError(f"--core-fraction must be between 0 and 1, got {raw!r}")
+    return value
 
 
 def _adapter_extra(extra: dict) -> dict:
@@ -291,6 +307,8 @@ def _msa_key(
         "all_genomes": params.all_genomes,
         "no_outgroup": params.no_outgroup,
         "mask": str(params.extra.get("mask", "none")),
+        # Read by the typing pass only; an aligner alignment is unchanged by it.
+        "core_fraction": _core_fraction(params.extra) if params.msa_source == "snptype" else None,
         "stats": _SNPTYPE_STATS_VERSION if params.msa_source == "snptype" else None,
         "extra": {k: str(v) for k, v in sorted(_adapter_extra(params.extra).items())},
         "inputs": paths_stat_digest(inputs),
@@ -605,6 +623,8 @@ def build_tree(
             unused.append(f"--msa-source snptype (--snptyper {params.snptyper})")
         if str(params.extra.get("mask", "none")) not in ("none", ""):
             unused.append(f"--mask {params.extra['mask']}")
+        if _core_fraction(params.extra) is not None:
+            unused.append(f"--core-fraction {params.extra['core_fraction']}")
         if unused:
             logger.warning(
                 "Tree builder '%s' builds from the genomes without an alignment; %s has no effect.",
@@ -1250,6 +1270,7 @@ def _build_msa(
             reference=params.reference,
             all_genomes=params.all_genomes,
             mask=params.extra.get("mask", "none"),
+            core_fraction=_core_fraction(params.extra),
             extra=_adapter_extra(params.extra),
             # A species-level outgroup breaks the recombination scan; the
             # masker runs on the ingroup and applies its regions to all.

@@ -3,7 +3,7 @@
 Generated from `tests/audit/cli_matrix.yaml` by `scripts/render_cli_matrix.py`;
 `tests/unit/test_cli_matrix.py` keeps both in step with the command tree.
 
-30 commands, 363 flags (363 with a live test or an n/a reason, 0 pending).
+30 commands, 367 flags (367 with a live test or an n/a reason, 0 pending).
 
 ## Global flags
 
@@ -255,6 +255,7 @@ dispatch: `stage`
 | `--aligner-arg` |  | PhyloParams.extra | callback | n/a: workdir command; the Nextflow layer uses the stateless steps | tests/live/test_container_runs.py::test_sibeliaz_in_a_wave_container | docs/developing.md, docs/cli-reference.md, docs/audit/cli-matrix.md |
 | `--threads` | -t | PhyloParams.threads | range | n/a: workdir command; the Nextflow layer uses the stateless steps | tests/live/test_container_runs.py::test_sibeliaz_in_a_wave_container | docs/cli-reference.md, docs/audit/cli-matrix.md |
 | `--mask` |  | PhyloParams.extra | registry | n/a: workdir command; the Nextflow layer uses the stateless steps | tests/live/test_species_set.py::test_phylo_mask_gubbins | README.md, docs/developing.md, docs/choosing-tools.md, docs/cli-reference.md, docs/output.md, docs/usage.md, docs/audit/cli-matrix.md |
+| `--core-fraction` |  | PhyloParams.extra | range | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: shares the phylo builder (wiring test); the typing pass is covered offline in tests/integration/test_snptype_stage.py | docs/cli-reference.md, docs/usage.md, docs/audit/cli-matrix.md |
 | `--allow-incomplete` |  | PhyloParams.allow_incomplete | none | n/a: workdir command; the Nextflow layer uses the stateless steps | tests/live/test_species_set.py::test_ska2_source_with_reference_and_allow_incomplete | docs/cli-reference.md, docs/audit/cli-matrix.md |
 
 ## phylo-build
@@ -282,6 +283,7 @@ dispatch: `step:repgenr.stages.phylo.phylo_build`
 | `--msa-only` |  | PhyloBuildParams.msa_only | stage | module: PHYLO_MSA | tests/live/test_steps.py::test_phylo_build_split_into_msa_and_tree | docs/cli-reference.md, docs/usage.md, docs/audit/cli-matrix.md |
 | `--msa` |  | PhyloBuildParams.msa | stage | module: PHYLO_TREE | tests/live/test_steps.py::test_phylo_build_split_into_msa_and_tree | docs/cli-reference.md, docs/usage.md, docs/audit/cli-matrix.md |
 | `--mask` |  | PhyloBuildParams.phylo.extra | registry | params.phylo_args | n/a: the mask path is exercised on phylo (test_phylo_mask_gubbins); the step shares the builder | docs/choosing-tools.md, docs/cli-reference.md, docs/audit/cli-matrix.md |
+| `--core-fraction` |  | PhyloBuildParams.phylo.extra | range | params.phylo_args | n/a: shares the phylo builder (wiring test); the typing pass is covered offline in tests/integration/test_snptype_stage.py | docs/cli-reference.md, docs/usage.md, docs/audit/cli-matrix.md |
 
 ## assemble
 
@@ -402,6 +404,7 @@ dispatch: `stage`
 | `--reference` |  | PhyloParams.reference | none | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: forwarded to the stage builder unchanged (wiring test); the stage flag is covered live | docs/cli-reference.md, docs/audit/cli-matrix.md |
 | `--aligner-arg` |  | PhyloParams.extra | callback | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: forwarded to the stage builder unchanged (wiring test); the stage flag is covered live | docs/cli-reference.md, docs/audit/cli-matrix.md |
 | `--mask` |  | PhyloParams.extra | registry | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: forwarded to the stage builder unchanged (wiring test); the stage flag is covered live | docs/choosing-tools.md, docs/cli-reference.md, docs/audit/cli-matrix.md |
+| `--core-fraction` |  | PhyloParams.extra | range | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: shares the phylo builder (wiring test); the typing pass is covered offline in tests/integration/test_snptype_stage.py | docs/cli-reference.md, docs/usage.md, docs/audit/cli-matrix.md |
 | `--collapse-support` |  | Tree2taxParams.collapse_support | range | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: forwarded to the stage builder unchanged (wiring test); the stage flag is covered live | docs/cli-reference.md, docs/audit/cli-matrix.md |
 | `--collapse-length` |  | Tree2taxParams.collapse_length | range | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: forwarded to the stage builder unchanged (wiring test); the stage flag is covered live | docs/cli-reference.md, docs/audit/cli-matrix.md |
 | `--collapse-diameter` |  | Tree2taxParams.collapse_diameter | range | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: covered offline in tests/unit/test_tree2tax_collapse.py | docs/cli-reference.md, docs/usage.md, docs/choosing-tools.md, docs/audit/cli-matrix.md |
@@ -420,6 +423,7 @@ dispatch: `stage`
 | `--reference` |  | SnptypeParams.reference | none | n/a: workdir command; the Nextflow layer uses the stateless steps | tests/live/test_species_set.py::test_simple_typer_all_genomes_with_explicit_reference | docs/cli-reference.md, docs/audit/scaling-audit.md, docs/audit/cli-matrix.md |
 | `--all-genomes` |  | SnptypeParams.all_genomes | none | n/a: workdir command; the Nextflow layer uses the stateless steps | tests/live/test_species_set.py::test_simple_typer_on_representatives_only | docs/cli-reference.md, docs/audit/cli-matrix.md |
 | `--mask` |  | SnptypeParams.mask | registry | n/a: workdir command; the Nextflow layer uses the stateless steps | tests/live/test_species_set.py::test_gubbins_mask_changes_the_core_alignment | README.md, docs/developing.md, docs/choosing-tools.md, docs/cli-reference.md, docs/output.md, docs/usage.md, docs/audit/cli-matrix.md |
+| `--core-fraction` |  | SnptypeParams.core_fraction | range | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: covered offline in tests/integration/test_snptype_stage.py | docs/cli-reference.md, docs/usage.md, docs/audit/cli-matrix.md |
 | `--threads` | -t | SnptypeParams.threads | range | n/a: workdir command; the Nextflow layer uses the stateless steps | tests/live/test_species_set.py::test_simple_typer_all_genomes_with_explicit_reference | docs/cli-reference.md, docs/audit/cli-matrix.md |
 | `--tool-arg` |  | SnptypeParams.extra | callback | n/a: workdir command; the Nextflow layer uses the stateless steps | tests/live/test_species_set.py::test_ska2_typer_and_tool_arg | docs/developing.md, docs/cli-reference.md, docs/usage.md, docs/audit/cli-matrix.md |
 | `--allow-incomplete` |  | SnptypeParams.allow_incomplete | none | n/a: workdir command; the Nextflow layer uses the stateless steps | tests/live/test_species_set.py::test_snptype_allow_incomplete | docs/cli-reference.md, docs/audit/cli-matrix.md |

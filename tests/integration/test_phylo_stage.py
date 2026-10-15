@@ -1560,3 +1560,97 @@ def test_a_changed_reference_rebuilds_the_cached_alignment(
     run(ctx, PhyloParams(no_outgroup=True, reference="Fam_gen_sp_GCA_000003.fasta", **base))
     assert len(calls) == 2 and calls[1].name == "Fam_gen_sp_GCA_000003.fasta"
     assert (ctx.align_dir / "reference.txt").read_text().startswith("Fam_gen_sp_GCA_000003.fasta\t")
+
+
+def test_core_fraction_reaches_the_typing_pass_and_the_key(workdir: Path) -> None:
+    from repgenr.core.errors import UserInputError
+    from repgenr.stages.phylo import _core_fraction, _msa_key
+
+    workdir.mkdir(parents=True, exist_ok=True)
+    genomes = [workdir / "a.fasta", workdir / "b.fasta"]
+    for g in genomes:
+        g.write_text(">x\nACGT\n")
+    plain = PhyloParams(msa_source="snptype")
+    soft = PhyloParams(msa_source="snptype", extra={"core_fraction": 0.95})
+    assert _msa_key(genomes, None, plain) != _msa_key(genomes, None, soft)
+    assert _core_fraction(soft.extra) == 0.95 and _core_fraction(plain.extra) is None
+    with pytest.raises(UserInputError):
+        _core_fraction({"core_fraction": "2"})
+    with pytest.raises(UserInputError, match="number"):
+        _core_fraction({"core_fraction": "abc"})
+    # An aligner alignment is unchanged by the fraction, so its key is too.
+    plain_aln = PhyloParams(msa_source="aligner")
+    soft_aln = PhyloParams(msa_source="aligner", extra={"core_fraction": 0.95})
+    assert _msa_key(genomes, None, plain_aln) == _msa_key(genomes, None, soft_aln)
+
+
+def test_core_fraction_is_refused_with_the_aligner_source(fake_phylo_tools) -> None:
+    from repgenr.cli.param_builders import phylo_params
+    from repgenr.core.errors import UserInputError
+
+    with pytest.raises(UserInputError, match="--core-fraction applies only"):
+        phylo_params(msa_source="aligner", aligner="fakealigner", extra={"core_fraction": 0.9})
+
+
+class _GappyFullSnpTyper(_FakeSnpTyper):
+    """One core column called in every genome, one in a single genome."""
+
+    capabilities = ToolCapabilities(name="gappyfull")
+
+    def call(self, genomes, reference, out_dir, params, logger) -> SnpResult:
+        out_dir.mkdir(parents=True, exist_ok=True)
+        core = out_dir / "core.fasta"
+        full = out_dir / "full.fasta"
+        core.write_text(
+            "".join(
+                f">{record_name(g)}\n{'AC' if i == 0 else 'GN'}\n" for i, g in enumerate(genomes)
+            )
+        )
+        full.write_text(
+            "".join(
+                f">{record_name(g)}\n{'AACC' if i == 0 else 'AAGN'}\n"
+                for i, g in enumerate(genomes)
+            )
+        )
+        return SnpResult(core_snp_fasta=core, full_alignment=full)
+
+
+def test_core_fraction_filters_the_typing_pass_core(
+    workdir: Path, fake_phylo_tools, register_tool
+) -> None:
+    import json
+
+    from repgenr.tree.alignment import ALIGNMENT_STATS
+
+    register_tool(snp_registry, "gappyfull", _GappyFullSnpTyper)
+    _make_reps(workdir)
+    ctx = WorkdirContext(workdir, create=True)
+    run(
+        ctx,
+        PhyloParams(
+            treebuilder="faketree_msa",
+            msa_source="snptype",
+            snptyper="gappyfull",
+            no_outgroup=True,
+            extra={"core_fraction": 0.95},
+        ),
+    )
+    core = ctx.phylo_msa_dir / "core_snp.fasta"
+    assert all(len(ln) == 1 for ln in core.read_text().splitlines() if ln[0] != ">")
+    stats = json.loads((ctx.phylo_msa_dir / ALIGNMENT_STATS).read_text())
+    assert stats["core_fraction"] == 0.95
+
+
+def test_core_fraction_warns_with_a_genome_input_builder(
+    workdir: Path, fake_phylo_tools, caplog
+) -> None:
+    _make_reps(workdir)
+    ctx = WorkdirContext(workdir, create=True, logger=logging.getLogger("test-phylo"))
+    with caplog.at_level(logging.WARNING, logger="test-phylo"):
+        run(
+            ctx,
+            PhyloParams(
+                treebuilder="faketree_genomes", no_outgroup=True, extra={"core_fraction": 0.9}
+            ),
+        )
+    assert any("--core-fraction 0.9" in r.getMessage() for r in caplog.records)

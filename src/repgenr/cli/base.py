@@ -118,6 +118,11 @@ HELP_REFERENCE = (
     "Reference genome: a filename, 'medoid' (the default: the genome nearest to all others by "
     "sketch ANI, when the genomes are sketched and sourmash is at hand) or 'first'."
 )
+HELP_CORE_FRACTION = (
+    "Keep only the variable columns where at least this fraction of the genomes have a called "
+    "base (a soft core, 0 to 1). Unset keeps every variable column and the log reports what "
+    "0.95 would keep."
+)
 HELP_MSA_SOURCE = "aligner or snptype."
 HELP_ALIGNER_ARG = (
     "Aligner, SNP typer, masker or tree builder tuning as key=value (repeatable), "

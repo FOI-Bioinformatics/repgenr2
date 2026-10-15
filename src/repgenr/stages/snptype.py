@@ -37,7 +37,13 @@ from ..core.plugins import scale_warning, warn_ignored_params, warn_unconsumed_e
 from ..core.process import remove_tree, stage_plain_inputs
 from ..snptypers.base import SnpParams, SnpResult
 from ..snptypers.base import registry as snp_registry
-from ..tree.alignment import ALIGNMENT_STATS, constant_site_counts, write_alignment_stats
+from ..tree.alignment import (
+    ALIGNMENT_STATS,
+    columns_at_completeness,
+    constant_site_counts,
+    filter_columns_by_completeness,
+    write_alignment_stats,
+)
 
 
 @dataclass
@@ -50,7 +56,16 @@ class SnptypeParams:
     allow_incomplete: bool = False
     # Record ids the masker leaves out of its scan (the outgroup) but keeps.
     mask_exclude: tuple[str, ...] = ()
+    # Keep only the variable columns where at least this fraction of the
+    # genomes have a called base (a soft core); None keeps every variable
+    # column and reports what REPORTED_CORE_FRACTION would keep.
+    core_fraction: float | None = None
     extra: dict = field(default_factory=dict)
+
+
+# The threshold the stage reports on when none is given, so a user sees what
+# the common soft-core rule would do before choosing it.
+REPORTED_CORE_FRACTION = 0.95
 
 
 def _check_inputs(ctx, all_genomes: bool, allow_incomplete: bool, logger) -> None:
@@ -194,6 +209,46 @@ def snptype_core(
         with atomic_path(core) as tmp:
             shutil.copy2(result.core_snp_fasta, tmp)
 
+    # The soft core: columns where too few genomes have a base are dropped
+    # from the variable-site alignment, or their number is reported.
+    if params.core_fraction is not None:
+        if params.tool == "ska2":
+            logger.info(
+                "ska2 already keeps split k-mers present in a fraction min_freq of the samples "
+                "(default 0.9); --core-fraction %.2f applies a second threshold on its columns",
+                params.core_fraction,
+            )
+        with atomic_path(core) as tmp:
+            kept, removed = filter_columns_by_completeness(core, tmp, params.core_fraction, logger)
+            # Raised inside the block, so the previous core survives the refusal.
+            if kept == 0 and removed == 0:
+                raise UserInputError(
+                    f"SNP typer '{params.tool}' produced no variable columns to filter."
+                )
+            if kept == 0:
+                raise UserInputError(
+                    f"--core-fraction {params.core_fraction:.2f} keeps none of the {removed} "
+                    "variable columns; lower the fraction or check the genomes' coverage of "
+                    "the reference (the log has one line per genome)."
+                )
+        logger.info(
+            "--core-fraction %.2f: %d variable columns kept, %d dropped",
+            params.core_fraction,
+            kept,
+            removed,
+        )
+    else:
+        kept, total = columns_at_completeness(core, REPORTED_CORE_FRACTION)
+        if total:
+            logger.info(
+                "Every variable column is kept (%d); --core-fraction %.2f would keep %d, those "
+                "with a base in at least %.0f%% of the genomes",
+                total,
+                REPORTED_CORE_FRACTION,
+                kept,
+                100 * REPORTED_CORE_FRACTION,
+            )
+
     # Optional outputs this typer does not produce are removed: left from an
     # earlier run with another typer or genome set, they would describe that run.
     for name, produced in (
@@ -220,9 +275,16 @@ def snptype_core(
         # Counted before masking: masking turns bases into N, which cannot
         # make a constant column variable; a column it makes constant is
         # missed, so after --mask the counts are a slight undercount.
-        constant_sites, variable = constant_site_counts(full_alignment_out, logger)
+        constant_sites, variable = constant_site_counts(
+            full_alignment_out, logger, min_fraction=params.core_fraction
+        )
         write_alignment_stats(
-            core, constant_sites, variable, source=full_alignment_out.name, masked=masked
+            core,
+            constant_sites,
+            variable,
+            source=full_alignment_out.name,
+            masked=masked,
+            core_fraction=params.core_fraction,
         )
         logger.info(
             "Constant sites in %s: A %d, C %d, G %d, T %d (%d variable columns)",
@@ -299,6 +361,7 @@ def run(ctx: WorkdirContext, params: SnptypeParams) -> SnpResult:
             "all_genomes": params.all_genomes,
             "reference": reference.name if reference else None,
             "mask": params.mask,
+            "core_fraction": params.core_fraction,
         },
         tool_versions=versions,
         completed=datetime.now(UTC).isoformat(),

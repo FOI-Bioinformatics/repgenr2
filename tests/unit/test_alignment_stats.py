@@ -120,3 +120,24 @@ def test_a_record_without_a_name_is_refused(tmp_path: Path) -> None:
 def test_rna_u_counts_as_t(tmp_path: Path) -> None:
     path = _fasta(tmp_path / "rna.fasta", {"a": "UUUU", "b": "TTTU"})
     assert constant_site_counts(path) == ((0, 0, 0, 4), 0)
+
+
+def test_completeness_filter_keeps_columns_called_in_enough_genomes(tmp_path: Path) -> None:
+    from repgenr.tree.alignment import columns_at_completeness, filter_columns_by_completeness
+
+    # column 0 called in 3/3, column 1 in 2/3, column 2 in 1/3, column 3 in 3/3
+    msa = _fasta(tmp_path / "core.fasta", {"a": "ACGT", "b": "ANNT", "c": "ACNT"})
+    assert columns_at_completeness(msa, 0.95) == (2, 4)  # columns 0 and 3
+    assert columns_at_completeness(msa, 0.6) == (3, 4)  # 2 of 3 is 0.67
+    out = tmp_path / "soft.fasta"
+    assert filter_columns_by_completeness(msa, out, 0.6, _LOG) == (3, 1)
+    seqs = [ln for ln in out.read_text().splitlines() if not ln.startswith(">")]
+    assert seqs == ["ACT", "ANT", "ACT"]
+
+
+def test_constant_sites_follow_the_same_completeness_rule(tmp_path: Path) -> None:
+    # Constant A in all three; constant C called in 2 of 3; variable G/T in 2 of 3.
+    path = _fasta(tmp_path / "full.fasta", {"a": "ACGT", "b": "ANTT", "c": "ACNT"})
+    assert constant_site_counts(path)[0] == (1, 1, 0, 1)
+    counts, variable = constant_site_counts(path, min_fraction=0.95)
+    assert counts == (1, 0, 0, 1) and variable == 0

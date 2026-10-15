@@ -15,6 +15,22 @@ All notable changes to RepGenR2 are documented here. The format follows
   or being removed renames the nodes concerned. `leafset`, the default,
   keeps the hash of the whole leaf set. An unknown rule is refused before any
   stage runs; the record carries the rule, or null under `--node-basename`.
+- `--core-fraction F` on `snptype`, `phylo`, `phylo-build` and `run` keeps
+  only the variable columns where at least the fraction F of the genomes
+  have a called base (a soft core), after masking, and counts the constant
+  sites under the same rule. Unset by default: every variable column is
+  kept as before, and the log reports how many columns 0.95 would keep; the
+  default may become 0.95 in a later release, after the reported counts
+  have been compared on real data sets. The value is part of the alignment
+  reuse key, of `alignment_stats.json` and of the snptype record. It
+  applies to the typing pass only: with `--msa-source aligner` it is
+  refused, a genome-input tree builder warns, and an aligner alignment's
+  reuse key does not hold it. `snippy`'s core already holds only sites
+  called in every genome, `ska2` applies its own `min_freq` first, and a
+  masked base counts as missing (see usage.md). A fraction that keeps no
+  column is refused. Adding the field to the snptype parameters changes
+  every existing workdir's snptype fingerprint, so each reruns `snptype`
+  once.
 - `tree2tax --collapse-diameter D` (also on `tree2tax-relations` and `run`):
   the fewest clades whose leaf-to-leaf distance stays within D are kept and
   every node inside each is merged into it, so a distance cutoff such as a

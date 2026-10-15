@@ -274,3 +274,85 @@ def test_full_alignment_typer_writes_constant_site_counts(
     # A typer without a whole-genome alignment leaves no stale sidecar.
     run(ctx, SnptypeParams(tool="faketyper", all_genomes=True))
     assert not (ctx.snp_dir / ALIGNMENT_STATS).exists()
+
+
+class _GappyTyper(_FullTyper):
+    """A core where one column is called in every genome and one in a single genome."""
+
+    def call(self, genomes, reference, out_dir, params, logger) -> SnpResult:  # noqa: ANN001
+        core = out_dir / "core.fasta"
+        full = out_dir / "full.fasta"
+        names = [g.stem for g in genomes]
+        core.write_text("".join(f">{n}\n{'AC' if i == 0 else 'GN'}\n" for i, n in enumerate(names)))
+        full.write_text(
+            "".join(f">{n}\n{'AACC' if i == 0 else 'AAGN'}\n" for i, n in enumerate(names))
+        )
+        return SnpResult(core_snp_fasta=core, full_alignment=full)
+
+
+def test_core_fraction_filters_the_core_and_is_recorded(
+    workdir, genome_files, register_tool, caplog
+) -> None:
+    import json
+    import logging
+
+    from repgenr.tree.alignment import ALIGNMENT_STATS
+
+    register_tool(registry, "gappytyper", _GappyTyper)
+    ctx = WorkdirContext(workdir, create=True, logger=logging.getLogger("test-snptype"))
+    with caplog.at_level(logging.INFO, logger="test-snptype"):
+        result = run(ctx, SnptypeParams(tool="gappytyper", all_genomes=True))
+    assert any("--core-fraction 0.95 would keep" in r.getMessage() for r in caplog.records)
+    assert all(
+        len(ln) == 2
+        for ln in result.core_snp_fasta.read_text().splitlines()
+        if not ln.startswith(">")
+    )
+    result = run(ctx, SnptypeParams(tool="gappytyper", all_genomes=True, core_fraction=0.95))
+    assert all(
+        len(ln) == 1
+        for ln in result.core_snp_fasta.read_text().splitlines()
+        if not ln.startswith(">")
+    )
+    stats = json.loads((ctx.snp_dir / ALIGNMENT_STATS).read_text())
+    assert stats["core_fraction"] == 0.95 and stats["constant_sites"]["A"] == 2
+    assert stats["constant_sites"]["C"] == 0  # the column the filter drops
+    assert ctx.config.stages["snptype"].params["core_fraction"] == 0.95
+    # With the fraction set, the "would keep" report is not written.
+    caplog.clear()
+    with caplog.at_level(logging.INFO, logger="test-snptype"):
+        run(ctx, SnptypeParams(tool="gappytyper", all_genomes=True, core_fraction=0.95))
+    assert not any("would keep" in r.getMessage() for r in caplog.records)
+
+
+class _AllGappyTyper(_FakeTyper):
+    """Every core column lacks a base in one genome; no full alignment (like ska2)."""
+
+    def call(self, genomes, reference, out_dir, params, logger) -> SnpResult:  # noqa: ANN001
+        core = out_dir / "core.fasta"
+        names = [g.stem for g in genomes]
+        core.write_text("".join(f">{n}\n{'AN' if i == 0 else 'NG'}\n" for i, n in enumerate(names)))
+        return SnpResult(core_snp_fasta=core)
+
+
+def test_core_fraction_without_a_full_alignment_filters_and_writes_no_sidecar(
+    workdir, genome_files, register_tool
+) -> None:
+    import logging
+
+    from repgenr.tree.alignment import ALIGNMENT_STATS
+
+    register_tool(registry, "allgappy", _AllGappyTyper)
+    ctx = WorkdirContext(workdir, create=True, logger=logging.getLogger("test-snptype"))
+    # Three genomes: column 0 is called in one, column 1 in two; 0.5 keeps column 1.
+    result = run(ctx, SnptypeParams(tool="allgappy", all_genomes=True, core_fraction=0.5))
+    assert all(
+        len(ln) == 1 for ln in result.core_snp_fasta.read_text().splitlines() if ln[0] != ">"
+    )
+    assert not (ctx.snp_dir / ALIGNMENT_STATS).exists()
+    with pytest.raises(UserInputError, match="keeps none of the"):
+        run(ctx, SnptypeParams(tool="allgappy", all_genomes=True, core_fraction=1.0))
+    # The refusal leaves the typer's unfiltered core, not an empty one.
+    assert all(
+        len(ln) == 2 for ln in result.core_snp_fasta.read_text().splitlines() if ln[0] != ">"
+    )
