@@ -152,3 +152,20 @@ def test_diameter_then_support_compose(tmp_path) -> None:
     assert len({parents[x] for x in "ABCD"}) == 1 and parents["A"] != "root"
     assert parents["E"] == parents["F"] != "root"
     assert collapsed == 2
+
+
+def test_diameter_sees_a_wide_pair_inside_one_child() -> None:
+    # Y and Z are 10 apart although their node is 0 from X's: the clade's
+    # diameter is the widest pair, not the two deepest paths through its top.
+    tree = _tree("(((Y:5,Z:5):0,X:0):1,W:3);")
+    assert mod._collapse_by_diameter(tree, 6, _LOG) == 0
+    assert frozenset("YZ") in _leaf_sets(tree)
+    # A negative branch cannot hide a wide pair either.
+    tree = _tree("(((A:0.3,B:0.3):-0.2,C:0.1):1,OG:1);")
+    assert mod._collapse_by_diameter(tree, 0.25, _LOG) == 0
+
+
+def test_diameter_keeps_a_fitting_ingroup_as_one_node_under_the_root() -> None:
+    tree = _tree("(((A:0.1,B:0.1):0.1,C:0.1):1,OG:1);")
+    assert mod._collapse_by_diameter(tree, 0.5, _LOG) == 1
+    assert _leaf_sets(tree) == {frozenset("ABC")}

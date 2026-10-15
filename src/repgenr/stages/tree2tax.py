@@ -493,10 +493,12 @@ def _collapse_by_diameter(
     """Merge every clade whose leaf-to-leaf distance stays within ``diameter``
     into one node; return the number of internal nodes removed.
 
-    One post-order pass keeps, per node, the two deepest leaf depths through
-    different children; their sum is the clade's diameter. The highest nodes
-    under the limit are kept (TreeCluster's max-diameter criterion gives the
-    fewest clades), and every internal node strictly below them is collapsed,
+    One post-order pass keeps, per node, the largest leaf-to-leaf distance
+    in its clade: the two deepest leaf depths through different children
+    summed, or a wider pair inside one child. That span can only grow
+    towards the root, so the highest nodes under the limit give the fewest
+    clades (TreeCluster's ``max_clade`` method); they are kept, and every
+    internal node strictly below them is collapsed,
     so each clade is one node with its leaves as children. The root and its
     children are never collapsed into, but a root child can be such a clade.
     A tree without branch lengths cannot be measured and is refused.
@@ -520,7 +522,11 @@ def _collapse_by_diameter(
             depths.append(deepest[id(child)] + float(child.edge.length))
         depths.sort(reverse=True)
         deepest[id(node)] = depths[0]
-        span[id(node)] = depths[0] + (depths[1] if len(depths) > 1 else 0.0)
+        # The largest leaf-to-leaf distance in the clade: the widest pair that
+        # meets at this node, or a wider pair inside one child (which a
+        # negative or zero branch can make the larger of the two).
+        through = depths[0] + depths[1] if len(depths) > 1 else 0.0
+        span[id(node)] = max([through, *(span[id(c)] for c in node.child_nodes())])
     protected = {tree.seed_node}
     removed = 0
     stack = list(tree.seed_node.child_nodes())

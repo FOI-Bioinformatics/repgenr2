@@ -1565,11 +1565,15 @@ Either criterion suffices. `--collapse-diameter D` works on clades rather
 than single branches: the fewest clades whose leaf-to-leaf distance stays
 within D are kept, and every node inside such a clade is merged into it, so
 a group of near-identical genomes joined by many short branches becomes one
-FlexTaxD node with the genomes as its children (the maximum-diameter rule of
+FlexTaxD node with the genomes as its children (the `max_clade` method of
 TreeCluster). D is in the tree's own units; on a mashtree tree a mash
 distance of about 0.05 corresponds to 95 % ANI, on an ML tree from a SNP
 alignment the unit is substitutions per variable site. It runs before the
-other two rules and refuses a tree without branch lengths. The root, the
+other two rules and refuses a tree without branch lengths; a clade it kept
+can still be merged into its parent by `--collapse-length` when its own
+branch is short, which then puts leaves more than D apart under one node.
+An ingroup that fits within D on an outgroup-rooted tree becomes one node
+under the root. The root, the
 outgroup/ingroup split under it and the leaves never collapse. A collapsed
 node's branch length is added to its children's. Provenance records the
 thresholds and the number of nodes collapsed, so changing one re-runs the

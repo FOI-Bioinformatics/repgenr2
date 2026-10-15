@@ -18,6 +18,7 @@ All notable changes to RepGenR2 are documented here. The format follows
   mash distance of 0.05 becomes one FlexTaxD node per cluster, with no
   supports needed. It runs before `--collapse-support` and
   `--collapse-length` and refuses a tree without branch lengths; the record
+  carries the value, and an existing workdir reruns `tree2tax` once.
   carries the value.
 - `tree2tax` writes `tree2tax_nodes.tsv` beside its two tables: one row per
   node with its parent, leaf count, depth, branch length, support (as a
