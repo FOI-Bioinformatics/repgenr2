@@ -1519,9 +1519,11 @@ so the gene set means the same as with Panaroo; `partition=core` takes the
 strict core and `partition=persistent` the tool's statistical partition,
 which does not shrink as genomes are added but needs a set of some size
 (PPanGGOLiN warns below 15 genomes, and on three it placed every family in
-it). Families with more than one copy in a genome are left out by default
-(`single_copy=false` keeps them), since the concatenation would otherwise
-replace that genome's copy with gaps. `--clean-mode` and `filtered=` are
+it). PPanGGOLiN aligns only genomes with exactly one copy of a family, so
+a multi-copy genome is a gap for it; families multi-copy in at least 5% of
+the genomes (`dup_margin=`) are left out by default (`single_copy=false`
+keeps them). A genome that shares no selected family is dropped from the
+alignment with a warning, and an outgroup in that state is an error. `--clean-mode` and `filtered=` are
 Panaroo's and have no effect here. On 24 complete Wolbachia genomes, where
 Panaroo at its defaults found no gene in 95% of them, PPanGGOLiN selected
 398 single-copy families and the whole route, IQ-TREE included, took under

@@ -1,4 +1,4 @@
-# PPanGGOLiN for the core-gene route; its dependencies bring MMseqs2 and mafft. Platforms: linux-64, osx-64, osx-arm64.
+# PPanGGOLiN and MMseqs2 for the core-gene route; its dependencies bring mafft. Platforms: linux-64, osx-64, osx-arm64.
 name: repgenr-ppanggolin
 channels:
   - conda-forge
@@ -6,3 +6,4 @@ channels:
   - nodefaults
 dependencies:
   - ppanggolin>=2.0
+  - mmseqs2>=13.0

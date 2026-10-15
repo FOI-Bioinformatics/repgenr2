@@ -82,6 +82,15 @@ def test_argv_outputs_and_default_softcore(tmp_path: Path, monkeypatch) -> None:
     assert msa[msa.index("--soft_core") + 1] == "0.9"
     assert msa[msa.index("--source") + 1] == "dna" and "--phylo" in msa
     assert "--single_copy" in msa
+    # Temporary files stay under the builder's directory.
+    tmp = str(tmp_path / "out" / "tmp")
+    assert workflow[workflow.index("--tmpdir") + 1] == tmp == msa[msa.index("--tmpdir") + 1]
+    assert result.settings == {
+        "partition": "softcore",
+        "coverage": 0.8,
+        "single_copy": True,
+        "clustering_on": "protein",
+    }
     assert result.alignment.name == "softcore_0.9_genome_alignment.aln"
     assert result.core_genes == 150
     assert {t.name for t in result.tables} >= {"gene_presence_absence.Rtab", "persistent.txt"}
@@ -129,6 +138,7 @@ def test_bad_values_are_refused_before_any_call(tmp_path: Path, monkeypatch) -> 
         ({"identity": "high"}, "identity"),
         ({"coverage": "1.5"}, "coverage"),
         ({"identity": "0"}, "identity"),
+        ({"dup_margin": "2"}, "dup_margin"),
     ):
         with pytest.raises(UserInputError, match=match):
             mod.PPanGGOLiNBuilder().call(
@@ -180,3 +190,19 @@ def test_registered_never_auto_and_ignores_panaroo_settings() -> None:
     caps = registry.get("ppanggolin").capabilities
     assert caps.auto_eligible is False
     assert {"clean_mode", "filtered"} <= caps.ignored_params
+
+
+def test_settings_a_partition_ignores_are_named(tmp_path: Path, monkeypatch, caplog) -> None:
+    monkeypatch.setattr(mod, "run_tool", _fake([]))
+    with caplog.at_level(logging.WARNING, logger=_LOG.name):
+        mod.PPanGGOLiNBuilder().call(
+            _gffs(tmp_path),
+            tmp_path / "o",
+            CoreGeneParams(
+                core_threshold=0.9,
+                extra={"partition": "core", "single_copy": "false", "dup_margin": 0.1},
+            ),
+            _LOG,
+        )
+    assert "does not read --core-threshold" in caplog.text
+    assert "dup_margin applies only with single_copy" in caplog.text

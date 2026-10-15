@@ -45,6 +45,8 @@ class CoreGeneResult:
     # The identity the builder clustered genes at, as it ran (default or set),
     # for the stats file: it governs how many genes cluster at all.
     clustering_identity: float | None = None
+    # Builder-specific settings that shaped the result, for the stats file.
+    settings: dict = field(default_factory=dict)
 
 
 class CoreGeneBuilder(ABC):

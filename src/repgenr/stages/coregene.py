@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import shutil
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -111,6 +112,9 @@ def coregene_core(
         )
     warn_ignored_params(builder.capabilities, params, logger, family="Core-gene builder")
     versions = builder.preflight()
+    # Builders pass paths under scratch to tools that run with cwd inside it,
+    # so a relative scratch (phylo-build -o .) would not resolve.
+    scratch = Path(os.path.abspath(scratch))
     remove_tree(scratch)
     scratch.mkdir(parents=True, exist_ok=True)
     logger.info("Building the core-gene alignment of %d genomes with %s", len(gffs), tool)
@@ -119,7 +123,16 @@ def coregene_core(
     msa_dir.mkdir(parents=True, exist_ok=True)
     alignment = msa_dir / CORE_GENE_FASTA
     with atomic_path(alignment) as tmp:
-        shutil.copy2(result.alignment, tmp)
+        # A builder that writes every genome (PPanGGOLiN fills a missing family
+        # with gaps) can leave a genome that shares no selected gene as a row
+        # of gaps; dropped here, it meets the same checks as an absent one.
+        empty = _copy_without_gap_only_records(result.alignment, tmp)
+    if empty:
+        logger.info(
+            "Removed %d record(s) of gaps only from the core-gene alignment: %s",
+            len(empty),
+            ", ".join(empty[:5]) + (" ..." if len(empty) > 5 else ""),
+        )
     tables_dir = msa_dir / PANGENOME_DIR
     remove_tree(tables_dir)
     tables_dir.mkdir(parents=True, exist_ok=True)
@@ -167,6 +180,8 @@ def coregene_core(
             else params.extra.get("threshold")
         ),
     }
+    if result.settings:
+        stats["builder_settings"] = dict(result.settings)
     # Settings the builder does not read are left out rather than recorded as
     # if they had shaped the result (Panaroo's cleaning under PPanGGOLiN).
     ignored = builder.capabilities.ignored_params
@@ -186,6 +201,41 @@ def coregene_core(
     return CoreGeneResult(
         alignment=alignment, tables=sorted(tables_dir.iterdir()), core_genes=result.core_genes
     ), versions
+
+
+_GAPS = frozenset("-.?")
+
+
+def _copy_without_gap_only_records(src: Path, dst: Path) -> list[str]:
+    """Copy the FASTA ``src`` to ``dst`` leaving out records of gaps only.
+
+    Streams one record at a time. Returns the names left out.
+    """
+    removed: list[str] = []
+    with (
+        open(src, encoding="utf-8", errors="replace") as fi,
+        open(dst, "w", encoding="utf-8") as fo,
+    ):
+        header: str | None = None
+        lines: list[str] = []
+
+        def flush() -> None:
+            if header is None:
+                return
+            if any(set(line.strip()) - _GAPS for line in lines):
+                fo.write(header)
+                fo.writelines(lines)
+            else:
+                removed.append(header[1:].split()[0] if header[1:].split() else "")
+
+        for line in fi:
+            if line.startswith(">"):
+                flush()
+                header, lines = line, []
+            else:
+                lines.append(line if line.endswith("\n") else line + "\n")
+        flush()
+    return removed
 
 
 def _shape(alignment: Path) -> tuple[list[str], int]:

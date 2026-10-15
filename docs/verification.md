@@ -631,13 +631,13 @@ defaults (MMseqs2 protein clustering at 80% identity and 80% coverage):
 | 3 supergroup-A genomes | 52 | 661 | 1697 (every family) |
 | 24 complete genomes | 0 at 95% occupancy | 370 | 539 |
 
-- **On three genomes the persistent partition is empty of meaning.**
+- **On three genomes the persistent partition is uninformative.**
   PPanGGOLiN warned that three genomes are too few to partition and put
   all 1697 families, including those in one genome, in it. This is why the
   adapter defaults to the soft core at `--core-threshold` and warns when
   `partition=persistent` is asked of fewer than 15 genomes.
-- **On 24 genomes** it found five partitions: 539 persistent, 709 shell and
-  3309 cloud families. The workflow took 53 seconds and the DNA
+- **On 24 genomes** it chose K = 5 (three named partitions: 539 persistent,
+  709 shell, split into three subpartitions, and 3309 cloud families). The workflow took 53 seconds and the DNA
   alignments of the persistent families 97 seconds.
 - **End to end**, `repgenr phylo --all-genomes --msa-source coregene
   --coregene ppanggolin --treebuilder iqtree --no-outgroup --root

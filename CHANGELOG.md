@@ -21,8 +21,16 @@ All notable changes to RepGenR2 are documented here. The format follows
   linux-64, osx-64 and osx-arm64.
 - The core-gene stage warns when a setting the builder does not read
   (`--clean-mode`, `filtered=`) is given, and `core_gene_stats.json`
-  records the identity the builder actually clustered at and leaves out
-  settings it ignored.
+  records the identity the builder actually clustered at, the builder's own
+  settings, and leaves out settings it ignored.
+
+### Fixed
+- Core-gene alignments: a genome left as a row of gaps (one that shares no
+  selected gene) is removed and reported as dropped, so an outgroup in that
+  state is refused rather than used for rooting.
+- `phylo-build --msa-source coregene -o .` passed paths relative to a
+  directory the tool did not run in; the scratch directory is now made
+  absolute before the builder runs.
 - `--msa-source coregene` takes `--aligner-arg threshold=` (Panaroo's `-c`,
   the identity of its first clustering pass, 0.98 by default). It groups
   only genes at least that identical, so on a divergent set most

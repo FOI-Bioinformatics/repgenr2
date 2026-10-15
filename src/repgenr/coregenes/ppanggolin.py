@@ -21,10 +21,13 @@ are added; it needs a set of some size (the tool warns below 15 genomes, and
 on three genomes it put every family in it). ``partition=core`` is the strict
 core.
 
-``--single_copy`` is passed by default: in the concatenation PPanGGOLiN keeps
-the first copy of a duplicated gene and replaces the family with gaps for
-that genome, so a multi-copy family adds missing data rather than signal.
-``single_copy=false`` keeps them.
+PPanGGOLiN aligns only the genomes that carry exactly one copy of a family,
+so a genome with several copies is a row of gaps for that family. With
+``--single_copy``, passed by default, families multi-copy in at least
+``dup_margin`` (0.05) of the genomes are left out; a genome with several
+copies of a family that is kept is still a gap for it. ``single_copy=false``
+keeps every family. A genome that shares no selected family at all is a row
+of gaps throughout, and the stage drops it from the alignment.
 """
 
 from __future__ import annotations
@@ -60,9 +63,10 @@ class PPanGGOLiNBuilder(CoreGeneBuilder):
     capabilities = ToolCapabilities(
         name="ppanggolin",
         container="quay.io/biocontainers/ppanggolin:2.3.2--py312hfabe715_0",
-        conda=("bioconda::ppanggolin",),
+        conda=("bioconda::ppanggolin", "bioconda::mmseqs2"),
         required_binaries=(
             BinarySpec("ppanggolin", version_args=("--version",), min_version="2.0"),
+            BinarySpec("mmseqs", version_args=("version",), min_version="13.0"),
             BinarySpec("mafft", version_args=("--version",), min_version="7.0"),
         ),
         # Declared, not measured here. PPanGGOLiN is built for tens of
@@ -106,6 +110,19 @@ class PPanGGOLiNBuilder(CoreGeneBuilder):
         identity = _unit(params.extra.get("identity", DEFAULT_IDENTITY), "identity")
         coverage = _unit(params.extra.get("coverage", DEFAULT_COVERAGE), "coverage")
         single_copy = parse_extra_bool(params.extra, "single_copy", True)
+        dup_margin = (
+            _unit(params.extra["dup_margin"], "dup_margin")
+            if "dup_margin" in params.extra
+            else None
+        )
+        if dup_margin is not None and not single_copy:
+            logger.warning("ppanggolin dup_margin applies only with single_copy; it is ignored.")
+        if partition != "softcore" and params.core_threshold != CoreGeneParams.core_threshold:
+            logger.warning(
+                "partition=%s does not read --core-threshold; the value %g is ignored.",
+                partition,
+                params.core_threshold,
+            )
         if partition == "persistent" and len(gffs) < _PERSISTENT_MIN_GENOMES:
             logger.warning(
                 "partition=persistent on %d genomes: PPanGGOLiN's statistical partition is not "
@@ -124,11 +141,15 @@ class PPanGGOLiNBuilder(CoreGeneBuilder):
         pan_dir = out_dir / "pangenome"
         h5 = pan_dir / "pangenome.h5"
         common = ["-c", str(params.threads), "-f", "-d", "--verbose", "1"]
+        # MMseqs2 and the per-family FASTA files go here, not to the system
+        # temporary directory (or the container's own layer).
+        tmp_dir = out_dir / "tmp"
+        tmp_dir.mkdir(exist_ok=True)
 
         workflow: list[str | Path] = [
             "ppanggolin", "workflow", "--anno", listing, "-o", pan_dir,
             "--identity", f"{identity:g}", "--coverage", f"{coverage:g}",
-            "--no_flat_files", *common,
+            "--no_flat_files", "--tmpdir", tmp_dir, *common,
         ]  # fmt: skip
         for key, flag in (
             ("mode", "--mode"),
@@ -157,14 +178,14 @@ class PPanGGOLiNBuilder(CoreGeneBuilder):
         msa_dir = out_dir / "msa"
         msa: list[str | Path] = [
             "ppanggolin", "msa", "-p", h5, "-o", msa_dir, "--partition", partition,
-            "--source", "dna", "--phylo", *common,
+            "--source", "dna", "--phylo", "--tmpdir", tmp_dir, *common,
         ]  # fmt: skip
         if partition == "softcore":
             msa += ["--soft_core", soft_core]
         if single_copy:
             msa.append("--single_copy")
-            if "dup_margin" in params.extra:
-                msa += ["--dup_margin", f"{_unit(params.extra['dup_margin'], 'dup_margin'):g}"]
+            if dup_margin is not None:
+                msa += ["--dup_margin", f"{dup_margin:g}"]
         run_tool(self.capabilities, msa, logger=logger, cwd=out_dir, log_prefix="ppanggolin")
 
         alignments = sorted(msa_dir.glob("*_genome_alignment.aln"))
@@ -195,6 +216,13 @@ class PPanGGOLiNBuilder(CoreGeneBuilder):
             tables=tables,
             core_genes=core_genes,
             clustering_identity=identity,
+            settings={
+                "partition": partition,
+                "coverage": coverage,
+                "single_copy": single_copy,
+                # MMseqs2 compares proteins; Panaroo's identity is nucleotide.
+                "clustering_on": "protein",
+            },
         )
 
 
