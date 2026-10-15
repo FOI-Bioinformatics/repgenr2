@@ -95,6 +95,7 @@ veryfasttree = "repgenr.treebuilders.veryfasttree:VeryFastTreeBuilder"
 raxmlng = "repgenr.treebuilders.raxmlng:RaxmlNgBuilder"
 mashtree = "repgenr.treebuilders.mashtree:MashtreeBuilder"
 sourmash = "repgenr.treebuilders.sourmash:SourmashBuilder"
+skani = "repgenr.treebuilders.skani:SkaniBuilder"
 
 [tool.setuptools.packages.find]
 where = ["src"]

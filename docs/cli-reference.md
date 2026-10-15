@@ -87,6 +87,7 @@ is 'vmetadata --source'. --platform filters the sequencing platform with
 | `--tool-arg` |  | Tool tuning as key=value (repeatable), e.g. mode=greedy. |
 | `--with-snptype` | off | Run the standalone snptype stage (with --snptyper, --mask, --reference) after dereplication, so the SNP tables are produced whatever builds the tree. |
 | `--treebuilder` | `iqtree` | auto, fasttree, iqtree, mashtree, raxmlng, sourmash, veryfasttree. |
+| `--treebuilder` | `iqtree` | auto, fasttree, iqtree, mashtree, raxmlng, skani, sourmash. |
 | `--msa-source` | `aligner` | aligner or snptype. |
 | `--aligner` | `progressivemauve` | cactus, progressivemauve, sibeliaz. |
 | `--snptyper` | `simple` | SNP typer: parsnp, simple, ska2, snippy. |
@@ -201,7 +202,7 @@ Select and organize viral genomes (virus equivalent of genome).
 | `--outgroup-accession` |  | Use this downloaded record as the outgroup instead of searching for one (an accession on the NCBI Virus path, a record id on BV-BRC). |
 | `--group-segments` | off | ncbi_virus: combine an isolate's segments into one genome (segmented viruses). |
 | `--outgroup-candidates-taxid-min-genomes` | `5` | Genomes a sister taxid needs to qualify as an outgroup candidate. |
-| `--outgroup-treebuilder` | `mashtree` | Tree builder used for the outgroup distance matrix. Accepted: mashtree. |
+| `--outgroup-treebuilder` | `mashtree` | Tree builder used for the outgroup distance matrix. Accepted: mashtree, skani. |
 | `--glance` | off | Print selection and stop. |
 | `--print-fasta-headers` | off | Print the headers of the selected records. |
 | `--ignore-duplicates` | off | bvbrc: tolerate duplicate record ids (last wins). |
@@ -327,6 +328,7 @@ Build a phylogenetic tree from an alignment, SNP alignment, or directly.
 |---|---|---|
 | `-wd`, `--workdir` | required | Working directory. |
 | `--treebuilder` | `iqtree` | auto, fasttree, iqtree, mashtree, raxmlng, sourmash, veryfasttree. |
+| `--treebuilder` | `iqtree` | auto, fasttree, iqtree, mashtree, raxmlng, skani, sourmash. |
 | `--msa-source` | `aligner` | aligner or snptype. |
 | `--aligner` | `progressivemauve` | cactus, progressivemauve, sibeliaz. |
 | `--snptyper` | `simple` | SNP typer: parsnp, simple, ska2, snippy. |
@@ -596,6 +598,7 @@ Here --outgroup-accession takes a file that names the accession, not the accessi
 | `--outgroup-dir` |  | Directory holding the outgroup genome file(s). |
 | `--outgroup-accession` |  | File naming the outgroup accession. |
 | `--treebuilder` | `iqtree` | auto, fasttree, iqtree, mashtree, raxmlng, sourmash, veryfasttree. |
+| `--treebuilder` | `iqtree` | auto, fasttree, iqtree, mashtree, raxmlng, skani, sourmash. |
 | `--msa-source` | `aligner` | aligner or snptype. |
 | `--aligner` | `progressivemauve` | cactus, progressivemauve, sibeliaz. |
 | `--snptyper` | `simple` | SNP typer: parsnp, simple, ska2, snippy. |

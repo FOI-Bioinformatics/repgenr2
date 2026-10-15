@@ -377,7 +377,11 @@ def _determine_outgroup(
         builder, genome_files, int(mean(length_range)), outgroup_wd, logger
     )
     if not matrix.exists():
-        raise WorkdirError("mashtree produced no distance matrix; check the installation.")
+        raise WorkdirError(
+            f"{builder.capabilities.name} produced no distance matrix: either the tool "
+            "failed (check the installation) or no candidate was within its reach "
+            "(see the warning above); specify the outgroup manually."
+        )
 
     outgroup_id = select_outgroup_from_matrix(matrix, logger)
     if outgroup_id is None:

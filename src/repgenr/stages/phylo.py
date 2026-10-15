@@ -5,6 +5,7 @@ Three orthogonal choices:
   * MSA source    -- a whole-genome aligner OR a SNP typer's core-SNP alignment
                      (skipped entirely for alignment-free tree builders)
   * tree builder  -- iqtree / fasttree / veryfasttree / raxmlng (MSA) or mashtree / sourmash
+  * tree builder  -- iqtree / fasttree / raxmlng (MSA) or mashtree / sourmash / skani
                      (alignment-free)
 
 The outgroup genome is added to the input set here and passed to builders that
