@@ -44,6 +44,12 @@ class Masker(ABC):
         """Confirm required binaries are present; return resolved versions."""
         return preflight(self.capabilities)
 
+    def tree_output(self) -> Path | None:
+        """The masker's own tree from the last ``mask`` call, when it builds
+        one (Gubbins does); None otherwise. The stage keeps it beside the
+        masked alignment as ``masker_tree.nwk``."""
+        return None
+
     @abstractmethod
     def mask(
         self,

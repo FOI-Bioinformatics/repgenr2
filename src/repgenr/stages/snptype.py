@@ -23,7 +23,14 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from ..core.context import WorkdirContext
-from ..core.contracts import CLUSTERS_TSV, CORE_SNP_FASTA, atomic_path, list_fasta, record_name
+from ..core.contracts import (
+    CLUSTERS_TSV,
+    CORE_SNP_FASTA,
+    MASKER_TREE_NWK,
+    atomic_path,
+    list_fasta,
+    record_name,
+)
 from ..core.errors import UserInputError, WorkdirError
 from ..core.integrity import check_genome_completeness, check_representatives_consistency
 from ..core.plugins import scale_warning, warn_ignored_params, warn_unconsumed_extras
@@ -168,7 +175,15 @@ def snptype_core(
         with atomic_path(core) as tmp:
             shutil.copy2(filtered, tmp)
         masked = True
+        masker_tree = masker.tree_output()
+        if masker_tree is not None:
+            with atomic_path(snp_dir / MASKER_TREE_NWK) as tmp:
+                shutil.copy2(masker_tree, tmp)
+            logger.info("The masker's own tree is kept as %s", snp_dir / MASKER_TREE_NWK)
+        else:
+            (snp_dir / MASKER_TREE_NWK).unlink(missing_ok=True)
     else:
+        (snp_dir / MASKER_TREE_NWK).unlink(missing_ok=True)
         with atomic_path(core) as tmp:
             shutil.copy2(result.core_snp_fasta, tmp)
 

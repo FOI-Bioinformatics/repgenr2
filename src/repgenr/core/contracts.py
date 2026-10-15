@@ -39,6 +39,7 @@ CLUSTER_SUMMARY_TSV = "cluster_summary.tsv"
 SELECTION_TSV = "selection.tsv"
 MSA_FASTA = "msa.fasta"
 CORE_SNP_FASTA = "core_snp.fasta"
+MASKER_TREE_NWK = "masker_tree.nwk"
 TREE_NWK = "tree.nwk"
 # The tree builder's output as written, kept beside tree.nwk when phylo rerooted it.
 TREE_UNROOTED_NWK = "tree.unrooted.nwk"

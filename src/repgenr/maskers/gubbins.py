@@ -8,8 +8,9 @@ import shutil
 from pathlib import Path
 
 from ..core.binaries import BinarySpec
-from ..core.bindirs import tool_path
+from ..core.bindirs import host_which, tool_path
 from ..core.containers import available_cpus, run_tool, runs_on_host
+from ..core.contracts import parse_genome_filename
 from ..core.errors import ToolExecutionError, UserInputError, WorkdirError
 from ..core.plugins import ToolCapabilities
 from .base import Masker, MaskParams
@@ -178,6 +179,29 @@ def resolve_tree_builder(
 # Above this fraction of variable columns a set is far outside what a
 # recombination scanner is built for: Gubbins expects isolates of one species.
 DIVERGENCE_WARN_FRACTION = 0.10
+# Above this fraction masking is refused unless gubbins_force=true: on the
+# Francisella subsets Gubbins finished at 8.3% variable columns and died
+# with a bus error at 13.2% (docs/verification.md).
+DIVERGENCE_REFUSE_FRACTION = 0.12
+# Below this many alignment columns the variable fraction says nothing about
+# divergence (a handful of columns is often all variable), so neither the
+# warning nor the refusal applies.
+MIN_COLUMNS_FOR_DIVERGENCE = 1000
+# Gubbins' default first tree (RAxML or IQ-TREE under the resolved builder)
+# took most of a 87-minute run where a rapidnj/JC first tree took minutes;
+# the final tree is still built by the resolved builder.
+DEFAULT_FIRST_TREE_BUILDER = ("rapidnj", "JC")
+
+
+def species_spread(names: list[str]) -> int:
+    """Distinct species among record names of the canonical
+    ``Family_Genus_species_Accession`` form; 0 when none parses."""
+    species: set[tuple[str, str]] = set()
+    for name in names:
+        _family, genus, sp, _acc = parse_genome_filename(name)
+        if genus:
+            species.add((genus.lower(), sp.lower()))
+    return len(species)
 
 
 def variable_fraction(records: dict[str, str], sample: int = 200_000) -> tuple[float, int]:
@@ -209,9 +233,32 @@ class GubbinsMasker(Masker):
         # --tree-builder / --first-tree-builder; gubbins_args is a quoted
         # string of further run_gubbins.py arguments.
         accepted_extras=frozenset(
-            {"gubbins_tree_builder", "gubbins_first_tree_builder", "gubbins_args"}
+            {
+                "gubbins_tree_builder",
+                "gubbins_first_tree_builder",
+                "gubbins_args",
+                # gubbins_divergence_limit: the variable-column fraction above
+                # which masking is refused; gubbins_force=true runs anyway, also
+                # on a set spanning more than one species.
+                "gubbins_divergence_limit",
+                "gubbins_force",
+            }
         ),
     )
+
+    _tree: Path | None = None
+
+    def _rapidnj_available(self) -> bool:
+        """rapidnj on the host, or assumed in the container that carries Gubbins."""
+        if not runs_on_host(self.capabilities):
+            return True
+        return host_which("rapidnj", self.capabilities.name) is not None
+
+    def tree_output(self) -> Path | None:
+        """Gubbins' own tree from the last ``mask`` call (``final_tree.tre``):
+        its recombination-aware maximum-likelihood tree, kept for comparison
+        with the tree built from the filtered sites."""
+        return self._tree if self._tree is not None and self._tree.exists() else None
 
     def mask(
         self,
@@ -279,7 +326,26 @@ class GubbinsMasker(Masker):
             length,
             100 * fraction,
         )
-        if fraction > DIVERGENCE_WARN_FRACTION:
+        force = str(params.extra.get("gubbins_force", "")).strip().lower() in ("1", "true", "yes")
+        divergence_limit = _divergence_limit(params.extra)
+        n_species = species_spread(list(scan_records))
+        diverse = length >= MIN_COLUMNS_FOR_DIVERGENCE
+        if diverse and fraction > divergence_limit and not force:
+            raise UserInputError(
+                f"About {100 * fraction:.0f}% of the alignment is variable, above the "
+                f"{100 * divergence_limit:.0f}% at which Gubbins is refused: it is built for "
+                "isolates of one species and has died on sets near this divergence. Use "
+                "--mask none, "
+                "a species-level target, --tool-arg gubbins_divergence_limit=FRACTION, or "
+                "--tool-arg gubbins_force=true to run it anyway."
+            )
+        if n_species > 1 and not force:
+            raise UserInputError(
+                f"The alignment spans {n_species} species by genome name; Gubbins is built "
+                "for isolates of one species. Use --mask none, a species-level target, or "
+                "--tool-arg gubbins_force=true to run it anyway."
+            )
+        if diverse and fraction > DIVERGENCE_WARN_FRACTION:
             logger.warning(
                 "About %.0f%% of the alignment is variable. Gubbins is built for "
                 "isolates of one species, where a few percent is usual; on a set "
@@ -291,9 +357,21 @@ class GubbinsMasker(Masker):
         if tree_builder:
             argv += ["--tree-builder", tree_builder]
         first = params.extra.get("gubbins_first_tree_builder")
+        user_args = shlex.split(str(params.extra.get("gubbins_args", "")))
         if first:
             argv += ["--first-tree-builder", str(first)]
-        user_args = shlex.split(str(params.extra.get("gubbins_args", "")))
+        elif "--first-tree-builder" not in user_args and self._rapidnj_available():
+            builder_name, model = DEFAULT_FIRST_TREE_BUILDER
+            argv += ["--first-tree-builder", builder_name]
+            if "--first-model" not in user_args:
+                argv += ["--first-model", model]
+            logger.info(
+                "Gubbins first tree: %s with the %s model (gubbins_first_tree_builder=... "
+                "to change); later iterations use %s.",
+                builder_name,
+                model,
+                tree_builder or "Gubbins' default",
+            )
         limit = _filter_percentage(user_args)
         if limit is None:
             # Gubbins leaves taxa with more than 25% gaps or N out of its
@@ -327,6 +405,7 @@ class GubbinsMasker(Masker):
             raise ToolExecutionError(
                 exc.command, exc.returncode, f"{exc.output or ''}\n{diagnosis}".strip()
             ) from exc
+        self._tree = Path(str(prefix) + ".final_tree.tre")
         if not excluded:
             filtered = Path(str(prefix) + ".filtered_polymorphic_sites.fasta")
             if not filtered.exists():
@@ -346,6 +425,24 @@ class GubbinsMasker(Masker):
         out = Path(str(prefix) + ".masked_polymorphic_sites.fasta")
         write_fasta(out, polymorphic_sites(masked))
         return out
+
+
+def _divergence_limit(extra: dict) -> float:
+    """The variable-column fraction above which masking is refused."""
+    raw = extra.get("gubbins_divergence_limit")
+    if raw is None or str(raw).strip() == "":
+        return DIVERGENCE_REFUSE_FRACTION
+    try:
+        value = float(str(raw))
+    except ValueError as exc:
+        raise UserInputError(
+            f"gubbins_divergence_limit needs a fraction between 0 and 1, got {raw!r}"
+        ) from exc
+    if not 0 < value <= 1:
+        raise UserInputError(
+            f"gubbins_divergence_limit needs a fraction between 0 and 1, got {raw!r}"
+        )
+    return value
 
 
 def _filter_percentage(args: list[str]) -> float | None:

@@ -188,10 +188,135 @@ def test_divergent_alignment_warns_before_gubbins_runs(tmp_path: Path, monkeypat
     monkeypatch.setattr(mod, "run_tool", fake_run_tool)
     monkeypatch.setattr(mod, "multithreaded_raxml_available", lambda path=None: True)
     full = tmp_path / "full.fasta"
-    full.write_text(">a\nACGTACGT\n>b\nTGCATGCA\n", encoding="utf-8")
+    full.write_text(_alignment(variable=110, total=1000), encoding="utf-8")  # 11%: warn only
     with caplog.at_level(logging.WARNING):
         mod.GubbinsMasker().mask(full, tmp_path / "gub", MaskParams(), logging.getLogger("t"))
     assert "variable" in caplog.text and "--mask none" in caplog.text
+
+
+def _alignment(*, variable: int, total: int, names: tuple[str, str] = ("a", "b")) -> str:
+    """Two records over ``total`` columns of which ``variable`` differ."""
+    a = "A" * total
+    b = "T" * variable + "A" * (total - variable)
+    return f">{names[0]}\n{a}\n>{names[1]}\n{b}\n"
+
+
+def _fake_gubbins(monkeypatch, calls: list | None = None, with_tree: bool = False):
+    def fake_run_tool(caps, argv, **kw):  # noqa: ANN001
+        if calls is not None:
+            calls.append([str(a) for a in argv])
+        prefix = str(kw["cwd"] / "gubbins")
+        Path(prefix + ".filtered_polymorphic_sites.fasta").write_text(
+            ">a\nA\n>b\nT\n", encoding="utf-8"
+        )
+        if with_tree:
+            Path(prefix + ".final_tree.tre").write_text("(a,b);\n", encoding="utf-8")
+
+    monkeypatch.setattr(mod, "run_tool", fake_run_tool)
+    monkeypatch.setattr(mod, "multithreaded_raxml_available", lambda path=None: True)
+
+
+def test_too_divergent_alignment_is_refused_before_gubbins_runs(
+    tmp_path: Path, monkeypatch
+) -> None:
+    from repgenr.core.errors import UserInputError
+
+    calls: list = []
+    _fake_gubbins(monkeypatch, calls)
+    full = tmp_path / "full.fasta"
+    full.write_text(_alignment(variable=200, total=1000), encoding="utf-8")  # 20%
+    with pytest.raises(UserInputError, match="20% of the alignment is variable"):
+        mod.GubbinsMasker().mask(full, tmp_path / "gub", MaskParams(), logging.getLogger("t"))
+    assert calls == []
+    # A higher limit or gubbins_force lets it run.
+    mod.GubbinsMasker().mask(
+        full,
+        tmp_path / "gub2",
+        MaskParams(extra={"gubbins_divergence_limit": "0.25"}),
+        logging.getLogger("t"),
+    )
+    mod.GubbinsMasker().mask(
+        full, tmp_path / "gub3", MaskParams(extra={"gubbins_force": "true"}), logging.getLogger("t")
+    )
+    assert len(calls) == 2
+    with pytest.raises(UserInputError, match="gubbins_divergence_limit"):
+        mod.GubbinsMasker().mask(
+            full,
+            tmp_path / "gub4",
+            MaskParams(extra={"gubbins_divergence_limit": "x"}),
+            logging.getLogger("t"),
+        )
+
+
+def test_a_short_alignment_is_neither_refused_nor_warned(
+    tmp_path: Path, monkeypatch, caplog
+) -> None:
+    _fake_gubbins(monkeypatch)
+    full = tmp_path / "full.fasta"
+    full.write_text(">a\nACGTACGT\n>b\nTGCATGCA\n", encoding="utf-8")  # 8 columns, all variable
+    with caplog.at_level(logging.WARNING):
+        mod.GubbinsMasker().mask(full, tmp_path / "gub", MaskParams(), logging.getLogger("t"))
+    assert "variable" not in caplog.text
+
+
+def test_more_than_one_species_is_refused_unless_forced(tmp_path: Path, monkeypatch) -> None:
+    from repgenr.core.errors import UserInputError
+
+    calls: list = []
+    _fake_gubbins(monkeypatch, calls)
+    full = tmp_path / "full.fasta"
+    names = ("Fam_Gen_alpha_GCF_1.1", "Fam_Gen_beta_GCF_2.1")
+    full.write_text(_alignment(variable=10, total=1000, names=names), encoding="utf-8")
+    with pytest.raises(UserInputError, match="spans 2 species"):
+        mod.GubbinsMasker().mask(full, tmp_path / "gub", MaskParams(), logging.getLogger("t"))
+    mod.GubbinsMasker().mask(
+        full, tmp_path / "gub2", MaskParams(extra={"gubbins_force": "true"}), logging.getLogger("t")
+    )
+    assert len(calls) == 1
+
+
+def test_first_tree_defaults_to_rapidnj_when_available(tmp_path: Path, monkeypatch) -> None:
+    calls: list = []
+    _fake_gubbins(monkeypatch, calls)
+    monkeypatch.setattr(mod, "runs_on_host", lambda caps: True)
+    monkeypatch.setattr(mod, "host_which", lambda name, tool: "/usr/bin/rapidnj")
+    full = tmp_path / "full.fasta"
+    full.write_text(">a\nACGT\n>b\nACGA\n", encoding="utf-8")
+    mod.GubbinsMasker().mask(full, tmp_path / "gub", MaskParams(), logging.getLogger("t"))
+    argv = calls[0]
+    assert argv[argv.index("--first-tree-builder") + 1] == "rapidnj"
+    assert argv[argv.index("--first-model") + 1] == "JC"
+    # An explicit choice, or the flag inside gubbins_args, stands.
+    mod.GubbinsMasker().mask(
+        full,
+        tmp_path / "gub2",
+        MaskParams(extra={"gubbins_first_tree_builder": "fasttree"}),
+        logging.getLogger("t"),
+    )
+    assert calls[1][calls[1].index("--first-tree-builder") + 1] == "fasttree"
+    assert "--first-model" not in calls[1]
+    mod.GubbinsMasker().mask(
+        full,
+        tmp_path / "gub3",
+        MaskParams(extra={"gubbins_args": "--first-tree-builder iqtree --first-model GTR"}),
+        logging.getLogger("t"),
+    )
+    assert calls[2].count("--first-tree-builder") == 1 and calls[2].count("--first-model") == 1
+    # Without rapidnj on the host, Gubbins keeps its own default.
+    monkeypatch.setattr(mod, "host_which", lambda name, tool: None)
+    mod.GubbinsMasker().mask(full, tmp_path / "gub4", MaskParams(), logging.getLogger("t"))
+    assert "--first-tree-builder" not in calls[3]
+
+
+def test_gubbins_tree_is_offered_after_the_run(tmp_path: Path, monkeypatch) -> None:
+    _fake_gubbins(monkeypatch, with_tree=True)
+    full = tmp_path / "full.fasta"
+    full.write_text(">a\nACGT\n>b\nACGA\n", encoding="utf-8")
+    masker = mod.GubbinsMasker()
+    assert masker.tree_output() is None
+    masker.mask(full, tmp_path / "gub", MaskParams(), logging.getLogger("t"))
+    tree = masker.tree_output()
+    assert tree is not None and tree.read_text() == "(a,b);\n"
 
 
 def test_gubbins_failure_reports_the_divergence(tmp_path: Path, monkeypatch) -> None:
