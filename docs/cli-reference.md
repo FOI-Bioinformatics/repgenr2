@@ -103,7 +103,7 @@ is 'vmetadata --source'. --platform filters the sequencing platform with
 | `--remove-outgroup` | off | Leave the outgroup out of the taxonomy after rooting. |
 | `--include-dereplicated`, `--no-include-dereplicated` | on | List redundant genomes under their representative in the taxonomy. |
 | `--core-fraction` |  | Keep only the variable columns where at least this fraction of the genomes have a called base (a soft core, 0 to 1). Unset keeps every variable column and the log reports what 0.95 would keep. |
-| `--coregene` | `panaroo` | Core-gene alignment builder for --msa-source coregene: panaroo. Its tuning goes through --aligner-arg (filtered=false for the unfiltered alignment, merge_paralogs, remove_invalid_genes, family_threshold, len_dif_percent). |
+| `--coregene` | `panaroo` | Core-gene alignment builder for --msa-source coregene: panaroo. Its tuning goes through --aligner-arg: threshold= is the identity at which it groups genes (0.98; lower it, 0.95 then 0.90, when the core comes out small on a divergent set), and also filtered=false for the unfiltered alignment, merge_paralogs, remove_invalid_genes, family_threshold, len_dif_percent. |
 | `--annotator` | `bakta` | Annotator: bakta (default; needs its database, --bakta-db or BAKTA_DB) or prokka. |
 | `--bakta-db` |  | bakta database directory (bakta_db download --output DIR --type light\|full); BAKTA_DB when unset. |
 | `--core-threshold` |  | With --msa-source coregene: a gene is core when present in at least this fraction of the genomes (0.95). |
@@ -360,7 +360,7 @@ Build a phylogenetic tree from an alignment, SNP alignment, or directly.
 | `-t`, `--threads` | `16` | Threads for the external tool (default 16, or the CPU limit when lower). |
 | `--mask` | `none` | Recombination masking of the SNP alignment: none, gubbins. Needs --msa-source snptype. |
 | `--core-fraction` |  | Keep only the variable columns where at least this fraction of the genomes have a called base (a soft core, 0 to 1). Unset keeps every variable column and the log reports what 0.95 would keep. |
-| `--coregene` | `panaroo` | Core-gene alignment builder for --msa-source coregene: panaroo. Its tuning goes through --aligner-arg (filtered=false for the unfiltered alignment, merge_paralogs, remove_invalid_genes, family_threshold, len_dif_percent). |
+| `--coregene` | `panaroo` | Core-gene alignment builder for --msa-source coregene: panaroo. Its tuning goes through --aligner-arg: threshold= is the identity at which it groups genes (0.98; lower it, 0.95 then 0.90, when the core comes out small on a divergent set), and also filtered=false for the unfiltered alignment, merge_paralogs, remove_invalid_genes, family_threshold, len_dif_percent. |
 | `--core-threshold` |  | With --msa-source coregene: a gene is core when present in at least this fraction of the genomes (0.95). |
 | `--clean-mode` |  | With --msa-source coregene: Panaroo's cleaning of annotation errors, strict (default), moderate or sensitive. |
 | `--allow-incomplete` | off | Proceed with a warning when the input genome set is incomplete. |
@@ -642,7 +642,7 @@ Here --outgroup-accession takes a file that names the accession, not the accessi
 | `--root` |  | How phylo roots tree/tree.nwk: outgroup (on the branch to the outgroup), midpoint, or none (as the tree builder wrote it). Default: outgroup when an outgroup is staged and --no-outgroup is not given, else none. |
 | `-B`, `--bootstrap` | `0` | Bootstrap replicates. 0 turns bootstrapping off; IQ-TREE needs at least 1000 when it is on. |
 | `--core-fraction` |  | Keep only the variable columns where at least this fraction of the genomes have a called base (a soft core, 0 to 1). Unset keeps every variable column and the log reports what 0.95 would keep. |
-| `--coregene` | `panaroo` | Core-gene alignment builder for --msa-source coregene: panaroo. Its tuning goes through --aligner-arg (filtered=false for the unfiltered alignment, merge_paralogs, remove_invalid_genes, family_threshold, len_dif_percent). |
+| `--coregene` | `panaroo` | Core-gene alignment builder for --msa-source coregene: panaroo. Its tuning goes through --aligner-arg: threshold= is the identity at which it groups genes (0.98; lower it, 0.95 then 0.90, when the core comes out small on a divergent set), and also filtered=false for the unfiltered alignment, merge_paralogs, remove_invalid_genes, family_threshold, len_dif_percent. |
 | `--core-threshold` |  | With --msa-source coregene: a gene is core when present in at least this fraction of the genomes (0.95). |
 | `--clean-mode` |  | With --msa-source coregene: Panaroo's cleaning of annotation errors, strict (default), moderate or sensitive. |
 | `--annotations-dir` |  | With --msa-source coregene: an annotations/ directory the annotate stage or annotate-build wrote (its index names the records); without it the step annotates the genomes itself with --annotator. |

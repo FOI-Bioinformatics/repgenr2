@@ -41,14 +41,16 @@ class _FakeAnnotator(Annotator):
 
 
 class _FakeCoreGene(CoreGeneBuilder):
-    capabilities = ToolCapabilities(name="fakecg", accepted_extras=frozenset({"cgk"}))
+    capabilities = ToolCapabilities(name="fakecg", accepted_extras=frozenset({"cgk", "threshold"}))
     calls: list[list[str]] = []
+    extras: list[dict] = []
 
     def preflight(self):
         return {"fakecg": "2.0"}
 
     def call(self, gffs, out_dir, params, logger) -> CoreGeneResult:
         type(self).calls.append(sorted(g.stem for g in gffs))
+        type(self).extras.append(dict(params.extra))
         out_dir.mkdir(parents=True, exist_ok=True)
         aln = out_dir / "aln.fasta"
         aln.write_text("".join(f">{g.stem}\nACGTAC\n" for g in gffs), encoding="utf-8")
@@ -151,6 +153,11 @@ def test_coregene_source_builds_from_the_annotations(workdir: Path, tools) -> No
     # A changed threshold rebuilds too.
     phylo_run(ctx, _params(extra={"core_threshold": 0.8, "clean_mode": "moderate"}))
     assert len(_FakeCoreGene.calls) == 3
+    # The clustering identity reaches the builder rather than being eaten as a
+    # stage-level setting, is recorded, and rebuilds the alignment on its own.
+    phylo_run(ctx, _params(extra={"core_threshold": 0.8, "threshold": "0.9"}))
+    assert len(_FakeCoreGene.calls) == 4 and _FakeCoreGene.extras[-1]["threshold"] == "0.9"
+    assert ctx.config.stages["phylo"].params["extra"]["threshold"] == "0.9"
 
 
 def test_coregene_settings_are_refused_on_other_sources_and_validated(tools) -> None:
@@ -187,6 +194,13 @@ def test_stamp_key_follows_the_core_gene_settings(tmp_path: Path) -> None:
     )
     assert k1 != phylo_mod._msa_key(
         genomes, None, PhyloParams(msa_source="coregene", coregene="other"), None, "digest1"
+    )
+    assert k1 != phylo_mod._msa_key(
+        genomes,
+        None,
+        PhyloParams(msa_source="coregene", extra={"threshold": "0.9"}),
+        None,
+        "digest1",
     )
     # The tree builder is not part of the key.
     assert k1 == phylo_mod._msa_key(

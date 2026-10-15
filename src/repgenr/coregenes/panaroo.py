@@ -13,6 +13,13 @@ when it writes one). The genes of the alignment are counted from that
 header: ``summary_statistics.txt`` reports Panaroo's fixed 99 to 100 per
 cent bin, which is not the set kept at another ``--core_threshold``. mafft
 does the per-gene alignments.
+
+``-c`` (exposed as ``--aligner-arg threshold=``) sets the identity of the
+first clustering pass, 0.98 by default. It decides how many genes cluster
+at all, so on a divergent set it governs the size of the core far more
+than ``--core_threshold`` does; see ``docs/verification.md`` for the
+measured effect. It is passed on every run, at its default when the user
+sets nothing, so the command and the stage record carry the value.
 """
 
 from __future__ import annotations
@@ -37,6 +44,11 @@ TABLES = (
     "core_alignment_filtered_header.embl",
 )
 _FEATURE = re.compile(r"^FT\s+feature\s")
+# Panaroo's own -c default, named so the messages can quote it.
+DEFAULT_THRESHOLD = 0.98
+# Below this a core-gene tree rests on very little, and the identity gate
+# is the first thing to look at.
+_SMALL_CORE = 100
 
 
 class PanarooBuilder(CoreGeneBuilder):
@@ -53,7 +65,14 @@ class PanarooBuilder(CoreGeneBuilder):
         recommended_max_genomes=500,
         auto_eligible=False,
         accepted_extras=frozenset(
-            {"remove_invalid_genes", "merge_paralogs", "family_threshold", "len_dif_percent"}
+            {
+                # Panaroo's -c: the identity of its first clustering pass.
+                "threshold",
+                "remove_invalid_genes",
+                "merge_paralogs",
+                "family_threshold",
+                "len_dif_percent",
+            }
         ),
     )
 
@@ -72,6 +91,11 @@ class PanarooBuilder(CoreGeneBuilder):
             raise UserInputError(
                 f"--core-threshold must be within (0, 1], got {params.core_threshold}"
             )
+        identity = (
+            _unit(params.extra["threshold"], "threshold")
+            if "threshold" in params.extra
+            else DEFAULT_THRESHOLD
+        )
         out_dir.mkdir(parents=True, exist_ok=True)
         listing = out_dir / "gff_list.txt"
         listing.write_text("".join(f"{os.path.abspath(g)}\n" for g in gffs), encoding="utf-8")
@@ -89,6 +113,10 @@ class PanarooBuilder(CoreGeneBuilder):
             "mafft",
             "--core_threshold",
             f"{params.core_threshold:g}",
+            # Passed even at its default, so the command and the stage record
+            # carry the value that governs the result.
+            "-c",
+            f"{identity:g}",
             "-t",
             str(params.threads),
         ]
@@ -115,9 +143,19 @@ class PanarooBuilder(CoreGeneBuilder):
                     "panaroo wrote core_gene_alignment.aln but no filtered alignment; pass "
                     "--aligner-arg filtered=false to use the unfiltered one"
                 )
+            advice = (
+                "Lower it (0.95 and 0.90 are the usual steps) on a divergent set"
+                if "threshold" not in params.extra
+                else f"You already set it to {identity:g}, so what is left is a lower "
+                "--core-threshold, or leaving the most divergent genomes out"
+            )
             raise WorkdirError(
-                f"panaroo wrote no {name}: too few genomes share core genes at "
-                f"--core-threshold {params.core_threshold:g}, or the GFF3 files carry no sequences"
+                f"panaroo wrote no {name}. No gene reached --core-threshold "
+                f"{params.core_threshold:g}. Its first clustering pass groups only genes at "
+                f"least {identity:g} identical (--aligner-arg threshold=), so on a divergent "
+                f"set most orthologues end up in separate clusters. {advice}. The other "
+                "possibilities are GFF3 files without their sequences and a panaroo run that "
+                "failed part way; its log says which."
             )
         tables = [out_dir / t for t in TABLES if (out_dir / t).is_file()]
         header = out_dir / (
@@ -125,9 +163,30 @@ class PanarooBuilder(CoreGeneBuilder):
             if params.filtered
             else "core_alignment_header.embl"
         )
-        return CoreGeneResult(
-            alignment=alignment, tables=tables, core_genes=_core_genes(header, out_dir, logger)
-        )
+        core_genes = _core_genes(header, out_dir, logger)
+        if core_genes is not None and core_genes < _SMALL_CORE and "threshold" not in params.extra:
+            logger.warning(
+                "Only %d core genes: panaroo's first clustering pass groups only genes at "
+                "least %s identical, so on a divergent set most orthologues end up in "
+                "separate clusters. Try --aligner-arg threshold=0.95, then 0.90; on a "
+                "three-genome Wolbachia set that raised the core about fourfold and then "
+                "twelvefold (docs/verification.md).",
+                core_genes,
+                f"{DEFAULT_THRESHOLD:g}",
+            )
+        return CoreGeneResult(alignment=alignment, tables=tables, core_genes=core_genes)
+
+
+def _unit(raw: object, flag: str) -> float:
+    try:
+        value = float(str(raw))
+    except ValueError:
+        raise UserInputError(
+            f"panaroo {flag} must be a number within (0, 1], got {raw!r}"
+        ) from None
+    if not 0.0 < value <= 1.0:
+        raise UserInputError(f"panaroo {flag} must be within (0, 1], got {raw!r}")
+    return value
 
 
 def _core_genes(header: Path, out_dir: Path, logger: logging.Logger) -> int | None:
