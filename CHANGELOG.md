@@ -22,7 +22,11 @@ All notable changes to RepGenR2 are documented here. The format follows
   reuse stamp (version 4) holds the annotation index digest. `phylo-build`
   takes `--annotations-dir`, or annotates its inputs with `--annotator`.
   `envs/panaroo.yml` is a new satellite environment. Declared limit 500
-  genomes, not measured here.
+  genomes, not measured here. The first live run (Wolbachia, see
+  `docs/verification.md`) gave 45 core genes and 52050 columns from three
+  related genomes in about 70 seconds, and no core at all across Wolbachia
+  supergroups, so `core_gene_stats.json` reports the core size to check
+  before trusting the tree.
 - `repgenr annotate`: a new stage and a new tool family, annotators
   (`bakta`, the default, and `prokka`). It annotates the representatives
   (or every genome with `--all-genomes`) and the outgroup once, into

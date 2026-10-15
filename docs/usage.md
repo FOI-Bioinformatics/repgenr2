@@ -1482,10 +1482,17 @@ changed (the reuse stamp holds the index digest). Outputs:
 `tree/msa/pangenome/` and `tree/msa/core_gene_stats.json` (see
 [output.md](output.md)).
 
-This route suits genus- and family-level sets, where the reference-based
-routes lose most columns and the alignment-free builders give no supports;
-within a species or an outbreak a SNP tree draws on far more
-positions, and the SNP route costs no annotation pass. Panaroo's declared
+This route suits a species or a group of closely related genomes, which is
+what Panaroo's de-novo clustering is built for. It does not rescue a
+genuinely diverse set: on four Wolbachia genomes from different supergroups
+(about 80% identity) Panaroo found no gene shared by all four, at every
+cleaning mode and down to `--aligner-arg family_threshold=0.3`, while two
+genomes of one supergroup shared 1054 genes (see
+[verification.md](verification.md)). Read `core_gene_stats.json` before
+trusting the tree: a small core means the set is too diverse for this
+route, and an alignment-free builder is the honest choice there. Within an
+outbreak a SNP tree draws on far more positions and costs no annotation
+pass. Panaroo's declared
 limit of 500 genomes is not measured here, and neither is its runtime; the
 clustering and the per-gene alignments are the slow parts, after the
 annotation. The data-channel step `phylo-build --msa-source
