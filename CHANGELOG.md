@@ -12,6 +12,16 @@ All notable changes to RepGenR2 are documented here. The format follows
   that later entries implement (batches A to D; E deferred).
 
 ### Changed
+- `tree2tax` writes `tree2tax_nodes.tsv` beside its two tables: one row per
+  node with its parent, leaf count, depth, branch length, support (as a
+  fraction), relative evolutionary divergence (Parks et al. 2018, computed as
+  PhyloRank does; measured from the ingroup's common ancestor when the
+  outgroup is removed; NA without branch lengths or a meaningful root) and,
+  for a genome, its family, genus and species from the manifest. FlexTaxD
+  does not read it; it is for reading the taxonomy and choosing collapse
+  thresholds. The stateless step and the Nextflow module write and publish
+  it too, without lineages. An existing workdir reruns `tree2tax` once, since
+  the file joins its deliverables.
 - `snptype` and the typing pass of `phylo --msa-source snptype` count the
   constant A, C, G and T columns of the whole-genome alignment (`simple`,
   `snippy`, `parsnp`) into `alignment_stats.json` beside `core_snp.fasta`.
