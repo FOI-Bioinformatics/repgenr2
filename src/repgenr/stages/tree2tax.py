@@ -59,6 +59,10 @@ class Tree2taxParams:
     # trees are normalised) or its branch is shorter than collapse_length.
     collapse_support: float | None = None
     collapse_length: float | None = None
+    # Clade diameter: the largest leaf-to-leaf distance a named clade may span;
+    # the smallest set of such clades is kept and everything inside each is
+    # merged into it (TreeCluster's max-diameter criterion).
+    collapse_diameter: float | None = None
 
 
 @dataclass
@@ -79,6 +83,7 @@ class Tree2taxStepParams:
     versions_out: Path | None = None
     collapse_support: float | None = None
     collapse_length: float | None = None
+    collapse_diameter: float | None = None
     # The tree was built without an outgroup (phylo --no-outgroup): ignore the
     # staged outgroup inputs and leave the tree unrooted.
     no_outgroup: bool = False
@@ -107,6 +112,7 @@ def _emit_relations(
     logger: logging.Logger,
     collapse_support: float | None = None,
     collapse_length: float | None = None,
+    collapse_diameter: float | None = None,
     segments: dict[str, list[str]] | None = None,
     tree_source: Path | None = None,
     keep_root: bool = False,
@@ -146,10 +152,13 @@ def _emit_relations(
     if remove_outgroup and outgroup_leaf is not None:
         _prune_leaf(tree, outgroup_leaf)
 
-    # Collapse before naming so node names describe the collapsed topology.
+    # Collapse before naming so node names describe the collapsed topology:
+    # clades under the diameter first, then the weak splits that remain.
+    by_diameter = _collapse_by_diameter(tree, collapse_diameter, logger, source=source)
     stats = _collapse_weak_nodes(
         tree, support=collapse_support, length=collapse_length, logger=logger
     )
+    stats.collapsed += by_diameter
 
     if root_name != FLEXTAXD_ROOT:
         logger.warning(
@@ -308,6 +317,7 @@ def tree2tax_relations(params: Tree2taxStepParams, logger: logging.Logger) -> tu
         logger=logger,
         collapse_support=params.collapse_support,
         collapse_length=params.collapse_length,
+        collapse_diameter=params.collapse_diameter,
         segments=segments,
         tree_source=params.tree,
         keep_root=params.keep_root,
@@ -351,6 +361,7 @@ def run(ctx: WorkdirContext, params: Tree2taxParams) -> tuple[Path, Path]:
         logger=logger,
         collapse_support=params.collapse_support,
         collapse_length=params.collapse_length,
+        collapse_diameter=params.collapse_diameter,
         segments=segments,
         tree_source=tree_file,
         keep_root=keep_root,
@@ -369,6 +380,7 @@ def run(ctx: WorkdirContext, params: Tree2taxParams) -> tuple[Path, Path]:
             "node_basename": params.node_basename,
             "collapse_support": params.collapse_support,
             "collapse_length": params.collapse_length,
+            "collapse_diameter": params.collapse_diameter,
             "collapsed_nodes": collapsed,
         },
         completed=datetime.now(UTC).isoformat(),
@@ -469,6 +481,76 @@ def _parse_support(label: str | None) -> float | None:
         return float(label)
     except ValueError:
         return None
+
+
+def _collapse_by_diameter(
+    tree: dendropy.Tree,
+    diameter: float | None,
+    logger: logging.Logger,
+    *,
+    source: object = "the tree",
+) -> int:
+    """Merge every clade whose leaf-to-leaf distance stays within ``diameter``
+    into one node; return the number of internal nodes removed.
+
+    One post-order pass keeps, per node, the largest leaf-to-leaf distance
+    in its clade: the two deepest leaf depths through different children
+    summed, or a wider pair inside one child. That span can only grow
+    towards the root, so the highest nodes under the limit give the fewest
+    clades (TreeCluster's ``max_clade`` method); they are kept, and every
+    internal node strictly below them is collapsed,
+    so each clade is one node with its leaves as children. The root and its
+    children are never collapsed into, but a root child can be such a clade.
+    A tree without branch lengths cannot be measured and is refused.
+    """
+    if diameter is None:
+        return 0
+    deepest: dict[int, float] = {}
+    span: dict[int, float] = {}
+    for node in tree.postorder_node_iter():
+        if node.is_leaf():
+            deepest[id(node)] = 0.0
+            span[id(node)] = 0.0
+            continue
+        depths = []
+        for child in node.child_nodes():
+            if child.edge.length is None:
+                raise WorkdirError(
+                    f"{source} has a branch without a length, so --collapse-diameter cannot "
+                    "measure clades; build the tree with a builder that writes lengths."
+                )
+            depths.append(deepest[id(child)] + float(child.edge.length))
+        depths.sort(reverse=True)
+        deepest[id(node)] = depths[0]
+        # The largest leaf-to-leaf distance in the clade: the widest pair that
+        # meets at this node, or a wider pair inside one child (which a
+        # negative or zero branch can make the larger of the two).
+        through = depths[0] + depths[1] if len(depths) > 1 else 0.0
+        span[id(node)] = max([through, *(span[id(c)] for c in node.child_nodes())])
+    protected = {tree.seed_node}
+    removed = 0
+    stack = list(tree.seed_node.child_nodes())
+    kept = 0
+    while stack:
+        node = stack.pop()
+        if node.is_leaf() or node in protected:
+            continue
+        if span[id(node)] <= diameter * (1 + 1e-9) + 1e-12:  # float sums of branch lengths
+            kept += 1
+            inner = [n for n in node.postorder_internal_node_iter() if n is not node]
+            for n in inner:
+                n.edge.collapse(adjust_collapsed_head_children_edge_lengths=True)
+            removed += len(inner)
+            continue
+        stack.extend(node.child_nodes())
+    if kept:
+        logger.info(
+            "Collapsed %d internal node(s) inside %d clade(s) of diameter at most %g",
+            removed,
+            kept,
+            diameter,
+        )
+    return removed
 
 
 def _collapse_weak_nodes(

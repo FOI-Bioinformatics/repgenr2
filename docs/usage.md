@@ -1577,10 +1577,25 @@ ML builders). `--collapse-support S` merges a node whose support is below the
 fraction S; IQ-TREE and RAxML-NG write percentages and are normalised
 automatically, FastTree writes fractions, and mashtree and the sourmash
 builder write no supports, in which case the option warns and does nothing.
-Either criterion suffices. The root, the outgroup/ingroup split under it and
-the leaves never collapse. A collapsed node's branch length is added to its
-children's. Provenance records both thresholds and the number of nodes
-collapsed, so changing a threshold re-runs the stage. On the 171-leaf
+Either criterion suffices. `--collapse-diameter D` works on clades rather
+than single branches: the fewest clades whose leaf-to-leaf distance stays
+within D are kept, and every node inside such a clade is merged into it, so
+a group of near-identical genomes joined by many short branches becomes one
+FlexTaxD node with the genomes as its children (the `max_clade` method of
+TreeCluster). D is in the tree's own units: mash distance for mashtree (about 0.05 at
+95 % ANI for closely related genomes), one minus the Jaccard similarity at
+the chosen k for the sourmash builder (about 0.88 at 95 % ANI with k = 31,
+so a mash-scale value is far too strict there), substitutions per variable
+site on an ML tree from a SNP alignment. It runs before the
+other two rules and refuses a tree without branch lengths; a clade it kept
+can still be merged into its parent by `--collapse-length` when its own
+branch is short, which then puts leaves more than D apart under one node.
+An ingroup that fits within D on an outgroup-rooted tree becomes one node
+under the root. The root, the
+outgroup/ingroup split under it and the leaves never collapse. A collapsed
+node's branch length is added to its children's. Provenance records the
+thresholds and the number of nodes collapsed, so changing one re-runs the
+stage. On the 171-leaf
 Wolbachia mashtree tree, `--collapse-length 0.0005` removes 26 of 168 internal
 nodes. `tree2tax_nodes.tsv` beside the two tables describes every node (leaf
 count, depth, branch length, support, relative evolutionary divergence, the

@@ -3,7 +3,7 @@
 Generated from `tests/audit/cli_matrix.yaml` by `scripts/render_cli_matrix.py`;
 `tests/unit/test_cli_matrix.py` keeps both in step with the command tree.
 
-30 commands, 351 flags (351 with a live test or an n/a reason, 0 pending).
+30 commands, 354 flags (354 with a live test or an n/a reason, 0 pending).
 
 ## Global flags
 
@@ -403,6 +403,7 @@ dispatch: `stage`
 | `--mask` |  | PhyloParams.extra | registry | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: forwarded to the stage builder unchanged (wiring test); the stage flag is covered live | docs/choosing-tools.md, docs/cli-reference.md, docs/audit/cli-matrix.md |
 | `--collapse-support` |  | Tree2taxParams.collapse_support | range | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: forwarded to the stage builder unchanged (wiring test); the stage flag is covered live | docs/cli-reference.md, docs/audit/cli-matrix.md |
 | `--collapse-length` |  | Tree2taxParams.collapse_length | range | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: forwarded to the stage builder unchanged (wiring test); the stage flag is covered live | docs/cli-reference.md, docs/audit/cli-matrix.md |
+| `--collapse-diameter` |  | Tree2taxParams.collapse_diameter | range | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: covered offline in tests/unit/test_tree2tax_collapse.py | docs/cli-reference.md, docs/usage.md, docs/choosing-tools.md, docs/audit/cli-matrix.md |
 | `--allow-incomplete` |  | DereplicateParams.allow_incomplete | none | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: forwarded to the stage builder unchanged (wiring test); the stage flag is covered live | docs/cli-reference.md, docs/audit/cli-matrix.md |
 
 ## snptype
@@ -442,6 +443,7 @@ dispatch: `stage`
 | `--include-dereplicated` |  | Tree2taxParams.include_dereplicated | none | n/a: workdir command; the Nextflow layer uses the stateless steps | tests/live/test_smoke.py::test_offline_chain_sourmash_mashtree | docs/usage.md, docs/cli-reference.md, docs/audit/cli-matrix.md |
 | `--collapse-support` |  | Tree2taxParams.collapse_support | range | n/a: workdir command; the Nextflow layer uses the stateless steps | tests/live/test_species_set.py::test_tree2tax_workdir_flags | docs/cli-reference.md, docs/audit/scaling-audit.md, docs/usage.md, docs/audit/cli-matrix.md |
 | `--collapse-length` |  | Tree2taxParams.collapse_length | range | n/a: workdir command; the Nextflow layer uses the stateless steps | tests/live/test_species_set.py::test_tree2tax_workdir_flags | docs/cli-reference.md, docs/audit/scaling-audit.md, docs/usage.md, docs/audit/cli-matrix.md |
+| `--collapse-diameter` |  | Tree2taxParams.collapse_diameter | range | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: covered offline in tests/unit/test_tree2tax_collapse.py | docs/cli-reference.md, docs/usage.md, docs/choosing-tools.md, docs/audit/cli-matrix.md |
 
 ## tree2tax-relations
 
@@ -464,6 +466,7 @@ dispatch: `step:repgenr.stages.tree2tax.tree2tax_relations`
 | `--versions-out` |  | Tree2taxStepParams.versions_out | none | module: fixed by the process script | tests/live/test_steps.py::test_phylo_build_and_tree2tax_relations_with_outgroup | docs/cli-reference.md, docs/audit/cli-matrix.md |
 | `--collapse-support` |  | Tree2taxStepParams.collapse_support | range | params.tree2tax_args | tests/live/test_steps.py::test_tree2tax_relations_collapse_flags | docs/cli-reference.md, docs/audit/scaling-audit.md, docs/usage.md, docs/audit/cli-matrix.md |
 | `--collapse-length` |  | Tree2taxStepParams.collapse_length | range | params.tree2tax_args | tests/live/test_steps.py::test_tree2tax_relations_collapse_flags | docs/cli-reference.md, docs/audit/scaling-audit.md, docs/usage.md, docs/audit/cli-matrix.md |
+| `--collapse-diameter` |  | Tree2taxStepParams.collapse_diameter | range | params.tree2tax_args | n/a: covered offline in tests/unit/test_tree2tax_collapse.py | docs/cli-reference.md, docs/usage.md, docs/choosing-tools.md, docs/audit/cli-matrix.md |
 
 ## versions
 

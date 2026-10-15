@@ -20,6 +20,7 @@ from .base import (
     HELP_ALIGNED_FRACTION,
     HELP_ALIGNER_ARG,
     HELP_BOOTSTRAP,
+    HELP_COLLAPSE_DIAMETER,
     HELP_COLLAPSE_LENGTH,
     HELP_COLLAPSE_SUPPORT,
     HELP_DEREP_TOOL_ARG,
@@ -300,6 +301,12 @@ def tree2tax_relations_cmd(
         min=0.0,
         help=HELP_COLLAPSE_LENGTH,
     ),
+    collapse_diameter: float | None = typer.Option(
+        None,
+        "--collapse-diameter",
+        min=0.0,
+        help=HELP_COLLAPSE_DIAMETER,
+    ),
 ) -> None:
     """Emit FlexTaxD relations from a tree (stateless data-channel step).
 
@@ -323,6 +330,7 @@ def tree2tax_relations_cmd(
                 versions_out=versions_out,
                 collapse_support=collapse_support,
                 collapse_length=collapse_length,
+                collapse_diameter=collapse_diameter,
                 no_outgroup=no_outgroup,
                 keep_root=keep_root,
                 segments=segments,

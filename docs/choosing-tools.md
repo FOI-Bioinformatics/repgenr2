@@ -216,8 +216,14 @@ one ingroup clade. See [usage.md](usage.md#rooting-the-tree).
 tree's own units, and `--collapse-support S` merges a node whose support is
 below the fraction `S`. IQ-TREE and RAxML-NG supports are normalised
 automatically. `mashtree` and the sourmash builder write no supports, so
-`--collapse-support` does nothing for them and the stage warns. The root, the
-outgroup split and the leaves never collapse. See
+`--collapse-support` does nothing for them and the stage warns.
+`--collapse-diameter D` keeps the fewest clades whose leaf-to-leaf distance
+stays within `D` and merges everything inside each, which maps a distance
+cutoff onto the taxonomy without supports; the unit is the tree's own (a
+mash distance of about 0.05 at 95 % ANI for mashtree, one minus the Jaccard
+similarity for the sourmash builder, where 95 % ANI is near 0.88 at k = 31,
+substitutions per variable site for the ML builders). The root, the outgroup
+split and the leaves never collapse. See
 [usage.md](usage.md#collapsing-weak-splits-in-tree2tax).
 
 ## 7. Assemblers and polishers

@@ -474,6 +474,7 @@ def tree2tax_params(
     include_dereplicated: Any = _UNSET,
     collapse_support: Any = _UNSET,
     collapse_length: Any = _UNSET,
+    collapse_diameter: Any = _UNSET,
 ) -> Tree2taxParams:
     from ..stages.tree2tax import Tree2taxParams
 
@@ -485,4 +486,5 @@ def tree2tax_params(
         include_dereplicated=include_dereplicated,
         collapse_support=collapse_support,
         collapse_length=collapse_length,
+        collapse_diameter=collapse_diameter,
     )

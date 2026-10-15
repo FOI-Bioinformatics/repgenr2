@@ -152,6 +152,10 @@ HELP_REMOVE_OUTGROUP = "Leave the outgroup out of the taxonomy after rooting."
 HELP_INCLUDE_DEREPLICATED = "List redundant genomes under their representative in the taxonomy."
 HELP_COLLAPSE_SUPPORT = "Merge nodes whose support is below this fraction into their parent."
 HELP_COLLAPSE_LENGTH = "Merge nodes whose branch is shorter than this length into their parent."
+HELP_COLLAPSE_DIAMETER = (
+    "Merge every clade whose leaf-to-leaf distance is within this value into one node, "
+    "keeping the fewest such clades (in the tree's own units)."
+)
 HELP_VERSIONS_OUT = "Write resolved tool versions (YAML fragment) here."
 HELP_SKETCHES_DIR = (
     "A sketches/ directory of <record name>.sig.zip files (k=21, 31, 51; scaled=1000) "

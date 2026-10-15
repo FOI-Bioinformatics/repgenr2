@@ -6,6 +6,16 @@ All notable changes to RepGenR2 are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+- `tree2tax --collapse-diameter D` (also on `tree2tax-relations` and `run`):
+  the fewest clades whose leaf-to-leaf distance stays within D are kept and
+  every node inside each is merged into it, so a distance cutoff such as a
+  mash distance of 0.05 becomes one FlexTaxD node per cluster, with no
+  supports needed. It runs before `--collapse-support` and
+  `--collapse-length` and refuses a tree without branch lengths; the record
+  carries the value and `collapsed_nodes` counts these collapses too; an
+  existing workdir reruns `tree2tax` once.
+
 ### Documentation
 - `docs/audit/phylo-tree2tax-gap-2026-10.md`: gap analysis of the phylo and
   tree2tax stages against current practice, with the improvement ladder
