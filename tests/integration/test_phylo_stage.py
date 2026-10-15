@@ -1509,6 +1509,9 @@ def test_a_reference_free_typer_writes_no_note(
     register_tool(snp_registry, "fakesnptyper", _FakeSnpTyper)
     _make_reps(workdir)
     ctx = WorkdirContext(workdir, create=True)
+    # A note from an earlier mapping-typer run must not survive a reference-free one.
+    ctx.phylo_msa_dir.mkdir(parents=True, exist_ok=True)
+    (ctx.phylo_msa_dir / "reference.txt").write_text("stale.fasta\tfirst\t\n")
     run(
         ctx,
         PhyloParams(

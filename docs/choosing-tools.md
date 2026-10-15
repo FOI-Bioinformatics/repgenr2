@@ -172,8 +172,9 @@ alignment-free tree builders.
 | Core-SNP | `--msa-source snptype` with `--snptyper simple`, `snippy`, `parsnp` or `ska2` | One species or a clonal set. | `simple`, `snippy` and `parsnp` map every genome to one reference, so the reference biases the result. `simple` maps with minimap2 `-x asm20` and records reference positions a genome does not cover as N, so a divergent outgroup is largely N (its coverage is in the log). `ska2` is reference-free. |
 
 Reference bias. The aligners and the mapping typers project every genome
-onto one reference, and the choice shapes the tree: swapping the reference
-changed 72 of 94 splits on a 50-genome set (`docs/audit/scaling-audit.md`).
+onto one reference, and the choice shapes mostly the within-cluster branching
+order: swapping the reference changed 72 of 94 splits on a 50-genome set while
+the deep structure held (`docs/audit/scaling-audit.md`).
 Unless `--reference` names a genome, the stage uses the medoid, the genome
 with the largest summed sketch ANI to the others, computed from the workdir
 sketches (`--sketch` on the genome stages, or `repgenr sketch`) with

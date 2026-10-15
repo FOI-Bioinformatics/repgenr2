@@ -1,17 +1,19 @@
 """Choose a reference genome as the medoid of the set by sketch ANI.
 
 Every aligner and every mapping SNP typer projects the set onto one
-reference, and the choice shapes the tree: swapping the reference changed
-72 of 94 splits on a 50-genome set (docs/audit/scaling-audit.md). The
-alphabetically first file is an arbitrary choice; the medoid, the genome
-with the largest summed ANI to the others, is the one that is central to
-the set. It reduces reference bias, it does not remove it: in a set with an
-over-represented genotype the medoid sits inside that genotype.
+reference, and the choice shapes mostly the within-cluster branching order:
+swapping the reference changed 72 of 94 splits on a 50-genome set while the
+deep structure held (docs/audit/scaling-audit.md). The alphabetically first
+file is an arbitrary choice; the medoid, the genome with the largest summed
+ANI to the others, is the one that is central to the set. It is expected to
+reduce reference bias, not to remove it: in a set with an over-represented
+genotype the medoid sits inside that genotype.
 """
 
 from __future__ import annotations
 
 import logging
+import shutil
 import tempfile
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -44,7 +46,7 @@ def ani_matrix(
     """Genome file names (sorted) and their N x N ANI-estimate matrix.
 
     Runs ``sourmash compare`` through the sourmash dereplicator over the
-    given sketches (the workdir's k=31 sketches), sketching what is missing.
+    given sketches (the workdir's k=31 sketches); nothing is sketched here.
     """
     from ..dereplicators.sourmash import SourmashDereplicator
 
@@ -216,7 +218,10 @@ def resolve_reference(
         raise UserInputError(f"Reference genome not found: {rule}")
     if rule == REFERENCE_MEDOID:
         work = scratch_dir / "medoid" if scratch_dir is not None else Path(tempfile.mkdtemp())
-        choice = choose_medoid(genomes, sketch_provider, work, threads, logger)
+        try:
+            choice = choose_medoid(genomes, sketch_provider, work, threads, logger)
+        finally:
+            shutil.rmtree(work, ignore_errors=True)
         if choice is not None:
             logger.info(
                 "Reference genome %s: the medoid of %d genomes by sketch ANI (mean %.2f%% to "
