@@ -24,6 +24,7 @@ from .base import (
     HELP_ALL_GENOMES,
     HELP_ALLOW_INCOMPLETE,
     HELP_BOOTSTRAP,
+    HELP_COLLAPSE_DIAMETER,
     HELP_COLLAPSE_LENGTH,
     HELP_COLLAPSE_SUPPORT,
     HELP_DATASET,
@@ -352,6 +353,12 @@ def run(
         min=0.0,
         help=HELP_COLLAPSE_LENGTH,
     ),
+    collapse_diameter: float | None = typer.Option(
+        None,
+        "--collapse-diameter",
+        min=0.0,
+        help=HELP_COLLAPSE_DIAMETER,
+    ),
     # --- common ---
     threads: int = typer.Option(
         DEFAULT_THREADS, "-t", "--threads", min=1, help=HELP_THREADS, callback=resolve_threads
@@ -663,6 +670,7 @@ def run(
             include_dereplicated=include_dereplicated,
             collapse_support=collapse_support,
             collapse_length=collapse_length,
+            collapse_diameter=collapse_diameter,
         ),
     )
 

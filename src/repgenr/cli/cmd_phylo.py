@@ -12,6 +12,7 @@ from .base import (
     HELP_ALL_GENOMES,
     HELP_ALLOW_INCOMPLETE,
     HELP_BOOTSTRAP,
+    HELP_COLLAPSE_DIAMETER,
     HELP_COLLAPSE_LENGTH,
     HELP_COLLAPSE_SUPPORT,
     HELP_INCLUDE_DEREPLICATED,
@@ -162,6 +163,12 @@ def tree2tax(
         min=0.0,
         help=HELP_COLLAPSE_LENGTH,
     ),
+    collapse_diameter: float | None = typer.Option(
+        None,
+        "--collapse-diameter",
+        min=0.0,
+        help=HELP_COLLAPSE_DIAMETER,
+    ),
 ) -> None:
     """Emit FlexTaxD-compatible taxonomy relations from the tree."""
     from .param_builders import tree2tax_params
@@ -174,6 +181,7 @@ def tree2tax(
             include_dereplicated=include_dereplicated,
             collapse_support=collapse_support,
             collapse_length=collapse_length,
+            collapse_diameter=collapse_diameter,
         )
 
     _run("tree2tax", workdir, build)

@@ -95,3 +95,60 @@ def test_no_thresholds_is_a_no_op() -> None:
     before = _leaf_sets(tree)
     stats = mod._collapse_weak_nodes(tree, support=None, length=None, logger=_LOG)
     assert stats.collapsed == 0 and _leaf_sets(tree) == before
+
+
+def test_diameter_keeps_the_fewest_clades_and_flattens_them() -> None:
+    # A..D stay within 0.3 of each other (A to D through the clade's top is
+    # 0.1 + 0.05 + 0.05 + 0.1); E sits 1.0 away.
+    tree = _tree("((((A:0.1,B:0.1):0.05,C:0.1):0.05,D:0.1):0.5,E:1.0);")
+    removed = mod._collapse_by_diameter(tree, 0.3, _LOG)
+    assert removed == 2  # the two inner nodes of the ABCD clade
+    assert _leaf_sets(tree) == {frozenset("ABCD")}
+    clade = next(n for n in tree.seed_node.child_nodes() if not n.is_leaf())
+    assert sorted(lf.taxon.label for lf in clade.child_nodes()) == ["A", "B", "C", "D"]
+
+
+def test_diameter_below_the_closest_pair_collapses_nothing() -> None:
+    tree = _tree("((((A:0.1,B:0.1):0.05,C:0.1):0.05,D:0.1):0.5,E:1.0);")
+    assert mod._collapse_by_diameter(tree, 0.1, _LOG) == 0
+    assert len(_leaf_sets(tree)) == 3
+
+
+def test_diameter_splits_a_clade_that_is_too_wide_into_its_parts() -> None:
+    tree = _tree("(((A:0.1,B:0.1):0.5,(C:0.1,D:0.1):0.5):0.2,E:1.0);")
+    assert mod._collapse_by_diameter(tree, 0.25, _LOG) == 0  # AB and CD are already flat
+    assert _leaf_sets(tree) == {frozenset("AB"), frozenset("CD"), frozenset("ABCD")}
+    tree = _tree("(((A:0.1,(B:0.05,F:0.05):0.05):0.5,(C:0.1,D:0.1):0.5):0.2,E:1.0);")
+    assert mod._collapse_by_diameter(tree, 0.25, _LOG) == 1  # the BF node inside ABF
+    assert frozenset("ABF") in _leaf_sets(tree) and frozenset("BF") not in _leaf_sets(tree)
+
+
+def test_diameter_needs_branch_lengths() -> None:
+    from repgenr.core.errors import WorkdirError
+
+    with pytest.raises(WorkdirError, match="without a length"):
+        mod._collapse_by_diameter(_tree("((A,B),(C,D));"), 0.1, _LOG, source="x.nwk")
+    assert mod._collapse_by_diameter(_tree("((A,B),(C,D));"), None, _LOG) == 0
+
+
+def test_diameter_then_support_compose(tmp_path) -> None:
+    text = "((((A:0.1,B:0.1)90:0.05,C:0.1)20:0.05,D:0.1)95:0.5,(E:0.2,F:0.2)30:1.0);"
+    t2t, _, collapsed = mod._emit_relations(
+        text,
+        None,
+        {},
+        node_basename="N",
+        root_name="root",
+        remove_outgroup=False,
+        out_tree2tax=tmp_path / "t.tsv",
+        out_map=tmp_path / "m.tsv",
+        logger=_LOG,
+        collapse_support=0.5,
+        collapse_diameter=0.3,
+    )
+    rows = [tuple(line.split("\t")) for line in t2t.read_text().splitlines()[1:]]
+    parents = dict(rows)
+    # ABCD is one node under root; EF (support 30, below 50) is a root child and so is kept.
+    assert len({parents[x] for x in "ABCD"}) == 1 and parents["A"] != "root"
+    assert parents["E"] == parents["F"] != "root"
+    assert collapsed == 2

@@ -3039,6 +3039,18 @@ commands:
         nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
         live: 'n/a: forwarded to the stage builder unchanged (wiring test); the stage flag is covered
           live'
+      --collapse-diameter:
+        param: Tree2taxParams.collapse_diameter
+        value: '0.05'
+        validated: range
+        invalid: '-1'
+        docs:
+        - docs/cli-reference.md
+        - docs/usage.md
+        - docs/choosing-tools.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
+        live: 'n/a: covered offline in tests/unit/test_tree2tax_collapse.py'
       --allow-incomplete:
         param: DereplicateParams.allow_incomplete
         validated: none
@@ -3262,6 +3274,18 @@ commands:
         - docs/audit/cli-matrix.md
         nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
         live: tests/live/test_species_set.py::test_tree2tax_workdir_flags
+      --collapse-diameter:
+        param: Tree2taxParams.collapse_diameter
+        value: '0.05'
+        validated: range
+        invalid: '-1'
+        docs:
+        - docs/cli-reference.md
+        - docs/usage.md
+        - docs/choosing-tools.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
+        live: 'n/a: covered offline in tests/unit/test_tree2tax_collapse.py'
   tree2tax-relations:
     dispatch: step:repgenr.stages.tree2tax.tree2tax_relations
     base_args:
@@ -3419,6 +3443,18 @@ commands:
         - docs/audit/cli-matrix.md
         nextflow: params.tree2tax_args
         live: tests/live/test_steps.py::test_tree2tax_relations_collapse_flags
+      --collapse-diameter:
+        param: Tree2taxStepParams.collapse_diameter
+        value: '0.05'
+        validated: range
+        invalid: '-1'
+        docs:
+        - docs/cli-reference.md
+        - docs/usage.md
+        - docs/choosing-tools.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'params.tree2tax_args'
+        live: 'n/a: covered offline in tests/unit/test_tree2tax_collapse.py'
   versions:
     dispatch: query
     base_args:

@@ -103,6 +103,7 @@ is 'vmetadata --source'. --platform filters the sequencing platform with
 | `--include-dereplicated`, `--no-include-dereplicated` | on | List redundant genomes under their representative in the taxonomy. |
 | `--collapse-support` |  | Merge nodes whose support is below this fraction into their parent. |
 | `--collapse-length` |  | Merge nodes whose branch is shorter than this length into their parent. |
+| `--collapse-diameter` |  | Merge every clade whose leaf-to-leaf distance is within this value into one node, keeping the fewest such clades (in the tree's own units). |
 | `-t`, `--threads` | `16` | Threads for the external tool (default 16, or the CPU limit when lower). |
 | `--allow-incomplete` | off | Proceed with a warning when the input genome set is incomplete. |
 | `--dry-run` | off | Print the stages and key parameters, then exit. |
@@ -347,6 +348,7 @@ Emit FlexTaxD-compatible taxonomy relations from the tree.
 | `--include-dereplicated`, `--no-include-dereplicated` | on | List redundant genomes under their representative in the taxonomy. |
 | `--collapse-support` |  | Merge nodes whose support is below this fraction into their parent. |
 | `--collapse-length` |  | Merge nodes whose branch is shorter than this length into their parent. |
+| `--collapse-diameter` |  | Merge every clade whose leaf-to-leaf distance is within this value into one node, keeping the fewest such clades (in the tree's own units). |
 
 ## Inspect a dereplication
 
@@ -623,6 +625,7 @@ Here --outgroup-accession takes a file that names the accession, not the accessi
 | `--versions-out` |  | Write resolved tool versions (YAML fragment) here. |
 | `--collapse-support` |  | Merge nodes whose support is below this fraction into their parent. |
 | `--collapse-length` |  | Merge nodes whose branch is shorter than this length into their parent. |
+| `--collapse-diameter` |  | Merge every clade whose leaf-to-leaf distance is within this value into one node, keeping the fewest such clades (in the tree's own units). |
 
 ### assemble-run
 
