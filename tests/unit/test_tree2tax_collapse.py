@@ -169,3 +169,24 @@ def test_diameter_keeps_a_fitting_ingroup_as_one_node_under_the_root() -> None:
     tree = _tree("(((A:0.1,B:0.1):0.1,C:0.1):1,OG:1);")
     assert mod._collapse_by_diameter(tree, 0.5, _LOG) == 1
     assert _leaf_sets(tree) == {frozenset("ABC")}
+
+
+def test_diameter_zero_merges_zero_length_clades_only() -> None:
+    tree = _tree("((((A:0,B:0):0,C:0):0,D:0.1):1,OG:1);")
+    assert mod._collapse_by_diameter(tree, 0, _LOG) == 1  # the AB node inside ABC
+    assert frozenset("ABC") in _leaf_sets(tree) and frozenset("AB") not in _leaf_sets(tree)
+
+
+def test_diameter_through_the_stateless_step(tmp_path) -> None:
+    from repgenr.stages.tree2tax import Tree2taxStepParams, tree2tax_relations
+
+    tree = tmp_path / "tree.nwk"
+    tree.write_text("((((A:0.1,B:0.1):0.05,C:0.1):0.05,D:0.1):0.5,E:1.0);\n")
+    t2t, _ = tree2tax_relations(
+        Tree2taxStepParams(
+            tree=tree, out_dir=tmp_path / "out", no_outgroup=True, collapse_diameter=0.3
+        ),
+        _LOG,
+    )
+    parents = dict(line.split("\t") for line in t2t.read_text().splitlines()[1:])
+    assert len({parents[x] for x in "ABCD"}) == 1

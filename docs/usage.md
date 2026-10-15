@@ -1566,9 +1566,11 @@ than single branches: the fewest clades whose leaf-to-leaf distance stays
 within D are kept, and every node inside such a clade is merged into it, so
 a group of near-identical genomes joined by many short branches becomes one
 FlexTaxD node with the genomes as its children (the `max_clade` method of
-TreeCluster). D is in the tree's own units; on a mashtree tree a mash
-distance of about 0.05 corresponds to 95 % ANI, on an ML tree from a SNP
-alignment the unit is substitutions per variable site. It runs before the
+TreeCluster). D is in the tree's own units: mash distance for mashtree (about 0.05 at
+95 % ANI for closely related genomes), one minus the Jaccard similarity at
+the chosen k for the sourmash builder (about 0.88 at 95 % ANI with k = 31,
+so a mash-scale value is far too strict there), substitutions per variable
+site on an ML tree from a SNP alignment. It runs before the
 other two rules and refuses a tree without branch lengths; a clade it kept
 can still be merged into its parent by `--collapse-length` when its own
 branch is short, which then puts leaves more than D apart under one node.
