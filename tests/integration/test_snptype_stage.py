@@ -203,3 +203,23 @@ def test_all_genomes_reference_that_is_also_a_representative(workdir: Path, geno
     assert seen["reference"] == ref
     assert seen["genomes"].count(ref) == 1
     assert ctx.snp_dir.joinpath(CORE_SNP_FASTA).read_text().count(">") == len(genome_files)
+
+
+def test_full_alignment_typer_writes_constant_site_counts(
+    workdir, genome_files, register_tool, fake_typer
+) -> None:
+    import json
+
+    from repgenr.tree.alignment import ALIGNMENT_STATS
+
+    register_tool(registry, "fulltyper", _FullTyper)
+    ctx = WorkdirContext(workdir, create=True)
+    result = run(ctx, SnptypeParams(tool="fulltyper", all_genomes=True))
+    # Every record is ACGTACGTACGT: twelve constant columns, three per base.
+    assert result.constant_sites == (3, 3, 3, 3)
+    stats = json.loads((ctx.snp_dir / ALIGNMENT_STATS).read_text())
+    assert stats["constant_sites"] == {"A": 3, "C": 3, "G": 3, "T": 3}
+    assert stats["variable_sites"] == 0 and stats["masked"] is False
+    # A typer without a whole-genome alignment leaves no stale sidecar.
+    run(ctx, SnptypeParams(tool="faketyper", all_genomes=True))
+    assert not (ctx.snp_dir / ALIGNMENT_STATS).exists()

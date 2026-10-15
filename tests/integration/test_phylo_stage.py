@@ -1293,3 +1293,129 @@ def test_auto_is_not_restricted_by_an_aligner_choice_alone(
         ),
     )
     assert seen["allowed"] is None
+
+
+class _FullSnpTyper(_FakeSnpTyper):
+    """A typer with a whole-genome alignment, so the stage counts constant sites."""
+
+    capabilities = ToolCapabilities(name="fullsnptyper")
+
+    def call(self, genomes, reference, out_dir, params, logger) -> SnpResult:
+        out_dir.mkdir(parents=True, exist_ok=True)
+        core = out_dir / "core.fasta"
+        full = out_dir / "full.fasta"
+        core.write_text("".join(f">{record_name(g)}\nACGT\n" for g in genomes))
+        full.write_text("".join(f">{record_name(g)}\nAACCGGTTACGT\n" for g in genomes))
+        return SnpResult(core_snp_fasta=core, full_alignment=full)
+
+
+class _CountingMsaTreeBuilder(_MsaTreeBuilder):
+    capabilities = ToolCapabilities(name="faketree_counting")
+    seen_constant: tuple | None = None
+
+    def build(self, msa_or_genomes, out_dir, params, logger) -> Path:
+        type(self).seen_constant = params.constant_sites
+        return super().build(msa_or_genomes, out_dir, params, logger)
+
+
+def test_constant_sites_reach_the_tree_builder_and_survive_reuse(
+    workdir: Path, fake_phylo_tools, register_tool, caplog
+) -> None:
+    register_tool(snp_registry, "fullsnptyper", _FullSnpTyper)
+    register_tool(tb_registry, "faketree_counting", _CountingMsaTreeBuilder)
+    _make_reps(workdir)
+    ctx = WorkdirContext(workdir, create=True, logger=logging.getLogger("test-phylo"))
+    params = PhyloParams(
+        treebuilder="faketree_counting",
+        msa_source="snptype",
+        snptyper="fullsnptyper",
+        no_outgroup=True,
+    )
+    run(ctx, params)
+    assert _CountingMsaTreeBuilder.seen_constant == (3, 3, 3, 3)
+    _CountingMsaTreeBuilder.seen_constant = None
+    with caplog.at_level(logging.INFO, logger="test-phylo"):
+        run(ctx, params)
+    assert any("Reusing the alignment" in r.getMessage() for r in caplog.records)
+    assert _CountingMsaTreeBuilder.seen_constant == (3, 3, 3, 3)
+
+
+def test_snp_source_without_counts_warns_about_branch_lengths(
+    workdir: Path, fake_phylo_tools, fake_snptyper, caplog
+) -> None:
+    _make_reps(workdir)
+    ctx = WorkdirContext(workdir, create=True, logger=logging.getLogger("test-phylo"))
+    with caplog.at_level(logging.WARNING, logger="test-phylo"):
+        run(
+            ctx,
+            PhyloParams(
+                treebuilder="faketree_msa",
+                msa_source="snptype",
+                snptyper="fakesnptyper",
+                no_outgroup=True,
+            ),
+        )
+    assert any("No constant-site counts" in r.getMessage() for r in caplog.records)
+    assert _MsaTreeBuilder.seen_extra is not None
+
+
+def test_a_given_alignment_uses_its_own_sidecar_only(
+    workdir: Path, fake_phylo_tools, register_tool
+) -> None:
+    from repgenr.stages.phylo import PhyloDirs, build_tree
+    from repgenr.tree.alignment import write_alignment_stats
+
+    register_tool(tb_registry, "faketree_counting", _CountingMsaTreeBuilder)
+    _make_reps(workdir)
+    genomes = sorted((workdir / "derep" / "representatives").glob("*.fasta"))
+    snp = workdir / "snp"
+    snp.mkdir()
+    core = snp / "core_snp.fasta"
+    core.write_text("".join(f">{g.stem}\nACGT\n" for g in genomes))
+    full = snp / "full_alignment.fasta"
+    full.write_text("".join(f">{g.stem}\nAAACGT\n" for g in genomes))
+    write_alignment_stats(core, (2, 0, 0, 0), 4, source=full.name, masked=False)
+    dirs = PhyloDirs(
+        tree_dir=workdir / "tree",
+        align_dir=workdir / "align",
+        msa_dir=workdir / "tree" / "msa",
+        scratch_dir=workdir / "scratch",
+    )
+    for given, expected in ((core, (2, 0, 0, 0)), (full, None)):
+        _CountingMsaTreeBuilder.seen_constant = "unset"
+        build_tree(
+            genomes,
+            None,
+            None,
+            dirs,
+            PhyloParams(treebuilder="faketree_counting", no_outgroup=True),
+            logging.getLogger("test-phylo"),
+            msa=given,
+        )
+        assert _CountingMsaTreeBuilder.seen_constant == expected, given.name
+
+
+def test_msa_only_publishes_the_sidecar_for_the_copy(
+    workdir: Path, fake_phylo_tools, register_tool
+) -> None:
+    from repgenr.stages.phylo import PhyloBuildParams, phylo_build
+    from repgenr.tree.alignment import read_constant_sites
+
+    register_tool(snp_registry, "fullsnptyper", _FullSnpTyper)
+    _make_reps(workdir)
+    out = workdir / "out"
+    published = phylo_build(
+        PhyloBuildParams(
+            genomes_dir=workdir / "derep" / "representatives",
+            out_dir=out,
+            phylo=PhyloParams(
+                treebuilder="faketree_msa",
+                msa_source="snptype",
+                snptyper="fullsnptyper",
+                no_outgroup=True,
+            ),
+            msa_only=True,
+        ),
+        logging.getLogger("test-phylo"),
+    )
+    assert published.name == "msa.fasta" and read_constant_sites(published) == (3, 3, 3, 3)

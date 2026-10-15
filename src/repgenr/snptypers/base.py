@@ -36,6 +36,10 @@ class SnpResult:
     # equal lengths). Required input for recombination maskers; None when the
     # typer only produces variable sites.
     full_alignment: Path | None = None
+    # Constant A, C, G, T columns of the whole-genome alignment, for the tree
+    # builder's ascertainment-bias correction; None when there is no such
+    # alignment to count them from.
+    constant_sites: tuple[int, int, int, int] | None = None
 
 
 class SnpTyper(ABC):

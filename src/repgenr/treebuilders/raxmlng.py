@@ -10,8 +10,9 @@ from pathlib import Path
 from ..core.binaries import BinarySpec
 from ..core.containers import run_tool
 from ..core.contracts import atomic_path
-from ..core.errors import WorkdirError
+from ..core.errors import UserInputError, WorkdirError
 from ..core.plugins import ToolCapabilities
+from ..tree.alignment import add_counts, format_counts, strip_invariant_columns
 from .base import InputKind, TreeBuilder, TreeParams, as_msa_path
 
 
@@ -20,7 +21,9 @@ class RaxmlNgBuilder(TreeBuilder):
         name="raxmlng",
         container="quay.io/biocontainers/raxml-ng:2.0.3--h870a6a7_0",
         conda=("bioconda::raxml-ng",),
-        accepted_extras=frozenset({"model"}),
+        # model=: the substitution model (GTR+G). asc=lewis: +ASC_LEWIS instead
+        # of the per-base +ASC_STAM counts the typing pass provides.
+        accepted_extras=frozenset({"model", "asc"}),
         required_binaries=(BinarySpec("raxml-ng", version_args=("--version",), min_version="1.0"),),
         recommended_max_genomes=1000,
     )
@@ -36,13 +39,37 @@ class RaxmlNgBuilder(TreeBuilder):
         msa = as_msa_path(msa_or_genomes)
         out_dir.mkdir(parents=True, exist_ok=True)
         prefix = out_dir / "raxml"
+        model = str(params.extra.get("model", "GTR+G")).strip() or "GTR+G"
+        asc = str(params.extra.get("asc", "")).strip().lower()
+        if asc not in ("", "lewis"):
+            raise UserInputError(f"asc={asc!r} is not supported; use asc=lewis or leave it unset.")
+        constant = params.constant_sites
+        if "+asc" in model.lower():
+            # The user's model carries its own correction: nothing is appended
+            # and the counts are not used.
+            asc = "model"
+            logger.info("raxml-ng: the model %s carries its own ascertainment-bias term", model)
+        if asc or constant is not None:
+            # RAxML-NG refuses an +ASC model over an alignment that still holds
+            # an invariant column; the columns removed are constant sites.
+            variable_msa = out_dir / "msa.variable.fasta"
+            removed = strip_invariant_columns(msa, variable_msa, logger)
+            msa = variable_msa
+            if asc == "lewis":
+                model += "+ASC_LEWIS"
+                logger.info("raxml-ng: ascertainment-bias correction +ASC_LEWIS (asc=lewis)")
+            elif not asc:
+                assert constant is not None
+                constant = add_counts(constant, removed)
+                model += "+ASC_STAM{" + format_counts(constant, "/") + "}"
+                logger.info("raxml-ng: constant sites given as %s", model.split("+ASC_")[1])
         cmd: list[str | Path] = [
             "raxml-ng",
             "--all",
             "--msa",
             msa,
             "--model",
-            params.extra.get("model", "GTR+G"),
+            model,
             # auto{N}: let RAxML-NG pick an efficient thread count up to the
             # budget, avoiding its core-oversubscription guard on small alignments.
             "--threads",

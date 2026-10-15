@@ -12,6 +12,23 @@ All notable changes to RepGenR2 are documented here. The format follows
   that later entries implement (batches A to D; E deferred).
 
 ### Changed
+- `snptype` and the typing pass of `phylo --msa-source snptype` count the
+  constant A, C, G and T columns of the whole-genome alignment (`simple`,
+  `snippy`, `parsnp`) into `alignment_stats.json` beside `core_snp.fasta`.
+  `phylo` passes the counts to the tree builder as ascertainment-bias
+  correction: IQ-TREE `-fconst`, RAxML-NG `+ASC_STAM{...}`; invariant columns
+  that masking left are removed from the alignment the builder sees and join
+  the counts. `--aligner-arg asc=lewis` selects the Lewis correction instead.
+  FastTree applies none and says so; `ska2` yields no counts and `phylo` warns
+  that its branch lengths are uncorrected; a `model=` that already carries an
+  ASC term is passed unchanged. The sidecar names its alignment and holds its
+  digest, so the counts never apply to another file. An alignment typed
+  earlier is typed once more to gain the counts; aligner alignments are
+  reused as before. The Nextflow split mode carries the sidecar from the
+  alignment task to the tree task.
+  that its branch lengths are uncorrected. The alignment reuse stamp is at
+  version 4, so an alignment typed earlier is typed once more to gain the
+  counts.
 - `tree2tax-relations --segments`: the stateless step lists the member
   segment accessions of grouped viral isolates in `genomes_map.tsv`, as the
   workdir stage does; the Nextflow viral path stages `segments.tsv` from the

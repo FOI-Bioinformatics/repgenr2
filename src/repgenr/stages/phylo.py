@@ -60,6 +60,7 @@ from ..core.sketches import (
     directory_provider,
     workdir_provider,
 )
+from ..tree.alignment import ALIGNMENT_STATS, copy_alignment_stats, read_constant_sites
 from ..tree.rooting import (
     ROOT_METHODS,
     ROOT_NONE,
@@ -238,6 +239,10 @@ MSA_STAMP = "msa_source.json"
 # The SNP typing pass moved from snp/ to tree/msa/ without a version change: a
 # stamp left in snp/ is never read, so such a workdir is typed once more.
 _MSA_STAMP_VERSION = 3
+# The typing pass writes alignment_stats.json (constant-site counts) beside
+# its alignment; the key of a snptype-source alignment carries this so one
+# typed earlier is typed once more, while aligner alignments are untouched.
+_SNPTYPE_STATS_VERSION = 1
 # Scratch subdirectory of the SNP typing pass; the snptype stage uses
 # scratch/snptype, and each stage clears its own at the start.
 _TYPING_SCRATCH = "phylo_snptype"
@@ -269,6 +274,7 @@ def _msa_key(genomes: Sequence[Path], outgroup_file: Path | None, params: PhyloP
         "all_genomes": params.all_genomes,
         "no_outgroup": params.no_outgroup,
         "mask": str(params.extra.get("mask", "none")),
+        "stats": _SNPTYPE_STATS_VERSION if params.msa_source == "snptype" else None,
         "extra": {k: str(v) for k, v in sorted(_adapter_extra(params.extra).items())},
         "inputs": paths_stat_digest(inputs),
         "env": result_env_fragment(),
@@ -593,6 +599,7 @@ def build_tree(
         finally:
             remove_tree(inputs_dir)
     else:
+        given_msa = msa
         if msa is not None:
             logger.info("Building tree from the alignment given on the command line: %s", msa)
             source_versions: dict[str, str] = {}
@@ -602,6 +609,25 @@ def build_tree(
             )
         versions = {**versions, **source_versions}
         _warn_low_diversity(msa, logger)
+        tree_params.constant_sites = read_constant_sites(msa)
+        if (
+            tree_params.constant_sites is None
+            and msa is not given_msa
+            and params.msa_source == "snptype"
+        ):
+            logger.warning(
+                "No constant-site counts for %s (SNP typer '%s' writes no whole-genome "
+                "alignment, or alignment_stats.json is missing or describes another "
+                "file): the tree's branch lengths carry no ascertainment-bias correction "
+                "and are inflated",
+                msa,
+                params.snptyper,
+            )
+        elif tree_params.constant_sites is not None:
+            logger.info(
+                "Constant sites given to the tree builder: A %d, C %d, G %d, T %d",
+                *tree_params.constant_sites,
+            )
         logger.info("Building tree with %s from MSA %s", treebuilder, msa)
         _clear_previous_builder_files(dirs.tree_dir)
         tree = builder.build(msa, dirs.tree_dir, tree_params, logger)
@@ -898,6 +924,9 @@ def phylo_build(params: PhyloBuildParams, logger: logging.Logger) -> Path:
         if msa.resolve() != published.resolve():
             with atomic_path(published) as tmp:
                 shutil.copy2(msa, tmp)
+            # The counts travel with the copy, under the copy's name and digest.
+            (published.parent / ALIGNMENT_STATS).unlink(missing_ok=True)
+            copy_alignment_stats(msa, published)
         _write_versions(params.versions_out, versions)
         return published
 

@@ -49,6 +49,10 @@ class TreeParams:
     # Genome path -> sourmash signature file of the workdir sketches, given
     # only to a builder whose sketch_request() asks for parameters they hold.
     sketches: Mapping[Path, Path] | None = None
+    # Constant A, C, G, T columns the variable-site alignment lost, for the
+    # builder's ascertainment-bias correction; None for a whole-genome
+    # alignment or when nothing counted them.
+    constant_sites: tuple[int, int, int, int] | None = None
 
 
 class TreeBuilder(ABC):
