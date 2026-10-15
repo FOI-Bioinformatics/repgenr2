@@ -1474,29 +1474,36 @@ site of the core. `repgenr run --msa-source coregene` inserts the `annotate`
 stage before `phylo` (`--annotator`, `--bakta-db`); on a workdir run
 `annotate` first, then `phylo --msa-source coregene --treebuilder iqtree`.
 The outgroup is annotated and included; being another species it lowers the
-core, so on fewer than about twenty genomes lower the threshold or leave it
-out with `--no-outgroup --root midpoint`. The alignment is reused across
+core, so on fewer than about twenty genomes lower `--core-threshold` or
+leave the outgroup out with `--no-outgroup --root midpoint`. The alignment is reused across
 tree-builder changes like the other sources, and rebuilt when an annotation
 changed (the reuse stamp holds the index digest). Outputs:
 `tree/msa/core_gene_alignment.fasta`, the Panaroo tables under
 `tree/msa/pangenome/` and `tree/msa/core_gene_stats.json` (see
 [output.md](output.md)).
 
-How much divergence this route tolerates is set by one parameter, not by
-the taxonomic rank: Panaroo clusters genes in a first pass at
-`--aligner-arg threshold=` identity, 0.98 by default, and genes from
-genomes below that identity do not cluster at all. `--core-threshold`
-(which fraction of the genomes a gene must be in) and `family_threshold`
-(the later protein-family step) do not compensate. Measured on three
-Wolbachia genomes, the core went from 52 genes at 0.98 to 226 at 0.95, 638
-at 0.90 and 796 at 0.80; across Wolbachia supergroups the defaults gave no
-core at all, and over 24 genomes only 95 genes reached even 50% occupancy
-(see [verification.md](verification.md)). RIBAP (Genome Biology 2024)
-reports the same for other genera and cautions that too low a value starts
-to merge genes that are not orthologues, so lower it in steps and check
-the result. The stage warns when the core comes out under 100 genes.
-`core_gene_stats.json` carries the count, and it is the number to look at
-before trusting the tree. Within an outbreak a SNP tree still draws on far
+The parameter to reach for first is the clustering identity. Panaroo
+groups genes in a first pass at `--aligner-arg threshold=` identity, 0.98
+by default, so on a divergent set most orthologues of a gene end up in
+separate clusters and never reach the core. Lowering it is what recovers
+them: measured on three Wolbachia genomes of one supergroup, the genes
+present in all three went from 52 at 0.98 to 226 at 0.95, 638 at 0.90 and
+796 at 0.80 (see [verification.md](verification.md)). `family_threshold`,
+the later protein-family step, did not compensate at 0.5 or 0.3. Lowering
+`--core-threshold`, the fraction of genomes a gene must be in, recovers
+less and gives a softer core: over 24 Wolbachia genomes at the default
+identity it gave 0 genes at 0.95 occupancy against 95 at 0.50.
+
+How much a given setting yields still depends on the set. The same 0.98
+gave 1054 genes for two of those genomes, 52 for three and none at all for
+four spanning different supergroups, so a wider set needs a lower identity
+rather than the same one. RIBAP (Genome Biology 2024) reports the same for
+other genera and cautions that too low a value starts to group genes that
+are not orthologues, so lower it in steps and check the result. The
+panaroo builder warns when the core comes out under 100 genes, unless you
+have set `threshold` yourself. `core_gene_stats.json` carries the count
+and the identity used, and the count is the number to look at before
+trusting the tree. Within an outbreak a SNP tree still draws on far
 more positions and costs no annotation pass. Panaroo's declared
 limit of 500 genomes is not measured here, and neither is its runtime; the
 clustering and the per-gene alignments are the slow parts, after the

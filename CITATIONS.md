@@ -58,7 +58,6 @@ The stages below shell out to external tools; cite the ones your run uses.
   - [Bakta](https://doi.org/10.1099/mgen.0.000685) (Schwengers et al. 2021, Microbial Genomics)
   - [Prokka](https://doi.org/10.1093/bioinformatics/btu153) (Seemann 2014, Bioinformatics)
   - [Panaroo](https://doi.org/10.1186/s13059-020-02090-4) (Tonkin-Hill et al. 2020, Genome Biology)
-  - [RIBAP](https://doi.org/10.1186/s13059-024-03312-9) (Lamkiewicz et al. 2024, Genome Biology; the clustering-identity measurements the core-gene guidance cites)
   - [MAFFT](https://doi.org/10.1093/molbev/mst010) (Katoh and Standley 2013, Molecular Biology and Evolution)
 
 - **Read assembly (reads chain)**
@@ -81,3 +80,11 @@ The stages below shell out to external tools; cite the ones your run uses.
 - [BioContainers](https://doi.org/10.1093/bioinformatics/btx192)
 - [Seqera Wave](https://seqera.io/wave/)
 - [Anaconda / conda-forge / Bioconda](https://doi.org/10.1038/s41592-018-0046-7)
+
+## Further reading
+
+Not run by this pipeline, but cited in its documentation.
+
+- [RIBAP](https://doi.org/10.1186/s13059-024-03312-9) (Lamkiewicz et al.
+  2024, Genome Biology): the clustering-identity measurements the core-gene
+  guidance compares against.

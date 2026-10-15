@@ -576,11 +576,11 @@ reached through `--bin-dir`.
   genomes gave the same 45 genes and 52050 columns, and branch lengths
   equal to six digits. It took 135 seconds against bakta's 45 per genome
   and needs Rosetta here, so bakta stays the default.
-- **Panaroo's clustering identity is what governs the core.** Its first
-  pass demands `-c` 0.98 by default, which genomes below that identity
-  cannot meet, and `--family_threshold` (0.7, the later protein-family
-  step) does not compensate: at 0.5 and 0.3 the result did not move. On
-  the three supergroup-A genomes, varying `-c` alone:
+- **Panaroo's clustering identity governs how much of the core survives.**
+  Its first pass groups only genes at least `-c` identical, 0.98 by
+  default, so on a divergent set most orthologues of a gene fall into
+  separate clusters. On the three supergroup-A genomes, varying `-c`
+  alone:
 
   | `-c` (`--aligner-arg threshold=`) | genes in all three |
   |---|---|
@@ -589,8 +589,18 @@ reached through `--bin-dir`.
   | 0.90 | 638 |
   | 0.80 | 796 |
 
-  (counted from `gene_presence_absence_roary.csv`; the alignment step of the
-  0.80 run was not carried through.)
+  (genes present in all three, counted from
+  `gene_presence_absence_roary.csv`; the alignment step of the 0.80 run was
+  not carried through. These are the clusters before Panaroo's entropy
+  filter, which is why the default run above reports 45 genes in
+  `core_gene_stats.json` against the 52 here.)
+
+  The set matters as much as the setting. At that same default identity
+  two of these genomes shared 1054 genes, three shared 52 and four across
+  supergroups shared none, so a wider set needs a lower identity, not the
+  same one. `--family_threshold` (0.7, the later protein-family step) does
+  not substitute for it: on the four-genome cross-supergroup set, 0.5 and
+  0.3 left the result unchanged.
 
   Published benchmarks say the same: RIBAP (Genome Biology 2024) records
   Panaroo's default as 98%, measures a genus-level core of 16.12% for
@@ -606,8 +616,10 @@ reached through `--bin-dir`.
   gave 0 genes at 95% occupancy, 1 at 90%, 4 at 80%, 59 at 70% and 95 at
   50%, with a spike of 831 genes shared by exactly 10 genomes: the
   signature of clustering that succeeds only inside a close subgroup.
-  Lower `threshold` before concluding that a set has no core, and read
-  `tree/msa/core_gene_stats.json`, which carries the count.
+  Lowering `--core-threshold` therefore buys a little at the cost of a soft
+  core, while lowering `--aligner-arg threshold=` addresses the cause. Read
+  `tree/msa/core_gene_stats.json`, which carries both the gene count and the
+  identity used, before concluding that a set has no core.
 
 ## Gzipped genomes in the aligners and typers (2026-10-08)
 

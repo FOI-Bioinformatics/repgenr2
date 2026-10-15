@@ -158,6 +158,9 @@ def coregene_core(
         "alignment_length": length,
         "genomes": genomes,
         "core_threshold": params.core_threshold,
+        # The identity of the builder's clustering pass, when it has one and the
+        # user set it; it governs how many genes cluster at all.
+        "clustering_identity": params.extra.get("threshold"),
         "clean_mode": params.clean_mode,
         "filtered": params.filtered,
     }
