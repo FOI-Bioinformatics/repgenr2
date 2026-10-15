@@ -50,7 +50,11 @@ workflow READS_DATAFLOW {
         ch_tree = PHYLO.out.tree
     }
 
-    TREE2TAX(ch_tree.join(ch_phylo_in, by: 0).map { it -> it + [[]] })
+    // No segments table on the reads path: an empty list stands in for it.
+    def ch_tree2tax_in = ch_tree
+        .join(ch_phylo_in, by: 0)
+        .map { meta, tree, reps, outgroup, accession -> tuple(meta, tree, reps, outgroup, accession, []) }
+    TREE2TAX(ch_tree2tax_in)
     ch_versions = ch_versions.mix(TREE2TAX.out.versions)
 
     emit:
