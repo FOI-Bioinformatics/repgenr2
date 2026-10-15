@@ -1485,10 +1485,12 @@ own final tree, its recombination-aware maximum-likelihood tree, is kept as
 `masker_tree.nwk` beside the masked alignment for comparison with the tree
 repgenr builds from the filtered sites. Masking is refused (exit 2) when more
 than 12 % of the columns are variable, where Gubbins has died, or when the
-genome names span more than one species; `--tool-arg
+genome names (canonical `Family_Genus_species_Accession` names only, read
+where the last token is an accession) span more than one species; the
+species check runs before SNP typing. `--tool-arg
 gubbins_divergence_limit=FRACTION` moves the first limit and `--tool-arg
-gubbins_force=true` runs it anyway. Alignments shorter than 1000 columns are
-not judged. Gubbins
+gubbins_force=true` runs it anyway, with a warning. Alignments shorter than
+1000 columns are not judged. Gubbins
 leaves taxa with more than 25% gaps or N (`--filter-percentage`) out of its
 recombination analysis but still writes them to its outputs, unmasked. Since
 the `simple` typer writes N where a genome does not align, repgenr passes

@@ -230,6 +230,30 @@ def test_the_maskers_tree_is_kept_beside_the_alignment(
     assert (ctx.snp_dir / MASKER_TREE_NWK).read_text() == "(a,b);\n"
     run(ctx, SnptypeParams(tool="fulltyper", all_genomes=True))
     assert not (ctx.snp_dir / MASKER_TREE_NWK).exists()
+
+
+def test_a_masker_precheck_runs_before_the_typer(workdir, genome_files, register_tool) -> None:
+    from repgenr.core.errors import UserInputError
+
+    class _PrecheckMasker(_RecordingMasker):
+        capabilities = ToolCapabilities(name="precheckmask")
+
+        def precheck(self, names, extra, logger):  # noqa: ANN001
+            raise UserInputError(f"refused {len(names)} genomes before typing")
+
+    calls: list = []
+
+    class _CountingTyper(_FullTyper):
+        def call(self, genomes, reference, out_dir, params, logger):  # noqa: ANN001
+            calls.append(len(genomes))
+            return super().call(genomes, reference, out_dir, params, logger)
+
+    register_tool(registry, "countingtyper", _CountingTyper)
+    register_tool(masker_registry, "precheckmask", _PrecheckMasker)
+    ctx = WorkdirContext(workdir, create=True)
+    with pytest.raises(UserInputError, match="before typing"):
+        run(ctx, SnptypeParams(tool="countingtyper", all_genomes=True, mask="precheckmask"))
+    assert calls == []
 def test_full_alignment_typer_writes_constant_site_counts(
     workdir, genome_files, register_tool, fake_typer
 ) -> None:

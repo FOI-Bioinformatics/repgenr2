@@ -18,6 +18,11 @@ All notable changes to RepGenR2 are documented here. The format follows
   `masker_tree.nwk` beside the masked alignment. Masking is refused when more
   than 12 % of the columns are variable (`gubbins_divergence_limit=FRACTION`
   moves the limit) or when the genome names span more than one species;
+  `gubbins_force=true` runs it anyway, with a warning. The species check
+  reads only names whose last token is an accession, so a user's own
+  four-token names are not taken for taxonomy, and it runs before SNP typing
+  together with the check of `gubbins_divergence_limit`. Alignments shorter
+  than 1000 columns are not judged.
   `gubbins_force=true` runs it anyway. Alignments shorter than 1000 columns
   are not judged.
 - `tree2tax` writes `tree2tax_nodes.tsv` beside its two tables: one row per

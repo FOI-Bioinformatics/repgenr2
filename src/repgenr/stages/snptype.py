@@ -117,6 +117,15 @@ def snptype_core(
         # Before the typer runs: a missing masker binary must not surface
         # after minutes of SNP calling.
         versions.update(masker.preflight())
+        # Likewise a set the masker would refuse by name, or an unusable
+        # tuning value: both are known before any SNP is called.
+        precheck = getattr(masker, "precheck", None)
+        if precheck is not None:
+            precheck(
+                [record_name(g) for g in genomes if record_name(g) not in params.mask_exclude],
+                dict(params.extra),
+                logger,
+            )
 
     ref = None
     if typer.requires_reference:

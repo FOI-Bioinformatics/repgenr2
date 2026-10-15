@@ -504,3 +504,42 @@ def test_matched_exclude_name_is_not_warned(tmp_path: Path, monkeypatch, caplog)
             logging.getLogger("t"),
         )
     assert not any("no alignment record" in r.getMessage() for r in caplog.records)
+
+
+def test_species_are_counted_only_from_accession_like_names() -> None:
+    assert (
+        mod.species_spread(["Francisella_tularensis_LVS_1", "Francisella_tularensis_SCHU_S4"]) == 0
+    )
+    assert mod.species_spread(["sample_1_run_A", "sample_2_run_B"]) == 0
+    assert mod.species_spread(["Fam_Gen_alpha_GCF_1.1", "Fam_Gen_beta_GCA_2.1"]) == 2
+    assert mod.species_spread(["Fam_Gen_alpha_GCF_1.1", "Fam_Gen_alpha_NC_000001.1"]) == 1
+    assert mod.species_spread(["Fam_Gen_alpha_SRR1", "Fam_Gen_beta_ERR22"]) == 2
+
+
+def test_forced_runs_log_what_they_override(tmp_path: Path, monkeypatch, caplog) -> None:
+    _fake_gubbins(monkeypatch)
+    full = tmp_path / "full.fasta"
+    names = ("Fam_Gen_alpha_GCF_1.1", "Fam_Gen_beta_GCF_2.1")
+    full.write_text(_alignment(variable=200, total=1000, names=names), encoding="utf-8")
+    with caplog.at_level(logging.WARNING):
+        mod.GubbinsMasker().mask(
+            full,
+            tmp_path / "gub",
+            MaskParams(extra={"gubbins_force": "true"}),
+            logging.getLogger("t"),
+        )
+    assert "spanning 2 species" in caplog.text and "gubbins_force=true" in caplog.text
+    assert "otherwise refused" in caplog.text
+
+
+def test_precheck_refuses_before_any_typing(caplog) -> None:
+    from repgenr.core.errors import UserInputError
+
+    masker = mod.GubbinsMasker()
+    with pytest.raises(UserInputError, match="spans 2 species"):
+        masker.precheck(
+            ["Fam_Gen_alpha_GCF_1.1", "Fam_Gen_beta_GCF_2.1"], {}, logging.getLogger("t")
+        )
+    with pytest.raises(UserInputError, match="gubbins_divergence_limit"):
+        masker.precheck(["a"], {"gubbins_divergence_limit": "2"}, logging.getLogger("t"))
+    masker.precheck(["Fam_Gen_alpha_GCF_1.1", "Fam_Gen_alpha_GCF_2.1"], {}, logging.getLogger("t"))
