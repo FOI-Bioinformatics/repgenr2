@@ -56,9 +56,16 @@ class IqtreeBuilder(TreeBuilder):
         asc = str(params.extra.get("asc", "")).strip().lower()
         if asc not in ("", "lewis"):
             raise UserInputError(f"asc={asc!r} is not supported; use asc=lewis or leave it unset.")
+        model = str(params.extra.get("model", "")).strip()
+        model_has_asc = "+asc" in model.lower()
+        if model_has_asc:
+            # The user's model carries its own correction: no counts, no
+            # second +ASC, but the alignment must still hold no invariant column.
+            asc = "model"
+            logger.info("iqtree: the model %s carries its own ascertainment-bias term", model)
         constant = params.constant_sites
-        if asc == "lewis" or constant is not None:
-            # Both corrections want no invariant column in the alignment; the
+        if asc or constant is not None:
+            # Every correction wants no invariant column in the alignment; the
             # columns removed here are constant sites and join the counts.
             removed = strip_invariant_columns(msa, work_msa, logger)
             if constant is not None:
@@ -81,7 +88,6 @@ class IqtreeBuilder(TreeBuilder):
             "DNA",
             "-redo",  # overwrite checkpoints from a previous run at this path
         ]
-        model = str(params.extra.get("model", "")).strip()
         if asc == "lewis":
             # +ASC needs a model term; MFP keeps ModelFinder when none is given.
             cmd += ["-m", f"{model or 'MFP'}+ASC"]
@@ -93,7 +99,7 @@ class IqtreeBuilder(TreeBuilder):
                 "iqtree: no model given, so IQ-TREE runs ModelFinder before the tree "
                 "search; model=GTR+G (--aligner-arg) skips the selection"
             )
-        if asc != "lewis" and constant is not None:
+        if not asc and constant is not None:
             cmd += ["-fconst", format_counts(constant, ",")]
             logger.info("iqtree: constant sites added as -fconst %s", format_counts(constant, ","))
         if params.outgroup:

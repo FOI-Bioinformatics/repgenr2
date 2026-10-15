@@ -44,7 +44,12 @@ class RaxmlNgBuilder(TreeBuilder):
         if asc not in ("", "lewis"):
             raise UserInputError(f"asc={asc!r} is not supported; use asc=lewis or leave it unset.")
         constant = params.constant_sites
-        if asc == "lewis" or constant is not None:
+        if "+asc" in model.lower():
+            # The user's model carries its own correction: nothing is appended
+            # and the counts are not used.
+            asc = "model"
+            logger.info("raxml-ng: the model %s carries its own ascertainment-bias term", model)
+        if asc or constant is not None:
             # RAxML-NG refuses an +ASC model over an alignment that still holds
             # an invariant column; the columns removed are constant sites.
             variable_msa = out_dir / "msa.variable.fasta"
@@ -53,7 +58,7 @@ class RaxmlNgBuilder(TreeBuilder):
             if asc == "lewis":
                 model += "+ASC_LEWIS"
                 logger.info("raxml-ng: ascertainment-bias correction +ASC_LEWIS (asc=lewis)")
-            else:
+            elif not asc:
                 assert constant is not None
                 constant = add_counts(constant, removed)
                 model += "+ASC_STAM{" + format_counts(constant, "/") + "}"

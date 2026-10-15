@@ -20,6 +20,8 @@ import numpy as np
 import numpy.typing as npt
 
 from ..core.contracts import atomic_path
+from ..core.errors import WorkdirError
+from ..core.inputs import file_digest
 
 ALIGNMENT_STATS = "alignment_stats.json"
 _STATS_VERSION = 1
@@ -30,6 +32,7 @@ _BASES = "ACGT"
 _BITS = np.zeros(256, dtype=np.uint8)
 for _bit, _base in enumerate(_BASES):
     _BITS[ord(_base)] = _BITS[ord(_base.lower())] = 1 << _bit
+_BITS[ord("U")] = _BITS[ord("u")] = _BITS[ord("T")]  # RNA alphabet, same state
 _POPCOUNT = np.array([bin(i).count("1") for i in range(256)], dtype=np.uint8)
 
 
@@ -57,24 +60,27 @@ def column_bases(path: Path, logger: logging.Logger | None = None) -> npt.NDArra
     reported once, since a whole-genome alignment should be rectangular.
     """
     state: npt.NDArray[np.uint8] | None = None
-    shortest: int | None = None
-    for _name, seq in _records(path):
+    shortest = longest = 0
+    for name, seq in _records(path):
+        if not name:
+            raise WorkdirError(f"{path.name}: a record has no name in its header line")
         bits = _BITS[np.frombuffer(seq, dtype=np.uint8)]
         if state is None:
             state = bits.copy()
-            shortest = len(bits)
+            shortest = longest = len(bits)
             continue
         n = min(len(bits), len(state))
-        if n != len(state) or n != len(bits):
-            shortest = min(shortest or n, n)
+        shortest, longest = min(shortest, len(bits)), max(longest, len(bits))
         state[:n] |= bits[:n]
     if state is None:
         return np.zeros(0, dtype=np.uint8)
-    if shortest is not None and shortest < len(state):
+    if shortest != longest:
         if logger is not None:
             logger.warning(
-                "%s: records differ in length; columns beyond %d are not counted",
+                "%s: records differ in length (%d to %d); columns beyond %d are not counted",
                 path.name,
+                shortest,
+                longest,
                 shortest,
             )
         state = state[:shortest]
@@ -103,6 +109,8 @@ def strip_invariant_columns(
     constant A, C, G, T columns removed, to be added to the counts given to
     the tree builder. Columns with no base are dropped and not counted."""
     records = list(_records(msa))
+    if any(not name for name, _ in records):
+        raise WorkdirError(f"{msa.name}: a record has no name in its header line")
     if not records:
         with atomic_path(out) as tmp:
             tmp.write_text("", encoding="utf-8")
@@ -135,10 +143,18 @@ def write_alignment_stats(
     source: str,
     masked: bool,
 ) -> Path:
-    """Write the sidecar next to the variable-site alignment ``beside``."""
+    """Write the sidecar next to the variable-site alignment ``beside``.
+
+    The sidecar names ``beside`` and holds its digest, so the counts are
+    only ever applied to that file: a whole-genome alignment in the same
+    directory (``full_alignment.fasta``) already contains its constant
+    sites, and adding the counts to it would count them twice.
+    """
     path = beside.parent / ALIGNMENT_STATS
     payload = {
         "v": _STATS_VERSION,
+        "alignment": beside.name,
+        "alignment_digest": file_digest(beside),
         "source": source,
         "constant_sites": dict(zip(_BASES, counts, strict=True)),
         "variable_sites": variable,
@@ -149,17 +165,50 @@ def write_alignment_stats(
     return path
 
 
-def read_constant_sites(beside: Path) -> tuple[int, int, int, int] | None:
-    """The constant-site counts recorded beside ``beside``, or None."""
-    path = beside.parent / ALIGNMENT_STATS
-    if not path.is_file():
+def read_alignment_stats(alignment: Path) -> dict | None:
+    """The sidecar beside ``alignment`` when it describes that very file
+    (same name, same content), else None."""
+    path = alignment.parent / ALIGNMENT_STATS
+    if not path.is_file() or not alignment.is_file():
         return None
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
-        counts = data["constant_sites"]
-        return tuple(int(counts[b]) for b in _BASES)  # type: ignore[return-value]
-    except (OSError, ValueError, KeyError, TypeError):
+    except (OSError, ValueError):
         return None
+    if not isinstance(data, dict) or data.get("alignment") != alignment.name:
+        return None
+    if data.get("alignment_digest") != file_digest(alignment):
+        return None
+    return data
+
+
+def read_constant_sites(alignment: Path) -> tuple[int, int, int, int] | None:
+    """The constant-site counts recorded for ``alignment``, or None."""
+    data = read_alignment_stats(alignment)
+    if data is None:
+        return None
+    try:
+        counts = data["constant_sites"]
+        return (int(counts["A"]), int(counts["C"]), int(counts["G"]), int(counts["T"]))
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
+def copy_alignment_stats(source_alignment: Path, target_alignment: Path) -> Path | None:
+    """Re-issue the sidecar of ``source_alignment`` for a copy of it at
+    ``target_alignment`` (another name or directory), or None when there is
+    none."""
+    data = read_alignment_stats(source_alignment)
+    if data is None:
+        return None
+    counts = data["constant_sites"]
+    return write_alignment_stats(
+        target_alignment,
+        (int(counts["A"]), int(counts["C"]), int(counts["G"]), int(counts["T"])),
+        int(data.get("variable_sites", 0)),
+        source=str(data.get("source", "")),
+        masked=bool(data.get("masked", False)),
+    )
 
 
 def format_counts(counts: tuple[int, int, int, int], sep: str) -> str:

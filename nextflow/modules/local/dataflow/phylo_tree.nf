@@ -11,7 +11,7 @@ process PHYLO_TREE {
     label 'process_medium'
 
     input:
-    tuple val(meta), path(reps_dir), path(outgroup, stageAs: 'outgroup/*'), path(outgroup_accession), path(msa)
+    tuple val(meta), path(reps_dir), path(outgroup, stageAs: 'outgroup/*'), path(outgroup_accession), path(msa), path(stats)
     path sketches, stageAs: 'sketches'
 
     output:

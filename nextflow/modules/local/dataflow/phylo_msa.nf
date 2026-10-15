@@ -14,6 +14,9 @@ process PHYLO_MSA {
 
     output:
     tuple val(meta), path("msa.fasta")                   , emit: msa
+    // Constant-site counts of a SNP-typer alignment, for the tree task's
+    // ascertainment-bias correction; absent for an aligner alignment.
+    tuple val(meta), path("alignment_stats.json"), optional: true, emit: stats
     // The source directory the alignment was built in: the aligner's files
     // (align/) or the SNP typing pass's (tree/msa/), each with the reuse
     // stamp (msa_source.json).

@@ -1357,3 +1357,65 @@ def test_snp_source_without_counts_warns_about_branch_lengths(
         )
     assert any("No constant-site counts" in r.getMessage() for r in caplog.records)
     assert _MsaTreeBuilder.seen_extra is not None
+
+
+def test_a_given_alignment_uses_its_own_sidecar_only(
+    workdir: Path, fake_phylo_tools, register_tool
+) -> None:
+    from repgenr.stages.phylo import PhyloDirs, build_tree
+    from repgenr.tree.alignment import write_alignment_stats
+
+    register_tool(tb_registry, "faketree_counting", _CountingMsaTreeBuilder)
+    _make_reps(workdir)
+    genomes = sorted((workdir / "derep" / "representatives").glob("*.fasta"))
+    snp = workdir / "snp"
+    snp.mkdir()
+    core = snp / "core_snp.fasta"
+    core.write_text("".join(f">{g.stem}\nACGT\n" for g in genomes))
+    full = snp / "full_alignment.fasta"
+    full.write_text("".join(f">{g.stem}\nAAACGT\n" for g in genomes))
+    write_alignment_stats(core, (2, 0, 0, 0), 4, source=full.name, masked=False)
+    dirs = PhyloDirs(
+        tree_dir=workdir / "tree",
+        align_dir=workdir / "align",
+        msa_dir=workdir / "tree" / "msa",
+        scratch_dir=workdir / "scratch",
+    )
+    for given, expected in ((core, (2, 0, 0, 0)), (full, None)):
+        _CountingMsaTreeBuilder.seen_constant = "unset"
+        build_tree(
+            genomes,
+            None,
+            None,
+            dirs,
+            PhyloParams(treebuilder="faketree_counting", no_outgroup=True),
+            logging.getLogger("test-phylo"),
+            msa=given,
+        )
+        assert _CountingMsaTreeBuilder.seen_constant == expected, given.name
+
+
+def test_msa_only_publishes_the_sidecar_for_the_copy(
+    workdir: Path, fake_phylo_tools, register_tool
+) -> None:
+    from repgenr.stages.phylo import PhyloBuildParams, phylo_build
+    from repgenr.tree.alignment import read_constant_sites
+
+    register_tool(snp_registry, "fullsnptyper", _FullSnpTyper)
+    _make_reps(workdir)
+    out = workdir / "out"
+    published = phylo_build(
+        PhyloBuildParams(
+            genomes_dir=workdir / "derep" / "representatives",
+            out_dir=out,
+            phylo=PhyloParams(
+                treebuilder="faketree_msa",
+                msa_source="snptype",
+                snptyper="fullsnptyper",
+                no_outgroup=True,
+            ),
+            msa_only=True,
+        ),
+        logging.getLogger("test-phylo"),
+    )
+    assert published.name == "msa.fasta" and read_constant_sites(published) == (3, 3, 3, 3)

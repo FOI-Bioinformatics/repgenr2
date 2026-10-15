@@ -191,8 +191,8 @@ multi-threaded RAxML build when given more than one thread; see
 
 | Builder | Input | Scaling | Resolution | Rooting by the builder |
 |---|---|---|---|---|
-| `iqtree` | MSA | Declared 500. Poor beyond that. Without `--aligner-arg model=...` it runs ModelFinder first; `model=GTR+G` skips that pass. With a SNP alignment the constant-site counts are passed as `-fconst`. | Good on both diverse and clonal sets. Use at least 1000 ultrafast bootstrap replicates for supports; without `-B` the tree has none, and the stage says so. | Roots on the outgroup. |
-| `raxmlng` | MSA | Declared 1000. Slow beyond that. | Supports from its own bootstrap procedure. With a SNP alignment the constant-site counts go on the model as `+ASC_STAM`. | Roots on the outgroup. |
+| `iqtree` | MSA | Declared 500. Poor beyond that. Without `--aligner-arg model=...` it runs ModelFinder first; `model=GTR+G` skips that pass. With a SNP alignment the constant-site counts are passed as `-fconst`; `asc=lewis` selects `+ASC` instead. | Good on both diverse and clonal sets. Use at least 1000 ultrafast bootstrap replicates for supports; without `-B` the tree has none, and the stage says so. | Roots on the outgroup. |
+| `raxmlng` | MSA | Declared 1000. Slow beyond that. | Supports from its own bootstrap procedure. With a SNP alignment the constant-site counts go on the model as `+ASC_STAM`; `asc=lewis` selects `+ASC_LEWIS` instead. | Roots on the outgroup. |
 | `fasttree` | MSA | Declared 5000. Good to about 5000. | Approximate. Weaker resolution on clonal sets. | Unrooted. |
 | `mashtree` | Genomes | Declared 10000. 53 min and 7.6 GB measured at 5000. | Poor on clonal sets. No supports. | Unrooted. |
 | `sourmash` | Genomes | Declared 2000. Cubic in the neighbour-joining step. | Poor on clonal sets. No supports. | Unrooted. |

@@ -73,3 +73,50 @@ def test_empty_alignment(tmp_path: Path) -> None:
     msa.write_text("")
     assert constant_site_counts(msa) == ((0, 0, 0, 0), 0)
     assert strip_invariant_columns(msa, tmp_path / "out.fasta") == (0, 0, 0, 0)
+
+
+def test_sidecar_is_bound_to_its_alignment_by_name_and_content(tmp_path: Path) -> None:
+    from repgenr.tree.alignment import copy_alignment_stats
+
+    core = tmp_path / "core_snp.fasta"
+    core.write_text(">a\nA\n>b\nC\n")
+    full = tmp_path / "full_alignment.fasta"
+    full.write_text(">a\nAAAA\n>b\nAAAC\n")
+    write_alignment_stats(core, (3, 0, 0, 0), 1, source=full.name, masked=False)
+    assert read_constant_sites(core) == (3, 0, 0, 0)
+    assert read_constant_sites(full) is None  # the whole-genome alignment holds its own constants
+    core.write_text(">a\nA\n>b\nG\n")  # rewritten core: the old counts no longer apply
+    assert read_constant_sites(core) is None
+    core.write_text(">a\nA\n>b\nC\n")
+    copied = tmp_path / "elsewhere" / "msa.fasta"
+    copied.parent.mkdir()
+    copied.write_text(core.read_text())
+    assert copy_alignment_stats(core, copied) is not None
+    assert read_constant_sites(copied) == (3, 0, 0, 0)
+    assert copy_alignment_stats(full, tmp_path / "elsewhere" / "other.fasta") is None
+
+
+def test_records_longer_than_the_first_are_reported(tmp_path: Path, caplog) -> None:
+    path = _fasta(tmp_path / "full.fasta", {"a": "AAAA", "b": "AAAAAAAA"})
+    with caplog.at_level(logging.WARNING, logger="test-alignment"):
+        counts, _ = constant_site_counts(path, _LOG)
+    assert counts == (4, 0, 0, 0)
+    assert any("4 to 8" in r.getMessage() for r in caplog.records)
+
+
+def test_a_record_without_a_name_is_refused(tmp_path: Path) -> None:
+    import pytest
+
+    from repgenr.core.errors import WorkdirError
+
+    path = tmp_path / "x.fasta"
+    path.write_text(">\nACGT\n>b\nACGT\n")
+    with pytest.raises(WorkdirError, match="no name"):
+        constant_site_counts(path)
+    with pytest.raises(WorkdirError, match="no name"):
+        strip_invariant_columns(path, tmp_path / "out.fasta")
+
+
+def test_rna_u_counts_as_t(tmp_path: Path) -> None:
+    path = _fasta(tmp_path / "rna.fasta", {"a": "UUUU", "b": "TTTU"})
+    assert constant_site_counts(path) == ((0, 0, 0, 4), 0)

@@ -62,7 +62,7 @@ def test_constant_sites_become_asc_stam_over_the_variable_columns(monkeypatch, t
     model, msa = _model_of(monkeypatch, tmp_path, TreeParams(constant_sites=(10, 20, 30, 40)))
     assert model == "GTR+G+ASC_STAM{11/20/30/40}"
     assert Path(msa).name == "msa.variable.fasta"
-    assert Path(msa).read_text() == ">a\nC\n>b\nG\n"
+    assert Path(msa).read_text(encoding="utf-8") == ">a\nC\n>b\nG\n"
 
 
 def test_asc_lewis_appends_the_lewis_term(monkeypatch, tmp_path) -> None:
@@ -75,3 +75,25 @@ def test_asc_lewis_appends_the_lewis_term(monkeypatch, tmp_path) -> None:
 def test_without_counts_the_model_is_unchanged(monkeypatch, tmp_path) -> None:
     model, msa = _model_of(monkeypatch, tmp_path, TreeParams(extra={"model": "GTR"}))
     assert model == "GTR" and Path(msa).name == "msa.fasta"
+
+
+def test_a_model_with_its_own_asc_term_is_passed_unchanged(monkeypatch, tmp_path) -> None:
+    model, msa = _model_of(
+        monkeypatch,
+        tmp_path,
+        TreeParams(constant_sites=(1, 1, 1, 1), extra={"model": "GTR+ASC_LEWIS"}),
+    )
+    assert model == "GTR+ASC_LEWIS" and Path(msa).name == "msa.variable.fasta"
+
+
+def test_unknown_asc_value_is_refused(monkeypatch, tmp_path) -> None:
+    import pytest
+
+    from repgenr.core.errors import UserInputError
+
+    msa = tmp_path / "msa.fasta"
+    msa.write_text(">a\nAC\n>b\nAG\n", encoding="utf-8")
+    with pytest.raises(UserInputError, match="asc="):
+        mod.RaxmlNgBuilder().build(
+            msa, tmp_path / "out", TreeParams(extra={"asc": "x"}), logging.getLogger()
+        )

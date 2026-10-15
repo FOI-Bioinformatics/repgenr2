@@ -20,6 +20,12 @@ All notable changes to RepGenR2 are documented here. The format follows
   that masking left are removed from the alignment the builder sees and join
   the counts. `--aligner-arg asc=lewis` selects the Lewis correction instead.
   FastTree applies none and says so; `ska2` yields no counts and `phylo` warns
+  that its branch lengths are uncorrected; a `model=` that already carries an
+  ASC term is passed unchanged. The sidecar names its alignment and holds its
+  digest, so the counts never apply to another file. An alignment typed
+  earlier is typed once more to gain the counts; aligner alignments are
+  reused as before. The Nextflow split mode carries the sidecar from the
+  alignment task to the tree task.
   that its branch lengths are uncorrected. The alignment reuse stamp is at
   version 4, so an alignment typed earlier is typed once more to gain the
   counts.

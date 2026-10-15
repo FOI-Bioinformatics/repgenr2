@@ -51,7 +51,13 @@ workflow VIRAL_DATAFLOW {
     if (params.phylo_split_msa) {
         PHYLO_MSA(ch_phylo_in)
         ch_versions = ch_versions.mix(PHYLO_MSA.out.versions)
-        PHYLO_TREE(ch_phylo_in.join(PHYLO_MSA.out.msa, by: 0), [])
+        // alignment_stats.json exists for a SNP-typer alignment only; an empty
+        // list stands in for it otherwise (same remainder pattern as the outgroup).
+        def ch_stats = PHYLO_MSA.out.msa
+            .map { m, _msa -> tuple(m, []) }
+            .join(PHYLO_MSA.out.stats, by: 0, remainder: true)
+            .map { m, _placeholder, st -> tuple(m, st == null ? [] : st) }
+        PHYLO_TREE(ch_phylo_in.join(PHYLO_MSA.out.msa, by: 0).join(ch_stats, by: 0), [])
         ch_versions = ch_versions.mix(PHYLO_TREE.out.versions)
         ch_tree = PHYLO_TREE.out.tree
     }

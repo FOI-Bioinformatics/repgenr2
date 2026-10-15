@@ -126,3 +126,14 @@ def test_unknown_asc_value_is_refused(tmp_path: Path, monkeypatch) -> None:
         mod.IqtreeBuilder().build(
             _msa(tmp_path), tmp_path / "out", TreeParams(extra={"asc": "x"}), _LOG
         )
+
+
+def test_a_model_with_its_own_asc_term_gets_neither_counts_nor_a_second_term(
+    tmp_path: Path, monkeypatch
+) -> None:
+    cmd = _run_capturing(
+        tmp_path,
+        monkeypatch,
+        TreeParams(constant_sites=(1, 1, 1, 1), extra={"model": "GTR+G+ASC", "asc": "lewis"}),
+    )
+    assert cmd[cmd.index("-m") + 1] == "GTR+G+ASC" and "-fconst" not in cmd

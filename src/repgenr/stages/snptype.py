@@ -146,6 +146,9 @@ def snptype_core(
         remove_tree(inputs_dir)
 
     core = snp_dir / CORE_SNP_FASTA
+    # The sidecar describes the previous core; a failure between the two
+    # writes must not leave it beside a new one.
+    (snp_dir / ALIGNMENT_STATS).unlink(missing_ok=True)
     masked = False
     if masker is not None:
         from ..maskers.base import MaskParams

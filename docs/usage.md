@@ -1451,8 +1451,13 @@ typing pass counts its constant A, C, G and T columns into
 IQ-TREE receives them as `-fconst`, RAxML-NG as `+ASC_STAM{...}` on its
 model; both are first given the alignment without any invariant column that
 masking left, and those columns join the counts. `--aligner-arg asc=lewis`
-uses the Lewis correction (`+ASC`, `+ASC_LEWIS`) instead of the counts.
-FastTree applies no correction and says so. The counts are taken before
+uses the Lewis correction (`+ASC`, `+ASC_LEWIS`) instead of the counts, and
+a `model=` that already carries an ASC term is passed as it is, without the
+counts. The counts apply only to the alignment they were taken for (the
+sidecar names it and holds its digest), so a tree built from
+`full_alignment.fasta` is not corrected twice. In the Nextflow split mode the
+alignment task publishes the sidecar and the tree task reads it. FastTree
+applies no correction and says so. The counts are taken before
 masking, so after `--mask` they are a slight undercount. `ska2` writes no
 whole-genome alignment, so its tree has no correction and `phylo` warns;
 compare topologies and supports rather than lengths there, or build the tree
