@@ -105,6 +105,8 @@ is 'vmetadata --source'. --platform filters the sequencing platform with
 | `--collapse-support` |  | Merge nodes whose support is below this fraction into their parent. |
 | `--collapse-length` |  | Merge nodes whose branch is shorter than this length into their parent. |
 | `--collapse-diameter` |  | Merge every clade whose leaf-to-leaf distance is within this value into one node, keeping the fewest such clades (in the tree's own units). |
+| `--ranks` | off | Add a rank column to tree2tax.tsv: 'strain' on every genome, 'no rank' on internal nodes unless --rank-red names them. |
+| `--rank-red` |  | With --ranks: NAME=RED bands, e.g. species=0.95,genus=0.8; an internal node takes the rank with the largest threshold not above its relative evolutionary divergence, once per lineage. Needs branch lengths and a rooted tree. |
 | `-t`, `--threads` | `16` | Threads for the external tool (default 16, or the CPU limit when lower). |
 | `--allow-incomplete` | off | Proceed with a warning when the input genome set is incomplete. |
 | `--dry-run` | off | Print the stages and key parameters, then exit. |
@@ -351,6 +353,8 @@ Emit FlexTaxD-compatible taxonomy relations from the tree.
 | `--collapse-support` |  | Merge nodes whose support is below this fraction into their parent. |
 | `--collapse-length` |  | Merge nodes whose branch is shorter than this length into their parent. |
 | `--collapse-diameter` |  | Merge every clade whose leaf-to-leaf distance is within this value into one node, keeping the fewest such clades (in the tree's own units). |
+| `--ranks` | off | Add a rank column to tree2tax.tsv: 'strain' on every genome, 'no rank' on internal nodes unless --rank-red names them. |
+| `--rank-red` |  | With --ranks: NAME=RED bands, e.g. species=0.95,genus=0.8; an internal node takes the rank with the largest threshold not above its relative evolutionary divergence, once per lineage. Needs branch lengths and a rooted tree. |
 
 ## Inspect a dereplication
 
@@ -629,6 +633,8 @@ Here --outgroup-accession takes a file that names the accession, not the accessi
 | `--collapse-support` |  | Merge nodes whose support is below this fraction into their parent. |
 | `--collapse-length` |  | Merge nodes whose branch is shorter than this length into their parent. |
 | `--collapse-diameter` |  | Merge every clade whose leaf-to-leaf distance is within this value into one node, keeping the fewest such clades (in the tree's own units). |
+| `--ranks` | off | Add a rank column to tree2tax.tsv: 'strain' on every genome, 'no rank' on internal nodes unless --rank-red names them. |
+| `--rank-red` |  | With --ranks: NAME=RED bands, e.g. species=0.95,genus=0.8; an internal node takes the rank with the largest threshold not above its relative evolutionary divergence, once per lineage. Needs branch lengths and a rooted tree. |
 
 ### assemble-run
 

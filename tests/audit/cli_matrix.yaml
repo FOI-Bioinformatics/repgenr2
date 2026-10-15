@@ -3061,6 +3061,29 @@ commands:
         - docs/audit/cli-matrix.md
         nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
         live: 'n/a: covered offline in tests/unit/test_tree2tax_collapse.py'
+      --ranks:
+        param: Tree2taxParams.ranks
+        validated: none
+        docs:
+        - docs/cli-reference.md
+        - docs/usage.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
+        live: 'n/a: forwarded to the stage builder unchanged (wiring test); the stage flag is covered
+          live'
+      --rank-red:
+        param: Tree2taxParams.rank_red
+        value: species=0.95,genus=0.8
+        validated: stage
+        docs:
+        - docs/cli-reference.md
+        - docs/usage.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
+        live: 'n/a: forwarded to the stage builder unchanged (wiring test); the stage flag is covered
+          live'
+        with_args:
+        - --ranks
       --allow-incomplete:
         param: DereplicateParams.allow_incomplete
         validated: none
@@ -3306,6 +3329,29 @@ commands:
         - docs/audit/cli-matrix.md
         nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
         live: 'n/a: covered offline in tests/unit/test_tree2tax_collapse.py'
+      --ranks:
+        param: Tree2taxParams.ranks
+        validated: none
+        docs:
+        - docs/cli-reference.md
+        - docs/usage.md
+        - docs/output.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
+        live: 'n/a: covered offline in tests/integration/test_tree2tax.py and tests/unit/test_tree2tax_ranks.py'
+      --rank-red:
+        param: Tree2taxParams.rank_red
+        value: species=0.95,genus=0.8
+        validated: stage
+        docs:
+        - docs/cli-reference.md
+        - docs/usage.md
+        - docs/output.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
+        live: 'n/a: covered offline in tests/integration/test_tree2tax.py and tests/unit/test_tree2tax_ranks.py'
+        with_args:
+        - --ranks
   tree2tax-relations:
     dispatch: step:repgenr.stages.tree2tax.tree2tax_relations
     base_args:
@@ -3485,6 +3531,29 @@ commands:
         - docs/audit/cli-matrix.md
         nextflow: 'params.tree2tax_args'
         live: 'n/a: covered offline in tests/unit/test_tree2tax_collapse.py'
+      --ranks:
+        param: Tree2taxStepParams.ranks
+        validated: none
+        docs:
+        - docs/cli-reference.md
+        - docs/usage.md
+        - docs/output.md
+        - docs/audit/cli-matrix.md
+        nextflow: params.tree2tax_args
+        live: 'n/a: covered offline in tests/integration/test_tree2tax.py and tests/unit/test_tree2tax_ranks.py'
+      --rank-red:
+        param: Tree2taxStepParams.rank_red
+        value: species=0.95,genus=0.8
+        validated: stage
+        docs:
+        - docs/cli-reference.md
+        - docs/usage.md
+        - docs/output.md
+        - docs/audit/cli-matrix.md
+        nextflow: params.tree2tax_args
+        live: 'n/a: covered offline in tests/integration/test_tree2tax.py and tests/unit/test_tree2tax_ranks.py'
+        with_args:
+        - --ranks
   versions:
     dispatch: query
     base_args:

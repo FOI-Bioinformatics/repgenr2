@@ -73,6 +73,12 @@ class Tree2taxParams:
     # the smallest set of such clades is kept and everything inside each is
     # merged into it (TreeCluster's max-diameter criterion).
     collapse_diameter: float | None = None
+    # A third column of tree2tax.tsv: ``strain`` on the leaves and ``no rank``
+    # on the internal nodes, unless --rank-red bands assign named ranks by
+    # relative evolutionary divergence. Off by default (FlexTaxD reads the
+    # column on every row when it is present).
+    ranks: bool = False
+    rank_red: str | None = None
 
 
 @dataclass
@@ -95,6 +101,8 @@ class Tree2taxStepParams:
     collapse_support: float | None = None
     collapse_length: float | None = None
     collapse_diameter: float | None = None
+    ranks: bool = False
+    rank_red: str | None = None
     # The tree was built without an outgroup (phylo --no-outgroup): ignore the
     # staged outgroup inputs and leave the tree unrooted.
     no_outgroup: bool = False
@@ -130,6 +138,8 @@ def _emit_relations(
     keep_root: bool = False,
     out_nodes: Path | None = None,
     lineage: dict[str, str] | None = None,
+    ranks: bool = False,
+    rank_red: str | None = None,
 ) -> tuple[Path, Path, int]:
     """Build FlexTaxD relations from a tree and write the two output tables.
 
@@ -140,6 +150,9 @@ def _emit_relations(
     number of internal nodes collapsed.
     """
     source = tree_source if tree_source is not None else "the tree"
+    bands = _parse_rank_red(rank_red)
+    if bands and not ranks:
+        raise UserInputError("--rank-red needs --ranks")
     if not newick_is_complete(tree_text):
         # Same rule as doctor: dendropy would read the first tree and ignore
         # whatever follows its ';', which hides a truncated or concatenated file.
@@ -189,17 +202,116 @@ def _emit_relations(
     leaves = _name_nodes(tree, node_basename, naming=naming)
     tree.seed_node.label = root_name
 
-    write_tree2tax(out_tree2tax, _edges(tree))
+    rooted = keep_root or outgroup_leaf is not None
+    rows = (
+        _node_rows(tree, supports, rooted=rooted, lineage=lineage or {})
+        if out_nodes is not None or ranks
+        else None
+    )
+    rank_of = (
+        _assign_ranks(rows, set(leaves), bands, logger) if ranks and rows is not None else None
+    )
+    write_tree2tax(out_tree2tax, _edges(tree), rank_of)
     write_genomes_map(out_map, _genome_map(leaves, redundant, segments))
-    if out_nodes is not None:
-        rooted = keep_root or outgroup_leaf is not None
-        write_node_table(
-            out_nodes, _node_rows(tree, supports, rooted=rooted, lineage=lineage or {})
-        )
+    if out_nodes is not None and rows is not None:
+        write_node_table(out_nodes, rows)
         logger.info("Wrote %s, %s and %s", out_tree2tax.name, out_map.name, out_nodes.name)
     else:
         logger.info("Wrote %s and %s", out_tree2tax.name, out_map.name)
     return out_tree2tax, out_map, stats.collapsed
+
+
+RANK_LEAF = "strain"
+RANK_NONE = "no rank"
+
+
+def _parse_rank_red(text: str | None) -> list[tuple[str, float]]:
+    """``species=0.95,genus=0.8`` -> [(genus, 0.8), (species, 0.95)], by threshold.
+
+    Names must be non-empty and distinct, thresholds in (0, 1] and distinct,
+    since a node takes the rank with the largest threshold not above its
+    relative evolutionary divergence.
+    """
+    if text is None or not text.strip():
+        return []
+    bands: dict[str, float] = {}
+    for item in text.split(","):
+        item = item.strip()
+        if not item:
+            continue
+        name, sep, value = item.partition("=")
+        name = name.strip()
+        if not sep or not name or not value.strip():
+            raise UserInputError(f"--rank-red: expected NAME=RED, got {item!r}")
+        try:
+            red = float(value)
+        except ValueError:
+            raise UserInputError(f"--rank-red: {value.strip()!r} is not a number") from None
+        if not 0.0 < red <= 1.0:
+            raise UserInputError(f"--rank-red: {name} threshold {red:g} is not within (0, 1]")
+        if name in bands or name in (RANK_LEAF, RANK_NONE):
+            raise UserInputError(f"--rank-red: rank {name!r} is given twice or reserved")
+        bands[name] = red
+    if len(set(bands.values())) != len(bands):
+        raise UserInputError("--rank-red: two ranks share one threshold")
+    return sorted(bands.items(), key=lambda kv: kv[1])
+
+
+def rank_red_text(text: str | None) -> str | None:
+    """The bands in their normalised form, ``genus=0.8,species=0.95``, or None."""
+    bands = _parse_rank_red(text)
+    return ",".join(f"{name}={red:g}" for name, red in bands) if bands else None
+
+
+def _assign_ranks(
+    rows: list[NodeRow],
+    leaves: set[str],
+    bands: list[tuple[str, float]],
+    logger: logging.Logger,
+) -> dict[str, str]:
+    """Node name -> rank for the third column of tree2tax.tsv.
+
+    ``leaves`` are the genome names the tree holds; a node with one leaf
+    below it that is not itself a leaf (a unary node) is internal. Leaves are
+    ``strain``. An internal node is ``no rank`` unless ``bands``
+    (rank, RED threshold) are given: then it takes the rank with the largest
+    threshold not above its relative evolutionary divergence, or ``no rank``
+    when an ancestor already holds that rank, so each named rank appears once
+    on a root-to-leaf path and in threshold order (RED never decreases down
+    the tree). The bands are not calibrated to any reference taxonomy.
+    """
+    if bands and any(r.red is None for r in rows):
+        raise UserInputError(
+            "--rank-red needs the relative evolutionary divergence of every node, which "
+            "the tree does not give: it lacks branch lengths or a root (an outgroup, "
+            "--root midpoint on phylo, or --keep-root on the step)"
+        )
+    parent_of = {r.node: r.parent for r in rows}
+    red = {r.node: r.red for r in rows}
+    held: dict[str, set[str]] = {}  # ranks held by a node or its ancestors
+    ranks: dict[str, str] = {}
+    counts: dict[str, int] = {}
+    for r in rows:  # preorder: a parent precedes its children
+        parent = parent_of[r.node]
+        above = held.get(parent, set()) if parent is not None else set()
+        if r.node in leaves and parent is not None:
+            rank = RANK_LEAF
+        else:
+            rank = RANK_NONE
+            value = red[r.node]
+            if bands and value is not None:
+                fitting = [name for name, threshold in bands if threshold <= value]
+                if fitting and fitting[-1] not in above:
+                    rank = fitting[-1]
+        ranks[r.node] = rank
+        held[r.node] = above | ({rank} if rank not in (RANK_LEAF, RANK_NONE) else set())
+        counts[rank] = counts.get(rank, 0) + 1
+    if bands:
+        logger.info(
+            "Ranks by RED band: %s",
+            ", ".join(f"{name} {counts.get(name, 0)}" for name, _ in bands),
+        )
+    return ranks
 
 
 def _node_rows(
@@ -331,6 +443,8 @@ def tree2tax_relations(params: Tree2taxStepParams, logger: logging.Logger) -> tu
         collapse_support=params.collapse_support,
         collapse_length=params.collapse_length,
         collapse_diameter=params.collapse_diameter,
+        ranks=params.ranks,
+        rank_red=params.rank_red,
         segments=segments,
         tree_source=params.tree,
         keep_root=params.keep_root,
@@ -376,6 +490,8 @@ def run(ctx: WorkdirContext, params: Tree2taxParams) -> tuple[Path, Path]:
         collapse_support=params.collapse_support,
         collapse_length=params.collapse_length,
         collapse_diameter=params.collapse_diameter,
+        ranks=params.ranks,
+        rank_red=params.rank_red,
         segments=segments,
         tree_source=tree_file,
         keep_root=keep_root,
@@ -397,6 +513,9 @@ def run(ctx: WorkdirContext, params: Tree2taxParams) -> tuple[Path, Path]:
             "collapse_support": params.collapse_support,
             "collapse_length": params.collapse_length,
             "collapse_diameter": params.collapse_diameter,
+            "ranks": params.ranks,
+            # Normalised (sorted by threshold), so a reordered band list is the same run.
+            "rank_red": rank_red_text(params.rank_red) if params.ranks else None,
             "collapsed_nodes": collapsed,
         },
         completed=datetime.now(UTC).isoformat(),

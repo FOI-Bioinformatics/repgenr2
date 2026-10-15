@@ -476,6 +476,8 @@ def tree2tax_params(
     collapse_support: Any = _UNSET,
     collapse_length: Any = _UNSET,
     collapse_diameter: Any = _UNSET,
+    ranks: Any = _UNSET,
+    rank_red: Any = _UNSET,
 ) -> Tree2taxParams:
     from ..stages.tree2tax import NAMING_RULES, Tree2taxParams
 
@@ -491,4 +493,6 @@ def tree2tax_params(
         collapse_support=collapse_support,
         collapse_length=collapse_length,
         collapse_diameter=collapse_diameter,
+        ranks=ranks,
+        rank_red=rank_red,
     )

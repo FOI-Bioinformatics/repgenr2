@@ -20,6 +20,8 @@ from .base import (
     HELP_NAMING,
     HELP_NO_OUTGROUP,
     HELP_NODE_BASENAME,
+    HELP_RANK_RED,
+    HELP_RANKS,
     HELP_REFERENCE,
     HELP_REMOVE_OUTGROUP,
     HELP_ROOT,
@@ -171,6 +173,8 @@ def tree2tax(
         min=0.0,
         help=HELP_COLLAPSE_DIAMETER,
     ),
+    ranks: bool = typer.Option(False, "--ranks", help=HELP_RANKS),
+    rank_red: str | None = typer.Option(None, "--rank-red", help=HELP_RANK_RED),
 ) -> None:
     """Emit FlexTaxD-compatible taxonomy relations from the tree."""
     from .param_builders import tree2tax_params
@@ -185,6 +189,8 @@ def tree2tax(
             collapse_support=collapse_support,
             collapse_length=collapse_length,
             collapse_diameter=collapse_diameter,
+            ranks=ranks,
+            rank_red=rank_red,
         )
 
     _run("tree2tax", workdir, build)

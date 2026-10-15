@@ -4,6 +4,7 @@ Generated from `tests/audit/cli_matrix.yaml` by `scripts/render_cli_matrix.py`;
 `tests/unit/test_cli_matrix.py` keeps both in step with the command tree.
 
 30 commands, 357 flags (357 with a live test or an n/a reason, 0 pending).
+30 commands, 360 flags (360 with a live test or an n/a reason, 0 pending).
 
 ## Global flags
 
@@ -405,6 +406,8 @@ dispatch: `stage`
 | `--collapse-support` |  | Tree2taxParams.collapse_support | range | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: forwarded to the stage builder unchanged (wiring test); the stage flag is covered live | docs/cli-reference.md, docs/audit/cli-matrix.md |
 | `--collapse-length` |  | Tree2taxParams.collapse_length | range | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: forwarded to the stage builder unchanged (wiring test); the stage flag is covered live | docs/cli-reference.md, docs/audit/cli-matrix.md |
 | `--collapse-diameter` |  | Tree2taxParams.collapse_diameter | range | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: covered offline in tests/unit/test_tree2tax_collapse.py | docs/cli-reference.md, docs/usage.md, docs/choosing-tools.md, docs/audit/cli-matrix.md |
+| `--ranks` |  | Tree2taxParams.ranks | none | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: forwarded to the stage builder unchanged (wiring test); the stage flag is covered live | docs/cli-reference.md, docs/usage.md, docs/audit/cli-matrix.md |
+| `--rank-red` |  | Tree2taxParams.rank_red | stage | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: forwarded to the stage builder unchanged (wiring test); the stage flag is covered live | docs/cli-reference.md, docs/usage.md, docs/audit/cli-matrix.md |
 | `--allow-incomplete` |  | DereplicateParams.allow_incomplete | none | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: forwarded to the stage builder unchanged (wiring test); the stage flag is covered live | docs/cli-reference.md, docs/audit/cli-matrix.md |
 
 ## snptype
@@ -446,6 +449,8 @@ dispatch: `stage`
 | `--collapse-support` |  | Tree2taxParams.collapse_support | range | n/a: workdir command; the Nextflow layer uses the stateless steps | tests/live/test_species_set.py::test_tree2tax_workdir_flags | docs/cli-reference.md, docs/audit/scaling-audit.md, docs/usage.md, docs/audit/cli-matrix.md |
 | `--collapse-length` |  | Tree2taxParams.collapse_length | range | n/a: workdir command; the Nextflow layer uses the stateless steps | tests/live/test_species_set.py::test_tree2tax_workdir_flags | docs/cli-reference.md, docs/audit/scaling-audit.md, docs/usage.md, docs/audit/cli-matrix.md |
 | `--collapse-diameter` |  | Tree2taxParams.collapse_diameter | range | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: covered offline in tests/unit/test_tree2tax_collapse.py | docs/cli-reference.md, docs/usage.md, docs/choosing-tools.md, docs/audit/cli-matrix.md |
+| `--ranks` |  | Tree2taxParams.ranks | none | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: covered offline in tests/integration/test_tree2tax.py and tests/unit/test_tree2tax_ranks.py | docs/cli-reference.md, docs/usage.md, docs/output.md, docs/audit/cli-matrix.md |
+| `--rank-red` |  | Tree2taxParams.rank_red | stage | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: covered offline in tests/integration/test_tree2tax.py and tests/unit/test_tree2tax_ranks.py | docs/cli-reference.md, docs/usage.md, docs/output.md, docs/audit/cli-matrix.md |
 
 ## tree2tax-relations
 
@@ -470,6 +475,8 @@ dispatch: `step:repgenr.stages.tree2tax.tree2tax_relations`
 | `--collapse-support` |  | Tree2taxStepParams.collapse_support | range | params.tree2tax_args | tests/live/test_steps.py::test_tree2tax_relations_collapse_flags | docs/cli-reference.md, docs/audit/scaling-audit.md, docs/usage.md, docs/audit/cli-matrix.md |
 | `--collapse-length` |  | Tree2taxStepParams.collapse_length | range | params.tree2tax_args | tests/live/test_steps.py::test_tree2tax_relations_collapse_flags | docs/cli-reference.md, docs/audit/scaling-audit.md, docs/usage.md, docs/audit/cli-matrix.md |
 | `--collapse-diameter` |  | Tree2taxStepParams.collapse_diameter | range | params.tree2tax_args | n/a: covered offline in tests/unit/test_tree2tax_collapse.py | docs/cli-reference.md, docs/usage.md, docs/choosing-tools.md, docs/audit/cli-matrix.md |
+| `--ranks` |  | Tree2taxStepParams.ranks | none | params.tree2tax_args | n/a: covered offline in tests/integration/test_tree2tax.py and tests/unit/test_tree2tax_ranks.py | docs/cli-reference.md, docs/usage.md, docs/output.md, docs/audit/cli-matrix.md |
+| `--rank-red` |  | Tree2taxStepParams.rank_red | stage | params.tree2tax_args | n/a: covered offline in tests/integration/test_tree2tax.py and tests/unit/test_tree2tax_ranks.py | docs/cli-reference.md, docs/usage.md, docs/output.md, docs/audit/cli-matrix.md |
 
 ## versions
 

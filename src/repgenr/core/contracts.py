@@ -625,17 +625,31 @@ def write_node_table(path: Path, rows: list[NodeRow]) -> None:
             )
 
 
-def write_tree2tax(path: Path, edges: list[tuple[str, str]]) -> None:
-    """Write child -> parent edges (FlexTaxD), de-duplicated, order preserved."""
+def write_tree2tax(
+    path: Path, edges: list[tuple[str, str]], ranks: dict[str, str] | None = None
+) -> None:
+    """Write child -> parent edges (FlexTaxD), de-duplicated, order preserved.
+
+    With ``ranks`` (child -> rank) a third column ``rank`` is written. FlexTaxD
+    reads it on every row and an empty value silently inherits the previous
+    row's, so every child must have a non-empty rank; a missing one is an
+    error here rather than a wrong taxonomy there.
+    """
     seen: set[tuple[str, str]] = set()
     with atomic_replace(path, newline="") as fo:
         writer = _tsv_writer(fo)
-        writer.writerow(["child", "parent"])
+        writer.writerow(["child", "parent"] + (["rank"] if ranks is not None else []))
         for child, parent in edges:
             if (child, parent) in seen:
                 continue
             seen.add((child, parent))
-            writer.writerow([child, parent])
+            if ranks is None:
+                writer.writerow([child, parent])
+                continue
+            rank = ranks.get(child)
+            if not rank:
+                raise ValueError(f"tree2tax: node {child!r} has no rank for the rank column")
+            writer.writerow([child, parent, rank])
 
 
 @dataclass(frozen=True)
