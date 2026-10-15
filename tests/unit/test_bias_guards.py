@@ -8,7 +8,8 @@ from pathlib import Path
 import pytest
 
 from repgenr.core.errors import UserInputError
-from repgenr.stages.phylo import _resolve_reference, _warn_low_diversity
+from repgenr.stages.phylo import _warn_low_diversity
+from repgenr.tree.medoid import resolve_reference as _resolve_reference
 
 _LOGGER = logging.getLogger("bias-guards")
 
@@ -28,7 +29,7 @@ def _genomes(tmp_path: Path, names: list[str]) -> list[Path]:
 def test_default_reference_fallback_warns(tmp_path, caplog):
     genomes = _genomes(tmp_path, ["a.fasta", "b.fasta"])
     with caplog.at_level(logging.WARNING):
-        ref = _resolve_reference(None, genomes, None, _LOGGER)
+        ref = _resolve_reference(None, genomes, None, _LOGGER).genome
     assert ref == genomes[0]
     assert any("alphabetically first" in r.message for r in caplog.records)
 
@@ -36,7 +37,7 @@ def test_default_reference_fallback_warns(tmp_path, caplog):
 def test_explicit_reference_logs_info_not_warning(tmp_path, caplog):
     genomes = _genomes(tmp_path, ["a.fasta", "b.fasta"])
     with caplog.at_level(logging.INFO):
-        ref = _resolve_reference("b.fasta", genomes, None, _LOGGER)
+        ref = _resolve_reference("b.fasta", genomes, None, _LOGGER).genome
     assert ref.name == "b.fasta"
     assert not [r for r in caplog.records if r.levelno == logging.WARNING]
 

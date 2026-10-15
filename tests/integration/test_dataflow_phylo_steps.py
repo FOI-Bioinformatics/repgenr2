@@ -13,8 +13,9 @@ from pathlib import Path
 import pytest
 
 from repgenr.core.errors import UserInputError
-from repgenr.stages.phylo import _resolve_reference, list_fasta, resolve_outgroup_files
+from repgenr.stages.phylo import list_fasta, resolve_outgroup_files
 from repgenr.stages.tree2tax import Tree2taxStepParams, tree2tax_relations
+from repgenr.tree.medoid import resolve_reference as _resolve_reference
 
 _LOG = logging.getLogger("test")
 
@@ -96,8 +97,8 @@ def test_resolve_reference(tmp_path: Path) -> None:
     for g in (g1, g2):
         g.write_text(">x\nAC\n")
     logger = logging.getLogger("test-resolve-reference")
-    assert _resolve_reference(None, [g1, g2], None, logger) == g1  # default: first
-    assert _resolve_reference("Fam_Gen_sp_GCA_2.fasta", [g1, g2], None, logger) == g2
+    assert _resolve_reference(None, [g1, g2], None, logger).genome == g1  # default: first
+    assert _resolve_reference("Fam_Gen_sp_GCA_2.fasta", [g1, g2], None, logger).genome == g2
     with pytest.raises(UserInputError):
         _resolve_reference("nope.fasta", [g1, g2], None, logger)
 

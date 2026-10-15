@@ -1295,6 +1295,65 @@ def test_auto_is_not_restricted_by_an_aligner_choice_alone(
     assert seen["allowed"] is None
 
 
+def test_the_record_names_the_reference_genome(workdir: Path, fake_phylo_tools) -> None:
+    _make_reps(workdir)
+    ctx = WorkdirContext(workdir, create=True)
+    run(
+        ctx,
+        PhyloParams(
+            treebuilder="faketree_msa",
+            msa_source="aligner",
+            aligner="fakealigner",
+            no_outgroup=True,
+        ),
+    )
+    params = ctx.config.stages["phylo"].params
+    assert params["reference_genome"] == "Fam_gen_sp_GCA_000001.fasta"  # first: no sketches
+    assert (ctx.align_dir / "reference.txt").exists()
+    run(ctx, PhyloParams(treebuilder="faketree_genomes", no_outgroup=True))
+    assert ctx.config.stages["phylo"].params["reference_genome"] is None
+
+
+def test_snp_source_types_against_the_medoid(
+    workdir: Path, fake_phylo_tools, register_tool, monkeypatch
+) -> None:
+    from repgenr.tree import medoid as medoid_mod
+    from repgenr.tree.medoid import MedoidChoice
+
+    seen: dict = {}
+
+    class _RefSnpTyper(_FakeSnpTyper):
+        capabilities = ToolCapabilities(name="refsnptyper")
+        requires_reference = True
+
+        def call(self, genomes, reference, out_dir, params, logger) -> SnpResult:
+            seen["reference"] = reference
+            return super().call(genomes, reference, out_dir, params, logger)
+
+    register_tool(snp_registry, "refsnptyper", _RefSnpTyper)
+    _make_reps(workdir)
+    reps = sorted((workdir / "derep" / "representatives").glob("*.fasta"))
+    monkeypatch.setattr(
+        medoid_mod,
+        "choose_medoid",
+        lambda gs, provider, work, threads, logger: MedoidChoice(
+            genome=gs[2], mean_ani=99.0, n_genomes=3
+        ),
+    )
+    ctx = WorkdirContext(workdir, create=True)
+    run(
+        ctx,
+        PhyloParams(
+            treebuilder="faketree_msa",
+            msa_source="snptype",
+            snptyper="refsnptyper",
+            no_outgroup=True,
+        ),
+    )
+    assert seen["reference"] is not None and seen["reference"].name == reps[2].name
+    assert ctx.config.stages["phylo"].params["reference_genome"] == reps[2].name
+
+
 class _FullSnpTyper(_FakeSnpTyper):
     """A typer with a whole-genome alignment, so the stage counts constant sites."""
 
@@ -1419,3 +1478,82 @@ def test_msa_only_publishes_the_sidecar_for_the_copy(
         logging.getLogger("test-phylo"),
     )
     assert published.name == "msa.fasta" and read_constant_sites(published) == (3, 3, 3, 3)
+
+
+def test_a_failed_build_leaves_no_reference_note(
+    workdir: Path, fake_phylo_tools, monkeypatch
+) -> None:
+    _make_reps(workdir)
+    ctx = WorkdirContext(workdir, create=True)
+
+    def failing(self, genomes, reference, out_dir, params, logger):
+        raise RuntimeError("aligner crashed")
+
+    monkeypatch.setattr(_FakeAligner, "align", failing)
+    with pytest.raises(RuntimeError):
+        run(
+            ctx,
+            PhyloParams(
+                treebuilder="faketree_msa",
+                msa_source="aligner",
+                aligner="fakealigner",
+                no_outgroup=True,
+            ),
+        )
+    assert not (ctx.align_dir / "reference.txt").exists()
+
+
+def test_a_reference_free_typer_writes_no_note(
+    workdir: Path, fake_phylo_tools, register_tool
+) -> None:
+    register_tool(snp_registry, "fakesnptyper", _FakeSnpTyper)
+    _make_reps(workdir)
+    ctx = WorkdirContext(workdir, create=True)
+    run(
+        ctx,
+        PhyloParams(
+            treebuilder="faketree_msa",
+            msa_source="snptype",
+            snptyper="fakesnptyper",  # requires_reference = False, like ska2
+            no_outgroup=True,
+        ),
+    )
+    assert not (ctx.phylo_msa_dir / "reference.txt").exists()
+    params = ctx.config.stages["phylo"].params
+    assert params["reference_genome"] is None and params["reference_rule"] is None
+
+
+def test_the_record_carries_the_reference_rule(workdir: Path, fake_phylo_tools) -> None:
+    _make_reps(workdir)
+    ctx = WorkdirContext(workdir, create=True)
+    base = dict(treebuilder="faketree_msa", msa_source="aligner", aligner="fakealigner")
+    run(ctx, PhyloParams(no_outgroup=True, **base))
+    assert ctx.config.stages["phylo"].params["reference_rule"] == "first-fallback"
+    run(ctx, PhyloParams(no_outgroup=True, reference="first", **base))
+    assert ctx.config.stages["phylo"].params["reference_rule"] == "first"
+    run(ctx, PhyloParams(no_outgroup=True, reference="Fam_gen_sp_GCA_000002.fasta", **base))
+    params = ctx.config.stages["phylo"].params
+    assert params["reference_rule"] == "name"
+    assert params["reference_genome"] == "Fam_gen_sp_GCA_000002.fasta"
+
+
+def test_a_changed_reference_rebuilds_the_cached_alignment(
+    workdir: Path, fake_phylo_tools, monkeypatch
+) -> None:
+    _make_reps(workdir)
+    ctx = WorkdirContext(workdir, create=True)
+    calls: list[Path | None] = []
+    original = _FakeAligner.align
+
+    def counting(self, genomes, reference, out_dir, params, logger):
+        calls.append(reference)
+        return original(self, genomes, reference, out_dir, params, logger)
+
+    monkeypatch.setattr(_FakeAligner, "align", counting)
+    base = dict(treebuilder="faketree_msa", msa_source="aligner", aligner="fakealigner")
+    run(ctx, PhyloParams(no_outgroup=True, **base))
+    run(ctx, PhyloParams(no_outgroup=True, **base))
+    assert len(calls) == 1  # same reference: the alignment is reused
+    run(ctx, PhyloParams(no_outgroup=True, reference="Fam_gen_sp_GCA_000003.fasta", **base))
+    assert len(calls) == 2 and calls[1].name == "Fam_gen_sp_GCA_000003.fasta"
+    assert (ctx.align_dir / "reference.txt").read_text().startswith("Fam_gen_sp_GCA_000003.fasta\t")

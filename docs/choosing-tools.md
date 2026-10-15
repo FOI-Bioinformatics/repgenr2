@@ -171,12 +171,28 @@ alignment-free tree builders.
 | Whole-genome MSA | `--aligner progressivemauve`, `sibeliaz` or `cactus`, then an MSA tree builder | Small sets of related genomes when a whole-genome alignment is wanted. | Declared limits 500, 2000 and 2000. progressiveMauve about 10 to 22 minutes per build at 20 to 50 genomes. SibeliaZ timed out at 20 genomes in the audit. Cactus needs its container and is for same-species sets. |
 | Core-SNP | `--msa-source snptype` with `--snptyper simple`, `snippy`, `parsnp` or `ska2` | One species or a clonal set. | `simple`, `snippy` and `parsnp` map every genome to one reference, so the reference biases the result. `simple` maps with minimap2 `-x asm20` and records reference positions a genome does not cover as N, so a divergent outgroup is largely N (its coverage is in the log). `ska2` is reference-free. |
 
-Reference bias. The mapping typers use the alphabetically first genome as the
-reference unless `--reference` is given. On the F. tularensis set the
-alphabetically first genome of the whole genus was another species, and 5.1% of
-its columns varied inside a species usually described as clonal. For a species
-run, set `--reference` to a genome of that species. The stage warns when it
-falls back to the default.
+Reference bias. The aligners and the mapping typers project every genome
+onto one reference, and the choice shapes the tree: swapping the reference
+changed 72 of 94 splits on a 50-genome set (`docs/audit/scaling-audit.md`).
+Unless `--reference` names a genome, the stage uses the medoid, the genome
+with the largest summed sketch ANI to the others, computed from the workdir
+sketches (`--sketch` on the genome stages, or `repgenr sketch`) with
+sourmash; ties go to the first filename, so the choice is the same on every
+run. Only existing sketches are read; the choice never sketches. The cached
+alignment is tied to the chosen genome, so it is rebuilt when the medoid
+changes. Under Nextflow, sketches reach `phylo-build` on the bacterial path
+with `params.sketch` (`PHYLO`, or `PHYLO_MSA` under `--phylo_split_msa`);
+the viral and reads paths have no sketches and use the first genome. The
+medoid is a less arbitrary choice than the first filename and is expected to
+reduce the bias, not to remove it: in a set with an over-represented
+genotype it sits inside that genotype. Without sketches or
+sourmash, or with `--reference first`, the alphabetically first genome is
+used, with a warning. On the F. tularensis set that first genome of the
+whole genus was another species, and 5.1% of its columns varied inside a
+species usually described as clonal; for a species run, name a genome of
+that species. The chosen genome and the rule are recorded as
+`reference_genome` and `reference_rule` and in `reference.txt` beside the
+alignment (genome, rule and, for the medoid, its mean ANI).
 
 Masking. `--mask gubbins` needs `--msa-source snptype` (in `run`, `--with-snptype` also accepts `--mask`) and a typer that writes a
 whole-genome alignment, which `simple`, `snippy` and `parsnp` do. It replaces

@@ -129,11 +129,9 @@ def snptype_core(
 
     ref = None
     if typer.requires_reference:
-        if reference is not None:
-            ref = reference
-        else:
-            ref = genomes[0]
-            _warn_default_reference(ref, logger)
+        # Both callers resolve the reference first (the medoid rule, a name
+        # or the first genome, each logged there).
+        ref = reference if reference is not None else genomes[0]
 
     snp_dir.mkdir(parents=True, exist_ok=True)
     if scratch.exists():
@@ -288,7 +286,7 @@ def run(ctx: WorkdirContext, params: SnptypeParams) -> SnpResult:
 
     reference = None
     if snp_registry.create(params.tool).requires_reference:
-        reference = _reference_path(ctx, params.reference, genomes, logger)
+        reference = _reference_path(ctx, params.reference, genomes, logger, params.threads)
 
     result, versions = snptype_core(
         genomes, reference, ctx.snp_dir, ctx.scratch_dir / "snptype", params, logger
@@ -315,17 +313,10 @@ def _genome_set(ctx: WorkdirContext, all_genomes: bool) -> list[Path]:
     return list_fasta(source)
 
 
-def _warn_default_reference(ref: Path, logger: logging.Logger) -> None:
-    logger.warning(
-        "No --reference given; SNP calling against the alphabetically "
-        "first genome '%s'. Reference-private errors bias every SNP "
-        "distance; pass --reference to choose deliberately.",
-        ref.name,
-    )
+def _reference_path(ctx, reference_name, genomes, logger: logging.Logger, threads: int = 1) -> Path:
+    from ..tree.medoid import REFERENCE_RULES
 
-
-def _reference_path(ctx, reference_name, genomes, logger: logging.Logger) -> Path:
-    if reference_name:
+    if reference_name and reference_name not in REFERENCE_RULES:
         # Resolved against the workdir genome dirs only: a path component would
         # let the lookup escape them.
         if Path(reference_name).name != reference_name:
@@ -349,7 +340,17 @@ def _reference_path(ctx, reference_name, genomes, logger: logging.Logger) -> Pat
             if cand.exists():
                 return cand
         raise UserInputError(f"Reference genome not found: {reference_name}")
-    # The workdir path resolves the default itself (so the record names it);
-    # warn here exactly as the core does when it falls back.
-    _warn_default_reference(genomes[0], logger)
-    return genomes[0]
+    # No name: the medoid by sketch ANI when the workdir sketches and sourmash
+    # are at hand, else the first genome with a warning; the record names it.
+    from ..core.sketches import workdir_provider
+    from ..tree.medoid import resolve_reference
+
+    return resolve_reference(
+        reference_name,
+        list(genomes),
+        None,
+        logger,
+        sketch_provider=workdir_provider(ctx, logger, threads, "snptype", write=False),
+        scratch_dir=ctx.scratch_dir / "snptype",
+        threads=threads,
+    ).genome

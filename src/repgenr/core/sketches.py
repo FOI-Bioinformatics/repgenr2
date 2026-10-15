@@ -828,8 +828,13 @@ def resolve_sketches(
     threads: int,
     *,
     consumer: str,
+    write: bool = True,
 ) -> dict[Path, Path]:
     """Genome -> its sketch under ``sketches/``, sketching what is missing or stale.
+
+    With ``write=False`` only the sketches that are current are returned and
+    nothing is written: a consumer that merely reads them (the reference
+    choice) must not fill the workdir as a side effect.
 
     ``genomes`` are matched to the genome set of the workdir by file name, so
     the representatives under ``derep/representatives/`` find the records of
@@ -868,6 +873,14 @@ def resolve_sketches(
     reused_set = set(reused)
     todo = [t for t in targets if t not in reused_set]
     written: list[SketchTarget] = []
+    if todo and not write:
+        logger.info(
+            "%s: sketches: %d reused, %d missing or stale (not written here)",
+            consumer,
+            len(reused),
+            len(todo),
+        )
+        return {t.path: sketch_path(ctx, t.path) for t in reused}
     if todo:
         if tool_available(SOURMASH_TOOL):
             try:
@@ -969,12 +982,18 @@ class _DigestCache:
 
 
 def workdir_provider(
-    ctx: WorkdirContext, logger: logging.Logger, threads: int, consumer: str
+    ctx: WorkdirContext,
+    logger: logging.Logger,
+    threads: int,
+    consumer: str,
+    *,
+    write: bool = True,
 ) -> SketchProvider:
-    """A provider over the sketches of a workdir (:func:`resolve_sketches`)."""
+    """A provider over the sketches of a workdir (:func:`resolve_sketches`);
+    ``write=False`` returns the current sketches only and writes none."""
 
     def provide(genomes: Sequence[Path]) -> dict[Path, Path]:
-        return resolve_sketches(ctx, genomes, logger, threads, consumer=consumer)
+        return resolve_sketches(ctx, genomes, logger, threads, consumer=consumer, write=write)
 
     return provide
 

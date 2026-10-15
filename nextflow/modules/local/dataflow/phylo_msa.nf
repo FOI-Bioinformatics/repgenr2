@@ -4,6 +4,9 @@
 // alignment is not repeated when only the tree builder or the bootstrap
 // changes: those belong to PHYLO_TREE, which caches separately. Enabled by
 // params.phylo_split_msa; otherwise PHYLO does both halves in one task.
+// A staged sketches/ directory is passed as --sketches-dir, as in PHYLO:
+// the mapping SNP typers and the aligners pick their reference genome (the
+// medoid) from the sketches.
 
 process PHYLO_MSA {
     tag "${meta.id}"
@@ -11,6 +14,7 @@ process PHYLO_MSA {
 
     input:
     tuple val(meta), path(reps_dir), path(outgroup, stageAs: 'outgroup/*'), path(outgroup_accession)
+    path sketches, stageAs: 'sketches'
 
     output:
     tuple val(meta), path("msa.fasta")                   , emit: msa
@@ -34,11 +38,14 @@ process PHYLO_MSA {
     # Forward tool exit codes (OOM kill -> 137) so errorStrategy can retry.
     export REPGENR_PROPAGATE_TOOL_EXIT=1
 
+    sk=""
+    [ -d sketches ] && sk="--sketches-dir sketches"
+
     repgenr ${opts} phylo-build \\
         --genomes-dir ${reps_dir}/representatives \\
         --outgroup-dir outgroup \\
         --outgroup-accession ${outgroup_accession} \\
-        -o . -t ${task.cpus} ${args} \\
+        -o . -t ${task.cpus} ${args} \$sk \\
         --msa-only \\
         --versions-out tool_versions.yml
 
@@ -51,6 +58,7 @@ process PHYLO_MSA {
     """
     echo "ext.args: ${args}"
     echo "ext.repgenr_opts: ${opts}"
+    if [ -d sketches ]; then echo "sketches: staged"; else echo "sketches: none"; fi
     for genome in ${reps_dir}/representatives/*; do
         name=\$(basename "\$genome" | sed 's/\\.[^.]*\$//')
         echo ">\${name}"
