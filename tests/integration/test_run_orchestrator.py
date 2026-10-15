@@ -403,6 +403,8 @@ def test_run_refuses_an_unknown_naming_rule_before_any_stage(monkeypatch, tmp_pa
         ],
     )
     assert result.exit_code == 2 and calls == [] and "--naming" in result.output
+
+
 def test_run_refuses_a_bad_rank_request_before_any_stage(monkeypatch, tmp_path) -> None:
     calls = _record(monkeypatch)
     base = ["run", "-wd", str(tmp_path / "wd"), "-l", "genus", "-tg", "x"]

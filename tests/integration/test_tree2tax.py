@@ -297,6 +297,8 @@ def test_tree2tax_records_the_naming_rule(workdir: Path) -> None:
     assert ctx.config.stages["tree2tax"].params["naming"] == "lca"
     tree2tax_run(ctx, Tree2taxParams(node_basename="N", naming="lca"))
     assert ctx.config.stages["tree2tax"].params["naming"] is None
+
+
 def test_tree2tax_ranks_reach_the_table_and_the_record(workdir: Path) -> None:
     _setup(workdir, with_outgroup=True)
     ctx = WorkdirContext(workdir, create=True)
