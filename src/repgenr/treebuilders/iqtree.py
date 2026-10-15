@@ -75,7 +75,7 @@ class IqtreeBuilder(TreeBuilder):
         else:
             logger.info(
                 "iqtree: no model given, so IQ-TREE runs ModelFinder before the tree "
-                "search; --aligner-arg model=GTR+G skips the selection"
+                "search; model=GTR+G (--aligner-arg) skips the selection"
             )
         if params.outgroup:
             cmd += ["-o", params.outgroup]

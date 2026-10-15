@@ -26,8 +26,8 @@ nextflow_pipeline {
         }
         then {
             assert !workflow.success
-            assert workflow.stdout.join('\n').contains('phylo_split_msa') ||
-                   workflow.stderr.join('\n').contains('phylo_split_msa')
+            assert workflow.stdout.join('\n').contains('needs a tree builder that consumes an alignment') ||
+                   workflow.stderr.join('\n').contains('needs a tree builder that consumes an alignment')
         }
     }
 

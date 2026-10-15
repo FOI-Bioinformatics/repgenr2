@@ -527,9 +527,9 @@ def build_tree(
         and params.bootstrap == 0
         and not builder.supports_without_bootstrap
     ):
-        logger.warning(
-            "No bootstrap requested (-B 0): the %s tree will carry no support values, "
-            "so tree2tax --collapse-support has nothing to act on",
+        logger.info(
+            "No bootstrap replicates requested (-B not set): the %s tree will carry no "
+            "support values, so tree2tax --collapse-support has nothing to act on",
             treebuilder,
         )
     versions = builder.preflight()

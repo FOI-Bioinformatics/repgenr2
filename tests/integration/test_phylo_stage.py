@@ -1158,7 +1158,7 @@ def test_bootstrap_zero_warns_when_the_tree_would_carry_no_supports(
     register_tool(tb_registry, "faketree_nosupport", _NoSupportMsaTreeBuilder)
     _make_reps(workdir)
     ctx = WorkdirContext(workdir, create=True, logger=logging.getLogger("test-phylo"))
-    with caplog.at_level(logging.WARNING, logger="test-phylo"):
+    with caplog.at_level(logging.INFO, logger="test-phylo"):
         run(
             ctx,
             PhyloParams(
@@ -1168,9 +1168,9 @@ def test_bootstrap_zero_warns_when_the_tree_would_carry_no_supports(
                 no_outgroup=True,
             ),
         )
-    assert any("No bootstrap requested" in r.getMessage() for r in caplog.records)
+    assert any("No bootstrap replicates requested" in r.getMessage() for r in caplog.records)
     caplog.clear()
-    with caplog.at_level(logging.WARNING, logger="test-phylo"):
+    with caplog.at_level(logging.INFO, logger="test-phylo"):
         run(
             ctx,
             PhyloParams(
@@ -1180,7 +1180,7 @@ def test_bootstrap_zero_warns_when_the_tree_would_carry_no_supports(
                 no_outgroup=True,
             ),
         )
-    assert not any("No bootstrap requested" in r.getMessage() for r in caplog.records)
+    assert not any("No bootstrap replicates requested" in r.getMessage() for r in caplog.records)
 
 
 def test_split_alignment_refusal_names_the_builders_that_consume_one(
@@ -1258,3 +1258,38 @@ def test_auto_is_restricted_to_alignment_builders_when_an_alignment_is_given(
     )
     assert "faketree_genomes" not in seen["allowed"]
     assert outcome.treebuilder == "faketree_msa"
+
+
+def test_auto_is_restricted_by_a_masker_alone(
+    workdir: Path, fake_phylo_tools, fake_snptyper, monkeypatch
+) -> None:
+    seen = _spy_auto_select(monkeypatch, "faketree_msa")
+    _make_reps(workdir)
+    ctx = WorkdirContext(workdir, create=True)
+    with pytest.raises(Exception):  # noqa: B017 - the fake masker is not registered
+        run(
+            ctx,
+            PhyloParams(
+                treebuilder="auto",
+                msa_source="snptype",
+                snptyper="fakesnptyper",
+                no_outgroup=True,
+                extra={"mask": "nosuchmasker"},
+            ),
+        )
+    assert seen and "faketree_genomes" not in seen["allowed"]
+
+
+def test_auto_is_not_restricted_by_an_aligner_choice_alone(
+    workdir: Path, fake_phylo_tools, monkeypatch
+) -> None:
+    seen = _spy_auto_select(monkeypatch, "faketree_genomes")
+    _make_reps(workdir)
+    ctx = WorkdirContext(workdir, create=True)
+    run(
+        ctx,
+        PhyloParams(
+            treebuilder="auto", msa_source="aligner", aligner="fakealigner", no_outgroup=True
+        ),
+    )
+    assert seen["allowed"] is None

@@ -188,3 +188,17 @@ def test_scale_warning_none_within_limit() -> None:
 def test_scale_warning_none_for_unbounded() -> None:
     reg = _make_registry({"skder": _caps("skder", None, native=True)})
     assert scale_warning(reg, "skder", 100000) is None
+
+
+def test_allowed_restricts_the_choice_even_past_a_better_fit() -> None:
+    reg = _make_registry(
+        {
+            "iqtree": _caps("iqtree", 500),
+            "fasttree": _caps("fasttree", 5000),
+            "mashtree": _caps("mashtree", 10000),
+        }
+    )
+    assert auto_select(reg, 300) == "iqtree"
+    assert auto_select(reg, 300, allowed={"fasttree", "mashtree"}) == "fasttree"
+    assert auto_select(reg, 8000, allowed={"iqtree", "fasttree"}) == "fasttree"
+    assert auto_select(reg, 300, allowed=set()) is None
