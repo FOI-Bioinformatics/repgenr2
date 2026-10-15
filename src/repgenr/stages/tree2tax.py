@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from importlib.metadata import PackageNotFoundError, version
@@ -130,6 +131,12 @@ def _emit_relations(
         if not _set_outgroup(tree, outgroup_leaf, source):
             logger.info("The tree is already rooted on the outgroup %s", outgroup_leaf)
 
+    # The outgroup leaves the tree before collapse and naming, so no node is
+    # named for a leaf set that includes it and no unifurcation is left where
+    # it sat (a midpoint-rooted tree can hold it inside a clade).
+    if remove_outgroup and outgroup_leaf is not None:
+        _prune_leaf(tree, outgroup_leaf)
+
     # Collapse before naming so node names describe the collapsed topology.
     stats = _collapse_weak_nodes(
         tree, support=collapse_support, length=collapse_length, logger=logger
@@ -142,14 +149,11 @@ def _emit_relations(
             root_name,
             FLEXTAXD_ROOT,
         )
-    leaves_nodes = _name_nodes(tree, node_basename)
-    _build_paths(tree, leaves_nodes, root_name)
+    leaves = _name_nodes(tree, node_basename)
+    tree.seed_node.label = root_name
 
-    if remove_outgroup and outgroup_leaf in leaves_nodes:
-        del leaves_nodes[outgroup_leaf]
-
-    write_tree2tax(out_tree2tax, _edges(leaves_nodes))
-    write_genomes_map(out_map, _genome_map(leaves_nodes, redundant, segments))
+    write_tree2tax(out_tree2tax, _edges(tree))
+    write_genomes_map(out_map, _genome_map(leaves, redundant, segments))
     logger.info("Wrote %s and %s", out_tree2tax.name, out_map.name)
     return out_tree2tax, out_map, stats.collapsed
 
@@ -423,54 +427,90 @@ def _collapse_weak_nodes(
     return stats
 
 
-def _name_nodes(tree: dendropy.Tree, node_basename: str | None) -> dict[str, list[str]]:
-    """Record leaf names; give every internal (non-root) node a stable name.
+_HASH_BITS = 128
+_HASH_MOD = 1 << _HASH_BITS
 
-    Internal nodes are named by a hash of their (sorted) descendant leaf labels,
-    or ``<basename><n>`` if a basename is given -- so the tree topology becomes a
-    set of named clade nodes. Unlike the old ete3 code this keys on ``is_leaf``,
-    so an internal support-value label can no longer be mistaken for a taxon.
+
+def _leaf_hash(label: str) -> int:
+    return int.from_bytes(hashlib.md5(label.encode("utf-8")).digest(), "big")
+
+
+def _prune_leaf(tree: dendropy.Tree, label: str) -> None:
+    """Remove the leaf called ``label`` and any unifurcation this leaves below
+    the root. The root keeps a single child when the leaf was its other one
+    (an outgroup-rooted tree), so the ingroup stays one clade under the root."""
+    node = next((n for n in tree.leaf_node_iter() if _leaf_label(n) == label), None)
+    if node is None:
+        return
+    parent = node.parent_node
+    tree.prune_subtree(node, suppress_unifurcations=False)
+    while parent is not None and parent is not tree.seed_node and parent.num_child_nodes() == 1:
+        grandparent = parent.parent_node
+        parent.edge.collapse(adjust_collapsed_head_children_edge_lengths=True)
+        parent = grandparent
+
+
+def _name_nodes(tree: dendropy.Tree, node_basename: str | None) -> list[str]:
+    """Give every internal (non-root) node a stable name; return the leaf names.
+
+    An internal node is named by a hash of its descendant leaf set: the sum
+    of the leaves' 128-bit label hashes, which is independent of the order
+    the leaves are met in and takes one post-order pass over the tree, so a
+    long ladder costs the same per node as a balanced tree. The name does not
+    depend on how the clade is resolved inside. A node whose leaf set equals
+    one child's (a single child below the root, or one labelled child beside
+    unlabelled leaves; left by a tool, never by this stage) would share that child's
+    name, so its label is mixed once more while the plain sum still passes
+    upward, so the ancestors' names stay those of their leaf sets. With a
+    basename, nodes are numbered in preorder instead. Keyed on ``is_leaf``,
+    so an internal support label is never taken for a taxon.
     """
-    leaves_nodes: dict[str, list[str]] = {}
+    leaves: list[str] = []
+    sums: dict[int, int] = {}  # plain leaf-set sum, passed upward
+    names: dict[int, int] = {}  # the value a node is labelled with
+    with_leaf_set: set[int] = set()  # internal nodes that hold a labelled leaf
     counter = 0
-    for node in tree.preorder_node_iter():
-        if node is tree.seed_node:
-            continue
+    for node in tree.postorder_node_iter():
         if node.is_leaf():
             name = _leaf_label(node)
             if name:
-                leaves_nodes[name] = []
+                leaves.append(name)
+                sums[id(node)] = names[id(node)] = _leaf_hash(name)
             continue
-        if node_basename:
-            node.label = f"{node_basename}{counter}"
-            counter += 1
+        contributing = [child for child in node.child_nodes() if id(child) in sums]
+        if not contributing:
+            continue  # only unlabelled leaves below: no leaf set, no name, no row
+        sums[id(node)] = sum(sums.pop(id(child)) for child in contributing) % _HASH_MOD
+        with_leaf_set.add(id(node))
+        if len(contributing) >= 2:
+            names[id(node)] = sums[id(node)]
         else:
-            leaf_labels = sorted(_leaf_label(lf) for lf in node.leaf_iter())
-            node.label = hashlib.md5(" ".join(leaf_labels).encode("utf-8")).hexdigest()
-    return leaves_nodes
+            # The same leaf set as the one child: mix that child's own name,
+            # so a chain of such nodes gets a distinct name at every level.
+            names[id(node)] = _leaf_hash(f"{names[id(contributing[0])]:032x}/same-leaf-set")
+        for child in contributing:
+            names.pop(id(child), None)
+        if node is not tree.seed_node and not node_basename:
+            node.label = f"{names[id(node)]:032x}"
+    if node_basename:
+        for node in tree.preorder_node_iter():
+            if node is not tree.seed_node and not node.is_leaf() and id(node) in with_leaf_set:
+                node.label = f"{node_basename}{counter}"
+                counter += 1
+    return leaves
 
 
-def _build_paths(
-    tree: dendropy.Tree, leaves_nodes: dict[str, list[str]], root_name: str = "root"
-) -> None:
-    for node in tree.leaf_node_iter():
-        name = _leaf_label(node)
-        if name not in leaves_nodes:
-            continue
-        for ancestor in node.ancestor_iter(inclusive=False):
-            if ancestor is tree.seed_node:
-                ancestor.label = root_name
-                leaves_nodes[name].append(root_name)
-            else:
-                leaves_nodes[name].append(ancestor.label or "")
-
-
-def _edges(leaves_nodes: dict[str, list[str]]) -> list[tuple[str, str]]:
+def _edges(tree: dendropy.Tree) -> list[tuple[str, str]]:
+    """One (child, parent) row per non-root node, in preorder. A leaf without
+    a label has no row."""
     edges: list[tuple[str, str]] = []
-    for leaf, nodes in leaves_nodes.items():
-        path = [leaf, *nodes]
-        for i in range(len(path) - 1):
-            edges.append((path[i], path[i + 1]))
+    for node in tree.preorder_node_iter():
+        if node is tree.seed_node:
+            continue
+        child = _leaf_label(node) if node.is_leaf() else node.label
+        parent = node.parent_node.label
+        if child and parent:
+            edges.append((child, parent))
     return edges
 
 
@@ -493,7 +533,7 @@ def _load_redundant_from(clusters_file: Path) -> dict[str, list[str]]:
 
 
 def _genome_map(
-    leaves_nodes: dict[str, list[str]],
+    leaves: Sequence[str],
     redundant: dict[str, list[str]],
     segments: dict[str, list[str]] | None = None,
 ) -> list[tuple[str, str]]:
@@ -509,12 +549,13 @@ def _genome_map(
         for segment in members.get(accession, []):
             mapping.append((segment, leaf))
 
-    for leaf in leaves_nodes:
+    leaf_set = set(leaves)
+    for leaf in leaves:
         _add(leaf, leaf)
         for red in redundant.get(leaf, []):
             # A member that is a leaf itself (a tree built with --all-genomes)
             # already maps to its own leaf.
-            if red not in leaves_nodes:
+            if red not in leaf_set:
                 _add(red, leaf)
     return mapping
 

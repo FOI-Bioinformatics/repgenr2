@@ -747,3 +747,22 @@ def test_metadata_path_help_says_release_and_version_still_required() -> None:
         text = _help_of(command, "--metadata-path")
         assert "-r" in text
         assert "--gtdb-version" in text
+
+
+def test_run_warns_early_when_collapse_support_meets_a_builder_without_supports(caplog) -> None:
+    import logging
+
+    from repgenr.cli.cmd_run import _warn_collapse_without_supports
+
+    log = logging.getLogger("test-run-warn")
+    with caplog.at_level(logging.WARNING, logger="test-run-warn"):
+        _warn_collapse_without_supports("mashtree", 0.5, None, log)
+        _warn_collapse_without_supports("sourmash", 0.5, 0.01, log)
+        _warn_collapse_without_supports("iqtree", 0.5, None, log)
+        _warn_collapse_without_supports("mashtree", None, None, log)
+        _warn_collapse_without_supports("auto", 0.5, None, log)
+        _warn_collapse_without_supports("nosuchbuilder", 0.5, None, log)
+    messages = [r.getMessage() for r in caplog.records]
+    assert len(messages) == 2
+    assert "mashtree" in messages[0] and "--collapse-length" in messages[0]
+    assert "sourmash" in messages[1] and "--collapse-length" not in messages[1]

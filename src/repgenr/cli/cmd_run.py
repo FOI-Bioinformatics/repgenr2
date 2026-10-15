@@ -9,6 +9,7 @@ stages already completed with the same parameters.
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 import typer
@@ -144,6 +145,30 @@ def _preflight_tools(
             from ..maskers.base import registry as masker_registry
 
             masker_registry.create(mask).preflight()
+
+
+def _warn_collapse_without_supports(
+    treebuilder: str,
+    collapse_support: float | None,
+    collapse_length: float | None,
+    logger: logging.Logger,
+) -> None:
+    """Say before any stage runs that --collapse-support cannot act on the tree
+    of a builder that declares the bootstrap ignored (mashtree, sourmash)."""
+    from ..treebuilders.base import registry as tb_registry
+
+    if collapse_support is None or treebuilder not in tb_registry.names():
+        return  # an unknown name is reported by the parameter check that follows
+    if "bootstrap" in tb_registry.get(treebuilder).capabilities.ignored_params:
+        logger.warning(
+            "--collapse-support %g is given, but the %s tree carries no support values, "
+            "so tree2tax will collapse nothing on support%s",
+            collapse_support,
+            treebuilder,
+            ""
+            if collapse_length is not None
+            else "; use --collapse-length, or a tree builder that bootstraps",
+        )
 
 
 def _msa_source_summary(treebuilder: str, msa_source: str, aligner: str, snptyper: str) -> str:
@@ -380,6 +405,7 @@ def run(
             **_parse_key_values(tool_arg, "--tool-arg"),
             **_virus_extra(derep_tool, viral),
         }
+        _warn_collapse_without_supports(treebuilder, collapse_support, collapse_length, logger)
         # With --with-snptype and the aligner MSA source, --mask belongs to the
         # standalone snptype stage only; phylo would reject it there.
         mask_for_phylo = mask != "none" and (msa_source == "snptype" or not with_snptype)
