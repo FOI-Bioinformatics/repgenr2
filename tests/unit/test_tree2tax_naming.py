@@ -174,3 +174,31 @@ def test_remove_outgroup_keeps_the_ingroup_clade_under_root(tmp_path: Path) -> N
 
     assert leaves == {"A", "B", "C", "D"}
     assert all(under_root[0] in ancestors(leaf) for leaf in leaves)
+
+
+def test_stacked_unary_nodes_get_distinct_names_and_leave_ancestors_alone() -> None:
+    plain = _names("(((A,B),E),(C,D));")
+    for text in ("(((((A,B))),E),(C,D));", "((((((A,B)))),E),(C,D));", "((((A)),B),(C,D));"):
+        tree = _tree(text)
+        _name_nodes(tree, None)
+        labels = [n.label for n in tree.internal_nodes() if n is not tree.seed_node]
+        assert len(labels) == len(set(labels)), text
+        tree.seed_node.label = "root"
+        assert all(child != parent for child, parent in _edges(tree)), text
+    with_chain = _names("((((((A,B)))),E),(C,D));")
+    assert with_chain[frozenset("ABE")] == plain[frozenset("ABE")]
+
+
+def test_a_node_over_unlabelled_leaves_only_gets_no_name_and_no_row() -> None:
+    taxa = dendropy.TaxonNamespace()
+    tree = dendropy.Tree(taxon_namespace=taxa)
+    empty = tree.seed_node.new_child()
+    empty.new_child()
+    empty.new_child()
+    other = tree.seed_node.new_child()
+    for label in ("C", "D"):
+        other.new_child().taxon = taxa.require_taxon(label=label)
+    assert _name_nodes(tree, None) == ["C", "D"]
+    assert empty.label is None
+    tree.seed_node.label = "root"
+    assert {c for c, _ in _edges(tree)} == {"C", "D", other.label}

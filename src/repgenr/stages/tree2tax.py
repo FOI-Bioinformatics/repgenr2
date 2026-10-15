@@ -466,24 +466,30 @@ def _name_nodes(tree: dendropy.Tree, node_basename: str | None) -> list[str]:
     so an internal support label is never taken for a taxon.
     """
     leaves: list[str] = []
-    hashes: dict[int, int] = {}
+    sums: dict[int, int] = {}  # plain leaf-set sum, passed upward
+    names: dict[int, int] = {}  # the value a node is labelled with
     counter = 0
     for node in tree.postorder_node_iter():
         if node.is_leaf():
             name = _leaf_label(node)
             if name:
                 leaves.append(name)
-                hashes[id(node)] = _leaf_hash(name)
+                sums[id(node)] = names[id(node)] = _leaf_hash(name)
             continue
-        contributing = [
-            hashes.pop(id(child)) for child in node.child_nodes() if id(child) in hashes
-        ]
-        total = sum(contributing) % _HASH_MOD
-        hashes[id(node)] = total
-        if node is tree.seed_node or node_basename:
-            continue
-        label = total if len(contributing) >= 2 else _leaf_hash(f"{total:032x}/same-leaf-set")
-        node.label = f"{label:032x}"
+        contributing = [child for child in node.child_nodes() if id(child) in sums]
+        if not contributing:
+            continue  # only unlabelled leaves below: no leaf set, no name, no row
+        sums[id(node)] = sum(sums.pop(id(child)) for child in contributing) % _HASH_MOD
+        if len(contributing) >= 2:
+            names[id(node)] = sums[id(node)]
+        else:
+            # The same leaf set as the one child: mix that child's own name,
+            # so a chain of such nodes gets a distinct name at every level.
+            names[id(node)] = _leaf_hash(f"{names[id(contributing[0])]:032x}/same-leaf-set")
+        for child in contributing:
+            names.pop(id(child), None)
+        if node is not tree.seed_node and not node_basename:
+            node.label = f"{names[id(node)]:032x}"
     if node_basename:
         for node in tree.preorder_node_iter():
             if node is not tree.seed_node and not node.is_leaf():
