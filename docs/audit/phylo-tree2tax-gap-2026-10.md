@@ -196,10 +196,11 @@ classes.
 
 ## Not pursued, and why
 
-- A pangenome or core-gene route (PanACoTA, Panaroo) or GTDB-Tk's de novo
-  workflow inside `phylo`: both need an annotation stage and answer a
-  different question from a whole-genome SNP tree. A separate stage would be
-  the place, if ever required.
+- GTDB-Tk's de novo workflow inside `phylo`: it answers a different question
+  (placement on the reference tree) and needs its database. The pangenome
+  route, first listed here as not pursued, shipped later as the `annotate`
+  stage (bakta, prokka) and `phylo --msa-source coregene` (Panaroo), since a
+  genus- or family-level tree needs it.
 - `+ASC_LEWIS` as a default: IQ-TREE aborts under it when any invariant column
   remains, which masking can produce. `-fconst` uses counts the pipeline
   already has and cannot abort on a remaining invariant column. An external

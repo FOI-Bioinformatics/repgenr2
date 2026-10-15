@@ -28,11 +28,13 @@ EXPECTED_FILES = {
     "mauve",
     "bakta",
     "prokka",
+    "panaroo",
 }
 FAMILIES = (
     "aligners",
     "annotators",
     "assemblers",
+    "coregenes",
     "classifiers",
     "dereplicators",
     "maskers",

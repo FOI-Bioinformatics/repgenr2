@@ -58,6 +58,7 @@ dry-runs each solve on every change to `envs/` and once a week
 | `envs/mauve.yml` | `repgenr-mauve` | progressiveMauve (`mauvealigner`) with boost-cpp 1.74.0 | linux-64 |
 | `envs/bakta.yml` | `repgenr-bakta` | bakta (annotation for the core-gene route; needs its database) | linux-64, osx-arm64 |
 | `envs/prokka.yml` | `repgenr-prokka` | prokka (annotation without a database; Perl, BioPerl, tbl2asn) | linux-64, osx-64 |
+| `envs/panaroo.yml` | `repgenr-panaroo` | Panaroo and mafft (core-gene alignment; Panaroo's dependencies bring prokka) | linux-64, osx-64 |
 
 Create the core environment and only the satellites you need. The core file
 installs the package in editable mode from the checkout:
@@ -286,6 +287,7 @@ the `envs/` files, and the environment that holds each tool is listed in
 | Polisher | racon | `racon`, `minimap2` | yes | `racon:1.5.0`; minimap2 runs from `minimap2:2.28` | none |
 | Annotator | bakta | `bakta` | yes | `bakta:1.12.2` | bakta database: `bakta_db download --output DIR --type light` (1.4 GB download, about 4 GB unpacked; `--type full` is 30 GB and about 84 GB unpacked, with more specific CDS annotation), then `--bakta-db DIR` or `BAKTA_DB` |
 | Annotator | prokka | `prokka` | no (tbl2asn is not packaged for arm64) | `prokka:1.15.6` | none |
+| Core-gene builder | panaroo | `panaroo`, `mafft` | no (its dependency prokka is not packaged for arm64; `CONDA_SUBDIR=osx-64` works) | `panaroo:1.8.0` | none |
 | Quality (reads chain) | checkm2 | `checkm2` | no | `checkm2:1.1.0` | CheckM2 database: `checkm2 database --download`, then `--checkm2-db` or `CHECKM2DB` |
 
 The genome download steps also need `ncbi-datasets-cli`.

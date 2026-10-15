@@ -1455,8 +1455,41 @@ genome has left the workdir is removed. `--force` re-annotates everything.
 Tuning goes through `--tool-arg` (`skip_crispr=true`, `genus=Francisella`,
 `translation_table=11` for bakta; `kingdom=Bacteria`, `gcode=11` for prokka).
 The data-channel step `annotate-build --genome FILE -o DIR` annotates one
-genome. The core-gene route itself (`phylo --msa-source coregene`) follows in
-a later release.
+genome. The core-gene route that reads these annotations is below.
+
+### Core-gene phylogeny
+
+`phylo --msa-source coregene` builds the tree from a concatenated alignment
+of the core genes instead of a reference-based SNP alignment or a
+whole-genome alignment: the genomes are annotated (the `annotate` stage,
+above), Panaroo (`--coregene panaroo`, the one builder so far) clusters the
+genes into a pangenome, cleans annotation
+errors from the graph (`--clean-mode strict`, the default, `moderate` or
+`sensitive`), aligns every gene present in at least `--core-threshold` of
+the genomes (0.95) with mafft, concatenates them and removes the genes its
+entropy filter flags (`--aligner-arg filtered=false` keeps them). The
+alignment keeps its invariant sites, so the tree builder applies no
+ascertainment-bias correction and the branch lengths are substitutions per
+site of the core. `repgenr run --msa-source coregene` inserts the `annotate`
+stage before `phylo` (`--annotator`, `--bakta-db`); on a workdir run
+`annotate` first, then `phylo --msa-source coregene --treebuilder iqtree`.
+The outgroup is annotated and included; being another species it lowers the
+core, so on fewer than about twenty genomes lower the threshold or leave it
+out with `--no-outgroup --root midpoint`. The alignment is reused across
+tree-builder changes like the other sources, and rebuilt when an annotation
+changed (the reuse stamp holds the index digest). Outputs:
+`tree/msa/core_gene_alignment.fasta`, the Panaroo tables under
+`tree/msa/pangenome/` and `tree/msa/core_gene_stats.json` (see
+[output.md](output.md)).
+
+This route suits genus- and family-level sets, where the reference-based
+routes lose most columns and the alignment-free builders give no supports;
+within a species or an outbreak a SNP tree draws on far more
+positions, and the SNP route costs no annotation pass. Panaroo's declared
+limit of 500 genomes is not measured here, and neither is its runtime; the
+clustering and the per-gene alignments are the slow parts, after the
+annotation. The data-channel step `phylo-build --msa-source
+coregene` reads `--annotations-dir` or annotates its inputs itself.
 
 ### SNP typing and masking
 

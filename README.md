@@ -44,6 +44,7 @@ the core (see [docs/developing.md](docs/developing.md)).
 | SNP typers | `simple` (samtools/bcftools), `snippy`, `parsnp`, `ska2` (reference-free) |
 | Maskers | `gubbins` (recombination masking via `--mask`) |
 | Annotators | `bakta` (default; needs its database), `prokka`; used by `annotate` for the core-gene route |
+| Core-gene builders | `panaroo` (with mafft); `phylo --msa-source coregene` |
 | Tree builders | `iqtree`, `fasttree`, `veryfasttree`, `raxmlng` (MSA), `mashtree`, `sourmash`, `skani`, `ska2` (alignment-free) |
 | Assemblers | `skesa`, `shovill` (Illumina), `flye` (ONT, PacBio); used by the reads chain |
 | Classifiers | `sourmash` (gather against a GTDB sketch); verifies the organism of an assembled run |

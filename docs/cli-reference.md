@@ -87,7 +87,7 @@ is 'vmetadata --source'. --platform filters the sequencing platform with
 | `--tool-arg` |  | Tool tuning as key=value (repeatable), e.g. mode=greedy. |
 | `--with-snptype` | off | Run the standalone snptype stage (with --snptyper, --mask, --reference) after dereplication, so the SNP tables are produced whatever builds the tree. |
 | `--treebuilder` | `iqtree` | auto, fasttree, iqtree, mashtree, raxmlng, ska2, skani, sourmash, veryfasttree. |
-| `--msa-source` | `aligner` | aligner or snptype. |
+| `--msa-source` | `aligner` | aligner, snptype or coregene (a concatenated core-gene alignment from the annotations the annotate stage wrote). |
 | `--aligner` | `progressivemauve` | cactus, progressivemauve, sibeliaz. |
 | `--snptyper` | `simple` | SNP typer: parsnp, simple, ska2, snippy. |
 | `--no-outgroup` | off | Do not root with an outgroup. |
@@ -103,6 +103,11 @@ is 'vmetadata --source'. --platform filters the sequencing platform with
 | `--remove-outgroup` | off | Leave the outgroup out of the taxonomy after rooting. |
 | `--include-dereplicated`, `--no-include-dereplicated` | on | List redundant genomes under their representative in the taxonomy. |
 | `--core-fraction` |  | Keep only the variable columns where at least this fraction of the genomes have a called base (a soft core, 0 to 1). Unset keeps every variable column and the log reports what 0.95 would keep. |
+| `--coregene` | `panaroo` | Core-gene alignment builder for --msa-source coregene: panaroo. Its tuning goes through --aligner-arg (filtered=false for the unfiltered alignment, merge_paralogs, remove_invalid_genes, family_threshold, len_dif_percent). |
+| `--annotator` | `bakta` | Annotator: bakta (default; needs its database, --bakta-db or BAKTA_DB) or prokka. |
+| `--bakta-db` |  | bakta database directory (bakta_db download --output DIR --type light\|full); BAKTA_DB when unset. |
+| `--core-threshold` |  | With --msa-source coregene: a gene is core when present in at least this fraction of the genomes (0.95). |
+| `--clean-mode` |  | With --msa-source coregene: Panaroo's cleaning of annotation errors, strict (default), moderate or sensitive. |
 | `--collapse-support` |  | Merge nodes whose support is below this fraction into their parent. |
 | `--collapse-length` |  | Merge nodes whose branch is shorter than this length into their parent. |
 | `--collapse-diameter` |  | Merge every clade whose leaf-to-leaf distance is within this value into one node, keeping the fewest such clades (in the tree's own units). |
@@ -343,7 +348,7 @@ Build a phylogenetic tree from an alignment, SNP alignment, or directly.
 |---|---|---|
 | `-wd`, `--workdir` | required | Working directory. |
 | `--treebuilder` | `iqtree` | auto, fasttree, iqtree, mashtree, raxmlng, ska2, skani, sourmash, veryfasttree. |
-| `--msa-source` | `aligner` | aligner or snptype. |
+| `--msa-source` | `aligner` | aligner, snptype or coregene (a concatenated core-gene alignment from the annotations the annotate stage wrote). |
 | `--aligner` | `progressivemauve` | cactus, progressivemauve, sibeliaz. |
 | `--snptyper` | `simple` | SNP typer: parsnp, simple, ska2, snippy. |
 | `--all-genomes` | off | Use all genomes, not only the representatives. |
@@ -355,6 +360,9 @@ Build a phylogenetic tree from an alignment, SNP alignment, or directly.
 | `-t`, `--threads` | `16` | Threads for the external tool (default 16, or the CPU limit when lower). |
 | `--mask` | `none` | Recombination masking of the SNP alignment: none, gubbins. Needs --msa-source snptype. |
 | `--core-fraction` |  | Keep only the variable columns where at least this fraction of the genomes have a called base (a soft core, 0 to 1). Unset keeps every variable column and the log reports what 0.95 would keep. |
+| `--coregene` | `panaroo` | Core-gene alignment builder for --msa-source coregene: panaroo. Its tuning goes through --aligner-arg (filtered=false for the unfiltered alignment, merge_paralogs, remove_invalid_genes, family_threshold, len_dif_percent). |
+| `--core-threshold` |  | With --msa-source coregene: a gene is core when present in at least this fraction of the genomes (0.95). |
+| `--clean-mode` |  | With --msa-source coregene: Panaroo's cleaning of annotation errors, strict (default), moderate or sensitive. |
 | `--allow-incomplete` | off | Proceed with a warning when the input genome set is incomplete. |
 
 ### tree2tax
@@ -627,13 +635,19 @@ Here --outgroup-accession takes a file that names the accession, not the accessi
 | `--outgroup-dir` |  | Directory holding the outgroup genome file(s). |
 | `--outgroup-accession` |  | File naming the outgroup accession. |
 | `--treebuilder` | `iqtree` | auto, fasttree, iqtree, mashtree, raxmlng, ska2, skani, sourmash, veryfasttree. |
-| `--msa-source` | `aligner` | aligner or snptype. |
+| `--msa-source` | `aligner` | aligner, snptype or coregene (a concatenated core-gene alignment from the annotations the annotate stage wrote). |
 | `--aligner` | `progressivemauve` | cactus, progressivemauve, sibeliaz. |
 | `--snptyper` | `simple` | SNP typer: parsnp, simple, ska2, snippy. |
 | `--no-outgroup` | off | Do not root with an outgroup. |
 | `--root` |  | How phylo roots tree/tree.nwk: outgroup (on the branch to the outgroup), midpoint, or none (as the tree builder wrote it). Default: outgroup when an outgroup is staged and --no-outgroup is not given, else none. |
 | `-B`, `--bootstrap` | `0` | Bootstrap replicates. 0 turns bootstrapping off; IQ-TREE needs at least 1000 when it is on. |
 | `--core-fraction` |  | Keep only the variable columns where at least this fraction of the genomes have a called base (a soft core, 0 to 1). Unset keeps every variable column and the log reports what 0.95 would keep. |
+| `--coregene` | `panaroo` | Core-gene alignment builder for --msa-source coregene: panaroo. Its tuning goes through --aligner-arg (filtered=false for the unfiltered alignment, merge_paralogs, remove_invalid_genes, family_threshold, len_dif_percent). |
+| `--core-threshold` |  | With --msa-source coregene: a gene is core when present in at least this fraction of the genomes (0.95). |
+| `--clean-mode` |  | With --msa-source coregene: Panaroo's cleaning of annotation errors, strict (default), moderate or sensitive. |
+| `--annotations-dir` |  | With --msa-source coregene: an annotations/ directory the annotate stage or annotate-build wrote (its index names the records); without it the step annotates the genomes itself with --annotator. |
+| `--annotator` | `bakta` | Annotator: bakta (default; needs its database, --bakta-db or BAKTA_DB) or prokka. |
+| `--bakta-db` |  | bakta database directory (bakta_db download --output DIR --type light\|full); BAKTA_DB when unset. |
 | `--reference` |  | Reference genome: a filename, 'medoid' (the default: the genome nearest to all others by sketch ANI, when the genomes are sketched and sourmash is at hand) or 'first'. |
 | `--aligner-arg` |  | Aligner, SNP typer, masker or tree builder tuning as key=value (repeatable), e.g. kmer=15 (sibeliaz), seed_weight=11 (progressivemauve) or model=GTR+G (iqtree, raxmlng). |
 | `-t`, `--threads` | `16` | Threads for the external tool (default 16, or the CPU limit when lower). |

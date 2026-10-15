@@ -438,3 +438,73 @@ def test_run_refuses_a_bad_rank_request_before_any_stage(monkeypatch, tmp_path) 
         result = _runner.invoke(app, [*base, *extra])
         assert result.exit_code == 2 and text in result.output, result.output
     assert calls == []
+
+
+def test_run_coregene_inserts_annotate_before_phylo(monkeypatch, tmp_path) -> None:
+    """--msa-source coregene annotates first; the annotate stage gets the
+    annotator, the database and the genome set."""
+    built: dict[str, object] = {}
+    order: list[str] = []
+
+    def fake_run(stage, workdir, build, *, create=False):
+        order.append(stage)
+        built[stage] = build()
+
+    monkeypatch.setattr(cmd_run, "_run", fake_run)
+    monkeypatch.setattr(cmd_run, "_preflight_tools", lambda *a, **k: None)
+    result = _runner.invoke(
+        app,
+        [
+            *("run", "-wd", str(tmp_path / "wd"), "-l", "genus", "-tg", "francisella"),
+            *("--msa-source", "coregene", "--annotator", "prokka", "--all-genomes"),
+            *("--core-threshold", "0.9", "--clean-mode", "moderate"),
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    assert order.index("annotate") == order.index("phylo") - 1
+    annotate = built["annotate"]
+    assert annotate.tool == "prokka" and annotate.all_genomes is True
+    phylo = built["phylo"]
+    assert phylo.msa_source == "coregene" and phylo.coregene == "panaroo"
+    assert phylo.extra["core_threshold"] == 0.9 and phylo.extra["clean_mode"] == "moderate"
+
+
+def test_run_dry_run_shows_annotate_for_the_coregene_source(monkeypatch, tmp_path) -> None:
+    calls = _record(monkeypatch)
+    result = _runner.invoke(
+        app,
+        [
+            *("run", "-wd", str(tmp_path / "wd"), "-l", "genus", "-tg", "x"),
+            *("--msa-source", "coregene", "--dry-run"),
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    chain = [
+        ln.removeprefix("  - ").strip()
+        for ln in result.output.splitlines()
+        if ln.startswith("  - ")
+    ]
+    assert chain.index("annotate") == chain.index("phylo") - 1
+    assert "coregene" in result.output and calls == []
+
+
+def test_run_warns_when_the_annotator_flags_do_not_apply(monkeypatch, tmp_path) -> None:
+    _record(monkeypatch)
+    result = _runner.invoke(
+        app,
+        [
+            *("run", "-wd", str(tmp_path / "wd"), "-l", "genus", "-tg", "x"),
+            *("--annotator", "prokka", "--dry-run"),
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    assert "--annotator and --bakta-db apply" in result.output
+    # With the core-gene source they are used, so nothing is said.
+    quiet = _runner.invoke(
+        app,
+        [
+            *("run", "-wd", str(tmp_path / "wd2"), "-l", "genus", "-tg", "x"),
+            *("--msa-source", "coregene", "--annotator", "prokka", "--dry-run"),
+        ],
+    )
+    assert quiet.exit_code == 0 and "are ignored" not in quiet.output

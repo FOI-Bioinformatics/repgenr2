@@ -23,6 +23,7 @@ _FAMILIES = (
     "classifiers",
     "polishers",
     "annotators",
+    "coregenes",
 )
 
 

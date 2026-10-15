@@ -9,6 +9,7 @@ from repgenr.annotators.base import registry as annotators
 from repgenr.core.binaries import BinarySpec
 from repgenr.core.errors import MissingBinaryError, PluginError
 from repgenr.core.plugins import ToolCapabilities, preflight
+from repgenr.coregenes.base import registry as coregenes
 from repgenr.dereplicators.base import registry as dereplicators
 from repgenr.snptypers.base import registry as snptypers
 from repgenr.treebuilders.base import registry as treebuilders
@@ -20,6 +21,7 @@ def test_entry_points_discovered() -> None:
     assert {"simple", "snippy", "parsnp", "ska2"} <= set(snptypers.names())
     assert {"iqtree", "fasttree", "raxmlng", "mashtree", "sourmash"} <= set(treebuilders.names())
     assert {"bakta", "prokka"} <= set(annotators.names())
+    assert {"panaroo"} <= set(coregenes.names())
 
 
 def test_unknown_tool_raises() -> None:

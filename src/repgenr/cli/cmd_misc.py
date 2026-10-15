@@ -818,6 +818,7 @@ def list_tools(
     from ..annotators.base import registry as annotators
     from ..assemblers.base import registry as assemblers
     from ..classifiers.base import registry as classifiers
+    from ..coregenes.base import registry as coregenes
     from ..dereplicators.base import registry as dereplicators
     from ..maskers.base import registry as maskers
     from ..polishers.base import registry as polishers
@@ -835,6 +836,7 @@ def list_tools(
         ("classifiers", classifiers),
         ("polishers", polishers),
         ("annotators", annotators),
+        ("coregenes", coregenes),
     ):
         entries = [_tool_label(reg, name) for name in reg.names()]
         typer.echo(f"{label}: {', '.join(entries) or '(none)'}")

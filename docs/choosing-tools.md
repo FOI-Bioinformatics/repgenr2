@@ -175,6 +175,7 @@ alignment-free tree builders.
 |---|---|---|---|
 | Alignment-free | `--treebuilder mashtree` or `sourmash` | Diverse sets, large sets, a quick tree. | Distances compress near identity, so clonal sets resolve poorly. No bootstrap supports. |
 | Whole-genome MSA | `--aligner progressivemauve`, `sibeliaz` or `cactus`, then an MSA tree builder | Small sets of related genomes when a whole-genome alignment is wanted. | Declared limits 500, 2000 and 2000. progressiveMauve about 10 to 22 minutes per build at 20 to 50 genomes. SibeliaZ timed out at 20 genomes in the audit. Cactus needs its container and is for same-species sets. |
+| Core-gene | `--msa-source coregene` after `annotate` (bakta or prokka), with `--coregene panaroo` | A genus or a family, where a supported, model-based tree is wanted and the reference-based routes keep few columns. | Orthologous genes present in `--core-threshold` of the genomes, each aligned with mafft and concatenated; Panaroo's graph cleaning (`--clean-mode`) and entropy filter remove annotation errors and badly aligned genes. Invariant sites kept, no ascertainment correction. Slow at hundreds of genomes (not measured here); the annotation is cached per genome. Within a species a SNP tree draws on far more positions. |
 | Core-SNP | `--msa-source snptype` with `--snptyper simple`, `snippy`, `parsnp` or `ska2` | One species or a clonal set. | `simple`, `snippy` and `parsnp` map every genome to one reference, so the reference biases the result. `simple` maps with minimap2 `-x asm20` and records reference positions a genome does not cover as N, so a divergent outgroup is largely N (its coverage is in the log). `ska2` is reference-free. |
 
 Reference bias. The aligners and the mapping typers project every genome
@@ -384,6 +385,7 @@ against the registered adapters by `tests/unit/test_docs_tool_limits.py`.
 | polisher | racon | unbounded |
 | annotator | bakta | unbounded |
 | annotator | prokka | unbounded |
+| coregene | panaroo | 500 |
 
 These limits count genomes only. They do not model genome size, memory or
 thread count. Aligners and SNP typers declare limits that the scale warnings

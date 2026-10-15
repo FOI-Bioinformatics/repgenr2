@@ -114,6 +114,7 @@ def known_capabilities() -> dict[str, list[ToolCapabilities]]:
         "annotators",
         "assemblers",
         "classifiers",
+        "coregenes",
         "dereplicators",
         "maskers",
         "polishers",

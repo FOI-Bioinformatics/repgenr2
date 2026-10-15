@@ -39,6 +39,7 @@ from ..core.containers import result_env_fragment
 from ..core.context import WorkdirContext
 from ..core.contracts import (
     CLUSTERS_TSV,
+    CORE_GENE_FASTA,
     CORE_SNP_FASTA,
     MSA_FASTA,
     PHYLO_MSA_DIR,
@@ -88,7 +89,7 @@ from ..treebuilders.base import registry as treebuilder_registry
 __all__ = ["PhyloParams", "PhyloBuildParams", "build_tree", "phylo_build", "run", "list_fasta"]
 
 # Keys the phylo stage reads itself; never forwarded to an adapter.
-_STAGE_EXTRA_KEYS = frozenset({"mask", "core_fraction"})
+_STAGE_EXTRA_KEYS = frozenset({"mask", "core_fraction", "core_threshold", "clean_mode", "filtered"})
 
 
 def _core_fraction(extra: Mapping[str, object]) -> float | None:
@@ -105,6 +106,25 @@ def _core_fraction(extra: Mapping[str, object]) -> float | None:
     if not 0 <= value <= 1:
         raise UserInputError(f"--core-fraction must be between 0 and 1, got {raw!r}")
     return value
+
+
+def _core_threshold(extra: Mapping[str, object]) -> float:
+    raw = extra.get("core_threshold", 0.95)
+    try:
+        value = float(str(raw))
+    except ValueError:
+        raise UserInputError(
+            f"--core-threshold must be a number within (0, 1], got {raw!r}"
+        ) from None
+    if not 0.0 < value <= 1.0:
+        raise UserInputError(f"--core-threshold must be within (0, 1], got {raw!r}")
+    return value
+
+
+def _filtered(extra: Mapping[str, object]) -> bool:
+    from ..core.plugins import parse_extra_bool
+
+    return parse_extra_bool(extra, "filtered", True)
 
 
 def _adapter_extra(extra: dict) -> dict:
@@ -143,15 +163,22 @@ def _msa_source_capabilities(params: PhyloParams) -> ToolCapabilities | None:
         from ..snptypers.base import registry as snp_registry
 
         return snp_registry.get(params.snptyper).capabilities
+    if params.msa_source == "coregene":
+        from ..coregenes.base import registry as coregene_registry
+
+        return coregene_registry.get(params.coregene).capabilities
     return None
 
 
 @dataclass
 class PhyloParams:
     treebuilder: str = "iqtree"
-    msa_source: str = "aligner"  # aligner | snptype
+    msa_source: str = "aligner"  # aligner | snptype | coregene
     aligner: str = "progressivemauve"
     snptyper: str = "simple"
+    # The core-gene builder of --msa-source coregene; its settings travel in
+    # extra as core_threshold, clean_mode and filtered.
+    coregene: str = "panaroo"
     all_genomes: bool = False
     no_outgroup: bool = False
     threads: int = 16
@@ -173,6 +200,8 @@ class PhyloDirs:
     # Where the SNP typing pass writes its alignment and stamp (tree/msa/).
     msa_dir: Path
     scratch_dir: Path
+    # The annotate stage's cache, read by --msa-source coregene.
+    annotations_dir: Path | None = None
 
 
 @dataclass
@@ -282,6 +311,8 @@ def _msa_artifact(dirs: PhyloDirs, params: PhyloParams) -> Path:
     """Path the MSA source writes, by source."""
     if params.msa_source == "aligner":
         return dirs.align_dir / MSA_FASTA
+    if params.msa_source == "coregene":
+        return dirs.msa_dir / CORE_GENE_FASTA
     return dirs.msa_dir / CORE_SNP_FASTA
 
 
@@ -290,6 +321,7 @@ def _msa_key(
     outgroup_file: Path | None,
     params: PhyloParams,
     reference: Path | None = None,
+    annotations: str | None = None,
 ) -> str:
     """Hash of everything that determines the MSA, and nothing else.
 
@@ -315,6 +347,18 @@ def _msa_key(
         "inputs": paths_stat_digest(inputs),
         "env": result_env_fragment(),
     }
+    if params.msa_source == "coregene":
+        # Added for this source only, so an aligner or SNP alignment made
+        # before the core-gene route existed keeps its key and is reused.
+        # It holds the builder, its settings and the annotations the pass
+        # read (the index rows carry the GFF digests and the annotator).
+        payload["coregene"] = {
+            "tool": params.coregene,
+            "core_threshold": _core_threshold(params.extra),
+            "clean_mode": str(params.extra.get("clean_mode", "strict")),
+            "filtered": _filtered(params.extra),
+            "annotations": annotations,
+        }
     blob = json.dumps(payload, sort_keys=True, default=str)
     return hashlib.sha256(blob.encode("utf-8")).hexdigest()
 
@@ -385,6 +429,19 @@ def fasta_record_names(path: Path) -> list[str]:
             return names
 
 
+def _annotations_digest(
+    genomes: Sequence[Path], outgroup_file: Path | None, dirs: PhyloDirs, params: PhyloParams
+) -> str | None:
+    """The index digest of the annotations the core-gene pass will read, so a
+    re-annotated genome rebuilds the alignment; None for the other sources."""
+    if params.msa_source != "coregene" or dirs.annotations_dir is None:
+        return None
+    from .coregene import annotated_set
+
+    inputs = list(genomes) + ([outgroup_file] if outgroup_file is not None else [])
+    return annotated_set(dirs.annotations_dir, [record_name(g) for g in inputs]).digest
+
+
 def _msa_with_reuse(
     genomes: list[Path],
     outgroup_file: Path | None,
@@ -398,7 +455,8 @@ def _msa_with_reuse(
     """Build the MSA, or reuse the one a previous run left with the same inputs."""
     choice = _reference_for_source(genomes, outgroup_file, dirs, params, logger, sketch_provider)
     reference = choice.genome if choice is not None else None
-    key = _msa_key(genomes, outgroup_file, params, reference)
+    annotations = _annotations_digest(genomes, outgroup_file, dirs, params)
+    key = _msa_key(genomes, outgroup_file, params, reference, annotations)
     artifact = _msa_artifact(dirs, params)
     if reuse:
         stamp = _read_msa_stamp(artifact, key)
@@ -515,6 +573,8 @@ def _wants_alignment(params: PhyloParams) -> str | None:
         return f"--mask {params.extra['mask']}"
     if params.msa_source == "snptype":
         return "--msa-source snptype"
+    if params.msa_source == "coregene":
+        return "--msa-source coregene"
     return None
 
 
@@ -640,6 +700,8 @@ def build_tree(
         unused = []
         if params.msa_source == "snptype":
             unused.append(f"--msa-source snptype (--snptyper {params.snptyper})")
+        if params.msa_source == "coregene":
+            unused.append(f"--msa-source coregene (--coregene {params.coregene})")
         if str(params.extra.get("mask", "none")) not in ("none", ""):
             unused.append(f"--mask {params.extra['mask']}")
         if _core_fraction(params.extra) is not None:
@@ -705,6 +767,10 @@ def build_tree(
                 "and are inflated",
                 msa,
                 params.snptyper,
+            )
+        elif tree_params.constant_sites is None and params.msa_source == "coregene":
+            logger.info(
+                "Core-gene alignment: invariant sites kept, no ascertainment-bias correction"
             )
         elif tree_params.constant_sites is not None:
             logger.info(
@@ -953,6 +1019,11 @@ class PhyloBuildParams:
     # A sketches/ directory (Nextflow SKETCH) for a builder that compares
     # sourmash sketches; matched to the genomes by record name.
     sketches_dir: Path | None = None
+    # --msa-source coregene: an annotations/ directory with an index, or None
+    # to annotate the inputs here with ``annotator`` (bakta needs ``bakta_db``).
+    annotations_dir: Path | None = None
+    annotator: str = "bakta"
+    bakta_db: str | None = None
 
 
 MIN_TREE_GENOMES = 3
@@ -1000,6 +1071,7 @@ def phylo_build(params: PhyloBuildParams, logger: logging.Logger) -> Path:
         align_dir=params.out_dir / "align",
         msa_dir=params.out_dir / "tree" / PHYLO_MSA_DIR,
         scratch_dir=params.out_dir / "scratch",
+        annotations_dir=_step_annotations(params, genomes, outgroup_file, logger),
     )
     if params.msa_only:
         msa, versions = build_msa(
@@ -1040,6 +1112,69 @@ def phylo_build(params: PhyloBuildParams, logger: logging.Logger) -> Path:
     )
     _write_versions(params.versions_out, outcome.versions)
     return outcome.tree
+
+
+def _annotations_record(
+    ctx: WorkdirContext, params: PhyloParams, names: Sequence[str]
+) -> dict | None:
+    """The annotator and the index digest of the tree's own genomes, so the
+    record describes what the alignment was built from (the same rows the
+    reuse stamp hashes), not whatever else the cache holds."""
+    if params.msa_source != "coregene":
+        return None
+    from .coregene import annotated_set
+
+    try:
+        annotated = annotated_set(ctx.annotations_dir, list(names))
+    except Exception:  # noqa: BLE001 - the record is an annotation, never a failure
+        return None
+    return {"annotator": annotated.annotator, "index_digest": annotated.digest}
+
+
+def _step_annotations(
+    params: PhyloBuildParams,
+    genomes: Sequence[Path],
+    outgroup_file: Path | None,
+    logger: logging.Logger,
+) -> Path | None:
+    """The annotations the step's core-gene pass reads: the given directory,
+    or one it builds under out_dir/annotations by annotating every input."""
+    if params.phylo.msa_source != "coregene" or params.msa is not None:
+        return None
+    if params.annotations_dir is not None:
+        if not params.annotations_dir.is_dir():
+            raise WorkdirError(
+                f"phylo-build: --annotations-dir {params.annotations_dir} is not a directory."
+            )
+        return params.annotations_dir
+    from .annotate import AnnotateBuildParams, annotate_build, index_from_directories
+
+    out = params.out_dir / "annotations"
+    inputs = list(genomes) + ([outgroup_file] if outgroup_file is not None else [])
+    from ..core.annotations import gff_path
+
+    todo = [g for g in inputs if not gff_path(out, record_name(g)).is_file()]
+    logger.info(
+        "Annotating %d of %d genomes with %s under %s (the rest are already there)",
+        len(todo),
+        len(inputs),
+        params.annotator,
+        out,
+    )
+    for genome in todo:
+        annotate_build(
+            AnnotateBuildParams(
+                genome=genome,
+                out_dir=out,
+                tool=params.annotator,
+                bakta_db=params.bakta_db,
+                threads=params.phylo.threads,
+                extra={},
+            ),
+            logger,
+        )
+    index_from_directories(out, params.annotator, logger)
+    return out
 
 
 def _write_versions(versions_out: Path | None, versions: dict[str, str]) -> None:
@@ -1084,6 +1219,7 @@ def run(ctx: WorkdirContext, params: PhyloParams) -> Path:
         align_dir=ctx.align_dir,
         msa_dir=ctx.phylo_msa_dir,
         scratch_dir=ctx.scratch_dir,
+        annotations_dir=ctx.annotations_dir,
     )
     outcome = build_tree(
         genomes,
@@ -1099,6 +1235,10 @@ def run(ctx: WorkdirContext, params: PhyloParams) -> Path:
     )
 
     is_msa = treebuilder_registry.create(outcome.treebuilder).input_kind == InputKind.MSA_FASTA
+    tree_inputs = [record_name(g) for g in genomes]
+    if outgroup_file is not None:
+        tree_inputs.append(record_name(outgroup_file))
+    annotations_record = _annotations_record(ctx, params, tree_inputs) if is_msa else None
     reference_choice = (
         read_reference_choice(
             ctx.phylo_msa_dir if params.msa_source == "snptype" else ctx.align_dir
@@ -1116,6 +1256,19 @@ def run(ctx: WorkdirContext, params: PhyloParams) -> Path:
             "msa_source": params.msa_source if is_msa else None,
             "aligner": params.aligner if is_msa and params.msa_source == "aligner" else None,
             "snptyper": params.snptyper if is_msa and params.msa_source == "snptype" else None,
+            "coregene": params.coregene if is_msa and params.msa_source == "coregene" else None,
+            # The core-gene pass: its settings and the annotations it read.
+            "core_threshold": (
+                _core_threshold(params.extra)
+                if is_msa and params.msa_source == "coregene"
+                else None
+            ),
+            "clean_mode": (
+                str(params.extra.get("clean_mode", "strict"))
+                if is_msa and params.msa_source == "coregene"
+                else None
+            ),
+            "annotations": annotations_record,
             "all_genomes": params.all_genomes,
             "bootstrap": params.bootstrap,
             "outgroup": None if params.no_outgroup else outcome.outgroup_leaf,
@@ -1204,6 +1357,15 @@ def _reference_for_source(
     (a reference-free typer; a name given there is still checked). Resolved
     before the reuse check, so the cached
     alignment is reused only for the same genome."""
+    if params.msa_source == "coregene":
+        # Gene alignments project onto no genome; a name given is still checked.
+        if params.reference and params.reference not in REFERENCE_RULES_ALL:
+            resolve_reference(params.reference, genomes, outgroup_file, logger)
+            logger.info(
+                "The core-gene source uses no reference; --reference %s is not used",
+                params.reference,
+            )
+        return None
     if params.msa_source == "snptype" and not snp_registry_requires_reference(params.snptyper):
         if params.reference and params.reference not in REFERENCE_RULES_ALL:
             # The name is still checked, so a typo is not swallowed silently.
@@ -1316,7 +1478,35 @@ def _build_msa(
         )
         return snp_result.core_snp_fasta, versions
 
-    raise UserInputError(f"Unknown msa-source '{params.msa_source}' (aligner|snptype)")
+    if params.msa_source == "coregene":
+        from ..coregenes.base import CoreGeneParams
+        from .coregene import annotated_set, coregene_core
+
+        if dirs.annotations_dir is None:
+            raise UserInputError(
+                "--msa-source coregene needs the annotations the annotate stage writes; none "
+                "are available on this path."
+            )
+        names = [record_name(g) for g in inputs]
+        annotated = annotated_set(dirs.annotations_dir, names)
+        cg_result, versions = coregene_core(
+            annotated.gffs,
+            dirs.msa_dir,
+            dirs.scratch_dir / "phylo_coregene",
+            CoreGeneParams(
+                threads=params.threads,
+                core_threshold=_core_threshold(params.extra),
+                clean_mode=str(params.extra.get("clean_mode", "strict")),
+                filtered=_filtered(params.extra),
+                extra=_adapter_extra(params.extra),
+            ),
+            params.coregene,
+            logger,
+            warn_extras=False,
+        )
+        return cg_result.alignment, versions
+
+    raise UserInputError(f"Unknown msa-source '{params.msa_source}' (aligner|snptype|coregene)")
 
 
 def _taxonomic_spread(genomes: Sequence[Path]) -> tuple[int, int]:
