@@ -6,6 +6,7 @@ from __future__ import annotations
 import pytest
 
 from repgenr.aligners.base import registry as aligners
+from repgenr.annotators.base import registry as annotators
 from repgenr.assemblers.base import registry as assemblers
 from repgenr.classifiers.base import registry as classifiers
 from repgenr.dereplicators.base import registry as dereplicators
@@ -29,6 +30,7 @@ def _specs():
         assemblers,
         classifiers,
         polishers,
+        annotators,
     ):
         for name in reg.names():
             for spec in reg.get(name).capabilities.required_binaries:

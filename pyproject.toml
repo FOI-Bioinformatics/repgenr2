@@ -73,6 +73,10 @@ snippy = "repgenr.snptypers.snippy:SnippyTyper"
 parsnp = "repgenr.snptypers.parsnp:ParsnpTyper"
 ska2 = "repgenr.snptypers.ska2:Ska2Typer"
 
+[project.entry-points."repgenr.annotators"]
+bakta = "repgenr.annotators.bakta:BaktaAnnotator"
+prokka = "repgenr.annotators.prokka:ProkkaAnnotator"
+
 [project.entry-points."repgenr.maskers"]
 gubbins = "repgenr.maskers.gubbins:GubbinsMasker"
 

@@ -24,6 +24,7 @@ from typer.core import TyperGroup
 from .. import __version__
 from ..core.context import WorkdirContext
 from ..core.contracts import (
+    ANNOTATIONS_TSV,
     CLUSTER_SUMMARY_TSV,
     CLUSTERS_TSV,
     CORE_SNP_FASTA,
@@ -164,6 +165,11 @@ HELP_ROOT_NAME = "Label of the top node. FlexTaxD expects 'root'."
 HELP_REMOVE_OUTGROUP = "Leave the outgroup out of the taxonomy after rooting."
 HELP_INCLUDE_DEREPLICATED = "List redundant genomes under their representative in the taxonomy."
 HELP_COLLAPSE_SUPPORT = "Merge nodes whose support is below this fraction into their parent."
+HELP_ANNOTATOR = "Annotator: bakta (default; needs its database, --bakta-db or BAKTA_DB) or prokka."
+HELP_BAKTA_DB = (
+    "bakta database directory (bakta_db download --output DIR --type light|full); "
+    "BAKTA_DB when unset."
+)
 HELP_COLLAPSE_LENGTH = "Merge nodes whose branch is shorter than this length into their parent."
 HELP_COLLAPSE_DIAMETER = (
     "Merge every clade whose leaf-to-leaf distance is within this value into one node, "
@@ -225,13 +231,14 @@ PANEL_STEPS = "Nextflow data-channel steps"
 COMMAND_PANELS: dict[str, tuple[str, ...]] = {
     PANEL_PIPELINE: ("run", "status"),
     PANEL_ENTRY: ("metadata", "genome", "vmetadata", "vgenome", "ingest", "reads", "assemble"),
-    PANEL_CORE: ("dereplicate", "snptype", "phylo", "tree2tax"),
+    PANEL_CORE: ("dereplicate", "annotate", "snptype", "phylo", "tree2tax"),
     PANEL_INSPECT: ("census", "glance", "cluster-summary", "derep-unpack", "derep-stock", "sketch"),
     PANEL_ENV: ("list-tools", "doctor", "versions"),
     PANEL_STEPS: (
         "genome-fetch",
         "dereplicate-chunk",
         "dereplicate-merge",
+        "annotate-build",
         "phylo-build",
         "tree2tax-relations",
         "assemble-run",
@@ -270,6 +277,39 @@ def _phylo_inputs(ctx: WorkdirContext, params: Any) -> list[Path]:
         ctx.genomes_dir if getattr(params, "all_genomes", False) else ctx.representatives_dir,
         ctx.outgroup_dir,
     ]
+
+
+def _annotate_inputs(ctx: WorkdirContext, params: Any) -> list[Path]:
+    # The genome set and the outgroup; the per-record cache inside the stage
+    # keeps unchanged annotations when the fingerprint changes. The database
+    # is an input too: bakta's version.json identifies it, so a database
+    # updated in place, or a changed BAKTA_DB, reruns the stage instead of
+    # skipping with annotations made against the previous one.
+    inputs = [
+        ctx.genomes_dir if getattr(params, "all_genomes", False) else ctx.representatives_dir,
+        ctx.outgroup_dir,
+    ]
+    db = _annotator_database(params)
+    if db is not None:
+        inputs.append(db / "version.json")
+    return inputs
+
+
+def _annotator_database(params: Any) -> Path | None:
+    """The annotator's database directory, from the flag or its environment
+    variable; None for a tool that needs none or a path that does not resolve."""
+    from ..annotators.base import registry as annotator_registry
+
+    try:
+        annotator = annotator_registry.create(getattr(params, "tool", ""))
+    except Exception:  # noqa: BLE001 - an unknown tool is refused by the stage
+        return None
+    if not annotator.requires_database:
+        return None
+    from ..annotators.bakta import bakta_db_from_env
+
+    raw = getattr(params, "bakta_db", None) or bakta_db_from_env()
+    return Path(raw).expanduser() if raw else None
 
 
 def _metadata_inputs(ctx: WorkdirContext, params: Any) -> list[Path]:
@@ -380,6 +420,7 @@ STAGE_INPUTS: dict[str, Any] = {
     "snptype": lambda ctx, p: [
         ctx.genomes_dir if getattr(p, "all_genomes", False) else ctx.representatives_dir
     ],
+    "annotate": _annotate_inputs,
     "phylo": _phylo_inputs,
     "tree2tax": _tree2tax_inputs,
     # Auxiliary stages: recorded so status shows them and a repeat skips.
@@ -503,6 +544,7 @@ STAGE_DELIVERABLES: dict[str, Any] = {
     "vgenome": lambda ctx, p: _genome_set_deliverables(ctx),
     "dereplicate": _dereplicate_deliverables,
     "snptype": lambda ctx, p: [ctx.snp_dir / CORE_SNP_FASTA],
+    "annotate": lambda ctx, p: [ctx.annotations_dir / ANNOTATIONS_TSV],
     "phylo": lambda ctx, p: [ctx.tree_dir / TREE_NWK],
     "tree2tax": lambda ctx, p: [
         ctx.workdir / TREE2TAX_TSV,

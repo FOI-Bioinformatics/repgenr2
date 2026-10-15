@@ -54,6 +54,10 @@ The stages below shell out to external tools; cite the ones your run uses.
   - [SKA2](https://doi.org/10.1101/gr.279449.124) (split k-mer analysis; Derelle et al. 2024, Genome Research)
   - [Gubbins](https://doi.org/10.1093/nar/gku1196) (recombination masking)
 
+- **Annotation (core-gene route)**
+  - [Bakta](https://doi.org/10.1099/mgen.0.000685) (Schwengers et al. 2021, Microbial Genomics)
+  - [Prokka](https://doi.org/10.1093/bioinformatics/btu153) (Seemann 2014, Bioinformatics)
+
 - **Read assembly (reads chain)**
   - [ENA](https://doi.org/10.1093/nar/gkae975) (sequencing-run discovery and FASTQ files)
   - [SKESA](https://doi.org/10.1186/s13059-018-1540-z)

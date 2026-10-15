@@ -300,6 +300,22 @@ Cluster genomes by ANI and select representatives.
 | `--allow-incomplete` | off | Proceed with a warning when the input genome set is incomplete. |
 | `--keeper` | `quality` | Representative choice per cluster: quality (manifest CheckM values and genome N50), gtdb (a GTDB species representative first, then quality) or tool (adapter's own). |
 
+### annotate
+
+Annotate the genome set once (GFF3 per genome, cached) for the core-gene route.
+
+On this command --tool selects the annotator.
+
+| option | default | description |
+|---|---|---|
+| `-wd`, `--workdir` | required | Working directory. |
+| `--tool` | `bakta` | Annotator: bakta (default; needs its database, --bakta-db or BAKTA_DB) or prokka. |
+| `--all-genomes` | off | Use all genomes, not only the representatives. |
+| `--bakta-db` |  | bakta database directory (bakta_db download --output DIR --type light\|full); BAKTA_DB when unset. |
+| `-t`, `--threads` | `16` | Threads for the external tool (default 16, or the CPU limit when lower). |
+| `--tool-arg` |  | Annotator tuning as key=value (repeatable). |
+| `--allow-incomplete` | off | Proceed with a warning when the input genome set is incomplete. |
+
 ### snptype
 
 Call SNPs and build a core-SNP alignment.
@@ -581,6 +597,21 @@ Dereplicate the union of chunk representatives (gather step).
 | `--reduce` | `none` | Taxonomy-aware reduction after the merge: none, species, or genus (one representative per taxon; taxonomy from --selection-tsv or the filenames). |
 | `--target-reps` | `0` | Target representative count: search --secondary-ani of the merge pass to land near it (0 = off; re-runs the merge per search step). |
 | `--sketches-dir` |  | A sketches/ directory of <record name>.sig.zip files (k=21, 31, 51; scaled=1000) made from these genomes. A sourmash tool reads them instead of sketching; other tools ignore it. |
+| `--versions-out` |  | Write resolved tool versions (YAML fragment) here. |
+
+### annotate-build
+
+Annotate one genome (stateless data-channel step; writes <out>/<name>/<name>.gff3).
+
+| option | default | description |
+|---|---|---|
+| `--genome` | required | Genome FASTA to annotate (gz accepted). |
+| `-o`, `--out` | required | Output directory; the record's files go under <out>/<name>/. |
+| `--record-name` |  | Record name (prefix of the outputs); the genome's by default. |
+| `--tool` | `bakta` | Annotator: bakta (default; needs its database, --bakta-db or BAKTA_DB) or prokka. |
+| `--bakta-db` |  | bakta database directory (bakta_db download --output DIR --type light\|full); BAKTA_DB when unset. |
+| `-t`, `--threads` | `16` | Threads for the external tool (default 16, or the CPU limit when lower). |
+| `--tool-arg` |  | Annotator tuning as key=value. |
 | `--versions-out` |  | Write resolved tool versions (YAML fragment) here. |
 
 ### phylo-build

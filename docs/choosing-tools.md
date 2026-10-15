@@ -382,6 +382,8 @@ against the registered adapters by `tests/unit/test_docs_tool_limits.py`.
 | classifier | sourmash | unbounded |
 | polisher | medaka | unbounded |
 | polisher | racon | unbounded |
+| annotator | bakta | unbounded |
+| annotator | prokka | unbounded |
 
 These limits count genomes only. They do not model genome size, memory or
 thread count. Aligners and SNP typers declare limits that the scale warnings

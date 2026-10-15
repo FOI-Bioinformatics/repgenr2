@@ -14,7 +14,7 @@ from functools import cached_property
 from pathlib import Path
 
 from .config import Config
-from .contracts import PHYLO_MSA_DIR
+from .contracts import ANNOTATIONS_DIR, PHYLO_MSA_DIR
 from .logging import configure_logging
 from .manifest import Manifest
 
@@ -70,6 +70,11 @@ class WorkdirContext:
     def phylo_msa_dir(self) -> Path:
         """Where phylo's own SNP typing pass writes (snp/ is the snptype stage's)."""
         return self.tree_dir / PHYLO_MSA_DIR
+
+    @property
+    def annotations_dir(self) -> Path:
+        """The annotate stage's cache: one directory per record and an index."""
+        return self.workdir / ANNOTATIONS_DIR
 
     @property
     def scratch_dir(self) -> Path:

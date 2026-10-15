@@ -46,6 +46,8 @@ TREE_UNROOTED_NWK = "tree.unrooted.nwk"
 # Under tree/: the alignment phylo's own SNP typing pass (--msa-source snptype)
 # writes, with its reuse stamp. snp/ belongs to the snptype stage.
 PHYLO_MSA_DIR = "msa"
+ANNOTATIONS_DIR = "annotations"
+ANNOTATIONS_TSV = "annotations.tsv"
 TREE2TAX_TSV = "tree2tax.tsv"
 GENOMES_MAP_TSV = "genomes_map.tsv"
 TREE2TAX_NODES_TSV = "tree2tax_nodes.tsv"

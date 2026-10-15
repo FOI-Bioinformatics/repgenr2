@@ -22,6 +22,7 @@ _FAMILIES = (
     "assemblers",
     "classifiers",
     "polishers",
+    "annotators",
 )
 
 

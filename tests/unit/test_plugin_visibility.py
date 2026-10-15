@@ -419,6 +419,7 @@ def _isolated_families(monkeypatch, registry) -> None:
         "assemblers",
         "classifiers",
         "polishers",
+        "annotators",
     ):
         module = importlib.import_module(f"repgenr.{family}.base")
         empty = Registry(f"repgenr.test_empty_{family}")

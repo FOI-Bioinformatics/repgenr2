@@ -815,6 +815,7 @@ def list_tools(
     # line the standard timestamp and level.
     configure_logging(None, level=min(_RUN_STATE["log_level"], logging.WARNING))
     from ..aligners.base import registry as aligners
+    from ..annotators.base import registry as annotators
     from ..assemblers.base import registry as assemblers
     from ..classifiers.base import registry as classifiers
     from ..dereplicators.base import registry as dereplicators
@@ -833,6 +834,7 @@ def list_tools(
         ("assemblers", assemblers),
         ("classifiers", classifiers),
         ("polishers", polishers),
+        ("annotators", annotators),
     ):
         entries = [_tool_label(reg, name) for name in reg.names()]
         typer.echo(f"{label}: {', '.join(entries) or '(none)'}")
