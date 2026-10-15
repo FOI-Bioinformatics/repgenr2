@@ -32,6 +32,8 @@ from .base import (
     HELP_NO_OUTGROUP,
     HELP_NODE_BASENAME,
     HELP_PRIMARY_ANI,
+    HELP_RANK_RED,
+    HELP_RANKS,
     HELP_READS_SKETCH,
     HELP_REFERENCE,
     HELP_REMOVE_OUTGROUP,
@@ -309,6 +311,8 @@ def tree2tax_relations_cmd(
         min=0.0,
         help=HELP_COLLAPSE_DIAMETER,
     ),
+    ranks: bool = typer.Option(False, "--ranks", help=HELP_RANKS),
+    rank_red: str | None = typer.Option(None, "--rank-red", help=HELP_RANK_RED),
 ) -> None:
     """Emit FlexTaxD relations from a tree (stateless data-channel step).
 
@@ -335,6 +339,8 @@ def tree2tax_relations_cmd(
                 collapse_support=collapse_support,
                 collapse_length=collapse_length,
                 collapse_diameter=collapse_diameter,
+                ranks=ranks,
+                rank_red=rank_red,
                 no_outgroup=no_outgroup,
                 keep_root=keep_root,
                 segments=segments,

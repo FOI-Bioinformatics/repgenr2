@@ -23,6 +23,14 @@ All notable changes to RepGenR2 are documented here. The format follows
   `--collapse-length` and refuses a tree without branch lengths; the record
   carries the value and `collapsed_nodes` counts these collapses too; an
   existing workdir reruns `tree2tax` once.
+- `tree2tax --ranks` (also on `tree2tax-relations` and `run`) adds a third
+  column to `tree2tax.tsv`, `strain` on every genome and `no rank` on every
+  internal node, filled on every row as FlexTaxD's reader requires;
+  `--rank-red species=0.95,genus=0.8` names internal nodes by relative
+  evolutionary divergence instead, each rank once per lineage in threshold
+  order, and is refused on a tree without branch lengths or a root. Off by
+  default; the record carries both values. The FlexTaxD contract test reads
+  the column and rejects an empty rank.
 
 ### Documentation
 - `docs/audit/phylo-tree2tax-gap-2026-10.md`: gap analysis of the phylo and

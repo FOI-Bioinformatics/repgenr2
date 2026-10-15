@@ -1618,6 +1618,30 @@ renames the nodes whose minimum or child it was. The tree is also inferred
 anew on each run, so a topology change elsewhere renames the nodes it
 touches. Names are opaque identifiers in either case; the record carries the
 rule, or null when a basename numbered the nodes.
+### A rank column
+
+`tree2tax.tsv` has two columns by default, since FlexTaxD reads a third as
+the rank of every row and an empty value inherits the previous row's.
+`--ranks` (on `tree2tax`, `tree2tax-relations` and `run`) adds the column
+with `strain` on every genome and `no rank` on every internal node, so a
+FlexTaxD database built from it carries a rank column with no taxonomic
+rank asserted.
+`--rank-red species=0.95,genus=0.8` names internal nodes by their relative
+evolutionary divergence (the `red` column of `tree2tax_nodes.tsv`): a node
+takes the rank with the largest threshold not above its RED, and `no rank`
+when an ancestor already holds that rank, so each named rank appears at most
+once on a root-to-leaf path and in threshold order; a lineage may lack a
+rank when no ancestor reaches that band. The thresholds are the
+user's and the example is illustrative: GTDB's median RED values (Parks et
+al. 2018; about 0.92 for genus and 0.77 for family, with species delimited
+by ANI rather than RED) come from a bacteria-wide tree and transfer to a
+genus-level mashtree or SNP tree only loosely, so inspect
+`tree2tax_nodes.tsv` before settling on values. The record stores the bands
+sorted by threshold. `run` checks the bands, `--ranks` and the rooting
+before any stage runs. It needs branch lengths and a rooted tree (an outgroup,
+`phylo --root midpoint`, or `--keep-root` on the step) and is refused
+otherwise. The record carries `ranks` and `rank_red`, so changing them
+re-runs the stage.
 
 ## Nextflow
 

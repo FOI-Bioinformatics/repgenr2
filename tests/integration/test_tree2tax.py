@@ -297,3 +297,37 @@ def test_tree2tax_records_the_naming_rule(workdir: Path) -> None:
     assert ctx.config.stages["tree2tax"].params["naming"] == "lca"
     tree2tax_run(ctx, Tree2taxParams(node_basename="N", naming="lca"))
     assert ctx.config.stages["tree2tax"].params["naming"] is None
+
+
+def test_tree2tax_ranks_reach_the_table_and_the_record(workdir: Path) -> None:
+    _setup(workdir, with_outgroup=True)
+    ctx = WorkdirContext(workdir, create=True)
+    t2t, _ = tree2tax_run(ctx, Tree2taxParams(ranks=True))
+    lines = t2t.read_text().splitlines()
+    assert lines[0] == "child\tparent\trank"
+    ranks = {ln.split("\t")[0]: ln.split("\t")[2] for ln in lines[1:]}
+    assert ranks["Fam_Gen_sp_GCA_000001.1"] == "strain"
+    assert {r for n, r in ranks.items() if not n.startswith("Fam_")} == {"no rank"}
+    params = ctx.config.stages["tree2tax"].params
+    assert params["ranks"] is True and params["rank_red"] is None
+    # Without --ranks the table has two columns and the record says so.
+    t2t, _ = tree2tax_run(ctx, Tree2taxParams())
+    assert t2t.read_text().splitlines()[0] == "child\tparent"
+    assert ctx.config.stages["tree2tax"].params["ranks"] is False
+
+
+def test_tree2tax_rank_red_is_recorded_normalised_and_reruns_on_change(workdir: Path) -> None:
+    _setup(workdir, with_outgroup=True)
+    (workdir / "tree" / "tree.nwk").write_text(
+        "((Fam_Gen_sp_GCA_000001.1:1,Fam_Gen_sp_GCA_000002.1:1):1,"
+        "(Fam_Gen_sp_GCA_000003.1:1,Fam_Gen_sp_GCA_000004.1:1):1);\n"
+    )
+    ctx = WorkdirContext(workdir, create=True)
+    tree2tax_run(ctx, Tree2taxParams(ranks=True, rank_red="species=0.9, genus=0.5"))
+    assert ctx.config.stages["tree2tax"].params["rank_red"] == "genus=0.5,species=0.9"
+    first = (workdir / "tree2tax.tsv").read_text()
+    # The ingroup ancestor sits at RED 0.18 and the pair at 0.73: a band of
+    # 0.1 moves the genus up one node.
+    tree2tax_run(ctx, Tree2taxParams(ranks=True, rank_red="genus=0.1"))
+    assert ctx.config.stages["tree2tax"].params["rank_red"] == "genus=0.1"
+    assert (workdir / "tree2tax.tsv").read_text() != first

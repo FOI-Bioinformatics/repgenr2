@@ -164,6 +164,15 @@ HELP_COLLAPSE_DIAMETER = (
     "Merge every clade whose leaf-to-leaf distance is within this value into one node, "
     "keeping the fewest such clades (in the tree's own units)."
 )
+HELP_RANKS = (
+    "Add a rank column to tree2tax.tsv: 'strain' on every genome, 'no rank' on internal "
+    "nodes unless --rank-red names them."
+)
+HELP_RANK_RED = (
+    "With --ranks: NAME=RED bands, e.g. species=0.95,genus=0.8; an internal node takes the "
+    "rank with the largest threshold not above its relative evolutionary divergence, once "
+    "per lineage. Needs branch lengths and a rooted tree."
+)
 HELP_VERSIONS_OUT = "Write resolved tool versions (YAML fragment) here."
 HELP_SKETCHES_DIR = (
     "A sketches/ directory of <record name>.sig.zip files (k=21, 31, 51; scaled=1000) "

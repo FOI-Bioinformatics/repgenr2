@@ -5,7 +5,8 @@ master (read 2026-10): the relation file needs a header holding ``parent``
 and ``child`` in either order; nodes are keyed by their label, so an empty
 label or a label under two parents corrupts the tree; a third column is read
 as a rank and an empty one silently inherits the previous row's, so the file
-carries two columns only; the top node must be ``root``, which FlexTaxD
+carries two columns unless ``--ranks`` fills a third on every row; the top
+node must be ``root``, which FlexTaxD
 pre-creates and validates from; the genome map has no header and two columns
 whose second names a node of the relation file. The map check is stricter
 than FlexTaxD, which accepts a third column (a reference flag) and only warns
@@ -44,8 +45,11 @@ def _mirror_read(t2t: Path, gmap: Path) -> tuple[dict[str, str], list[tuple[str,
         if data[0] == "":
             continue  # FlexTaxD skips an empty row
         # A row with an empty field loses that column when FlexTaxD strips
-        # it, so two fields after the strip also means no empty label.
-        assert len(data) == 2, f"a third column would be read as a rank: {row!r}"
+        # it, so the field count after the strip also means no empty label
+        # (an empty rank would silently inherit the previous row's).
+        assert len(data) == len(headers), f"a field is empty or missing: {row!r}"
+        if len(headers) == 3:
+            assert headers[2] == "rank" and data[2] != ""
         child, parent = (data[1], data[0]) if swap else (data[0], data[1])
         assert parent_of.setdefault(child, parent) == parent, f"{child!r} under two parents"
     nodes = set(parent_of) | set(parent_of.values())
@@ -99,8 +103,18 @@ def test_default_output_passes_the_mirror_reader(tmp_path: Path) -> None:
         {"collapse_support": 0.5},
         {"collapse_length": 0.15, "node_basename": "C", "remove_outgroup": True},
         {"outgroup_leaf": None},
+        {"ranks": True},
+        {"ranks": True, "rank_red": "species=0.95,genus=0.8", "remove_outgroup": True},
     ],
-    ids=["basename", "remove-outgroup", "collapse-support", "collapse-both", "no-outgroup"],
+    ids=[
+        "basename",
+        "remove-outgroup",
+        "collapse-support",
+        "collapse-both",
+        "no-outgroup",
+        "ranks",
+        "rank-red",
+    ],
 )
 def test_every_option_keeps_the_contract(tmp_path: Path, kwargs: dict) -> None:
     t2t, gmap = _emit(tmp_path, **kwargs)
@@ -112,4 +126,15 @@ def test_another_top_name_breaks_the_contract_and_is_announced(tmp_path: Path, c
         t2t, gmap = _emit(tmp_path, root_name="top")
     assert any("FlexTaxD" in r.getMessage() for r in caplog.records)
     with pytest.raises(AssertionError, match="validates from"):
+        _mirror_read(t2t, gmap)
+
+
+def test_the_mirror_reader_rejects_an_empty_rank(tmp_path: Path) -> None:
+    t2t, gmap = _emit(tmp_path, ranks=True)
+    lines = t2t.read_text().splitlines()
+    assert lines[0] == "child\tparent\trank"
+    assert all(len(ln.split("\t")) == 3 and ln.split("\t")[2] for ln in lines[1:])
+    broken = lines[:1] + [lines[1].rsplit("\t", 1)[0] + "\t"] + lines[2:]
+    t2t.write_text("\n".join(broken) + "\n")
+    with pytest.raises(AssertionError, match="empty or missing"):
         _mirror_read(t2t, gmap)

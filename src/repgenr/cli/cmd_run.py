@@ -47,6 +47,8 @@ from .base import (
     HELP_PRE_SECONDARY_ANI,
     HELP_PRIMARY_ANI,
     HELP_PROCESS_SIZE,
+    HELP_RANK_RED,
+    HELP_RANKS,
     HELP_REDUCE,
     HELP_REFERENCE,
     HELP_REMOVE_OUTGROUP,
@@ -147,6 +149,26 @@ def _preflight_tools(
             from ..maskers.base import registry as masker_registry
 
             masker_registry.create(mask).preflight()
+
+
+def _check_rank_request(
+    ranks: bool, rank_red: str | None, no_outgroup: bool, root: str | None
+) -> None:
+    """Refuse a --rank-red request that tree2tax would refuse after every
+    other stage has run: malformed bands, bands without --ranks, or a tree
+    that will have no root to measure RED from."""
+    from ..stages.tree2tax import _parse_rank_red
+    from ..tree.rooting import ROOT_MIDPOINT
+
+    bands = _parse_rank_red(rank_red)
+    if not bands:
+        return
+    if not ranks:
+        raise UserInputError("--rank-red needs --ranks")
+    if no_outgroup and root != ROOT_MIDPOINT:
+        raise UserInputError(
+            "--rank-red needs a rooted tree: with --no-outgroup add --root midpoint."
+        )
 
 
 def _warn_collapse_without_supports(
@@ -361,6 +383,8 @@ def run(
         min=0.0,
         help=HELP_COLLAPSE_DIAMETER,
     ),
+    ranks: bool = typer.Option(False, "--ranks", help=HELP_RANKS),
+    rank_red: str | None = typer.Option(None, "--rank-red", help=HELP_RANK_RED),
     # --- common ---
     threads: int = typer.Option(
         DEFAULT_THREADS, "-t", "--threads", min=1, help=HELP_THREADS, callback=resolve_threads
@@ -416,6 +440,7 @@ def run(
             **_virus_extra(derep_tool, viral),
         }
         _warn_collapse_without_supports(treebuilder, collapse_support, collapse_length, logger)
+        _check_rank_request(ranks, rank_red, no_outgroup, root)
         # With --with-snptype and the aligner MSA source, --mask belongs to the
         # standalone snptype stage only; phylo would reject it there.
         mask_for_phylo = mask != "none" and (msa_source == "snptype" or not with_snptype)
@@ -675,6 +700,8 @@ def run(
             collapse_support=collapse_support,
             collapse_length=collapse_length,
             collapse_diameter=collapse_diameter,
+            ranks=ranks,
+            rank_red=rank_red,
         ),
     )
 
