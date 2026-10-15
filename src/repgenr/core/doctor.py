@@ -400,7 +400,18 @@ def _check_tree2tax_pair(workdir: Path, config: Config) -> list[Finding]:
                     "repgenr --force tree2tax.",
                 )
             ]
-        return [Finding("ok", "tree2tax", "deliverable pair present and consistent")]
+        findings = [Finding("ok", "tree2tax", "deliverable pair present and consistent")]
+        top = _tree2tax_top_node(t2t)
+        if top != "root":
+            findings.append(
+                Finding(
+                    "warn",
+                    "tree2tax",
+                    f"the top node is named {top!r}; FlexTaxD validates its tree from a "
+                    "node named 'root' (tree2tax --root-name).",
+                )
+            )
+        return findings
     if t2t.exists() == gmap.exists():
         return []
     missing = GENOMES_MAP_TSV if t2t.exists() else TREE2TAX_TSV
@@ -412,6 +423,14 @@ def _check_tree2tax_pair(workdir: Path, config: Config) -> list[Finding]:
             "exists; the tree2tax stage likely crashed mid-write -- re-run it.",
         )
     ]
+
+
+def _tree2tax_top_node(t2t: Path) -> str:
+    """The one node of a consistent tree2tax.tsv that is never a child."""
+    edges = [line.split("\t") for line in t2t.read_text(encoding="utf-8").splitlines()[1:] if line]
+    children = {child for child, _ in edges}
+    (top,) = {parent for _, parent in edges} - children
+    return top
 
 
 def _tree2tax_tables_problem(t2t: Path, gmap: Path) -> str | None:
@@ -428,7 +447,16 @@ def _tree2tax_tables_problem(t2t: Path, gmap: Path) -> str | None:
     edges = [line.split("\t") for line in lines[1:] if line]
     if not edges or any(len(edge) != 2 for edge in edges):
         return f"{TREE2TAX_TSV} holds no edges, or a row without two columns"
+    if any(not child or not parent for child, parent in edges):
+        return f"{TREE2TAX_TSV} holds an empty node name"
+    parent_of: dict[str, str] = {}
+    for child, parent in edges:
+        if parent_of.setdefault(child, parent) != parent:
+            return f"{TREE2TAX_TSV} lists {child!r} under two parents"
     parents = {parent for _, parent in edges}
+    tops = sorted(parents - set(parent_of))
+    if len(tops) != 1:
+        return f"{TREE2TAX_TSV} has {len(tops)} top nodes instead of one ({_examples(tops)})"
     leaves = {child for child, _ in edges if child not in parents}
     rows = [line.split("\t") for line in gmap.read_text(encoding="utf-8").splitlines() if line]
     if not rows or any(len(row) != 2 for row in rows):

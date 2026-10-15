@@ -351,3 +351,47 @@ def test_tree2tax_workdir_flags(run_repgenr, wd: Path) -> None:
     assert len((wd / GENOMES_MAP_TSV).read_text(encoding="utf-8").splitlines()) == len(reps)
     params = Config.load(wd).stages["tree2tax"].params
     assert params.get("collapse_support") == 0.5
+
+
+@pytest.mark.requires_binary("mashtree", "flextaxd")
+def test_tree2tax_tables_import_into_flextaxd(run_repgenr, wd: Path, tmp_path: Path) -> None:
+    """The real FlexTaxD builds a database from the two tables, validates it
+    and dumps every leaf back out; tests/unit/test_flextaxd_contract.py
+    mirrors its reader where the binary is absent. FlexTaxD writes a logs/
+    directory into its working directory, so it runs inside tmp_path."""
+    import subprocess
+
+    run_repgenr("phylo", "-wd", wd, "--treebuilder", "mashtree", "-t", "4")
+    run_repgenr("tree2tax", "-wd", wd)
+    db = tmp_path / "taxonomy.ftd"
+
+    def flextaxd(*args: str, check: bool = True) -> str:
+        done = subprocess.run(
+            ["flextaxd", "--database", str(db), *args],
+            cwd=tmp_path,
+            capture_output=True,
+            text=True,
+            check=check,
+        )
+        return done.stdout + done.stderr
+
+    flextaxd(
+        "--taxonomy_file",
+        str(wd / TREE2TAX_TSV),
+        "--genomeid2taxid",
+        str(wd / GENOMES_MAP_TSV),
+        "--force",
+    )
+    # FlexTaxD exits 1 after a validation whether it passed or failed; the
+    # verdict is in its output.
+    assert "Validation OK!" in flextaxd("--validate", check=False)
+    out = tmp_path / "dump"
+    out.mkdir()
+    flextaxd("--dump", "--dump_descriptions", "--outdir", str(out))
+    names = {
+        line.split("\t")[2].strip()
+        for line in (out / "names.dmp").read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    }
+    reps = {p.stem for p in (wd / "derep" / "representatives").iterdir()}
+    assert reps <= names

@@ -98,7 +98,7 @@ is 'vmetadata --source'. --platform filters the sequencing platform with
 | `--aligner-arg` |  | Aligner tuning as key=value (repeatable), e.g. kmer=15 (sibeliaz) or seed_weight=11 (progressivemauve). |
 | `--mask` | `none` | Recombination masking of the SNP alignment: none, gubbins. Needs --msa-source snptype or --with-snptype. |
 | `--node-basename` |  | Name internal nodes <basename><n>. Without it, internal nodes receive names derived from a hash of their descendant leaves. |
-| `--root-name` | `root` | Label of the top node. |
+| `--root-name` | `root` | Label of the top node. FlexTaxD expects 'root'. |
 | `--remove-outgroup` | off | Leave the outgroup out of the taxonomy after rooting. |
 | `--include-dereplicated`, `--no-include-dereplicated` | on | List redundant genomes under their representative in the taxonomy. |
 | `--collapse-support` |  | Merge nodes whose support is below this fraction into their parent. |
@@ -342,7 +342,7 @@ Emit FlexTaxD-compatible taxonomy relations from the tree.
 |---|---|---|
 | `-wd`, `--workdir` | required | Working directory. |
 | `--node-basename` |  | Name internal nodes <basename><n>. Without it, internal nodes receive names derived from a hash of their descendant leaves. |
-| `--root-name` | `root` | Label of the top node. |
+| `--root-name` | `root` | Label of the top node. FlexTaxD expects 'root'. |
 | `--remove-outgroup` | off | Leave the outgroup out of the taxonomy after rooting. |
 | `--include-dereplicated`, `--no-include-dereplicated` | on | List redundant genomes under their representative in the taxonomy. |
 | `--collapse-support` |  | Merge nodes whose support is below this fraction into their parent. |
@@ -614,7 +614,7 @@ Here --outgroup-accession takes a file that names the accession, not the accessi
 | `--outgroup-dir` |  | Directory holding the outgroup genome file(s). |
 | `--outgroup-accession` |  | File naming the outgroup accession. |
 | `--node-basename` |  | Name internal nodes <basename><n>. Without it, internal nodes receive names derived from a hash of their descendant leaves. |
-| `--root-name` | `root` | Label of the top node. |
+| `--root-name` | `root` | Label of the top node. FlexTaxD expects 'root'. |
 | `--remove-outgroup` | off | Leave the outgroup out of the taxonomy after rooting. |
 | `--no-outgroup` | off | Do not root with an outgroup. |
 | `--keep-root` | off | Keep the tree's own root (a tree from phylo --root midpoint) instead of rerooting on the outgroup; the outgroup is still read for --remove-outgroup. |

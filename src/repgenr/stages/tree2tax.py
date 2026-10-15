@@ -82,6 +82,10 @@ class Tree2taxStepParams:
     keep_root: bool = False
 
 
+# FlexTaxD pre-creates a node with this name and validates the tree from it.
+FLEXTAXD_ROOT = "root"
+
+
 def _emit_relations(
     tree_text: str,
     outgroup_leaf: str | None,
@@ -131,6 +135,13 @@ def _emit_relations(
         tree, support=collapse_support, length=collapse_length, logger=logger
     )
 
+    if root_name != FLEXTAXD_ROOT:
+        logger.warning(
+            "The top node is named %r; FlexTaxD starts its own tree at a node named %r, "
+            "so a taxonomy with another top name does not validate there",
+            root_name,
+            FLEXTAXD_ROOT,
+        )
     leaves_nodes = _name_nodes(tree, node_basename)
     _build_paths(tree, leaves_nodes, root_name)
 
