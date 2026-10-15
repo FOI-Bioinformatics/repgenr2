@@ -8,8 +8,8 @@ current practice in bacterial phylogenomics and tree-based taxonomy, lists the
 gaps that remain after the earlier audits, and orders the remedies by value
 and effort. Evidence is cited by file and line of that commit, by earlier audit
 records, or by the external source named in the text. Measurements come from
-`docs/verification.md` and `docs/audit/scaling-audit.md`; none were repeated
-for this record.
+`docs/verification.md`, `docs/audit/scaling-audit.md` and the changelog; none
+were repeated for this record.
 
 ## Sources
 
@@ -54,16 +54,18 @@ three-genome refusal, leaf checks and trailing-text handling (#207, #212, #213).
    because the latter aborts if any invariant column remains, which masking
    can produce.
 2. **IQ-TREE model not settable.** `iqtree.py:18-26` accepts no extras and
-   passes no `-m`, so IQ-TREE runs ModelFinder on every call. On the genus
-   alignment that accounted for a large part of the 76 minutes inside Gubbins
-   (`verification.md`, Gubbins section). RAxML-NG already accepts `model=`.
+   passes no `-m`, so IQ-TREE runs ModelFinder on every call, a model
+   selection pass that a user who knows the model cannot skip. RAxML-NG
+   already accepts `model=`.
 3. **The simple typer's core is not a core.** `simple.py:383-412` keeps any
    column in which two bases are observed, however many genomes have no call
-   there. The ska2 genus run shows the consequence: outgroup 54 % missing, 32
-   zero-length branches, median ultrafast bootstrap 75. Current practice
-   applies an explicit completeness threshold; in the comparison cited by the
-   Core-SNP-filter documentation, a 95 % soft core retained about ten times
-   more informative sites than a strict core on a 10 000-genome alignment.
+   there, so a position covered in two genomes out of seventy enters the
+   alignment, and nothing reports how much of the alignment each genome
+   lacks. Current practice applies an explicit completeness threshold (the
+   `ska2` typer already does, through `ska align --min-freq`, default 0.9);
+   the Core-SNP-filter documentation argues that a soft core with a stated
+   threshold such as 95 % keeps many more informative sites than a strict
+   core on large, diverse collections.
 4. **Reference choice is alphabetical.** `stages/phylo.py:1081-1105` takes the
    first genome and warns. Test B4 measured the effect: swapping the reference
    changed 72 of 94 splits (normalised RF 0.77) on 50 genomes with
@@ -72,9 +74,10 @@ three-genome refusal, leaf checks and trailing-text handling (#207, #212, #213).
    sketch distance; the workdir already holds sketches at k = 21, 31 and 51.
 5. **Gubbins defaults are slow and fragile.** Its internal IQ-TREE pass took 76
    of 87 minutes where the rapidnj and fasttree pair took 6; the run ended in
-   a bus error at 39 % variable sites, and the threshold observed on subsets
-   is near 13 %. Gubbins' own recombination-aware tree is deleted and the
-   final tree is rebuilt from the polymorphic sites (`stages/snptype.py:148-166`).
+   a bus error at 39 % variable sites, and on subsets the failure appears
+   between 8 % and 13 %. Gubbins' own recombination-aware tree is not kept:
+   only the filtered alignment is copied out, and the final tree is rebuilt
+   from the polymorphic sites (`stages/snptype.py:148-166`).
 6. **No validation before work starts.** `phylo_split_msa = true` with the
    shipped `--treebuilder mashtree` fails at run time (`phylo.py:417-422`,
    `nextflow/nextflow.config`); `auto` counts the ingroup only and ignores the
@@ -83,15 +86,16 @@ three-genome refusal, leaf checks and trailing-text handling (#207, #212, #213).
 7. **Newick label sanitising is not injective.** `tree/newick.py:74-79` maps
    every reserved character to an underscore, so two labels can merge.
 8. **Scale envelope.** The sourmash builder uses neighbour joining in pure
-   Python (cubic, refused above 5000); mashtree itself fails near 9500
-   genomes; there is no VeryFastTree adapter; declared limits were never
-   benchmarked except for sourmash (SibeliaZ is declared at 2000 and timed out
-   at 20).
+   Python (cubic, refused above 5000); there is no VeryFastTree adapter; the
+   declared limits rest on few measurements (mashtree measured to 5000
+   against a declared 10 000; SibeliaZ declared at 2000 and timed out at 20;
+   sourmash measured).
 9. **ska2 is used only as a typer.** `ska distance` and the 2025 `ska lo` mode
    are unused, and the divergence warning runs on the aligner path only.
 10. **Stale statements.** `verification.md` (simple typer filling with the
     reference base, fixed in #232), `scaling-audit.md` (simple typer called
-    serial), `usage.md` (an `snptype` run before `phylo` is not reused),
+    serial), the `usage.md` SNP-phylogeny example (it runs `snptype` before
+    `phylo` as if the two were chained, which they are not),
     `nextflow/nextflow.config` (progressiveMauve called all-pairs).
 
 ## Gaps in tree2tax
@@ -99,14 +103,19 @@ three-genome refusal, leaf checks and trailing-text handling (#207, #212, #213).
 11. **The FlexTaxD contract is untested.** The reader in FlexTaxD's GitHub
     master requires a header containing `parent` and `child` in either order
     (repgenr's `child` then `parent` is accepted), reads an optional third
-    column as a rank that must be non-empty on every row, reads the genome map
-    without a header, keys nodes by label so identical labels merge, and
-    pre-creates a node named `root` from which its tree validation starts.
-    The PyPI 0.1.5 wheel differs: it skips the first line of the genome map as
-    a header, so repgenr's headerless `genomes_map.tsv` loses its first genome,
-    and it treats a third column as another node. No document names the
-    FlexTaxD version repgenr targets, and `--root-name` other than `root`
-    produces a tree FlexTaxD does not treat as rooted.
+    column as a rank, reads the genome map without a header, keys nodes by
+    label so identical labels merge, and pre-creates a node named `root` from
+    which its tree validation starts. A rank column must be non-empty on
+    every row: each row is stripped before it is split, so an empty third
+    field disappears and the row silently inherits the previous row's rank.
+    The PyPI 0.1.5 wheel is not a usable target: it skips the first line of
+    the genome map as a header, so repgenr's headerless `genomes_map.tsv`
+    loses its first genome; it treats a third column as another node; and its
+    reader passes the parent column as the child of every link, whichever
+    header order the file has, so the stored tree is inverted. No document
+    names the FlexTaxD version repgenr targets, and with `--root-name` other
+    than `root` the tree hangs off a node FlexTaxD does not start from, which
+    its optional `--validate` reports as a node-count mismatch.
 12. **Quadratic naming and path building.** Each internal node hashes all of
     its descendant leaves (`stages/tree2tax.py:436-438`) and each leaf walks its
     full ancestor chain (`:442-463`); ladder-shaped trees from clonal data make
@@ -165,7 +174,7 @@ classes.
 | C1 | Count invariant A, C, G, T columns in the existing scan; carry them in `SnpResult`, a sidecar next to the alignment and the stamp; `TreeParams.constant_sites`; IQ-TREE `-fconst`, RAxML-NG `ASC_STAM`; FastTree logs once; `asc=lewis` opt-in only | 1 | M |
 | C2 | `--core-fraction`: a column is kept when the called-base fraction meets it; per-genome missing fraction logged; the same rule feeds the C1 counts. This round keeps the current behaviour as the default and logs what 0.95 would retain; the default changes in a later release | 3 | M |
 | C3 | `--reference medoid\|first\|NAME`; the medoid from the workdir sketches with a deterministic tie-break; fallback to `first` with the present warning when sketches are absent; choice and score in the record and the stamp key | 4 | M |
-| C4 | Gubbins `--first-tree-builder rapidnj --first-model JC` by default, overridable through `gubbins_args=`; masking refused above a named variable-site ceiling or when more than one species is present, with an override; Gubbins' own tree published as `tree/gubbins_tree.nwk` | 5 | S-M |
+| C4 | Gubbins `--first-tree-builder rapidnj --first-model JC` by default, through the existing `gubbins_first_tree_builder=` extra, which still overrides it; masking refused above a named variable-site ceiling or when more than one species is present, with an override; Gubbins' own tree published as `tree/gubbins_tree.nwk` | 5 | S-M |
 
 ### Batch D: taxonomy quality
 
@@ -180,7 +189,7 @@ classes.
 
 | Id | Change | Gap | Effort |
 |---|---|---|---|
-| E1 | A phylo benchmark sweep (genome count by builder by MSA source) and reconciliation of every declared limit; mashtree lowered below its failure point; SibeliaZ marked unsupported at scale | 8 | M |
+| E1 | A phylo benchmark sweep (genome count by builder by MSA source) and reconciliation of every declared limit; mashtree's declared 10 000 reconciled with the measured 5000; SibeliaZ marked unsupported at scale | 8 | M |
 | E2 | A VeryFastTree adapter modelled on FastTree, with `-gamma` as an extra for both | 8 | S |
 | E3 | rapidNJ or decenttree behind the Python neighbour joining, used when the binary is present | 8 | M |
 | E4 | `ska distance` as a distance source, `lo=true` as a typer extra, the divergence warning on the ska2 path; documented as within-species only | 9 | M |
@@ -192,9 +201,9 @@ classes.
   different question from a whole-genome SNP tree. A separate stage would be
   the place, if ever required.
 - `+ASC_LEWIS` as a default: IQ-TREE aborts under it when any invariant column
-  remains, which masking can produce. `-fconst` from counts the pipeline
-  already has is both safer and more accurate. An external `snp-sites -C`
-  pass is unnecessary for the same reason.
+  remains, which masking can produce. `-fconst` uses counts the pipeline
+  already has and cannot abort on a remaining invariant column. An external
+  `snp-sites -C` pass is unnecessary for the same reason.
 - Further work on SibeliaZ or cactus at scale: the measurements do not support
   their declared limits, and the engineering would be large. Correcting the
   limits is the useful step.

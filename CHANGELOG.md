@@ -9,7 +9,7 @@ All notable changes to RepGenR2 are documented here. The format follows
 ### Documentation
 - `docs/audit/phylo-tree2tax-gap-2026-10.md`: gap analysis of the phylo and
   tree2tax stages against current practice, with the improvement ladder
-  (batches A to E) that the following changes implement.
+  that later entries implement (batches A to D; E deferred).
 
 ### Changed
 - The project is renamed RepGenR2 and lives at
