@@ -602,9 +602,8 @@ Here --outgroup-accession takes a file that names the accession, not the accessi
 | `--no-outgroup` | off | Do not root with an outgroup. |
 | `--root` |  | How phylo roots tree/tree.nwk: outgroup (on the branch to the outgroup), midpoint, or none (as the tree builder wrote it). Default: outgroup when an outgroup is staged and --no-outgroup is not given, else none. |
 | `-B`, `--bootstrap` | `0` | Bootstrap replicates. 0 turns bootstrapping off; IQ-TREE needs at least 1000 when it is on. |
-| `--reference` |  | Reference genome: a filename, 'medoid' (the default: the genome nearest to all others by sketch ANI, when the genomes are sketched and sourmash is at hand) or 'first'. |
 | `--core-fraction` |  | Keep only the variable columns where at least this fraction of the genomes have a called base (a soft core, 0 to 1). Unset keeps every variable column and the log reports what 0.95 would keep. |
-| `--reference` |  | Reference genome filename. |
+| `--reference` |  | Reference genome: a filename, 'medoid' (the default: the genome nearest to all others by sketch ANI, when the genomes are sketched and sourmash is at hand) or 'first'. |
 | `--aligner-arg` |  | Aligner, SNP typer, masker or tree builder tuning as key=value (repeatable), e.g. kmer=15 (sibeliaz), seed_weight=11 (progressivemauve) or model=GTR+G (iqtree, raxmlng). |
 | `-t`, `--threads` | `16` | Threads for the external tool (default 16, or the CPU limit when lower). |
 | `--mask` | `none` | Recombination masking of the SNP alignment: none, gubbins. Needs --msa-source snptype. |

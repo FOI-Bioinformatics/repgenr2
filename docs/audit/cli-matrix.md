@@ -3,8 +3,7 @@
 Generated from `tests/audit/cli_matrix.yaml` by `scripts/render_cli_matrix.py`;
 `tests/unit/test_cli_matrix.py` keeps both in step with the command tree.
 
-30 commands, 363 flags (363 with a live test or an n/a reason, 0 pending).
-30 commands, 358 flags (358 with a live test or an n/a reason, 0 pending).
+30 commands, 367 flags (367 with a live test or an n/a reason, 0 pending).
 
 ## Global flags
 

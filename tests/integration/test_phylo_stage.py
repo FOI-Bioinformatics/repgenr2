@@ -1512,6 +1512,56 @@ def test_a_reference_free_typer_writes_no_note(
     # A note from an earlier mapping-typer run must not survive a reference-free one.
     ctx.phylo_msa_dir.mkdir(parents=True, exist_ok=True)
     (ctx.phylo_msa_dir / "reference.txt").write_text("stale.fasta\tfirst\t\n")
+    run(
+        ctx,
+        PhyloParams(
+            treebuilder="faketree_msa",
+            msa_source="snptype",
+            snptyper="fakesnptyper",  # requires_reference = False, like ska2
+            no_outgroup=True,
+        ),
+    )
+    assert not (ctx.phylo_msa_dir / "reference.txt").exists()
+    params = ctx.config.stages["phylo"].params
+    assert params["reference_genome"] is None and params["reference_rule"] is None
+
+
+def test_the_record_carries_the_reference_rule(workdir: Path, fake_phylo_tools) -> None:
+    _make_reps(workdir)
+    ctx = WorkdirContext(workdir, create=True)
+    base = dict(treebuilder="faketree_msa", msa_source="aligner", aligner="fakealigner")
+    run(ctx, PhyloParams(no_outgroup=True, **base))
+    assert ctx.config.stages["phylo"].params["reference_rule"] == "first-fallback"
+    run(ctx, PhyloParams(no_outgroup=True, reference="first", **base))
+    assert ctx.config.stages["phylo"].params["reference_rule"] == "first"
+    run(ctx, PhyloParams(no_outgroup=True, reference="Fam_gen_sp_GCA_000002.fasta", **base))
+    params = ctx.config.stages["phylo"].params
+    assert params["reference_rule"] == "name"
+    assert params["reference_genome"] == "Fam_gen_sp_GCA_000002.fasta"
+
+
+def test_a_changed_reference_rebuilds_the_cached_alignment(
+    workdir: Path, fake_phylo_tools, monkeypatch
+) -> None:
+    _make_reps(workdir)
+    ctx = WorkdirContext(workdir, create=True)
+    calls: list[Path | None] = []
+    original = _FakeAligner.align
+
+    def counting(self, genomes, reference, out_dir, params, logger):
+        calls.append(reference)
+        return original(self, genomes, reference, out_dir, params, logger)
+
+    monkeypatch.setattr(_FakeAligner, "align", counting)
+    base = dict(treebuilder="faketree_msa", msa_source="aligner", aligner="fakealigner")
+    run(ctx, PhyloParams(no_outgroup=True, **base))
+    run(ctx, PhyloParams(no_outgroup=True, **base))
+    assert len(calls) == 1  # same reference: the alignment is reused
+    run(ctx, PhyloParams(no_outgroup=True, reference="Fam_gen_sp_GCA_000003.fasta", **base))
+    assert len(calls) == 2 and calls[1].name == "Fam_gen_sp_GCA_000003.fasta"
+    assert (ctx.align_dir / "reference.txt").read_text().startswith("Fam_gen_sp_GCA_000003.fasta\t")
+
+
 def test_core_fraction_reaches_the_typing_pass_and_the_key(workdir: Path) -> None:
     from repgenr.core.errors import UserInputError
     from repgenr.stages.phylo import _core_fraction, _msa_key
@@ -1580,49 +1630,6 @@ def test_core_fraction_filters_the_typing_pass_core(
         PhyloParams(
             treebuilder="faketree_msa",
             msa_source="snptype",
-            snptyper="fakesnptyper",  # requires_reference = False, like ska2
-            no_outgroup=True,
-        ),
-    )
-    assert not (ctx.phylo_msa_dir / "reference.txt").exists()
-    params = ctx.config.stages["phylo"].params
-    assert params["reference_genome"] is None and params["reference_rule"] is None
-
-
-def test_the_record_carries_the_reference_rule(workdir: Path, fake_phylo_tools) -> None:
-    _make_reps(workdir)
-    ctx = WorkdirContext(workdir, create=True)
-    base = dict(treebuilder="faketree_msa", msa_source="aligner", aligner="fakealigner")
-    run(ctx, PhyloParams(no_outgroup=True, **base))
-    assert ctx.config.stages["phylo"].params["reference_rule"] == "first-fallback"
-    run(ctx, PhyloParams(no_outgroup=True, reference="first", **base))
-    assert ctx.config.stages["phylo"].params["reference_rule"] == "first"
-    run(ctx, PhyloParams(no_outgroup=True, reference="Fam_gen_sp_GCA_000002.fasta", **base))
-    params = ctx.config.stages["phylo"].params
-    assert params["reference_rule"] == "name"
-    assert params["reference_genome"] == "Fam_gen_sp_GCA_000002.fasta"
-
-
-def test_a_changed_reference_rebuilds_the_cached_alignment(
-    workdir: Path, fake_phylo_tools, monkeypatch
-) -> None:
-    _make_reps(workdir)
-    ctx = WorkdirContext(workdir, create=True)
-    calls: list[Path | None] = []
-    original = _FakeAligner.align
-
-    def counting(self, genomes, reference, out_dir, params, logger):
-        calls.append(reference)
-        return original(self, genomes, reference, out_dir, params, logger)
-
-    monkeypatch.setattr(_FakeAligner, "align", counting)
-    base = dict(treebuilder="faketree_msa", msa_source="aligner", aligner="fakealigner")
-    run(ctx, PhyloParams(no_outgroup=True, **base))
-    run(ctx, PhyloParams(no_outgroup=True, **base))
-    assert len(calls) == 1  # same reference: the alignment is reused
-    run(ctx, PhyloParams(no_outgroup=True, reference="Fam_gen_sp_GCA_000003.fasta", **base))
-    assert len(calls) == 2 and calls[1].name == "Fam_gen_sp_GCA_000003.fasta"
-    assert (ctx.align_dir / "reference.txt").read_text().startswith("Fam_gen_sp_GCA_000003.fasta\t")
             snptyper="gappyfull",
             no_outgroup=True,
             extra={"core_fraction": 0.95},
