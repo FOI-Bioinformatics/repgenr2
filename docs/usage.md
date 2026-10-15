@@ -1462,7 +1462,7 @@ genome. The core-gene route that reads these annotations is below.
 `phylo --msa-source coregene` builds the tree from a concatenated alignment
 of the core genes instead of a reference-based SNP alignment or a
 whole-genome alignment: the genomes are annotated (the `annotate` stage,
-above), Panaroo (`--coregene panaroo`, the one builder so far) clusters the
+above), Panaroo (`--coregene panaroo`, the default) clusters the
 genes into a pangenome, cleans annotation
 errors from the graph (`--clean-mode strict`, the default, `moderate` or
 `sensitive`), aligns every gene present in at least `--core-threshold` of
@@ -1509,6 +1509,24 @@ limit of 500 genomes is not measured here, and neither is its runtime; the
 clustering and the per-gene alignments are the slow parts, after the
 annotation. The data-channel step `phylo-build --msa-source
 coregene` reads `--annotations-dir` or annotates its inputs itself.
+
+`--coregene ppanggolin` is the alternative for divergent or large sets.
+PPanGGOLiN clusters the proteins with MMseqs2 at 80% identity over 80% of
+their length (`--aligner-arg identity=` and `coverage=`), partitions the
+pangenome graph, and concatenates the DNA alignments of the selected
+families. The selection defaults to the soft core at `--core-threshold`,
+so the gene set means the same as with Panaroo; `partition=core` takes the
+strict core and `partition=persistent` the tool's statistical partition,
+which does not shrink as genomes are added but needs a set of some size
+(PPanGGOLiN warns below 15 genomes, and on three it placed every family in
+it). Families with more than one copy in a genome are left out by default
+(`single_copy=false` keeps them), since the concatenation would otherwise
+replace that genome's copy with gaps. `--clean-mode` and `filtered=` are
+Panaroo's and have no effect here. On 24 complete Wolbachia genomes, where
+Panaroo at its defaults found no gene in 95% of them, PPanGGOLiN selected
+398 single-copy families and the whole route, IQ-TREE included, took under
+four minutes (see [verification.md](verification.md)). Its declared limit
+of 5000 genomes is not measured here.
 
 ### SNP typing and masking
 

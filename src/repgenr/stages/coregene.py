@@ -22,7 +22,7 @@ from pathlib import Path
 from ..core.annotations import AnnotationRecord, gff_path, index_digest, read_index
 from ..core.contracts import CORE_GENE_FASTA, CORE_GENE_STATS, PANGENOME_DIR, atomic_path
 from ..core.errors import UserInputError, WorkdirError
-from ..core.plugins import scale_warning, warn_unconsumed_extras
+from ..core.plugins import scale_warning, warn_ignored_params, warn_unconsumed_extras
 from ..core.process import remove_tree
 from ..coregenes.base import CoreGeneParams, CoreGeneResult
 from ..coregenes.base import registry as coregene_registry
@@ -109,6 +109,7 @@ def coregene_core(
         warn_unconsumed_extras(
             builder.capabilities, params.extra, logger, family="Core-gene builder"
         )
+    warn_ignored_params(builder.capabilities, params, logger, family="Core-gene builder")
     versions = builder.preflight()
     remove_tree(scratch)
     scratch.mkdir(parents=True, exist_ok=True)
@@ -158,12 +159,20 @@ def coregene_core(
         "alignment_length": length,
         "genomes": genomes,
         "core_threshold": params.core_threshold,
-        # The identity of the builder's clustering pass, when it has one and the
-        # user set it; it governs how many genes cluster at all.
-        "clustering_identity": params.extra.get("threshold"),
-        "clean_mode": params.clean_mode,
-        "filtered": params.filtered,
+        # The identity the builder clustered genes at; it governs how many
+        # genes cluster at all.
+        "clustering_identity": (
+            result.clustering_identity
+            if result.clustering_identity is not None
+            else params.extra.get("threshold")
+        ),
     }
+    # Settings the builder does not read are left out rather than recorded as
+    # if they had shaped the result (Panaroo's cleaning under PPanGGOLiN).
+    ignored = builder.capabilities.ignored_params
+    for key in ("clean_mode", "filtered"):
+        if key not in ignored:
+            stats[key] = getattr(params, key)
     with atomic_path(msa_dir / CORE_GENE_STATS) as tmp:
         tmp.write_text(json.dumps(stats, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     logger.info(

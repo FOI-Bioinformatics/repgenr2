@@ -79,6 +79,7 @@ prokka = "repgenr.annotators.prokka:ProkkaAnnotator"
 
 [project.entry-points."repgenr.coregenes"]
 panaroo = "repgenr.coregenes.panaroo:PanarooBuilder"
+ppanggolin = "repgenr.coregenes.ppanggolin:PPanGGOLiNBuilder"
 
 [project.entry-points."repgenr.maskers"]
 gubbins = "repgenr.maskers.gubbins:GubbinsMasker"

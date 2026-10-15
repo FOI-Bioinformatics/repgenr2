@@ -290,3 +290,36 @@ def test_the_gene_count_falls_back_and_then_gives_up(tmp_path: Path, monkeypatch
     assert any("before the entropy filter" in r.getMessage() for r in caplog.records)
     (out / "core_alignment_header.embl").unlink()
     assert mod._core_genes(out / "core_alignment_header.embl", out, _LOG) is None
+
+
+class _IgnoringBuilder(_FakeBuilder):
+    """A builder without Panaroo's cleaning or entropy filter, like ppanggolin."""
+
+    capabilities = registry.get("ppanggolin").capabilities
+
+    def call(self, gffs, out_dir, params, logger) -> CoreGeneResult:
+        result = super().call(gffs, out_dir, params, logger)
+        result.clustering_identity = 0.8
+        return result
+
+
+def test_settings_a_builder_ignores_warn_and_stay_out_of_the_stats(
+    tmp_path: Path, register_tool, caplog
+) -> None:
+    from repgenr.core.contracts import CORE_GENE_STATS
+
+    register_tool(registry, "fakeign", _IgnoringBuilder)
+    with caplog.at_level(logging.WARNING, logger=_LOG.name):
+        coregene_core(
+            _gffs(tmp_path),
+            tmp_path / "msa",
+            tmp_path / "scratch",
+            CoreGeneParams(clean_mode="sensitive"),
+            "fakeign",
+            _LOG,
+        )
+    assert "does not use clean_mode" in caplog.text
+    stats = json.loads((tmp_path / "msa" / CORE_GENE_STATS).read_text(encoding="utf-8"))
+    assert "clean_mode" not in stats and "filtered" not in stats
+    # The identity the builder reports wins over an extra it does not read.
+    assert stats["clustering_identity"] == 0.8
