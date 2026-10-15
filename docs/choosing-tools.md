@@ -216,14 +216,20 @@ multi-threaded RAxML build when given more than one thread; see
 |---|---|---|---|---|
 | `iqtree` | MSA | Declared 500. Poor beyond that. Without `--aligner-arg model=...` it runs ModelFinder first; `model=GTR+G` skips that pass. With a SNP alignment the constant-site counts are passed as `-fconst`; `asc=lewis` selects `+ASC` instead. | Good on both diverse and clonal sets. Use at least 1000 ultrafast bootstrap replicates for supports; without `-B` the tree has none, and the stage says so. | Roots on the outgroup. |
 | `raxmlng` | MSA | Declared 1000. Slow beyond that. | Supports from its own bootstrap procedure. With a SNP alignment the constant-site counts go on the model as `+ASC_STAM`; `asc=lewis` selects `+ASC_LEWIS` instead. | Roots on the outgroup. |
-| `fasttree` | MSA | Declared 5000. Good to about 5000. | Approximate. Weaker resolution on clonal sets. | Unrooted. |
+| `fasttree` | MSA | Declared 5000. Good to about 5000. `--aligner-arg gamma=true` rescales the branch lengths under the Gamma20 likelihood. | Approximate. Weaker resolution on clonal sets. | Unrooted. |
+| `veryfasttree` | MSA | Declared 20000, not measured here; the same algorithm as `fasttree` with multi-core and vectorised arithmetic. `auto` picks it above 5000 leaves when an alignment is requested and never below, since `fasttree`'s tighter limit wins there; without an alignment request `auto` stays with the alignment-free builders once the set exceeds the aligner's limit. `-threads` follows `-t`; `--aligner-arg gamma=true` and `--aligner-arg double_precision=true` are extras. | As `fasttree`. | Unrooted. |
 | `mashtree` | Genomes | Declared 10000. 53 min and 7.6 GB measured at 5000. | Poor on clonal sets. No supports. | Unrooted. |
 | `sourmash` | Genomes | Declared 2000. The joining step runs rapidNJ when installed (`nj=auto`), else a cubic Python step refused above 5000. | Poor on clonal sets. No supports. | Unrooted. |
 
 `--treebuilder auto` picks the builder whose declared scale fits the leaf
 count, the outgroup included. When `--msa-source snptype` or `--mask` is
 given, the choice is made among the builders that consume an alignment, so
-the request is honoured rather than dropped.
+the request is honoured rather than dropped. When nothing asks for an
+alignment and the leaf count exceeds the selected aligner's declared limit
+(500 for the default `progressivemauve`), the choice is made among the
+alignment-free builders, since a builder that needs an alignment would make
+that aligner run on a set past its scale; the log names the aligner and its
+limit when this applies.
 
 The stage adds the outgroup to the input and passes it to builders that can
 root. Whatever the builder, `phylo` then roots `tree/tree.nwk` itself
@@ -326,6 +332,10 @@ auto` (dereplicate) and `--treebuilder auto` (phylo) use it as follows:
    `progressivemauve`, `simple`, `skesa`, `shovill`, `flye`, `medaka`,
    `racon`), then alphabetically.
 4. If nothing fits, choose the tool with the largest limit.
+5. For `--treebuilder auto` only: when no alignment was requested (no
+   `--msa-source snptype`, `--mask` or `--msa`) and the leaf count exceeds
+   the selected aligner's limit, steps 1 to 4 run over the alignment-free
+   builders alone.
 
 The default for `--tool` on `dereplicate` is `skder`, not `auto`. With `auto`
 and all tools available, `drep` (limit 2000) would be preferred for up to 2000
@@ -357,6 +367,7 @@ against the registered adapters by `tests/unit/test_docs_tool_limits.py`.
 | snptyper | snippy | 1000 |
 | masker | gubbins | unbounded |
 | treebuilder | fasttree | 5000 |
+| treebuilder | veryfasttree | 20000 |
 | treebuilder | iqtree | 500 |
 | treebuilder | mashtree | 10000 |
 | treebuilder | raxmlng | 1000 |
@@ -383,7 +394,7 @@ or give it to its tool alone with `--bin-dir TOOL=DIR` (see
 
 | Environment | Tools |
 |---|---|
-| `repgenr` (`envs/core.yml`) | skder, galah, sourmash, drep, sibeliaz, simple, ska2, iqtree, fasttree, raxmlng, skesa, shovill, flye, medaka, racon, and `datasets` for the downloads |
+| `repgenr` (`envs/core.yml`) | skder, galah, sourmash, drep, sibeliaz, simple, ska2, iqtree, fasttree, veryfasttree, raxmlng, skesa, shovill, flye, medaka, racon, and `datasets` for the downloads |
 | `repgenr-gubbins` | gubbins |
 | `repgenr-mashtree` | mashtree |
 | `repgenr-snippy` | snippy |

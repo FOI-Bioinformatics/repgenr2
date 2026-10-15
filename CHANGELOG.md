@@ -15,6 +15,12 @@ All notable changes to RepGenR2 are documented here. The format follows
   branch lengths are set to zero as before. The hard refusal above 5000
   leaves now applies only to the Python step; the declared limit of 2000
   stays until the dense compare is measured. `envs/core.yml` adds rapidnj.
+- `--treebuilder veryfasttree`: VeryFastTree 4 (FastTree-2 reimplemented
+  for many cores and vector units), the same `-nt -gtr` run and `-boot`
+  supports as `fasttree`, with `-threads` from `-t`, and `gamma=true` or
+  `double_precision=true` as extras. Declared limit 20000 leaves, not
+  measured here. `fasttree` takes `gamma=true` too. Container
+  `veryfasttree:4.0.5`; `envs/core.yml` adds the package.
 - `tree2tax --naming lca` (also on `tree2tax-relations` and `run`) names an
   internal node by a hash of the smallest leaf label under each of its
   children, the set whose last common ancestor it is, so a genome added with
@@ -62,6 +68,14 @@ All notable changes to RepGenR2 are documented here. The format follows
   that later entries implement (batches A to D; E deferred).
 
 ### Changed
+- `--treebuilder auto` without an alignment request (no `--msa-source
+  snptype`, `--mask` or `--msa`) now chooses among the alignment-free
+  builders once the leaf count exceeds the selected aligner's declared limit
+  (500 for the default `progressivemauve`). Between 501 and 5000 leaves it
+  used to pick `raxmlng`, `sourmash` or `fasttree`, which made the aligner
+  run past its scale; it now picks `sourmash` or `mashtree` there, and
+  `mashtree` rather than `veryfasttree` above 10000. The log names the
+  aligner and its limit when the rule applies.
 - `--reference` on `phylo`, `phylo-build`, `snptype` and `run` takes a
   genome filename, `medoid` or `first`. The default is now `medoid`: the
   genome with the largest summed sketch ANI to the others, computed from the

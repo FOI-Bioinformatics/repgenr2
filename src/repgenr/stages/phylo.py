@@ -4,7 +4,7 @@ Three orthogonal choices:
   * genome set    -- dereplicated representatives (default) or all genomes
   * MSA source    -- a whole-genome aligner OR a SNP typer's core-SNP alignment
                      (skipped entirely for alignment-free tree builders)
-  * tree builder  -- iqtree / fasttree / raxmlng (MSA) or mashtree / sourmash
+  * tree builder  -- iqtree / fasttree / veryfasttree / raxmlng (MSA) or mashtree / sourmash
                      (alignment-free)
 
 The outgroup genome is added to the input set here and passed to builders that
@@ -27,7 +27,7 @@ import mmap
 import os
 import re
 import shutil
-from collections.abc import Mapping, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -487,6 +487,14 @@ def build_msa(
     )
 
 
+def _aligner_limit(name: str) -> int | None:
+    """The declared genome limit of aligner ``name`` (None when unbounded or unknown)."""
+    try:
+        return aligner_registry.get(name).capabilities.recommended_max_genomes
+    except (PluginError, KeyError):
+        return None
+
+
 def _msa_builder_names() -> list[str]:
     """Registered tree builders that consume an alignment."""
     names = []
@@ -528,13 +536,23 @@ def _resolve_treebuilder(
     treebuilder = params.treebuilder
     if treebuilder == "auto":
         wants = alignment_given or _wants_alignment(params)
-        allowed = _msa_builder_names() if wants else None
+        allowed: Collection[str] | None = _msa_builder_names() if wants else None
+        note = f" among builders that consume an alignment ({wants})" if wants else ""
+        if not wants:
+            # Nothing asked for an alignment, so a builder that needs one would
+            # make the aligner run first; past the aligner's own scale that is
+            # not a choice `auto` should make on the user's behalf.
+            aligner_limit = _aligner_limit(params.aligner)
+            if aligner_limit is not None and n_genomes > aligner_limit:
+                msa_names = set(_msa_builder_names())
+                allowed = [n for n in treebuilder_registry.names() if n not in msa_names]
+                note = (
+                    f" among alignment-free builders (aligner '{params.aligner}' is tuned "
+                    f"for <={aligner_limit} genomes)"
+                )
         treebuilder = auto_select(treebuilder_registry, n_genomes, allowed) or "iqtree"
         logger.info(
-            "Auto-selected tree builder '%s' for %d genomes%s",
-            treebuilder,
-            n_genomes,
-            f" among builders that consume an alignment ({wants})" if wants else "",
+            "Auto-selected tree builder '%s' for %d genomes%s", treebuilder, n_genomes, note
         )
         return treebuilder
     warn = scale_warning(treebuilder_registry, treebuilder, n_genomes)

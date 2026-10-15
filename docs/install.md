@@ -270,6 +270,7 @@ the `envs/` files, and the environment that holds each tool is listed in
 | Masker | gubbins | `gubbins` | yes | `gubbins:3.4.3` | a multi-threaded RAxML build for more than one thread (see [usage.md](usage.md#snp-typing-and-masking)) |
 | Tree builder | iqtree | `iqtree` | yes | `iqtree:3.1.3` | none |
 | Tree builder | fasttree | `fasttree` | yes | `fasttree:2.2.0` | none |
+| Tree builder | veryfasttree | `veryfasttree` | yes | `veryfasttree:4.0.5` | none |
 | Tree builder | raxmlng | `raxml-ng` | yes | `raxml-ng:2.0.3` | none |
 | Tree builder | mashtree | `mashtree` | yes | `mashtree:1.4.6` | none |
 | Tree builder | sourmash | `sourmash` | yes | `sourmash:4.9.4` | `rapidnj` for the joining step; without it more than 5000 leaves are refused (optional; `rapidnj:2.3.3` under a container backend) |

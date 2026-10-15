@@ -91,6 +91,7 @@ racon = "repgenr.polishers.racon:RaconPolisher"
 [project.entry-points."repgenr.treebuilders"]
 iqtree = "repgenr.treebuilders.iqtree:IqtreeBuilder"
 fasttree = "repgenr.treebuilders.fasttree:FasttreeBuilder"
+veryfasttree = "repgenr.treebuilders.veryfasttree:VeryFastTreeBuilder"
 raxmlng = "repgenr.treebuilders.raxmlng:RaxmlNgBuilder"
 mashtree = "repgenr.treebuilders.mashtree:MashtreeBuilder"
 sourmash = "repgenr.treebuilders.sourmash:SourmashBuilder"
