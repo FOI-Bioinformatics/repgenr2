@@ -19,6 +19,7 @@ process TREE2TAX {
     output:
     tuple val(meta), path("tree2tax.tsv")   , emit: tree2tax
     tuple val(meta), path("genomes_map.tsv"), emit: genomes_map
+    tuple val(meta), path("tree2tax_nodes.tsv"), emit: nodes
     path "versions.yml"                     , emit: versions
 
     when:
@@ -53,6 +54,7 @@ process TREE2TAX {
         leaf=\$(basename \$f | sed 's/\\.[^.]*\$//')
         printf '%s\\troot\\n' "\$leaf" >> tree2tax.tsv
     done
+    printf 'node\\tparent\\tn_leaves\\tdepth\\tbranch_length\\tsupport\\tred\\tlineage\\n' > tree2tax_nodes.tsv
     : > genomes_map.tsv
     for f in ${reps_dir}/representatives/*; do
         leaf=\$(basename \$f | sed 's/\\.[^.]*\$//')

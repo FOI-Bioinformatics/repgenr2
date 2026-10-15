@@ -158,21 +158,20 @@ def _emit_relations(
             root_name,
             FLEXTAXD_ROOT,
         )
-    # Supports sit on the internal labels, which naming replaces.
+    # Supports sit on the internal labels, which naming replaces; written as
+    # fractions, as --collapse-support reads them.
     supports = {
         id(n): _parse_support(n.label) for n in tree.internal_nodes() if n is not tree.seed_node
     }
+    if any(v is not None and v > 1.0 for v in supports.values()):
+        supports = {k: (None if v is None else v / 100.0) for k, v in supports.items()}
     leaves = _name_nodes(tree, node_basename)
     tree.seed_node.label = root_name
 
     write_tree2tax(out_tree2tax, _edges(tree))
     write_genomes_map(out_map, _genome_map(leaves, redundant, segments))
     if out_nodes is not None:
-        rooted = (
-            keep_root
-            or (outgroup_leaf is not None and not remove_outgroup)
-            or (outgroup_leaf is not None)
-        )
+        rooted = keep_root or outgroup_leaf is not None
         write_node_table(
             out_nodes, _node_rows(tree, supports, rooted=rooted, lineage=lineage or {})
         )
@@ -214,6 +213,12 @@ def _node_rows(
             mean_tip[id(node)] = total / n_leaves[id(node)]
     depth: dict[int, float] = {id(tree.seed_node): 0.0}
     red: dict[int, float] = {id(tree.seed_node): 0.0}
+    # Under --remove-outgroup the root keeps a single child, the ingroup's
+    # most recent common ancestor; RED is measured from there, as GTDB does.
+    origin = tree.seed_node
+    if origin.num_child_nodes() == 1:
+        origin = origin.child_nodes()[0]
+        red[id(origin)] = 0.0
     rows: list[NodeRow] = []
     for node in tree.preorder_node_iter():
         parent = node.parent_node
@@ -225,12 +230,22 @@ def _node_rows(
             b = float(node.edge.length)
             d = depth[id(parent)] + b
             depth[id(node)] = d
-            if node.is_leaf():
+            if node is origin:
+                r = 0.0
+            elif node.is_leaf():
                 r = 1.0
             else:
-                u = mean_tip[id(parent)]
-                r = red[id(parent)] + (b / u) * (1.0 - red[id(parent)]) if u > 0 else 1.0
-                r = min(r, 1.0)
+                # Parks et al. 2018, as PhyloRank computes it: a is the branch
+                # to the parent, b the mean distance from this node to its
+                # own leaves; a zero-length clade sits at its parent's value.
+                a, mean_below = max(b, 0.0), mean_tip[id(node)]
+                parent_red = red[id(parent)]
+                r = (
+                    parent_red + (a / (a + mean_below)) * (1.0 - parent_red)
+                    if a + mean_below > 0
+                    else parent_red
+                )
+                r = min(max(r, parent_red), 1.0)
             red[id(node)] = r
         elif parent is None and measured:
             d, r = 0.0, 0.0
@@ -618,7 +633,8 @@ def _leaf_lineages(ctx: WorkdirContext) -> dict[str, str]:
     out: dict[str, str] = {}
     try:
         records = ctx.manifest.all_genomes(include_outgroup=True)
-    except Exception:  # noqa: BLE001 - the table is an annotation, never a failure
+    except Exception as exc:  # noqa: BLE001 - the table is an annotation, never a failure
+        ctx.logger.warning("Lineages left out of the node table: %s", exc)
         return out
     for rec in records:
         if rec.family or rec.genus or rec.species:

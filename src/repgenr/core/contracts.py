@@ -563,11 +563,13 @@ class NodeRow:
     ``depth`` is the path length from the root, ``branch_length`` the edge to
     the parent, ``support`` the builder's value on the node (None for leaves
     and trees without supports), ``red`` the relative evolutionary divergence
-    of Parks et al. (2018): 0 at the root, 1 at every leaf, and for an inner
-    node red(parent) + d/u * (1 - red(parent)) with d its branch length and u
-    the mean distance from its parent to the parent's leaves. None where the
-    tree has no branch lengths or no meaningful root. ``lineage`` is the
-    family;genus;species of a leaf's genome when the manifest holds it.
+    of Parks et al. (2018): 0 at the root (the ingroup's common ancestor
+    when the outgroup was removed), 1 at every leaf, and for an inner node
+    red(parent) + a/(a + b) * (1 - red(parent)) with a its branch length and
+    b the mean distance from the node to its own leaves, as PhyloRank
+    computes it. None where the tree has no branch lengths or no meaningful
+    root. ``support`` is a fraction. ``lineage`` is the family;genus;species
+    of a leaf's genome when the manifest holds it.
     """
 
     node: str
@@ -596,6 +598,12 @@ def _na(value: float | None, digits: int) -> str:
     return "NA" if value is None else f"{value:.{digits}f}"
 
 
+def _g(value: float | None) -> str:
+    # Six significant digits: branch lengths of clonal core-SNP trees sit
+    # near 1e-6 and must not print as 0.000000.
+    return "NA" if value is None else f"{value:.6g}"
+
+
 def write_node_table(path: Path, rows: list[NodeRow]) -> None:
     """Write the node annotation table beside tree2tax.tsv (not read by FlexTaxD)."""
     with atomic_replace(path, newline="") as fo:
@@ -607,8 +615,8 @@ def write_node_table(path: Path, rows: list[NodeRow]) -> None:
                     r.node,
                     r.parent or "",
                     r.n_leaves,
-                    _na(r.depth, 6),
-                    _na(r.branch_length, 6),
+                    _g(r.depth),
+                    _g(r.branch_length),
                     _na(r.support, 4),
                     _na(r.red, 4),
                     r.lineage or "",

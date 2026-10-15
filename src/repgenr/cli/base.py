@@ -33,6 +33,7 @@ from ..core.contracts import (
     READS_TSV,
     SEGMENTS_TSV,
     SELECTION_TSV,
+    TREE2TAX_NODES_TSV,
     TREE2TAX_TSV,
     TREE_NWK,
     list_fasta,
@@ -477,7 +478,11 @@ STAGE_DELIVERABLES: dict[str, Any] = {
     "dereplicate": _dereplicate_deliverables,
     "snptype": lambda ctx, p: [ctx.snp_dir / CORE_SNP_FASTA],
     "phylo": lambda ctx, p: [ctx.tree_dir / TREE_NWK],
-    "tree2tax": lambda ctx, p: [ctx.workdir / TREE2TAX_TSV, ctx.workdir / GENOMES_MAP_TSV],
+    "tree2tax": lambda ctx, p: [
+        ctx.workdir / TREE2TAX_TSV,
+        ctx.workdir / GENOMES_MAP_TSV,
+        ctx.workdir / TREE2TAX_NODES_TSV,
+    ],
     # glance's plots are absent when no similarity falls within the plot
     # bounds, so only the dendrogram is checked (a tool that returns none is
     # warned about and reruns each time).

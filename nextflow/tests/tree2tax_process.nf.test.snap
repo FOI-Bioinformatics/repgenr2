@@ -21,6 +21,15 @@
                     ]
                 ],
                 "2": [
+                    [
+                        {
+                            "id": "test",
+                            "mode": "bacterial"
+                        },
+                        "tree2tax_nodes.tsv:md5,72677b8e601b5eda7f22c6cb35b01cb4"
+                    ]
+                ],
+                "3": [
                     "versions.yml:md5,d41d8cd98f00b204e9800998ecf8427e"
                 ],
                 "genomes_map": [
@@ -30,6 +39,15 @@
                             "mode": "bacterial"
                         },
                         "genomes_map.tsv:md5,d5a08fe8c03f9205358e612647e15bc9"
+                    ]
+                ],
+                "nodes": [
+                    [
+                        {
+                            "id": "test",
+                            "mode": "bacterial"
+                        },
+                        "tree2tax_nodes.tsv:md5,72677b8e601b5eda7f22c6cb35b01cb4"
                     ]
                 ],
                 "tree2tax": [
@@ -46,10 +64,10 @@
                 ]
             }
         ],
-        "timestamp": "2026-09-06T08:28:24.416822",
+        "timestamp": "2026-10-15T11:27:41.696197",
         "meta": {
             "nf-test": "0.9.5",
-            "nextflow": "26.04.6"
+            "nextflow": "26.04.7"
         }
     }
 }
