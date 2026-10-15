@@ -12,6 +12,19 @@ All notable changes to RepGenR2 are documented here. The format follows
   that later entries implement (batches A to D; E deferred).
 
 ### Changed
+- `--mask gubbins`: unless `gubbins_first_tree_builder` is given, the first
+  iteration uses rapidnj with the JC model when rapidnj is available, and the
+  resolved builder thereafter; Gubbins' own final tree is kept as
+  `masker_tree.nwk` beside the masked alignment. Masking is refused when more
+  than 12% of the columns are variable (`gubbins_divergence_limit=FRACTION`
+  moves the limit) or when the genome names span more than one species;
+  `gubbins_force=true` runs it anyway, with a warning. The species check
+  reads only names whose last token is an accession, so a user's own
+  four-token names are not taken for taxonomy, and it runs before SNP typing
+  together with the check of `gubbins_divergence_limit`. Alignments shorter
+  than 1000 columns are not judged.
+  `gubbins_force=true` runs it anyway. Alignments shorter than 1000 columns
+  are not judged.
 - `tree2tax` writes `tree2tax_nodes.tsv` beside its two tables: one row per
   node with its parent, leaf count, depth, branch length, support (as a
   fraction), relative evolutionary divergence (Parks et al. 2018, computed as

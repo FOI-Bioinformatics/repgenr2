@@ -174,7 +174,7 @@ classes.
 | C1 | Count invariant A, C, G, T columns in the existing scan; carry them in `SnpResult`, a sidecar next to the alignment and the stamp; `TreeParams.constant_sites`; IQ-TREE `-fconst`, RAxML-NG `ASC_STAM`; FastTree logs once; `asc=lewis` opt-in only | 1 | M |
 | C2 | `--core-fraction`: a column is kept when the called-base fraction meets it; per-genome missing fraction logged; the same rule feeds the C1 counts. This round keeps the current behaviour as the default and logs what 0.95 would retain; the default changes in a later release | 3 | M |
 | C3 | `--reference medoid\|first\|NAME`; the medoid from the workdir sketches with a deterministic tie-break; fallback to `first` with the present warning when sketches are absent; choice and score in the record and the stamp key | 4 | M |
-| C4 | Gubbins `--first-tree-builder rapidnj --first-model JC` by default, through the existing `gubbins_first_tree_builder=` extra, which still overrides it; masking refused above a named variable-site ceiling or when more than one species is present, with an override; Gubbins' own tree published as `tree/gubbins_tree.nwk` | 5 | S-M |
+| C4 | Gubbins `--first-tree-builder rapidnj --first-model JC` by default, through the existing `gubbins_first_tree_builder=` extra, which still overrides it; masking refused above a named variable-site ceiling or when more than one species is present, with an override; Gubbins' own tree kept as `masker_tree.nwk` beside the masked alignment | 5 | S-M |
 
 ### Batch D: taxonomy quality
 
