@@ -2475,6 +2475,9 @@ selection target (`francisella` for `-tg francisella`), `mode` is
 | `--derep_keeper` | `quality` | Representative choice in the chunk and merge steps: `quality` (CheckM scores from `selection.tsv`), `gtdb` (a GTDB species representative from `selection.tsv` first, then quality) or `tool`. |
 | `--derep_reduce` | `none` | Collapse the merged representatives to one per `species` or `genus` (`dereplicate-merge --reduce`). |
 | `--derep_target_reps` | `0` | Search the merge pass's secondary ANI to land near this many representatives (`dereplicate-merge --target-reps`). |
+| `--derep_refine` | none | Seed genomes of a lineage to keep at finer resolution, comma-separated; a `DEREP_REFINE` task follows the merge (`dereplicate-refine --refine`). |
+| `--derep_refine_ani` | none | Secondary ANI for the seeds' clusters, above `--derep_secondary_ani` (`--refine-ani`). |
+| `--derep_refine_file` | none | TSV of `seed` and `ani` for several lineages, each at its own ANI (`--refine-file`). |
 | `--phylo_args` | `--treebuilder mashtree` | Aligner or tree builder for the phylogeny, and the rooting (`--root outgroup\|midpoint\|none`). |
 | `--phylo_split_msa` | `false` | Run the alignment and the tree as separate tasks. |
 | `--sketch` | `false` | Bacterial mode: sketch the genomes and the outgroup with sourmash, publish `sketches/`, and stage them into the dereplication and tree tasks. |
@@ -2644,6 +2647,19 @@ steps and is driven by `--derep_tool` and the `--derep_*_ani` /
 `--derep_aligned_fraction` thresholds. Compared with
 [Chunked dereplication](#chunked-dereplication) on the command line, it runs
 one chunk round and one merge task over the whole union.
+
+With `--derep_refine SEEDS --derep_refine_ani F` (comma-separated seeds) or
+`--derep_refine_file refine.tsv`, a `DEREP_REFINE` task follows the merge:
+the merged result and every genome of the run are staged in, the clusters of
+the seeds are dereplicated again at the finer ANI (`repgenr
+dereplicate-refine`), and the refined result, published as
+`dereplicate/refined/` with its `refined.tsv`, is the one the tree is built
+from; `dereplicate/merged/` stays published beside it as the coarse result
+(see [Finer resolution inside a lineage](#finer-resolution-inside-a-lineage)).
+The refined directory holds the contract files and no `genome_n50.tsv`.
+Seeds without an ANI, an ANI without seeds, or an ANI not above
+`--derep_secondary_ani` are refused at launch. The reads route runs the
+same subworkflow, so the refinement applies there too.
 
 A standalone harness runs it on a directory of genome FASTAs (no GTDB/NCBI
 front-end), useful for testing and for dereplicating a local collection:

@@ -35,4 +35,79 @@ nextflow_workflow {
             assert workflow.out.versions
         }
     }
+
+    test("refines the merged result when seeds are given") {
+        when {
+            params {
+                derep_process_size = 2
+                derep_tool = 'sourmash'
+                derep_refine = 'GCA_000001.1,GCA_000003.1'
+                derep_refine_ani = 0.999
+            }
+            workflow {
+                """
+                input[0] = channel.fromPath("${projectDir}/nextflow/tests/data/genomes/*.fasta")
+                    .collect()
+                    .map { files -> tuple([id: 'test', mode: 'bacterial'], files) }
+                input[1] = channel.value(tuple([id: 'test', mode: 'bacterial'], []))
+                input[2] = channel.value(tuple([id: 'test', mode: 'bacterial'], []))
+                """
+            }
+        }
+        then {
+            assert workflow.success
+            assert workflow.out.reps.size() == 1
+            with(workflow.out.reps.get(0)) {
+                assert get(0) == [id: 'test', mode: 'bacterial']
+                def dir = get(1)
+                // the emitted result is the refinement's
+                assert path("${dir}/refined.tsv").exists()
+                assert path("${dir}/clusters.tsv").exists()
+            }
+        }
+    }
+
+    test("refines with a refine file alone") {
+        when {
+            params {
+                derep_tool = 'sourmash'
+                derep_refine_file = "${projectDir}/nextflow/tests/data/refine.tsv"
+            }
+            workflow {
+                """
+                input[0] = channel.fromPath("${projectDir}/nextflow/tests/data/genomes/*.fasta")
+                    .collect()
+                    .map { files -> tuple([id: 'test', mode: 'bacterial'], files) }
+                input[1] = channel.value(tuple([id: 'test', mode: 'bacterial'], []))
+                input[2] = channel.value(tuple([id: 'test', mode: 'bacterial'], []))
+                """
+            }
+        }
+        then {
+            assert workflow.success
+            assert path("${workflow.out.reps.get(0).get(1)}/refined.tsv").exists()
+        }
+    }
+
+    test("refuses seeds without an ANI at launch") {
+        when {
+            params {
+                derep_tool = 'sourmash'
+                derep_refine = 'GCA_000001.1'
+            }
+            workflow {
+                """
+                input[0] = channel.fromPath("${projectDir}/nextflow/tests/data/genomes/*.fasta")
+                    .collect()
+                    .map { files -> tuple([id: 'test', mode: 'bacterial'], files) }
+                input[1] = channel.value(tuple([id: 'test', mode: 'bacterial'], []))
+                input[2] = channel.value(tuple([id: 'test', mode: 'bacterial'], []))
+                """
+            }
+        }
+        then {
+            assert workflow.failed
+            assert workflow.stdout.any { it.contains('needs --derep_refine_ani') } || workflow.errorReport.contains('needs --derep_refine_ani')
+        }
+    }
 }

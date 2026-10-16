@@ -735,6 +735,191 @@ commands:
         - docs/audit/cli-matrix.md
         nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
         live: 'n/a: covered offline in tests/integration/test_derep_refine_stage.py (fake dereplicator)'
+  dereplicate-refine:
+    dispatch: step:repgenr.stages.derep_steps.dereplicate_refine
+    base_args:
+    - --contract-dir
+    - '{dir}'
+    - --genomes-fofn
+    - '{fofn}'
+    - -o
+    - '{out}'
+    - --refine
+    - GCA_000001
+    - --refine-ani
+    - '0.999'
+    flags:
+      --contract-dir:
+        param: RefineStepParams.contract_dir
+        value: '{alt_dir}'
+        validated: stage
+        docs:
+        - docs/cli-reference.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'module: fixed by the process script'
+        live: 'n/a: covered offline in tests/integration/test_derep_steps.py::test_refine_step_refines_a_merged_contract'
+      --genomes-fofn:
+        param: RefineStepParams.genomes
+        value: '{alt_fofn}'
+        validated: stage
+        docs:
+        - docs/cli-reference.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'module: fixed by the process script'
+        live: 'n/a: covered offline in tests/integration/test_derep_steps.py::test_refine_step_refines_a_merged_contract'
+      --out:
+        aliases:
+        - -o
+        param: RefineStepParams.out_dir
+        value: '{alt_dir}'
+        validated: none
+        docs:
+        - docs/cli-reference.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'module: fixed by the process script'
+        live: 'n/a: covered offline in tests/integration/test_derep_steps.py::test_refine_step_refines_a_merged_contract'
+      --tool:
+        param: RefineStepParams.tool
+        value: sourmash
+        validated: registry
+        docs:
+        - docs/usage.md
+        - docs/cli-reference.md
+        - docs/audit/cli-matrix.md
+        nextflow: params.derep_tool
+        live: 'n/a: covered offline in tests/integration/test_derep_steps.py::test_refine_step_refines_a_merged_contract'
+      --primary-ani:
+        aliases:
+        - -pani
+        param: RefineStepParams.primary_ani
+        value: '0.85'
+        validated: unit_interval
+        docs:
+        - docs/cli-reference.md
+        - docs/audit/cli-matrix.md
+        nextflow: params.derep_primary_ani
+        live: 'n/a: covered offline in tests/integration/test_derep_steps.py::test_refine_step_refines_a_merged_contract'
+      --secondary-ani:
+        aliases:
+        - -sani
+        param: RefineStepParams.secondary_ani
+        value: '0.95'
+        validated: unit_interval
+        docs:
+        - docs/cli-reference.md
+        - docs/audit/cli-matrix.md
+        nextflow: params.derep_secondary_ani
+        live: 'n/a: covered offline in tests/integration/test_derep_steps.py::test_refine_step_refines_a_merged_contract'
+      --aligned-fraction:
+        aliases:
+        - -af
+        param: RefineStepParams.aligned_fraction
+        value: '0.6'
+        validated: unit_interval
+        docs:
+        - docs/cli-reference.md
+        - docs/audit/cli-matrix.md
+        nextflow: params.derep_aligned_fraction
+        live: 'n/a: covered offline in tests/integration/test_derep_steps.py::test_refine_step_refines_a_merged_contract'
+      --threads:
+        aliases:
+        - -t
+        param: RefineStepParams.threads
+        value: '2'
+        validated: range
+        invalid: '0'
+        docs:
+        - docs/cli-reference.md
+        - docs/audit/cli-matrix.md
+        nextflow: task.cpus
+        live: 'n/a: covered offline in tests/integration/test_derep_steps.py::test_refine_step_refines_a_merged_contract'
+      --virus:
+        param: RefineStepParams.extra
+        with_args:
+        - --tool
+        - drep
+        validated: none
+        docs:
+        - docs/cli-reference.md
+        - docs/audit/cli-matrix.md
+        nextflow: params.mode
+        live: 'n/a: forwarded to the adapter extras as on dereplicate-chunk (wiring test)'
+      --tool-arg:
+        param: RefineStepParams.extra
+        value: mode=greedy
+        invalid: noequals
+        validated: callback
+        docs:
+        - docs/cli-reference.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'n/a: not exposed; add to ext.args in conf/modules.config'
+        live: 'n/a: covered offline in tests/integration/test_derep_steps.py::test_refine_step_refines_a_merged_contract'
+      --selection-tsv:
+        param: RefineStepParams.selection_tsv
+        value: '{file}'
+        validated: stage
+        docs:
+        - docs/cli-reference.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'module: staged selection.tsv'
+        live: 'n/a: covered offline in tests/integration/test_derep_steps.py::test_refine_step_reads_selection_quality_gtdb_outgroup_and_sketches'
+      --keeper:
+        param: RefineStepParams.keeper
+        value: tool
+        validated: choice
+        docs:
+        - docs/cli-reference.md
+        - docs/audit/cli-matrix.md
+        nextflow: params.derep_keeper
+        live: 'n/a: covered offline in tests/integration/test_derep_steps.py::test_refine_step_reads_selection_quality_gtdb_outgroup_and_sketches'
+      --refine:
+        param: RefineStepParams.seeds
+        value: GCA_000002
+        validated: stage
+        docs:
+        - docs/usage.md
+        - docs/cli-reference.md
+        - docs/audit/cli-matrix.md
+        nextflow: params.derep_refine
+        live: 'n/a: covered offline in tests/integration/test_derep_steps.py::test_refine_step_refines_a_merged_contract'
+      --refine-ani:
+        param: RefineStepParams.ani
+        value: '0.9995'
+        validated: unit_interval
+        docs:
+        - docs/usage.md
+        - docs/cli-reference.md
+        - docs/audit/cli-matrix.md
+        nextflow: params.derep_refine_ani
+        live: 'n/a: covered offline in tests/integration/test_derep_steps.py::test_refine_step_refines_a_merged_contract'
+      --refine-file:
+        param: RefineStepParams.refine_file
+        value: '{file}'
+        validated: stage
+        docs:
+        - docs/usage.md
+        - docs/cli-reference.md
+        - docs/audit/cli-matrix.md
+        nextflow: params.derep_refine_file
+        live: 'n/a: covered offline in tests/integration/test_derep_steps.py::test_refine_step_refines_a_merged_contract'
+      --sketches-dir:
+        param: RefineStepParams.sketches_dir
+        value: '{alt_dir}'
+        validated: stage
+        docs:
+        - docs/cli-reference.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'module: staged sketches/ directory'
+        live: 'n/a: covered offline in tests/integration/test_derep_steps.py::test_refine_step_reads_selection_quality_gtdb_outgroup_and_sketches'
+      --versions-out:
+        param: RefineStepParams.versions_out
+        value: '{file}'
+        validated: none
+        docs:
+        - docs/cli-reference.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'module: fixed by the process script'
+        live: 'n/a: covered offline in tests/integration/test_derep_steps.py::test_refine_step_refines_a_merged_contract'
   dereplicate-chunk:
     dispatch: step:repgenr.stages.derep_steps.dereplicate_chunk
     base_args:

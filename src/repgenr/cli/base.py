@@ -280,6 +280,7 @@ COMMAND_PANELS: dict[str, tuple[str, ...]] = {
         "genome-fetch",
         "dereplicate-chunk",
         "dereplicate-merge",
+        "dereplicate-refine",
         "annotate-build",
         "annotate-index",
         "phylo-build",

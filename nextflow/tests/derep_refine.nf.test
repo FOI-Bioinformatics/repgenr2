@@ -1,0 +1,74 @@
+nextflow_process {
+
+    name "DEREP_REFINE (stub)"
+    script "../modules/local/derep_refine.nf"
+    tag "stub"
+    process "DEREP_REFINE"
+    options "-stub"
+    config "./derep_debug.config"
+
+    test("refines a merged result and emits a contract directory with refined.tsv") {
+        when {
+            params {
+                derep_refine = 'GCA_000001.1, GCA_000002.1'
+                derep_refine_ani = '0.999'
+            }
+            process {
+                """
+                input[0] = tuple(
+                    [id: 'test.refined', mode: 'bacterial', run: [id: 'test', mode: 'bacterial']],
+                    file("${projectDir}/nextflow/tests/data/derep_out"),
+                    [
+                        file("${projectDir}/nextflow/tests/data/genomes/Fam_g_s_GCA_000001.1.fasta"),
+                        file("${projectDir}/nextflow/tests/data/genomes/Fam_g_s_GCA_000002.1.fasta")
+                    ]
+                )
+                input[1] = []
+                input[2] = []
+                input[3] = []
+                """
+            }
+        }
+        then {
+            assert process.success
+            assert process.out.versions
+            // the seeds and the ANI render as repgenr flags, trimmed
+            def line = process.stdout.find { it.contains('ext.args2:') }
+            assert line != null
+            assert line.contains('--refine GCA_000001.1 --refine GCA_000002.1 --refine-ani 0.999')
+            assert process.stdout.find { it.contains('refine_file: none') } != null
+            with(process.out.reps.get(0)) {
+                assert get(0).id == 'test.refined'
+                def dir = get(1)
+                assert path("${dir}/clusters.tsv").exists()
+                assert path("${dir}/genome_status.tsv").exists()
+                assert path("${dir}/representatives").exists()
+                assert path("${dir}/refined.tsv").exists()
+            }
+        }
+    }
+
+    test("accepts a refine file beside the seeds") {
+        when {
+            process {
+                """
+                input[0] = tuple(
+                    [id: 'test.refined', mode: 'bacterial', run: [id: 'test', mode: 'bacterial']],
+                    file("${projectDir}/nextflow/tests/data/derep_out"),
+                    [ file("${projectDir}/nextflow/tests/data/genomes/Fam_g_s_GCA_000001.1.fasta") ]
+                )
+                input[1] = []
+                input[2] = []
+                input[3] = file("${projectDir}/nextflow/tests/data/refine.tsv")
+                """
+            }
+        }
+        then {
+            assert process.success
+            assert process.stdout.find { it.contains('refine_file: staged') } != null
+            def line = process.stdout.find { it.contains('ext.args2:') }
+            assert line != null && !line.contains('--refine ')
+            assert path("${process.out.reps.get(0).get(1)}/refined.tsv").exists()
+        }
+    }
+}

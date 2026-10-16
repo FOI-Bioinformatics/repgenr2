@@ -968,3 +968,269 @@ def test_chunk_keeper_gtdb_warns_when_only_the_outgroup_is_flagged(
             _LOG,
         )
     assert any("flags no GTDB" in r.getMessage() for r in caplog.records)
+
+
+# --- dereplicate-refine ---------------------------------------------------------
+
+
+_TIERED_NAMES = [
+    f"Francisellaceae_francisella_tularensis_GCA_000{a}.fasta"
+    for a in (111, 112, 121, 211, 212, 221, 311)
+]
+
+
+class _Tiered(Dereplicator):
+    """Clusters by the coarse group at ANI <= 0.99 and by the fine group above."""
+
+    capabilities = ToolCapabilities(name="tiered", supports_native_scaling=True)
+    calls: list[tuple[int, float]] = []
+
+    def preflight(self) -> dict[str, str]:
+        return {"tiered": "1.0"}
+
+    def dereplicate(self, genomes, out_dir, params, logger) -> DerepResult:
+        genomes = sorted(genomes, key=lambda p: p.name)
+        type(self).calls.append((len(genomes), params.secondary_ani))
+        width = 2 if params.secondary_ani > 0.99 else 1
+        groups: dict[str, list[Path]] = {}
+        for g in genomes:
+            groups.setdefault(g.name.split("GCA_000")[1][:width], []).append(g)
+        clusters = {grp[0].name: [g.name for g in grp[1:]] for grp in groups.values()}
+        status: dict[str, str] = {}
+        for rep, members in clusters.items():
+            status[rep] = STATUS_REPRESENTATIVE
+            status.update({m: STATUS_CONTAINED for m in members})
+        return DerepResult(
+            representatives=[grp[0] for grp in groups.values()],
+            clusters=clusters,
+            genome_status=status,
+        )
+
+
+@pytest.fixture
+def tiered():
+    registry._load()
+    registry.register("tiered", _Tiered, replace=True)
+    _Tiered.calls = []
+    yield
+    registry._classes.pop("tiered", None)
+
+
+def test_refine_step_refines_a_merged_contract(tmp_path: Path, tiered) -> None:
+    """The refine step takes a contract directory and every genome file,
+    refines the seeds' clusters at their ANIs and writes the contract shape
+    plus refined.tsv; a second pass keeps the first's rows."""
+    from repgenr.core.contracts import REFINED_TSV, read_refined
+    from repgenr.core.errors import UserInputError, WorkdirError
+    from repgenr.stages.derep_steps import RefineStepParams, dereplicate_refine
+
+    gdir = tmp_path / "genomes"
+    gdir.mkdir()
+    genomes = []
+    for i, n in enumerate(_TIERED_NAMES):
+        (gdir / n).write_text(f">s{i}\n{'ACGT' * (10 + i)}\n", encoding="utf-8")
+        genomes.append(gdir / n)
+    merged = dereplicate_chunk(
+        ChunkParams(tool="tiered", genomes=genomes, out_dir=tmp_path / "merged"), _LOG
+    )
+    assert len(merged.representatives) == 3
+    refine_file = tmp_path / "refine.tsv"
+    refine_file.write_text("seed\tani\nGCA_000212\t0.9995\n", encoding="utf-8")
+    _Tiered.calls = []
+    out = dereplicate_refine(
+        RefineStepParams(
+            tool="tiered",
+            contract_dir=tmp_path / "merged",
+            genomes=genomes,
+            out_dir=tmp_path / "refined",
+            seeds=[_TIERED_NAMES[2]],
+            ani=0.999,
+            refine_file=str(refine_file),
+            versions_out=tmp_path / "v.yml",
+        ),
+        _LOG,
+    )
+    assert _Tiered.calls == [(3, 0.999), (3, 0.9995)]
+    assert sorted(p.name for p in out.representatives) == [
+        _TIERED_NAMES[0],
+        _TIERED_NAMES[2],
+        _TIERED_NAMES[3],
+        _TIERED_NAMES[5],
+        _TIERED_NAMES[6],
+    ]
+    assert sorted(p.name for p in (tmp_path / "refined" / "representatives").iterdir()) == sorted(
+        p.name for p in out.representatives
+    )
+    rows = {r.genome: r for r in read_refined(tmp_path / "refined" / REFINED_TSV)}
+    assert rows[_TIERED_NAMES[2]].ani == "0.999" and rows[_TIERED_NAMES[5]].ani == "0.9995"
+    summary = (tmp_path / "refined" / CLUSTER_SUMMARY_TSV).read_text(encoding="utf-8").splitlines()
+    column = summary[0].split("\t").index("refined")
+    assert {line.split("\t")[0]: line.split("\t")[column] for line in summary[1:]}[
+        _TIERED_NAMES[6]
+    ] == "0"
+    assert (tmp_path / "v.yml").exists()
+
+    # Refining the refined contract again for C keeps A's and B's rows.
+    _Tiered.calls = []
+    dereplicate_refine(
+        RefineStepParams(
+            tool="tiered",
+            contract_dir=tmp_path / "refined",
+            genomes=genomes,
+            out_dir=tmp_path / "refined2",
+            seeds=[_TIERED_NAMES[0]],
+            ani=0.9995,
+        ),
+        _LOG,
+    )
+    assert _Tiered.calls == [(3, 0.9995)]
+    assert len(read_refined(tmp_path / "refined2" / REFINED_TSV)) == 6
+
+    # Refusals: a missing member file, nothing to refine, an ANI not finer.
+    with pytest.raises(WorkdirError, match="not among --genomes-fofn"):
+        dereplicate_refine(
+            RefineStepParams(
+                tool="tiered",
+                contract_dir=tmp_path / "merged",
+                genomes=genomes[:3],
+                out_dir=tmp_path / "x",
+                seeds=[_TIERED_NAMES[0]],
+                ani=0.999,
+            ),
+            _LOG,
+        )
+    with pytest.raises(UserInputError, match="not finer"):
+        dereplicate_refine(
+            RefineStepParams(
+                tool="tiered",
+                contract_dir=tmp_path / "merged",
+                genomes=genomes,
+                out_dir=tmp_path / "x",
+                seeds=[_TIERED_NAMES[0]],
+                ani=0.95,
+            ),
+            _LOG,
+        )
+
+
+def test_refine_step_reads_selection_quality_gtdb_outgroup_and_sketches(
+    tmp_path: Path, tiered
+) -> None:
+    """selection.tsv gives the keeper's quality and GTDB flags, the accession
+    map and the outgroup; a promoted member's file comes from the fofn; a
+    staged sketches/ directory is accepted."""
+    from repgenr.core.contracts import REFINED_TSV, read_refined
+    from repgenr.core.errors import UserInputError
+    from repgenr.stages.derep_steps import RefineStepParams, dereplicate_refine
+
+    gdir = tmp_path / "genomes"
+    gdir.mkdir()
+    genomes = []
+    for i, n in enumerate(_TIERED_NAMES):
+        (gdir / n).write_text(f">s{i}\n{'ACGT' * (10 + i)}\n", encoding="utf-8")
+        genomes.append(gdir / n)
+    selection = tmp_path / "selection.tsv"
+    write_selection(
+        selection,
+        [
+            SelectionRow(
+                accession=f"ACC_{a}",
+                family="Francisellaceae",
+                genus="francisella",
+                species="tularensis",
+                is_outgroup=False,
+                filename=n,
+                completeness=99.0 if a == 112 else 90.0,
+                contamination=0.1 if a == 112 else 2.0,
+                gtdb_representative=a == 121,
+            )
+            for a, n in zip((111, 112, 121, 211, 212, 221, 311), _TIERED_NAMES, strict=True)
+        ]
+        + [
+            SelectionRow(
+                accession="ACC_OUT",
+                family="",
+                genus="",
+                species="",
+                is_outgroup=True,
+                filename="Out_g_s_GCA_9.fasta",
+            )
+        ],
+    )
+    dereplicate_chunk(
+        ChunkParams(
+            tool="tiered",
+            genomes=genomes,
+            out_dir=tmp_path / "merged",
+            selection_tsv=selection,
+            keeper="tool",
+        ),
+        _LOG,
+    )
+    (tmp_path / "sketches").mkdir()
+
+    def refine(seed: str, keeper: str, out: str) -> DerepResult:
+        return dereplicate_refine(
+            RefineStepParams(
+                tool="tiered",
+                contract_dir=tmp_path / "merged",
+                genomes=genomes,
+                out_dir=tmp_path / out,
+                selection_tsv=selection,
+                keeper=keeper,
+                seeds=[seed],
+                ani=0.999,
+                sketches_dir=tmp_path / "sketches",
+            ),
+            _LOG,
+        )
+
+    # The quality keeper promotes A112 over the tool's A111 (its file is linked from the fofn).
+    out = refine("ACC_111", "quality", "q")
+    assert _TIERED_NAMES[1] in {p.name for p in out.representatives}
+    assert (tmp_path / "q" / "representatives" / _TIERED_NAMES[1]).exists()
+    assert {r.representative for r in read_refined(tmp_path / "q" / REFINED_TSV)} >= {
+        _TIERED_NAMES[1],
+        _TIERED_NAMES[2],
+    }
+    # The GTDB keeper keeps the flagged A121 as its cluster's representative.
+    out = refine("ACC_111", "gtdb", "g")
+    assert _TIERED_NAMES[2] in {p.name for p in out.representatives}
+    # The outgroup cannot seed a lineage.
+    with pytest.raises(UserInputError, match="outgroup"):
+        refine("ACC_OUT", "quality", "o")
+
+
+def test_refine_step_command(tmp_path: Path, tiered) -> None:
+    from typer.testing import CliRunner
+
+    from repgenr.cli.main import app
+    from repgenr.core.contracts import REFINED_TSV
+
+    gdir = tmp_path / "genomes"
+    gdir.mkdir()
+    genomes = []
+    for i, n in enumerate(_TIERED_NAMES):
+        (gdir / n).write_text(f">s{i}\n{'ACGT' * (10 + i)}\n", encoding="utf-8")
+        genomes.append(gdir / n)
+    dereplicate_chunk(ChunkParams(tool="tiered", genomes=genomes, out_dir=tmp_path / "m"), _LOG)
+    fofn = tmp_path / "genomes.fofn"
+    fofn.write_text("".join(f"{g}\n" for g in genomes), encoding="utf-8")
+    result = CliRunner().invoke(
+        app,
+        [
+            *("dereplicate-refine", "--contract-dir", str(tmp_path / "m")),
+            *("--genomes-fofn", str(fofn), "-o", str(tmp_path / "r"), "--tool", "tiered"),
+            *("--refine", "GCA_000212", "--refine-ani", "0.9995"),
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    assert (tmp_path / "r" / REFINED_TSV).exists()
+    result = CliRunner().invoke(
+        app,
+        [
+            *("dereplicate-refine", "--contract-dir", str(tmp_path / "m")),
+            *("--genomes-fofn", str(fofn), "-o", str(tmp_path / "r2"), "--tool", "tiered"),
+        ],
+    )
+    assert result.exit_code != 0 and "--refine" in result.output + str(result.exception)

@@ -27,29 +27,34 @@ from __future__ import annotations
 import logging
 import os
 import shutil
-from collections.abc import Mapping
-from dataclasses import dataclass
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from ..core.contracts import (
     CLUSTER_SUMMARY_TSV,
     CLUSTERS_TSV,
     GENOME_STATUS_TSV,
+    REFINED_TSV,
+    RefinedRow,
     atomic_replace,
     parse_genome_filename,
     read_clusters,
     read_genome_status,
+    read_refined,
     read_selection,
     write_cluster_summary,
     write_clusters,
     write_genome_status,
+    write_refined,
 )
-from ..core.errors import WorkdirError
+from ..core.errors import UserInputError, WorkdirError
 from ..core.plugins import warn_ignored_params, warn_unconsumed_extras
 from ..core.process import link_or_copy, remove_tree
 from ..core.sketches import adapter_sketches, directory_provider
 from ..core.versions import write_versions_fragment
 from ..dereplicators.base import (
+    STATUS_REPRESENTATIVE,
     DerepParams,
     DerepResult,
     check_result_complete,
@@ -479,7 +484,7 @@ def _step_sketches(
     )
 
 
-def _load_chunk(chunk_dir: Path) -> DerepResult:
+def _load_chunk(chunk_dir: Path, step: str = "dereplicate-merge") -> DerepResult:
     """Read a chunk result directory back into a DerepResult.
 
     Reads the per-genome statuses as well as the clusters: genomes the chunk
@@ -488,20 +493,18 @@ def _load_chunk(chunk_dir: Path) -> DerepResult:
     """
     clusters_path = chunk_dir / CLUSTERS_TSV
     if not clusters_path.exists():
-        raise WorkdirError(f"dereplicate-merge: {clusters_path} not found (not a chunk result).")
+        raise WorkdirError(f"{step}: {clusters_path} not found (not a dereplication result).")
     clusters = read_clusters(clusters_path)
     status_path = chunk_dir / GENOME_STATUS_TSV
     if not status_path.exists():
-        raise WorkdirError(f"dereplicate-merge: {status_path} not found (not a chunk result).")
+        raise WorkdirError(f"{step}: {status_path} not found (not a dereplication result).")
     status = read_genome_status(status_path)
     rep_dir = chunk_dir / _REPRESENTATIVES_DIR
     reps: list[Path] = []
     for rep_name in clusters:
         rep_path = rep_dir / rep_name
         if not rep_path.exists():
-            raise WorkdirError(
-                f"dereplicate-merge: representative file missing in chunk: {rep_path}"
-            )
+            raise WorkdirError(f"{step}: representative file missing: {rep_path}")
         reps.append(rep_path)
     return DerepResult(representatives=reps, clusters=clusters, genome_status=status)
 
@@ -514,9 +517,11 @@ def _write_step_contract(
     taxonomy: Taxonomy | None = None,
     n50: N50Of | None = None,
     gtdb_representatives: set[str] | None = None,
+    refined: Sequence[RefinedRow] = (),
 ) -> None:
     """Write representatives/, clusters.tsv, genome_status.tsv and
-    cluster_summary.tsv under ``out_dir``."""
+    cluster_summary.tsv under ``out_dir``, and refined.tsv when ``refined``
+    holds rows (none: no file)."""
     rep_dir = out_dir / _REPRESENTATIVES_DIR
     if rep_dir.exists():
         remove_tree(rep_dir)
@@ -534,6 +539,11 @@ def _write_step_contract(
         link_or_copy(source, rep_dir / rep.name)
     write_clusters(out_dir / CLUSTERS_TSV, result.clusters)
     write_genome_status(out_dir / GENOME_STATUS_TSV, result.genome_status)
+    refined_path = out_dir / REFINED_TSV
+    if refined:
+        write_refined(refined_path, refined)
+    else:
+        refined_path.unlink(missing_ok=True)
     write_cluster_summary(
         out_dir / CLUSTER_SUMMARY_TSV,
         summarise_clusters(
@@ -542,6 +552,7 @@ def _write_step_contract(
             taxonomy,
             n50,
             gtdb_representatives=gtdb_representatives or set(),
+            refined={r.representative for r in refined if r.status == STATUS_REPRESENTATIVE},
         ),
     )
 
@@ -587,3 +598,152 @@ def _fresh(path: Path) -> Path:
         remove_tree(path)
     path.mkdir(parents=True, exist_ok=True)
     return path
+
+
+@dataclass
+class RefineStepParams:
+    """``dereplicate-refine``: refine a contract directory at finer ANIs."""
+
+    tool: str
+    contract_dir: Path
+    genomes: list[Path]
+    out_dir: Path
+    primary_ani: float = 0.90
+    secondary_ani: float = 0.99
+    aligned_fraction: float = 0.50
+    threads: int = 16
+    extra: dict | None = None
+    versions_out: Path | None = None
+    selection_tsv: Path | None = None
+    keeper: str = "quality"  # quality | gtdb | tool
+    seeds: list[str] = field(default_factory=list)
+    ani: float | None = None
+    refine_file: str | None = None
+    sketches_dir: Path | None = None
+
+
+def dereplicate_refine(params: RefineStepParams, logger: logging.Logger) -> DerepResult:
+    """Refine the lineages of the seeds inside a contract directory (the merge
+    step's output, or an earlier refinement's) at their finer ANIs, with the
+    same tool and settings, and write the refined contract to ``out_dir``.
+
+    The genome files reach the step through ``genomes`` (the merge step holds
+    only the representatives, and a lineage's members are needed too); the
+    seeds are resolved against them and against ``selection.tsv``.
+    """
+    from .derep_keeper import N50Lookup
+    from .derep_refine import (
+        check_refine_ani,
+        fine_pass,
+        lineages_of,
+        merge_rows,
+        refine_groups,
+        refined_rows,
+        resolve_seeds,
+        splice,
+    )
+
+    groups = refine_groups(params.seeds, params.ani, params.refine_file)
+    for g in groups:
+        check_refine_ani(g.ani, params.secondary_ani)
+    if not params.contract_dir.is_dir():
+        raise WorkdirError(f"dereplicate-refine: --contract-dir {params.contract_dir} not found.")
+    result = _load_chunk(params.contract_dir, "dereplicate-refine")
+    paths = {g.name: g for g in params.genomes}
+    missing = sorted(n for n in result.genome_status if n not in paths)
+    if missing:
+        raise WorkdirError(
+            f"dereplicate-refine: {len(missing)} genome(s) of the contract are not among "
+            f"--genomes-fofn (e.g. {missing[0]}); every clustered genome's file is needed."
+        )
+    # The contract's representatives point into its representatives/ directory;
+    # the files under --genomes-fofn are the ones to link from.
+    result = DerepResult(
+        representatives=[paths[rep.name] for rep in result.representatives],
+        clusters=result.clusters,
+        genome_status=result.genome_status,
+    )
+    accessions: dict[str, str] = {}
+    outgroup: set[str] = set()
+    if params.selection_tsv is not None:
+        for row in read_selection(params.selection_tsv):
+            if row.is_outgroup:
+                outgroup.update(n for n in (row.filename, row.accession) if n)
+            elif row.accession and row.filename:
+                accessions[row.accession] = row.filename
+    resolved = [
+        (resolve_seeds(g.seeds, params.genomes, accessions=accessions, outgroup=outgroup), g.ani)
+        for g in groups
+    ]
+    prior_rows = read_refined(params.contract_dir / REFINED_TSV)
+    lineages = lineages_of(result, resolved, logger, prior_rows)
+    if not lineages:
+        raise UserInputError(
+            "Every --refine seed is alone in its cluster; there is nothing to refine."
+        )
+
+    adapter = registry.create(params.tool)
+    caps = adapter.capabilities
+    warn_unconsumed_extras(caps, params.extra or {}, logger, family="Dereplicator")
+    versions = adapter.preflight()
+    _maybe_write_versions(params.versions_out, versions)
+    lineage_names = [n for lineage in lineages for n in lineage.genomes]
+    derep_params = DerepParams(
+        primary_ani=params.primary_ani,
+        secondary_ani=params.secondary_ani,
+        aligned_fraction=params.aligned_fraction,
+        threads=params.threads,
+        extra={**caps.default_params, **(params.extra or {})},
+        quality={
+            name: qual
+            for name, qual in _adapter_quality(params.selection_tsv, logger).items()
+            if name in set(lineage_names)
+        },
+    )
+    warn_ignored_params(caps, derep_params, logger, family="Dereplicator")
+    derep_params.sketches = _step_sketches(
+        adapter,
+        derep_params.extra,
+        [paths[n] for n in lineage_names],
+        params.sketches_dir,
+        logger,
+        "dereplicate-refine",
+    )
+    scratch = _fresh(params.out_dir / "scratch")
+    fallbacks = sorted({g.parent for g in params.genomes})
+    n50 = N50Lookup(fallbacks, workers=params.threads)
+    quality = _quality_from_selection(params.selection_tsv) if params.selection_tsv else {}
+    flagged = _gtdb_from_selection(params.selection_tsv) if params.selection_tsv else set()
+    refined = result
+    for i, lineage in enumerate(lineages):
+        sub = fine_pass(
+            adapter, lineage, paths, scratch / str(i), derep_params, lineage.ani, logger
+        )
+        if params.keeper == "quality" and quality:
+            sub, _ = rescore_representatives(sub, quality, logger, n50)
+        elif params.keeper == "gtdb" and params.selection_tsv is not None:
+            sub, _ = prefer_gtdb_representatives(sub, flagged, quality, logger, n50)
+        refined = splice(refined, lineage, sub, paths, logger)
+    rows = merge_rows(
+        prior_rows, [r for lineage in lineages for r in refined_rows(refined, lineage)], lineages
+    )
+    check_result_complete(refined, list(result.genome_status))
+    _write_step_contract(
+        params.out_dir,
+        refined,
+        fallbacks,
+        _summary_quality(params.selection_tsv),
+        _summary_taxonomy(params.selection_tsv),
+        n50,
+        flagged,
+        refined=rows,
+    )
+    shutil.rmtree(scratch, ignore_errors=True)
+    logger.info(
+        "dereplicate-refine: %d lineage(s), %d -> %d representatives (%s)",
+        len(lineages),
+        len(result.representatives),
+        len(refined.representatives),
+        params.out_dir,
+    )
+    return refined

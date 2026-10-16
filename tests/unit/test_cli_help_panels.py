@@ -70,6 +70,7 @@ def _help_of(command: str, flag: str) -> str | None:
 
 _STEP_VERSIONS = [
     "dereplicate-chunk",
+    "dereplicate-refine",
     "annotate-build",
     "phylo-build",
     "tree2tax-relations",
@@ -96,6 +97,8 @@ SHARED_FLAGS: list[tuple[str, str, str]] = (
     + [("dereplicate", "run", f) for f in ("--refine", "--refine-ani", "--refine-file")]
     + [("dereplicate", "derep-refine", f) for f in ("--refine", "--refine-ani", "--refine-file")]
     + [("dereplicate", "dereplicate-chunk", "--tool-arg")]
+    + [("dereplicate", "dereplicate-refine", f) for f in ("--tool-arg", "--refine", "--refine-ani")]
+    + [("dereplicate", "dereplicate-refine", "--refine-file")]
     + [("annotate", "annotate-build", f) for f in ("--tool", "--bakta-db")]
     + [("dereplicate", "dereplicate-merge", "--tool-arg")]
     + [("tree2tax", "run", f) for f in ("--remove-outgroup", "--node-basename", "--root-name")]
