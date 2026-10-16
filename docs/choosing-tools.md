@@ -290,6 +290,82 @@ An overview before choosing thresholds:
   `dereplicate --tool sourmash` on the 1000 genomes took about 6 s against
   65 s.
 
+### How the tools estimate ANI
+
+The thresholds are given as fractions (`--secondary-ani 0.99`) and each
+adapter converts them to its tool's scale: dRep takes fractions as given,
+skDER and galah take percentages (99), and sourmash, which has no ANI
+cutoff option, has the cutoff mapped onto its sketch measure as described
+below. The same nominal cutoff therefore reaches every tool, but the tools
+estimate ANI differently, and the estimates agree best at the high end of
+the range where dereplication thresholds sit. dRep estimates its secondary
+ANI with fastANI by default (ANImf with `--virus`) and its primary
+clustering with Mash; the two estimators compared here are those of skDER
+and galah on one side and sourmash on the other.
+
+skani (used by skDER and galah; Shaw and Yu 2023) estimates ANI by a sparse
+approximate alignment. It samples k-mers from each genome, finds the seeds
+two genomes share and chains them into colinear blocks, then estimates
+identity from the fraction of shared k-mers within the chained regions,
+with a learned correction applied by default. The value is an identity over
+mapped regions, as with mapping-based ANI, and the aligned fraction, the
+share of each genome covered by chained blocks, is reported beside it; this
+is what `--aligned-fraction` acts on in skDER and galah. skani documents its
+estimates as reliable down to about 80% identity; below that the adapter
+refuses the cutoff for skDER (which would otherwise stop at a question),
+while galah has no such guard.
+
+sourmash compares FracMinHash sketches (k=31, scaled=1000 by default) and
+stops at set overlap: the containment of one sketch in another is the
+fraction of its sampled k-mers that the other holds. Under a model in which
+each base mutates independently, without indels, a k-mer survives with
+probability ANI^k, so an ANI estimate is containment^(1/k), the quantity
+`sourmash compare --ani` reports. The two directions of containment differ
+when the genomes differ in size, and the back-ends combine them
+differently: the dense back-end (`sourmash compare`) converts Jaccard as
+2j/(1+j), which is the harmonic mean of the two containments, and the
+branchwater back-end prefilters pairs at containment 0.99^31, about 0.73,
+and recomputes the estimate from the arithmetic mean it reports. The two
+agree for genomes of similar size, and for unequal sizes the arithmetic
+mean is the larger, so the sparse back-end can keep a pair the dense one
+drops (the table above notes that they can pick different members). There
+is no alignment and no aligned fraction, so `--primary-ani` and
+`--aligned-fraction` are ignored. The conversion is needed because raw
+similarity is on another scale: a pair at 99.57% ANI by skani has a k=31
+Jaccard of 0.796 and a sourmash estimate of 99.61%
+([scaling-audit.md](audit/scaling-audit.md)), so a cutoff applied to the
+raw value would leave nearly every genome a singleton.
+
+What follows from the difference:
+
+- At 99% ANI and above the estimates agree well; for the synthetic pair
+  above, 99.61% against skani's 99.57%. The containment estimate is a
+  sampling estimate, though: with `scaled=1000` a 4 Mb genome keeps about
+  4000 k-mers, which gives a standard error of a few hundredths of a
+  percent of ANI near 99%, enough to move a borderline pair across a 99.9%
+  cutoff. skani samples more densely and is steadier there.
+- Accessory content lowers the containment estimate at every identity,
+  since plasmids and acquired regions add k-mers the other genome lacks,
+  while skani reports identity within the mapped blocks and the rest as a
+  lower aligned fraction. Below about 95% ANI the sourmash estimate also
+  loses precision on its own terms: few k-mers survive (0.95^31 is about
+  0.20, 0.90^31 about 0.04), so the variance grows and the mutation model
+  fits less well.
+- Completeness affects them differently. Containment is asymmetric (a
+  fragment is contained in a complete genome, not the reverse), and either
+  way of combining the two directions underestimates the ANI of a
+  half-complete assembly to a complete genome. skani's identity is largely
+  unaffected by completeness, which shows up in the aligned fraction
+  instead.
+
+For the same cutoff on well-separated data the tools usually form the same
+clusters (see the `clonal_50_clustered` result above); the differences
+appear in fragmented assemblies, in genomes of unequal size, and at the
+coarse end of the range. `glance` plots the sourmash estimate
+(`--tool sourmash`) or dRep's Mash ANI (`--tool drep`), so a set's pairwise
+values can be seen on the scale a cutoff will be applied to before choosing
+one.
+
 ## Phylogeny routes
 
 `phylo` combines three independent choices: the genome set (representatives or
