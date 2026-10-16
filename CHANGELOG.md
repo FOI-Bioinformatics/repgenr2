@@ -7,6 +7,16 @@ All notable changes to RepGenR2 are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- `dereplicate --refine SEED... --refine-ani F` and `repgenr derep-refine`:
+  finer resolution inside a lineage of interest. Every cluster that holds a
+  seed (a filename, stem or accession) is dereplicated again with the same
+  tool and settings at the finer ANI, and the resulting clusters replace the
+  coarse one; the rest of the result is unchanged. `derep-refine` applies
+  this to the result on disk without repeating the coarse pass. The lineage
+  is listed in `derep/refined.tsv`, `cluster_summary.tsv` gains a trailing
+  `refined` column, and `derep-stock` carries the file. `--reduce` leaves
+  the refined clusters apart. The `dereplicate` record also holds the tool
+  arguments under `tool_args`.
 - Nextflow: the core-gene route. With `--msa-source coregene` in
   `phylo_args`, the bacterial and reads paths run `ANNOTATE` once per
   representative and for the outgroup (unless `--no-outgroup`), in parallel

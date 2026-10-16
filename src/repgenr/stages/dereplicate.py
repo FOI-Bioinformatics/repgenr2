@@ -13,8 +13,8 @@ import logging
 import math
 import sqlite3
 import time
-from collections.abc import Collection, Mapping
-from dataclasses import dataclass, replace
+from collections.abc import Collection, Mapping, Sequence
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -23,13 +23,16 @@ from ..core.contracts import (
     CLUSTER_SUMMARY_TSV,
     CLUSTERS_TSV,
     GENOME_STATUS_TSV,
+    REFINED_TSV,
+    RefinedRow,
     accession_from_filename,
     list_fasta,
     write_cluster_summary,
     write_clusters,
     write_genome_status,
+    write_refined,
 )
-from ..core.errors import WorkdirError
+from ..core.errors import UserInputError, WorkdirError
 from ..core.executors import parallel_map
 from ..core.integrity import check_genome_completeness
 from ..core.plugins import (
@@ -42,6 +45,7 @@ from ..core.process import link_or_copy, remove_tree
 from ..core.resources import usable_cpus
 from ..core.sketches import adapter_sketches, workdir_provider
 from ..dereplicators.base import (
+    STATUS_REPRESENTATIVE,
     DerepParams,
     DerepResult,
     check_result_complete,
@@ -57,6 +61,17 @@ from .derep_keeper import (
     prefer_gtdb_representatives,
     prefetch_n50,
     rescore_representatives,
+)
+from .derep_refine import (
+    Lineage,
+    check_refine_ani,
+    fine_pass,
+    lineage_of,
+    manifest_accessions,
+    record_params,
+    refined_rows,
+    resolve_seeds,
+    splice,
 )
 
 
@@ -91,6 +106,9 @@ class DereplicateParams:
     # representative first (quality after it), or "tool" to keep the
     # adapter's own pick.
     keeper: str = "quality"  # quality | gtdb | tool
+    # Seeds of a lineage to dereplicate again at refine_ani (derep_refine).
+    refine: list[str] = field(default_factory=list)
+    refine_ani: float | None = None
 
 
 def precheck(ctx: WorkdirContext, params: DereplicateParams) -> None:
@@ -207,46 +225,24 @@ def run(ctx: WorkdirContext, params: DereplicateParams) -> DerepResult:
     else:
         result = _dereplicate_to_result(adapter, genomes, scratch, derep_params, params, logger)
 
-    keeper_swaps = 0
-    quality: dict[str, tuple[float, float]] = {}
-    gtdb: set[str] = set()
     # N50 per genome for the keeper score and the summary, each genome read once.
     n50 = N50Lookup([ctx.genomes_dir], workers=params.threads)
-    if params.keeper == "gtdb":
-        # Only the clustered genomes count: the outgroup (usually a GTDB
-        # representative itself), genomes no longer under genomes/ and genomes
-        # rejected on QC re-pick nothing and must not make the record claim a
-        # rule applied.
-        names = {n for rep, members in result.clusters.items() for n in (rep, *members)}
-        quality = {n: q for n, q in manifest_quality.items() if n in names}
-        gtdb = gtdb_lookup(ctx) & names
-        if not gtdb:
-            logger.warning(
-                "No clustered genome is flagged as a GTDB species "
-                "representative in the manifest, so "
-                "--keeper gtdb falls back to %s. Only GTDB selections from the "
-                "metadata stage carry the flag; a workdir selected by an older "
-                "version needs `repgenr metadata --force` to record it.",
-                "the quality rule" if quality else "the tool's own representatives",
-            )
-        result, keeper_swaps = prefer_gtdb_representatives(result, gtdb, quality, logger, n50)
-    elif params.keeper == "quality":
-        # Only the genomes being dereplicated count: manifest rows for the
-        # outgroup or for genomes no longer under genomes/ re-pick nothing, and
-        # must not make the record claim the quality rule applied.
-        names = {g.name for g in genomes}
-        quality = {n: q for n, q in manifest_quality.items() if n in names}
-        if quality:
-            result, keeper_swaps = rescore_representatives(result, quality, logger, n50)
-        else:
-            logger.warning(
-                "No assembly quality in the manifest for the genomes under genomes/, "
-                "so --keeper quality has no effect: keeping the tool's own "
-                "representatives. GTDB selections carry CheckM quality, assemble "
-                "--checkm2-db scores assemblies, and ingest --selection reads the "
-                "completeness and contamination columns."
-            )
-    keeper_effective = "gtdb" if gtdb else "quality" if quality else "tool"
+    lineage = None
+    if params.refine_ani is not None and not params.refine:
+        logger.warning(
+            "--refine-ani %s is given without --refine seeds; ignored", params.refine_ani
+        )
+    if params.refine:
+        lineage, result = _refine(
+            ctx, adapter, result, genomes, scratch, derep_params, params, logger
+        )
+    result, keeper_swaps, keeper_effective, quality, gtdb = apply_keeper(
+        ctx, result, params.keeper, manifest_quality, n50, logger
+    )
+    # The refined clusters share a species: --reduce must leave them apart.
+    refined_reps = (
+        {rep for rep in result.clusters if rep in lineage.coarse_rep_of} if lineage else set()
+    )
 
     if params.reduce != "none":
         before = len(result.representatives)
@@ -259,6 +255,7 @@ def run(ctx: WorkdirContext, params: DereplicateParams) -> DerepResult:
             taxon_of=_taxon_lookup(ctx, params.reduce),
             n50=n50,
             prefer=gtdb,
+            keep_apart=refined_reps,
         )
         logger.info(
             "Taxonomy reduction (one per %s): %d -> %d representatives",
@@ -268,9 +265,10 @@ def run(ctx: WorkdirContext, params: DereplicateParams) -> DerepResult:
         )
 
     check_result_complete(result, [g.name for g in genomes])
+    rows = refined_rows(result, lineage) if lineage else []
     # The summary reports quality whichever keeper rule was used, so a
     # --keeper tool run still shows where a member outscores the keeper.
-    _write_contract(ctx, result, manifest_quality, n50)
+    _write_contract(ctx, result, manifest_quality, n50, refined=rows)
     _update_manifest(ctx, result)
 
     ctx.config.record_stage(
@@ -290,6 +288,10 @@ def run(ctx: WorkdirContext, params: DereplicateParams) -> DerepResult:
             "keeper": params.keeper,
             "keeper_effective": keeper_effective,
             "keeper_swaps": keeper_swaps,
+            # The tool arguments, also merged below as before; derep-refine
+            # reads them from here.
+            "tool_args": dict(params.extra or {}),
+            **(record_params(lineage, params.refine_ani or 0.0, rows) if lineage else {}),
             **(params.extra or {}),
         },
         tool_versions=versions,
@@ -370,6 +372,85 @@ def _dereplicate_to_result(
         pre_secondary,
         logger,
     )
+
+
+def apply_keeper(
+    ctx: WorkdirContext,
+    result: DerepResult,
+    keeper: str,
+    manifest_quality: Mapping[str, tuple[float, float]],
+    n50: N50Of,
+    logger: logging.Logger,
+) -> tuple[DerepResult, int, str, dict[str, tuple[float, float]], set[str]]:
+    """Apply the ``--keeper`` rule to every cluster of ``result``.
+
+    Returns the result, the number of clusters whose representative changed,
+    the rule that took effect (``gtdb``, ``quality`` or ``tool``), the
+    quality map of the clustered genomes and the GTDB representatives among
+    them (both empty when the rule did not apply), which ``--reduce`` reuses.
+    """
+    swaps = 0
+    quality: dict[str, tuple[float, float]] = {}
+    gtdb: set[str] = set()
+    # Only the clustered genomes count: the outgroup (usually a GTDB
+    # representative itself), genomes no longer under genomes/ and genomes
+    # rejected on QC re-pick nothing and must not make the record claim a
+    # rule applied.
+    names = {n for rep, members in result.clusters.items() for n in (rep, *members)}
+    if keeper == "gtdb":
+        quality = {n: q for n, q in manifest_quality.items() if n in names}
+        gtdb = gtdb_lookup(ctx) & names
+        if not gtdb:
+            logger.warning(
+                "No clustered genome is flagged as a GTDB species "
+                "representative in the manifest, so "
+                "--keeper gtdb falls back to %s. Only GTDB selections from the "
+                "metadata stage carry the flag; a workdir selected by an older "
+                "version needs `repgenr metadata --force` to record it.",
+                "the quality rule" if quality else "the tool's own representatives",
+            )
+        result, swaps = prefer_gtdb_representatives(result, gtdb, quality, logger, n50)
+    elif keeper == "quality":
+        quality = {n: q for n, q in manifest_quality.items() if n in names}
+        if quality:
+            result, swaps = rescore_representatives(result, quality, logger, n50)
+        else:
+            logger.warning(
+                "No assembly quality in the manifest for the genomes under genomes/, "
+                "so --keeper quality has no effect: keeping the tool's own "
+                "representatives. GTDB selections carry CheckM quality, assemble "
+                "--checkm2-db scores assemblies, and ingest --selection reads the "
+                "completeness and contamination columns."
+            )
+    effective = "gtdb" if gtdb else "quality" if quality else "tool"
+    return result, swaps, effective, quality, gtdb
+
+
+def _refine(
+    ctx: WorkdirContext,
+    adapter,
+    result: DerepResult,
+    genomes: Sequence[Path],
+    scratch: Path,
+    derep_params: DerepParams,
+    params: DereplicateParams,
+    logger: logging.Logger,
+) -> tuple[Lineage, DerepResult]:
+    """``--refine``: dereplicate the seeds' clusters again at ``refine_ani``."""
+    if params.refine_ani is None:
+        raise UserInputError("--refine needs --refine-ani.")
+    check_refine_ani(params.refine_ani, params.secondary_ani)
+    accessions, outgroup = manifest_accessions(ctx)
+    seeds = resolve_seeds(params.refine, genomes, accessions=accessions, outgroup=outgroup)
+    lineage = lineage_of(result, seeds, logger)
+    if not lineage.genomes:
+        logger.warning("Every --refine seed is alone in its cluster; nothing was refined")
+        return lineage, result
+    paths = {g.name: g for g in genomes}
+    sub = fine_pass(
+        adapter, lineage, paths, scratch / "refine", derep_params, params.refine_ani, logger
+    )
+    return lineage, splice(result, lineage, sub, paths, logger)
 
 
 def _auto_num_processes(threads: int) -> int:
@@ -842,6 +923,7 @@ def _reduce_by_taxonomy(
     taxon_of: Mapping[str, str],
     n50: N50Of | None = None,
     prefer: Collection[str] = (),
+    keep_apart: Collection[str] = (),
 ) -> DerepResult:
     """Collapse the ANI representatives to one per taxon (species|genus).
 
@@ -858,7 +940,8 @@ def _reduce_by_taxonomy(
     A representative named in ``prefer`` (the GTDB species representatives
     under ``--keeper gtdb``) wins over the others before any of these rules.
     Representatives whose taxon is unknown/empty are kept as-is (each its own
-    group), so reduction never silently drops an un-annotated genome.
+    group), so reduction never silently drops an un-annotated genome, and so
+    are those named in ``keep_apart`` (the clusters of a refined lineage).
     """
     from ..dereplicators.base import STATUS_CONTAINED, STATUS_FAIL_QC, STATUS_REPRESENTATIVE
 
@@ -866,7 +949,7 @@ def _reduce_by_taxonomy(
     groups: dict[str, list[str]] = {}
     rep_names = [rep.name for rep in result.representatives]
     for name in rep_names:
-        taxon = taxon_of.get(name, "")
+        taxon = "" if name in keep_apart else taxon_of.get(name, "")
         key = taxon if taxon else f"\x00{name}"  # sentinel: unknown taxa stay singletons
         groups.setdefault(key, []).append(name)
 
@@ -951,6 +1034,8 @@ def _write_contract(
     result: DerepResult,
     quality: Mapping[str, tuple[float, float]],
     n50: N50Of | None = None,
+    *,
+    refined: Sequence[RefinedRow] = (),
 ) -> None:
     rep_dir = ctx.representatives_dir
     if rep_dir.exists():
@@ -975,6 +1060,12 @@ def _write_contract(
 
     write_clusters(ctx.derep_dir / CLUSTERS_TSV, result.clusters)
     write_genome_status(ctx.derep_dir / GENOME_STATUS_TSV, result.genome_status)
+    refined_path = ctx.derep_dir / REFINED_TSV
+    if refined:
+        write_refined(refined_path, refined)
+    else:
+        # A result without a refinement leaves no file of an earlier one.
+        refined_path.unlink(missing_ok=True)
     write_cluster_summary(
         ctx.derep_dir / CLUSTER_SUMMARY_TSV,
         summarise_clusters(
@@ -983,6 +1074,7 @@ def _write_contract(
             taxonomy_lookup(ctx),
             n50,
             gtdb_representatives=gtdb_lookup(ctx),
+            refined={r.representative for r in refined if r.status == STATUS_REPRESENTATIVE},
         ),
     )
 

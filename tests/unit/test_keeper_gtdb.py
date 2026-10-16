@@ -295,8 +295,8 @@ def test_cluster_summary_marks_a_gtdb_representative_keeper(tmp_path) -> None:
     path = tmp_path / "cluster_summary.tsv"
     write_cluster_summary(path, rows)
     lines = path.read_text(encoding="utf-8").splitlines()
-    assert lines[0].split("\t")[-1] == "rep_is_gtdb_representative"
-    assert [line.split("\t")[-1] for line in lines[1:]] == ["1", "0"]
+    column = lines[0].split("\t").index("rep_is_gtdb_representative")
+    assert [line.split("\t")[column] for line in lines[1:]] == ["1", "0"]
     assert read_cluster_summary(path) == rows
 
 

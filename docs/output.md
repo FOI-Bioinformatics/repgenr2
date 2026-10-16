@@ -72,6 +72,7 @@ WD/
     clusters.tsv
     genome_status.tsv
     cluster_summary.tsv
+    refined.tsv            (only after --refine or derep-refine)
     unpacked/<representative>/    (derep-unpack)
     stock/<name>/                 (derep-stock)
   annotations/<record>/           per-genome annotation (annotate)
@@ -191,6 +192,7 @@ settings (a looser quality gate, for example) reuses them.
 | `derep/representatives/` | dereplicate | The representative genomes, one genome file per cluster; the distinct values of the first column of `clusters.tsv`. |
 | `derep/clusters.tsv` | dereplicate | `representative<TAB>member`, one row per genome; a representative also lists itself. |
 | `derep/genome_status.tsv` | dereplicate | Per-genome status: `representative`, `contained` or `fail_qc`. |
+| `derep/refined.tsv` | dereplicate `--refine`, derep-refine | The genomes of a lineage dereplicated again at a finer ANI: `genome`, `seed` (the seed whose coarse cluster brought it in), `coarse_representative`, `representative` (after the refinement; blank for `fail_qc`) and `status`. Absent when the result holds no refinement. |
 | `derep/cluster_summary.tsv` | dereplicate, cluster-summary | One row per representative: member count, species spanned and keeper quality against the members (see [Cluster summary](#cluster-summary)). |
 | `derep/unpacked/<representative>/` | derep-unpack | One directory per cluster with its member genomes (and the representative unless `--no-representant`), hard-linked from `genomes/` where the file system allows it and copied otherwise. The directory is named by the representative's file name without its genome extension, or by its full file name when two representatives would otherwise share a directory (`x.fasta` and `x.fna`; names differing only in case). The gzip suffixes (`.fasta.gz`, `.fna.gz`, `.fa.gz`) are removed as a whole. Replaced on each run. |
 | `derep/stock/<name>/` | derep-stock | A named, stored dereplication run written by `pack`: `clusters.tsv`, `genome_status.tsv`, `cluster_summary.tsv`, a `representatives/` directory of links to the representative genomes, and `record.json`, the completed `dereplicate` record at pack time (tool, params, tool_versions, completed; absent when there was none). `unpack` restores it, re-stamps the `dereplicate` record from `record.json`, and rebuilds `derep/cluster_summary.tsv` from the restored clusters and the current manifest; the stored summary keeps the quality of pack time. The re-stamped record holds no resume fingerprint, so a later `dereplicate` or `repgenr run` recomputes the restored dereplication; run `phylo` directly to build on it. |
@@ -216,7 +218,8 @@ dereplicator. The outgroup is set aside before dereplication and has no row.
 | `n_genomes` | Genomes in the cluster, the keeper included (`n_members` + 1). It follows `best_member`, so the positions of the earlier columns are unchanged. |
 | `rep_n50` | N50 of the keeper in bases, read from its FASTA. Filled only when the keeper has completeness and contamination, so an unscored representative is not read; blank otherwise or when the file is not found. |
 | `best_score` | Keeper score of `best_member`, four decimals; blank when `best_member` is blank. |
-| `rep_is_gtdb_representative` | 1 when the keeper is a GTDB species representative (manifest, or `selection.tsv` in the Nextflow steps), else 0. It is 0 throughout for non-GTDB selections and for a working directory whose selection predates the flag. It is the last column. |
+| `rep_is_gtdb_representative` | 1 when the keeper is a GTDB species representative (manifest, or `selection.tsv` in the Nextflow steps), else 0. It is 0 throughout for non-GTDB selections and for a working directory whose selection predates the flag. |
+| `refined` | 1 when the cluster comes from a refinement at a finer ANI (`dereplicate --refine` or `derep-refine`, see usage.md, "Finer resolution inside a lineage"), read from `refined.tsv`; else 0. It is the last column. |
 
 The species columns come from the manifest taxonomy (`selection.tsv` in the
 Nextflow steps), and from the canonical filename

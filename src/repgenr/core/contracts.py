@@ -36,6 +36,8 @@ from .errors import WorkdirError
 CLUSTERS_TSV = "clusters.tsv"
 GENOME_STATUS_TSV = "genome_status.tsv"
 CLUSTER_SUMMARY_TSV = "cluster_summary.tsv"
+# Written by dereplicate --refine and derep-refine: the lineage genomes.
+REFINED_TSV = "refined.tsv"
 SELECTION_TSV = "selection.tsv"
 MSA_FASTA = "msa.fasta"
 CORE_SNP_FASTA = "core_snp.fasta"
@@ -439,6 +441,46 @@ def read_clusters(path: Path) -> dict[str, list[str]]:
     return dict(clusters)
 
 
+@dataclass(frozen=True)
+class RefinedRow:
+    """One genome of the lineage a dereplication refined at a finer ANI.
+
+    ``seed`` is the seed whose coarse cluster brought the genome in,
+    ``coarse_representative`` that cluster's representative before the
+    refinement, ``representative`` the genome's representative after it (the
+    genome itself when it is one; blank for ``fail_qc``), ``status`` its
+    final status.
+    """
+
+    genome: str
+    seed: str
+    coarse_representative: str
+    representative: str
+    status: str
+
+
+_REFINED_COLUMNS = ("genome", "seed", "coarse_representative", "representative", "status")
+
+
+def write_refined(path: Path, rows: Sequence[RefinedRow]) -> None:
+    with atomic_replace(path, newline="") as fo:
+        writer = _tsv_writer(fo)
+        writer.writerow(_REFINED_COLUMNS)
+        for r in sorted(rows, key=lambda r: (r.coarse_representative, r.representative, r.genome)):
+            writer.writerow([r.genome, r.seed, r.coarse_representative, r.representative, r.status])
+
+
+def read_refined(path: Path) -> list[RefinedRow]:
+    """The refined rows; a missing file yields none."""
+    if not path.is_file():
+        return []
+    rows: list[RefinedRow] = []
+    with open(path, encoding="utf-8", newline="") as fo:
+        for rec in csv.DictReader(fo, delimiter="\t"):
+            rows.append(RefinedRow(*(rec.get(c, "") or "" for c in _REFINED_COLUMNS)))
+    return rows
+
+
 def write_genome_status(path: Path, status: dict[str, str]) -> None:
     with atomic_replace(path, newline="") as fo:
         writer = _tsv_writer(fo)
@@ -497,6 +539,9 @@ class ClusterSummaryRow:
     # Whether the representative is a GTDB species representative (from the
     # manifest or selection.tsv); False when the selection carries no flag.
     rep_is_gtdb_representative: bool = False
+    # Whether the cluster comes from a refinement at a finer ANI
+    # (``dereplicate --refine`` or ``derep-refine``).
+    refined: bool = False
 
     @property
     def n_genomes(self) -> int:
@@ -519,6 +564,7 @@ _CLUSTER_SUMMARY_COLUMNS = (
     "rep_n50",
     "best_score",
     "rep_is_gtdb_representative",
+    "refined",
 )
 
 
@@ -542,6 +588,7 @@ def write_cluster_summary(path: Path, rows: list[ClusterSummaryRow]) -> None:
                     "" if r.rep_n50 is None else r.rep_n50,
                     _fmt_opt(r.best_score),
                     "1" if r.rep_is_gtdb_representative else "0",
+                    "1" if r.refined else "0",
                 ]
             )
 
@@ -571,6 +618,7 @@ def read_cluster_summary(path: Path) -> list[ClusterSummaryRow]:
                     rep_is_gtdb_representative=_outgroup_flag(
                         rec.get("rep_is_gtdb_representative"), "rep_is_gtdb_representative"
                     ),
+                    refined=_outgroup_flag(rec.get("refined"), "refined"),
                 )
             )
     return rows

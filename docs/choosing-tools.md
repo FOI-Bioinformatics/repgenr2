@@ -230,6 +230,10 @@ described in [Starting from sequencing reads](usage.md#starting-from-sequencing-
 | `sourmash` | Sparse back-end close to linear in close pairs. About 5.5 min at 5000, 0.3 to 0.7 GB. Dense back-end is capped at 5000. | Most-connected genome, alphabetical tie-break. | Biased toward the most-sequenced genotype. The sparse and dense back-ends can pick different members. | No | Native and container |
 | `drep` | Quadratic within primary clusters. Declared limit 2000, chunk-wrapped. | Completeness, contamination, N50 and size score. Quality-aware. | Best-scored member, so least sensitive to block size. | Yes: completeness and contamination in the manifest (or `selection.tsv` for the Nextflow steps) for every genome of the run, passed as `--genomeInfo`; else CheckM on `PATH`; or `--virus`, which passes `--ignoreGenomeQuality`. Without any of these, dRep stops and `dereplicate` exits 6. | Container only |
 
+To keep one lineage of a species at a finer resolution than the rest,
+whichever dereplicator is used, see "Finer resolution inside a lineage" in
+[usage.md](usage.md#finer-resolution-inside-a-lineage).
+
 Which dereplicator to use:
 
 - Use `skder`, the default, for most sets.

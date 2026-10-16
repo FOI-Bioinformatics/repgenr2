@@ -875,7 +875,8 @@ def test_chunk_keeper_gtdb_keeps_the_flagged_member(tmp_path: Path, reg) -> None
     assert {r.name for r in result.representatives} == {genomes[1].name, genomes[2].name}
     assert (tmp_path / "c0" / "representatives" / genomes[1].name).exists()
     summary = (tmp_path / "c0" / CLUSTER_SUMMARY_TSV).read_text(encoding="utf-8").splitlines()
-    flags = {line.split("\t")[0]: line.split("\t")[-1] for line in summary[1:]}
+    column = summary[0].split("\t").index("rep_is_gtdb_representative")
+    flags = {line.split("\t")[0]: line.split("\t")[column] for line in summary[1:]}
     assert flags == {genomes[1].name: "1", genomes[2].name: "0"}
 
 

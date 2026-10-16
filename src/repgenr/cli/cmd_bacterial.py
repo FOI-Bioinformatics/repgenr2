@@ -27,6 +27,8 @@ from .base import (
     HELP_PRIMARY_ANI,
     HELP_PROCESS_SIZE,
     HELP_REDUCE,
+    HELP_REFINE,
+    HELP_REFINE_ANI,
     HELP_SECONDARY_ANI,
     HELP_SKETCH,
     HELP_TARGET_FAMILY,
@@ -185,6 +187,8 @@ def dereplicate(
         "--keeper",
         help=HELP_KEEPER,
     ),
+    refine: list[str] = typer.Option([], "--refine", help=HELP_REFINE),
+    refine_ani: float | None = typer.Option(None, "--refine-ani", help=HELP_REFINE_ANI),
 ) -> None:
     """Cluster genomes by ANI and select representatives."""
     from ..dereplicators.base import registry as _derep_registry
@@ -213,6 +217,32 @@ def dereplicate(
             },
             allow_incomplete=allow_incomplete,
             keeper=keeper,
+            refine=refine,
+            refine_ani=refine_ani,
         )
 
     _run("dereplicate", workdir, build)
+
+
+@app.command(name="derep-refine", rich_help_panel=PANEL_CORE)
+def derep_refine(
+    workdir: Path = typer.Option(..., "-wd", "--workdir", help=HELP_WORKDIR),
+    refine: list[str] = typer.Option(..., "--refine", help=HELP_REFINE),
+    refine_ani: float = typer.Option(..., "--refine-ani", help=HELP_REFINE_ANI),
+    threads: int = typer.Option(
+        DEFAULT_THREADS, "-t", "--threads", min=1, help=HELP_THREADS, callback=resolve_threads
+    ),
+) -> None:
+    """Keep more genomes inside a lineage: dereplicate the seeds' clusters again at a finer ANI.
+
+    Refines the dereplication on disk with the tool and settings of its
+    record, without repeating it. Store the current result first with
+    derep-stock if it should be kept.
+    """
+    from .param_builders import derep_refine_params
+
+    _run(
+        "derep_refine",
+        workdir,
+        lambda: derep_refine_params(seeds=refine, ani=refine_ani, threads=threads),
+    )
