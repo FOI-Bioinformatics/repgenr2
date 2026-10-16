@@ -66,9 +66,10 @@ from .derep_refine import (
     Lineage,
     check_refine_ani,
     fine_pass,
-    lineage_of,
+    lineages_of,
     manifest_accessions,
     record_params,
+    refine_groups,
     refined_rows,
     resolve_seeds,
     splice,
@@ -109,6 +110,8 @@ class DereplicateParams:
     # Seeds of a lineage to dereplicate again at refine_ani (derep_refine).
     refine: list[str] = field(default_factory=list)
     refine_ani: float | None = None
+    # A TSV of seed and ani: several lineages, each with its own ANI.
+    refine_file: str | None = None
 
 
 def precheck(ctx: WorkdirContext, params: DereplicateParams) -> None:
@@ -127,7 +130,7 @@ def precheck(ctx: WorkdirContext, params: DereplicateParams) -> None:
         raise WorkdirError(
             f"No genome FASTAs found under {ctx.genomes_dir}. Run the genome stage first."
         )
-    if params.refine:
+    if params.refine or params.refine_file:
         # A refinement that cannot run must be refused before the coarse pass.
         _check_refine_request(ctx, params, genomes)
     elif params.refine_ani is not None:
@@ -172,7 +175,7 @@ def run(ctx: WorkdirContext, params: DereplicateParams) -> DerepResult:
         raise WorkdirError(
             f"No genome FASTAs found under {ctx.genomes_dir}. Run the genome stage first."
         )
-    if params.refine:
+    if params.refine or params.refine_file:
         # Also checked by precheck; here for callers that bypass the harness.
         _check_refine_request(ctx, params, genomes)
 
@@ -237,18 +240,17 @@ def run(ctx: WorkdirContext, params: DereplicateParams) -> DerepResult:
 
     # N50 per genome for the keeper score and the summary, each genome read once.
     n50 = N50Lookup([ctx.genomes_dir], workers=params.threads)
-    lineage = None
-    if params.refine:
-        lineage, result = _refine(
+    lineages: list[Lineage] = []
+    if params.refine or params.refine_file:
+        lineages, result = _refine(
             ctx, adapter, result, genomes, scratch, derep_params, params, logger
         )
     result, keeper_swaps, keeper_effective, quality, gtdb = apply_keeper(
         ctx, result, params.keeper, manifest_quality, n50, logger
     )
     # The refined clusters share a species: --reduce must leave them apart.
-    refined_reps = (
-        {rep for rep in result.clusters if rep in lineage.coarse_rep_of} if lineage else set()
-    )
+    in_lineage = {g for lineage in lineages for g in lineage.genomes}
+    refined_reps = {rep for rep in result.clusters if rep in in_lineage}
 
     if params.reduce != "none":
         before = len(result.representatives)
@@ -271,8 +273,7 @@ def run(ctx: WorkdirContext, params: DereplicateParams) -> DerepResult:
         )
 
     check_result_complete(result, [g.name for g in genomes])
-    refined_any = lineage is not None and bool(lineage.genomes)
-    rows = refined_rows(result, lineage) if refined_any and lineage else []
+    rows = [r for lineage in lineages for r in refined_rows(result, lineage)]
     # A derep-refine record describes a result this run replaces.
     ctx.config.stages.pop("derep_refine", None)
     # The summary reports quality whichever keeper rule was used, so a
@@ -300,11 +301,8 @@ def run(ctx: WorkdirContext, params: DereplicateParams) -> DerepResult:
             # The tool arguments, also merged below as before; derep-refine
             # reads them from here.
             "tool_args": dict(params.extra or {}),
-            **(
-                record_params(lineage, params.refine_ani or 0.0, rows)
-                if refined_any and lineage
-                else {}
-            ),
+            **(record_params(lineages, rows) if lineages else {}),
+            **({"refine_file": params.refine_file} if params.refine_file else {}),
             **(params.extra or {}),
         },
         tool_versions=versions,
@@ -450,35 +448,42 @@ def _refine(
     derep_params: DerepParams,
     params: DereplicateParams,
     logger: logging.Logger,
-) -> tuple[Lineage, DerepResult]:
-    """``--refine``: dereplicate the seeds' clusters again at ``refine_ani``."""
-    seeds = _check_refine_request(ctx, params, genomes)
-    assert params.refine_ani is not None
-    lineage = lineage_of(result, seeds, logger)
-    if not lineage.genomes:
+) -> tuple[list[Lineage], DerepResult]:
+    """``--refine``: dereplicate the seeds' clusters again, each lineage at
+    its ANI."""
+    groups = _check_refine_request(ctx, params, genomes)
+    lineages = lineages_of(result, groups, logger)
+    if not lineages:
         logger.warning("Every --refine seed is alone in its cluster; nothing was refined")
-        return lineage, result
+        return [], result
     paths = {g.name: g for g in genomes}
-    sub = fine_pass(
-        adapter, lineage, paths, scratch / "refine", derep_params, params.refine_ani, logger
-    )
-    return lineage, splice(result, lineage, sub, paths, logger)
+    for i, lineage in enumerate(lineages):
+        sub = fine_pass(
+            adapter, lineage, paths, scratch / f"refine{i}", derep_params, lineage.ani, logger
+        )
+        result = splice(result, lineage, sub, paths, logger)
+    return lineages, result
 
 
 def _check_refine_request(
     ctx: WorkdirContext, params: DereplicateParams, genomes: Sequence[Path]
-) -> list[str]:
-    """Refuse a ``--refine`` request that cannot run; the resolved seed filenames."""
-    if params.refine_ani is None:
-        raise UserInputError("--refine needs --refine-ani.")
+) -> list[tuple[list[str], float]]:
+    """Refuse a ``--refine`` request that cannot run; the groups as (resolved
+    seed filenames, ani)."""
+    groups = refine_groups(params.refine, params.refine_ani, params.refine_file)
     if params.target_reps and params.target_reps > 0:
         raise UserInputError(
             "--refine cannot be combined with --target-reps: the search sets the secondary "
             "ANI itself, so the refinement would have no fixed threshold to be finer than."
         )
-    check_refine_ani(params.refine_ani, params.secondary_ani)
     accessions, outgroup = manifest_accessions(ctx)
-    return resolve_seeds(params.refine, genomes, accessions=accessions, outgroup=outgroup)
+    out = []
+    for g in groups:
+        check_refine_ani(g.ani, params.secondary_ani)
+        out.append(
+            (resolve_seeds(g.seeds, genomes, accessions=accessions, outgroup=outgroup), g.ani)
+        )
+    return out
 
 
 def _auto_num_processes(threads: int) -> int:

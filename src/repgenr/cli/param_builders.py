@@ -367,6 +367,7 @@ def dereplicate_params(
     keeper: Any = _UNSET,
     refine: Any = _UNSET,
     refine_ani: Any = _UNSET,
+    refine_file: Any = _UNSET,
 ) -> DereplicateParams:
     from ..core.errors import UserInputError
     from ..dereplicators.base import registry as _derep_registry
@@ -390,7 +391,8 @@ def dereplicate_params(
         if value is not _UNSET:
             _require_unit_interval(value, label)
     _check_refine(refine, refine_ani)
-    if refine is not _UNSET and refine and target_reps is not _UNSET and target_reps > 0:
+    refining = (refine is not _UNSET and refine) or (refine_file is not _UNSET and refine_file)
+    if refining and target_reps is not _UNSET and target_reps > 0:
         raise UserInputError("--refine cannot be combined with --target-reps.")
     return _build(
         DereplicateParams,
@@ -410,6 +412,7 @@ def dereplicate_params(
         keeper=keeper,
         refine=refine,
         refine_ani=refine_ani,
+        refine_file=refine_file,
     )
 
 
@@ -427,11 +430,22 @@ def _check_refine(refine: Any, refine_ani: Any) -> None:
         _require_unit_interval(ani, "--refine-ani")
 
 
-def derep_refine_params(*, seeds: Any = _UNSET, ani: Any = _UNSET, threads: Any = _UNSET):
+def derep_refine_params(
+    *,
+    seeds: Any = _UNSET,
+    ani: Any = _UNSET,
+    refine_file: Any = _UNSET,
+    threads: Any = _UNSET,
+):
+    from ..core.errors import UserInputError
     from ..stages.derep_refine import DerepRefineParams
 
     _check_refine(seeds, ani)
-    return _build(DerepRefineParams, seeds=seeds, ani=ani, threads=threads)
+    if not ((seeds is not _UNSET and seeds) or (refine_file is not _UNSET and refine_file)):
+        raise UserInputError(
+            "derep-refine needs --refine seeds (with --refine-ani) or --refine-file."
+        )
+    return _build(DerepRefineParams, seeds=seeds, ani=ani, refine_file=refine_file, threads=threads)
 
 
 def phylo_params(

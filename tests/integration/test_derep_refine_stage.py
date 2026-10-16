@@ -175,7 +175,8 @@ def test_derep_refine_refines_the_result_on_disk(workdir: Path, genomes, tiered)
         "refine_ani": 0.999,
         "refine_genomes": 3,
         "refine_representatives": 2,
-        "refine_seeds_given": [C311, "GCA_000212"],
+        "refine_lineages": [{"seeds": [B212], "ani": 0.999, "genomes": 3, "representatives": 2}],
+        "refine_request": [[[C311, "GCA_000212"], 0.999]],
         "base_completed": ctx.config.stages["dereplicate"].completed,
     }
     # The dereplicate record is left as it was.
@@ -350,3 +351,47 @@ def test_derep_refine_with_a_gtdb_keeper_record_warns_nothing_false(
         refine_run(ctx, DerepRefineParams(seeds=[A111], ani=0.999))
     assert "metadata --force" not in caplog.text
     assert "no GTDB species representative among the lineage genomes" in caplog.text
+
+
+def test_two_lineages_each_at_their_own_ani(workdir: Path, genomes, tiered, tmp_path) -> None:
+    """A refine file with A at 0.999 and B at 0.9995: each lineage is
+    dereplicated at its ANI, and the rows carry it."""
+    refine_file = tmp_path / "refine.tsv"
+    refine_file.write_text(f"seed\tani\n{A112}\t0.999\nGCA_000212\t0.9995\n", encoding="utf-8")
+    ctx = _ctx(workdir)
+    run(ctx, DereplicateParams(tool="tiered", refine_file=str(refine_file)))
+    assert _Tiered.calls == [(7, 0.99), (3, 0.999), (3, 0.9995)]
+    assert read_clusters(ctx.derep_dir / CLUSTERS_TSV) == {
+        A111: [A112],
+        A121: [],
+        B211: [B212],
+        B221: [],
+        C311: [],
+    }
+    rows = {r.genome: r for r in read_refined(ctx.derep_dir / REFINED_TSV)}
+    assert rows[A121].ani == "0.999" and rows[B221].ani == "0.9995"
+    rec = ctx.config.stages["dereplicate"].params
+    assert rec["refine_ani"] is None and rec["refine_file"] == str(refine_file)
+    assert [lin["ani"] for lin in rec["refine_lineages"]] == [0.999, 0.9995]
+
+    # derep-refine takes a file too, and may add the CLI pair on top.
+    run(ctx, DereplicateParams(tool="tiered"))
+    ctx.close()
+    _Tiered.calls = []
+    cli_base._run(
+        "derep_refine",
+        workdir,
+        lambda: DerepRefineParams(seeds=[C311], ani=0.999, refine_file=str(refine_file)),
+    )
+    assert sorted(_Tiered.calls) == [(3, 0.999), (3, 0.9995)]  # C311 is a singleton
+    ctx = WorkdirContext(workdir)
+    assert ctx.config.stages["derep_refine"].params["refine_request"] == [
+        [[A112, C311], 0.999],
+        [["GCA_000212"], 0.9995],
+    ]
+    # Editing the file changes the request: the stage reruns.
+    refine_file.write_text(f"seed\tani\n{A112}\t0.9995\n", encoding="utf-8")
+    ctx.close()
+    _Tiered.calls = []
+    cli_base._run("derep_refine", workdir, lambda: DerepRefineParams(refine_file=str(refine_file)))
+    assert _Tiered.calls == [(3, 0.9995)]

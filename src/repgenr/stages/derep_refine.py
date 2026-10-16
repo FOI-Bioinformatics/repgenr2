@@ -15,6 +15,7 @@ disk without repeating the coarse pass.
 
 from __future__ import annotations
 
+import csv
 import logging
 import sqlite3
 from collections.abc import Collection, Iterable, Mapping, Sequence
@@ -72,7 +73,9 @@ _RECORD_KEYS = frozenset(
         "refine_ani",
         "refine_genomes",
         "refine_representatives",
-        "refine_seeds_given",
+        "refine_lineages",
+        "refine_request",
+        "refine_file",
         "base_completed",
     }
 )
@@ -83,8 +86,86 @@ class DerepRefineParams:
     """``derep-refine``: refine the dereplication on disk."""
 
     seeds: list[str] = field(default_factory=list)
-    ani: float = 0.999
+    ani: float | None = None
+    # A TSV of seed and ani: several lineages, each with its own ANI.
+    refine_file: str | None = None
     threads: int = 16
+
+
+@dataclass(frozen=True)
+class RefineGroup:
+    """Seeds refined together at one ANI."""
+
+    seeds: tuple[str, ...]
+    ani: float
+
+
+def read_refine_file(path: Path) -> list[RefineGroup]:
+    """The groups of a refine file: a TSV with the columns ``seed`` and
+    ``ani``, one seed per row; the seeds of one ANI form one group."""
+    if not path.is_file():
+        raise UserInputError(f"--refine-file {path} is not a file.")
+    by_ani: dict[float, list[str]] = {}
+    with open(path, encoding="utf-8", newline="") as fo:
+        reader = csv.DictReader(fo, delimiter="\t")
+        if reader.fieldnames is None or not {"seed", "ani"} <= set(reader.fieldnames):
+            raise UserInputError(
+                f"--refine-file {path} needs the tab-separated columns seed and ani."
+            )
+        for n, rec in enumerate(reader, start=2):
+            seed = (rec.get("seed") or "").strip()
+            text = (rec.get("ani") or "").strip()
+            if not seed or seed.startswith("#"):
+                continue
+            try:
+                ani = float(text)
+            except ValueError:
+                raise UserInputError(
+                    f"--refine-file {path}, line {n}: ani must be a number, not {text!r}."
+                ) from None
+            if not 0.0 < ani <= 1.0:
+                raise UserInputError(
+                    f"--refine-file {path}, line {n}: ani must be in (0, 1], got {ani}."
+                )
+            group = by_ani.setdefault(ani, [])
+            if seed not in group:
+                group.append(seed)
+    if not by_ani:
+        raise UserInputError(f"--refine-file {path} names no seed.")
+    return [RefineGroup(tuple(seeds), ani) for ani, seeds in sorted(by_ani.items())]
+
+
+def refine_groups(
+    seeds: Sequence[str], ani: float | None, refine_file: str | None
+) -> list[RefineGroup]:
+    """The groups of a request: the ``--refine`` seeds at ``--refine-ani``,
+    plus those of ``--refine-file``. A seed named twice is refused."""
+    groups: list[RefineGroup] = []
+    if seeds:
+        if ani is None:
+            raise UserInputError("--refine needs --refine-ani.")
+        groups.append(RefineGroup(tuple(dict.fromkeys(s.strip() for s in seeds)), ani))
+    if refine_file:
+        groups += read_refine_file(Path(refine_file).expanduser())
+    if not groups:
+        raise UserInputError(
+            "Give at least one --refine seed (with --refine-ani) or --refine-file."
+        )
+    seen: dict[str, float] = {}
+    by_ani: dict[float, list[str]] = {}
+    for g in groups:
+        for seed in g.seeds:
+            if seed in seen and seen[seed] != g.ani:
+                raise UserInputError(
+                    f"Seed {seed} is given at two ANIs ({seen[seed]} and {g.ani}); a lineage "
+                    "has one."
+                )
+            seen[seed] = g.ani
+            merged = by_ani.setdefault(g.ani, [])
+            if seed not in merged:
+                merged.append(seed)
+    # The seeds of one ANI form one group, wherever they were given.
+    return [RefineGroup(tuple(seeds), ani) for ani, seeds in sorted(by_ani.items())]
 
 
 @dataclass
@@ -96,6 +177,7 @@ class Lineage:
     seed_of: dict[str, str]  # genome -> the seed whose cluster holds it
     coarse_rep_of: dict[str, str]  # genome -> its coarse representative
     skipped: list[str]  # seeds alone in their cluster: nothing to refine
+    ani: float = 0.0  # the secondary ANI of this lineage's fine pass
 
 
 def check_refine_ani(ani: float, secondary_ani: float) -> None:
@@ -169,9 +251,10 @@ def lineage_of(
     seeds: Sequence[str],
     logger: logging.Logger,
     prior: Sequence[RefinedRow] = (),
+    ani: float = 0.0,
 ) -> Lineage:
     """The clusters of ``result`` to refine for ``seeds``: every cluster that
-    holds a seed, whole.
+    holds a seed, whole, at ``ani``.
 
     ``prior`` is the ``refined.tsv`` of a result refined before. A seed that
     was refined then brings in its original coarse cluster (every genome the
@@ -220,14 +303,39 @@ def lineage_of(
                 genomes.append(g)
                 seed_of[g] = seed
                 coarse_rep_of[g] = earlier_rep.get(g, rep)
-    return Lineage(genomes, coarse, seed_of, coarse_rep_of, skipped)
+    return Lineage(genomes, coarse, seed_of, coarse_rep_of, skipped, ani)
+
+
+def lineages_of(
+    result: DerepResult,
+    groups: Sequence[tuple[Sequence[str], float]],
+    logger: logging.Logger,
+    prior: Sequence[RefinedRow] = (),
+) -> list[Lineage]:
+    """One lineage per group of (resolved seeds, ani), all against the same
+    ``result``, so each cluster belongs to at most one lineage; a cluster two
+    groups claim is refused, naming the seeds."""
+    lineages: list[Lineage] = []
+    claimed: dict[str, str] = {}
+    for seeds, ani in groups:
+        lineage = lineage_of(result, seeds, logger, prior, ani)
+        for rep in lineage.coarse_representatives:
+            if rep in claimed:
+                raise UserInputError(
+                    f"Seeds {claimed[rep]} and {lineage.seed_of[rep]} fall in one cluster "
+                    f"(of {rep}) but are given at different ANIs; a lineage has one."
+                )
+            claimed[rep] = lineage.seed_of[rep]
+        if lineage.genomes:
+            lineages.append(lineage)
+    return lineages
 
 
 def merge_rows(
-    prior: Sequence[RefinedRow], rows: Sequence[RefinedRow], lineage: Lineage
+    prior: Sequence[RefinedRow], rows: Sequence[RefinedRow], lineages: Sequence[Lineage]
 ) -> list[RefinedRow]:
-    """``rows`` with the earlier refinements of genomes outside ``lineage`` kept."""
-    inside = set(lineage.genomes)
+    """``rows`` with the earlier refinements of genomes outside ``lineages`` kept."""
+    inside = {g for lineage in lineages for g in lineage.genomes}
     return [r for r in prior if r.genome not in inside] + list(rows)
 
 
@@ -323,19 +431,37 @@ def refined_rows(result: DerepResult, lineage: Lineage) -> list[RefinedRow]:
                 coarse_representative=lineage.coarse_rep_of[g],
                 representative="" if status == STATUS_FAIL_QC else rep_of.get(g, ""),
                 status=status,
+                ani=repr(lineage.ani),
             )
         )
     return rows
 
 
-def record_params(lineage: Lineage, ani: float, rows: Sequence[RefinedRow]) -> dict:
-    """The refinement's entries for a stage record."""
+def record_params(lineages: Sequence[Lineage], rows: Sequence[RefinedRow]) -> dict:
+    """The refinement's entries for a stage record: the totals, and one entry
+    per lineage. ``refine_ani`` is the one ANI when every lineage shares it."""
+    anis = sorted({lineage.ani for lineage in lineages})
+    reps = {r.genome for r in rows if r.status == STATUS_REPRESENTATIVE}
     return {
-        "refine_seeds": sorted(set(lineage.seed_of.values())),
-        "refine_ani": ani,
-        "refine_genomes": len(lineage.genomes),
-        "refine_representatives": sum(r.status == STATUS_REPRESENTATIVE for r in rows),
+        "refine_seeds": sorted({s for lineage in lineages for s in lineage.seed_of.values()}),
+        "refine_ani": anis[0] if len(anis) == 1 else None,
+        "refine_genomes": sum(len(lineage.genomes) for lineage in lineages),
+        "refine_representatives": len(reps),
+        "refine_lineages": [
+            {
+                "seeds": sorted(set(lineage.seed_of.values())),
+                "ani": lineage.ani,
+                "genomes": len(lineage.genomes),
+                "representatives": sum(1 for g in lineage.genomes if g in reps),
+            }
+            for lineage in lineages
+        ],
     }
+
+
+def request_key(groups: Sequence[RefineGroup]) -> list[list[object]]:
+    """The request as recorded, for the repeat check."""
+    return [[sorted(g.seeds), g.ani] for g in sorted(groups, key=lambda g: g.ani)]
 
 
 def manifest_accessions(ctx: WorkdirContext) -> tuple[dict[str, str], set[str]]:
@@ -363,8 +489,7 @@ def run(ctx: WorkdirContext, params: DerepRefineParams) -> DerepResult:
     )
 
     logger = ctx.logger
-    if not params.seeds:
-        raise UserInputError("derep-refine needs at least one --refine seed.")
+    groups = refine_groups(params.seeds, params.ani, params.refine_file)
     record = ctx.config.stages.get("dereplicate")
     if record is None or not record.completed or not record.tool:
         raise UserInputError(
@@ -373,9 +498,10 @@ def run(ctx: WorkdirContext, params: DerepRefineParams) -> DerepResult:
         )
     rec = record.params
     secondary = float(rec.get("secondary_ani", 0.99))
-    check_refine_ani(params.ani, secondary)
+    for g in groups:
+        check_refine_ani(g.ani, secondary)
     prior = ctx.config.stages.get("derep_refine")
-    if prior is not None and _already_applied(ctx, params, record.completed):
+    if prior is not None and _already_applied(ctx, groups, record.completed):
         # The result on disk is this refinement of this dereplication already;
         # refining the fine clusters again would give the same partition.
         logger.info(
@@ -420,10 +546,13 @@ def run(ctx: WorkdirContext, params: DerepRefineParams) -> DerepResult:
         genome_status=status,
     )
     accessions, outgroup = manifest_accessions(ctx)
-    seeds = resolve_seeds(params.seeds, genomes, accessions=accessions, outgroup=outgroup)
+    resolved = [
+        (resolve_seeds(g.seeds, genomes, accessions=accessions, outgroup=outgroup), g.ani)
+        for g in groups
+    ]
     prior_rows = read_refined(ctx.derep_dir / REFINED_TSV)
-    lineage = lineage_of(result, seeds, logger, prior_rows)
-    if not lineage.genomes:
+    lineages = lineages_of(result, resolved, logger, prior_rows)
+    if not lineages:
         raise UserInputError(
             "Every --refine seed is alone in its cluster; there is nothing to refine."
         )
@@ -445,14 +574,15 @@ def run(ctx: WorkdirContext, params: DerepRefineParams) -> DerepResult:
     caps = adapter.capabilities
     extra = {**caps.default_params, **_tool_args(rec)}
     manifest_quality = quality_lookup(ctx)
-    lineage_paths = [paths[n] for n in lineage.genomes]
+    lineage_names = [n for lineage in lineages for n in lineage.genomes]
+    lineage_paths = [paths[n] for n in lineage_names]
     derep_params = DerepParams(
         primary_ani=float(rec.get("primary_ani", 0.90)),
         secondary_ani=secondary,
         aligned_fraction=float(rec.get("aligned_fraction", 0.50)),
         threads=params.threads,
         extra=extra,
-        quality=run_quality(manifest_quality, lineage.genomes, logger, source="manifest"),
+        quality=run_quality(manifest_quality, lineage_names, logger, source="manifest"),
     )
     derep_params.sketches = adapter_sketches(
         adapter,
@@ -463,20 +593,28 @@ def run(ctx: WorkdirContext, params: DerepRefineParams) -> DerepResult:
         "derep-refine",
     )
     scratch = ctx.scratch_dir / "derep_refine"
-    sub = fine_pass(adapter, lineage, paths, scratch, derep_params, params.ani, logger)
     n50 = N50Lookup([ctx.genomes_dir], workers=params.threads)
     keeper = str(rec.get("keeper", "quality"))
-    sub, _swaps, effective, _quality, _gtdb = apply_keeper(
-        ctx, sub, keeper, manifest_quality, n50, logger, gtdb_warning=False
-    )
-    if keeper == "gtdb" and effective != "gtdb":
-        logger.info(
-            "Refine: no GTDB species representative among the lineage genomes; the %s "
-            "rule chose the representatives",
-            "quality" if effective == "quality" else "tool's own",
+    refined = result
+    for i, lineage in enumerate(lineages):
+        sub = fine_pass(
+            adapter, lineage, paths, scratch / str(i), derep_params, lineage.ani, logger
         )
-    refined = splice(result, lineage, sub, paths, logger)
-    rows = merge_rows(prior_rows, refined_rows(refined, lineage), lineage)
+        sub, _swaps, effective, _quality, _gtdb = apply_keeper(
+            ctx, sub, keeper, manifest_quality, n50, logger, gtdb_warning=False
+        )
+        if keeper == "gtdb" and effective != "gtdb":
+            logger.info(
+                "Refine: no GTDB species representative among the lineage genomes; the %s "
+                "rule chose the representatives",
+                "quality" if effective == "quality" else "tool's own",
+            )
+        refined = splice(refined, lineage, sub, paths, logger)
+    rows = merge_rows(
+        prior_rows,
+        [r for lineage in lineages for r in refined_rows(refined, lineage)],
+        lineages,
+    )
     _write_contract(ctx, refined, manifest_quality, n50, refined=rows)
     _update_manifest(ctx, refined)
     remove_tree(scratch)
@@ -484,10 +622,10 @@ def run(ctx: WorkdirContext, params: DerepRefineParams) -> DerepResult:
         "derep_refine",
         tool=tool,
         params={
-            **record_params(lineage, params.ani, rows),
+            **record_params(lineages, rows),
             # The request as given and the dereplication it refined, so a
             # repeat of the same request on the same result does nothing.
-            "refine_seeds_given": sorted(params.seeds),
+            "refine_request": request_key(groups),
             "base_completed": record.completed,
         },
         tool_versions=versions,
@@ -502,7 +640,7 @@ def run(ctx: WorkdirContext, params: DerepRefineParams) -> DerepResult:
     return refined
 
 
-def _already_applied(ctx: WorkdirContext, params: DerepRefineParams, base: str | None) -> bool:
+def _already_applied(ctx: WorkdirContext, groups: Sequence[RefineGroup], base: str | None) -> bool:
     """Whether the result on disk is this request applied to the dereplication
     completed at ``base``.
 
@@ -516,11 +654,7 @@ def _already_applied(ctx: WorkdirContext, params: DerepRefineParams, base: str |
     if prior is None or base is None:
         return False
     p = prior.params
-    if (
-        p.get("base_completed") != base
-        or p.get("refine_seeds_given") != sorted(params.seeds)
-        or p.get("refine_ani") != params.ani
-    ):
+    if p.get("base_completed") != base or p.get("refine_request") != request_key(groups):
         return False
     rows = read_refined(ctx.derep_dir / REFINED_TSV)
     if not rows:

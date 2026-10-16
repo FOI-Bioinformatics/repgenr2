@@ -179,6 +179,10 @@ HELP_REFINE = (
     "repeatable): every cluster holding a seed is dereplicated again at --refine-ani."
 )
 HELP_REFINE_ANI = "Secondary ANI for the clusters of the --refine seeds; above --secondary-ani."
+HELP_REFINE_FILE = (
+    "TSV with the columns seed and ani: several lineages, each refined at its own ANI "
+    "(the seeds of one ANI form one lineage)."
+)
 HELP_PRE_PRIMARY_ANI = "Stage-1 (intra-chunk) primary ANI; defaults to --primary-ani."
 HELP_PRE_SECONDARY_ANI = "Stage-1 (intra-chunk) secondary ANI; defaults to --secondary-ani."
 HELP_REDUCE = (
@@ -393,6 +397,12 @@ def _ingest_inputs(ctx: WorkdirContext, params: Any) -> list[Path]:
     return paths
 
 
+def _refine_file_input(params: Any) -> list[Path]:
+    """The --refine-file, when given: its content is part of the request."""
+    path = getattr(params, "refine_file", None)
+    return [Path(path).expanduser()] if path else []
+
+
 def _derep_stock_inputs(ctx: WorkdirContext, params: Any) -> list[Path]:
     action = getattr(params, "action", "")
     name = getattr(params, "name", None) or ""
@@ -459,11 +469,15 @@ STAGE_INPUTS: dict[str, Any] = {
         ctx.workdir / "virus_download_wd" / "metadata_base.tsv",
         ctx.workdir / "virus_download_wd" / "metadata_ncbi.tsv",
     ],
-    "dereplicate": lambda ctx, p: [ctx.genomes_dir],
+    "dereplicate": lambda ctx, p: [ctx.genomes_dir, *_refine_file_input(p)],
     # Its own output is an input, digested again after the run (below), so a
     # repeat is skipped and any later dereplicate or unpack reruns it. The
     # manifest is left out: the stage rewrites it too.
-    "derep_refine": lambda ctx, p: [ctx.derep_dir / CLUSTERS_TSV, ctx.genomes_dir],
+    "derep_refine": lambda ctx, p: [
+        ctx.derep_dir / CLUSTERS_TSV,
+        ctx.genomes_dir,
+        *_refine_file_input(p),
+    ],
     "snptype": lambda ctx, p: [
         ctx.genomes_dir if getattr(p, "all_genomes", False) else ctx.representatives_dir
     ],

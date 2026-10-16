@@ -659,6 +659,16 @@ commands:
         - docs/audit/cli-matrix.md
         nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
         live: 'n/a: covered offline in tests/unit/test_derep_refine.py (fake dereplicator)'
+      --refine-file:
+        param: DereplicateParams.refine_file
+        value: '{file}'
+        validated: stage
+        docs:
+        - docs/usage.md
+        - docs/cli-reference.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
+        live: 'n/a: covered offline in tests/integration/test_derep_refine_stage.py (fake dereplicator)'
   derep-refine:
     dispatch: stage
     base_args:
@@ -715,6 +725,16 @@ commands:
         - docs/audit/cli-matrix.md
         nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
         live: 'n/a: covered offline in tests/unit/test_derep_refine.py (fake dereplicator)'
+      --refine-file:
+        param: DerepRefineParams.refine_file
+        value: '{file}'
+        validated: stage
+        docs:
+        - docs/usage.md
+        - docs/cli-reference.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
+        live: 'n/a: covered offline in tests/integration/test_derep_refine_stage.py (fake dereplicator)'
   dereplicate-chunk:
     dispatch: step:repgenr.stages.derep_steps.dereplicate_chunk
     base_args:
@@ -3426,6 +3446,16 @@ commands:
         param: DereplicateParams.refine_ani
         value: '0.999'
         validated: unit_interval
+        docs:
+        - docs/usage.md
+        - docs/cli-reference.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
+        live: 'n/a: forwarded to the stage builder unchanged (wiring test); the stage flag is covered offline'
+      --refine-file:
+        param: DereplicateParams.refine_file
+        value: '{file}'
+        validated: stage
         docs:
         - docs/usage.md
         - docs/cli-reference.md

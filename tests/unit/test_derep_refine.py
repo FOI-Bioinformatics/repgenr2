@@ -145,15 +145,17 @@ def test_fine_pass_and_splice_replace_only_the_seed_clusters(tmp_path: Path) -> 
 
     rows = refine.refined_rows(out, lineage)
     assert rows == [
-        RefinedRow(A111, A112, A111, A111, STATUS_REPRESENTATIVE),
-        RefinedRow(A112, A112, A111, A111, STATUS_CONTAINED),
-        RefinedRow(A121, A112, A111, A121, STATUS_REPRESENTATIVE),
+        RefinedRow(A111, A112, A111, A111, STATUS_REPRESENTATIVE, "0.0"),
+        RefinedRow(A112, A112, A111, A111, STATUS_CONTAINED, "0.0"),
+        RefinedRow(A121, A112, A111, A121, STATUS_REPRESENTATIVE, "0.0"),
     ]
-    assert refine.record_params(lineage, 0.999, rows) == {
+    lineage.ani = 0.999
+    assert refine.record_params([lineage], rows) == {
         "refine_seeds": [A112],
         "refine_ani": 0.999,
         "refine_genomes": 3,
         "refine_representatives": 2,
+        "refine_lineages": [{"seeds": [A112], "ani": 0.999, "genomes": 3, "representatives": 2}],
     }
 
 
@@ -235,3 +237,51 @@ def test_refined_rows_round_trip_and_summary_column(tmp_path: Path) -> None:
         A121: True,
         B211: False,
     }
+
+
+def test_refine_file_groups_seeds_by_ani(tmp_path: Path) -> None:
+    path = tmp_path / "refine.tsv"
+    path.write_text(
+        "seed\tani\nGCA_1\t0.999\n# a comment\t\nGCA_2\t0.9995\nGCA_3\t0.999\nGCA_1\t0.999\n",
+        encoding="utf-8",
+    )
+    assert refine.read_refine_file(path) == [
+        refine.RefineGroup(("GCA_1", "GCA_3"), 0.999),
+        refine.RefineGroup(("GCA_2",), 0.9995),
+    ]
+    # Combined with --refine/--refine-ani; a seed at two ANIs is refused.
+    groups = refine.refine_groups(["GCA_9"], 0.998, str(path))
+    assert groups[0] == refine.RefineGroup(("GCA_9",), 0.998) and len(groups) == 3
+    # The seeds of one ANI form one group, wherever they were given.
+    groups = refine.refine_groups(["GCA_9"], 0.999, str(path))
+    assert groups[0] == refine.RefineGroup(("GCA_9", "GCA_1", "GCA_3"), 0.999)
+    with pytest.raises(UserInputError, match="two ANIs"):
+        refine.refine_groups(["GCA_2"], 0.998, str(path))
+    with pytest.raises(UserInputError, match="needs --refine-ani"):
+        refine.refine_groups(["GCA_2"], None, None)
+    with pytest.raises(UserInputError, match="at least one"):
+        refine.refine_groups([], None, None)
+    for text, match in [
+        ("seed\n", "columns seed and ani"),
+        ("seed\tani\nX\tabc\n", "must be a number"),
+        ("seed\tani\nX\t1.5\n", r"\(0, 1\]"),
+        ("seed\tani\n", "names no seed"),
+    ]:
+        path.write_text(text, encoding="utf-8")
+        with pytest.raises(UserInputError, match=match):
+            refine.read_refine_file(path)
+    with pytest.raises(UserInputError, match="not a file"):
+        refine.read_refine_file(tmp_path / "none.tsv")
+
+
+def test_lineages_of_refuses_one_cluster_at_two_anis(tmp_path: Path) -> None:
+    coarse = _coarse(_paths(tmp_path))
+    lineages = refine.lineages_of(coarse, [([A112], 0.999), ([B212], 0.9995)], _LOG)
+    assert [(lin.coarse_representatives, lin.ani) for lin in lineages] == [
+        ([A111], 0.999),
+        ([B211], 0.9995),
+    ]
+    with pytest.raises(UserInputError, match="different ANIs"):
+        refine.lineages_of(coarse, [([A112], 0.999), ([A121], 0.9995)], _LOG)
+    # A singleton seed gives no lineage.
+    assert refine.lineages_of(coarse, [([C311], 0.999)], _LOG) == []
