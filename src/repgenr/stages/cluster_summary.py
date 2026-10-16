@@ -22,14 +22,17 @@ from ..core.context import WorkdirContext
 from ..core.contracts import (
     CLUSTER_SUMMARY_TSV,
     CLUSTERS_TSV,
+    REFINED_TSV,
     ClusterSummaryRow,
     parse_genome_filename,
     read_clusters,
+    read_refined,
     sanitise_taxon_tokens,
     write_cluster_summary,
 )
 from ..core.errors import WorkdirError
 from ..core.resources import usable_cpus
+from ..dereplicators.base import STATUS_REPRESENTATIVE
 from .derep_keeper import (
     N50_MAX_WORKERS,
     N50Lookup,
@@ -60,6 +63,7 @@ def summarise_clusters(
     n50: N50Of | None = None,
     *,
     gtdb_representatives: Collection[str] = (),
+    refined: Collection[str] = (),
 ) -> list[ClusterSummaryRow]:
     """Build the summary rows, largest cluster first, then by representative name.
 
@@ -67,13 +71,15 @@ def summarise_clusters(
     holds without a species) falls back to its canonical filename. ``n50``
     gives each genome's N50 for ``rep_n50`` and the keeper score; without it
     those columns use no N50. ``gtdb_representatives`` names the GTDB species
-    representatives.
+    representatives, ``refined`` the representatives of the clusters a
+    refinement at a finer ANI produced.
     """
     taxonomy = taxonomy or {}
     flagged = set(gtdb_representatives)
+    fine = set(refined)
     prefetch_n50(n50, clusters.items(), quality, scored_incumbents=True)
     rows = [
-        _summarise(rep, members, quality, taxonomy, n50, rep in flagged)
+        _summarise(rep, members, quality, taxonomy, n50, rep in flagged, rep in fine)
         for rep, members in clusters.items()
     ]
     rows.sort(key=lambda r: (-r.n_members, r.representative))
@@ -134,6 +140,7 @@ def _summarise(
     taxonomy: Taxonomy,
     n50: N50Of | None,
     gtdb_rep: bool = False,
+    refined: bool = False,
 ) -> ClusterSummaryRow:
     others = [m for m in members if m != rep]
     n_species, species = _species_column(rep, others, taxonomy)
@@ -160,6 +167,7 @@ def _summarise(
         rep_n50=None if n50 is None or rep_q is None else n50(rep),
         best_score=_rounded(best_score(best_member, quality, n50) if best_member else None),
         rep_is_gtdb_representative=gtdb_rep,
+        refined=refined,
     )
 
 
@@ -176,6 +184,15 @@ def taxonomy_lookup(ctx: WorkdirContext) -> dict[str, tuple[str, str]]:
         # No manifest (data-channel path, tests): the filenames supply species.
         return {}
     return {r.filename: (r.genus or "", r.species or "") for r in records if r.filename}
+
+
+def refined_representatives(derep_dir: Path) -> set[str]:
+    """Representatives of the clusters ``refined.tsv`` records, if any."""
+    return {
+        r.representative
+        for r in read_refined(derep_dir / REFINED_TSV)
+        if r.status == STATUS_REPRESENTATIVE
+    }
 
 
 def gtdb_lookup(ctx: WorkdirContext) -> set[str]:
@@ -202,7 +219,12 @@ def run(ctx: WorkdirContext, params: ClusterSummaryParams) -> Path:
         logger.info("No assembly quality in the manifest; quality columns are left blank")
     n50 = N50Lookup([ctx.genomes_dir], workers=min(usable_cpus(), N50_MAX_WORKERS))
     rows = summarise_clusters(
-        clusters, quality, taxonomy_lookup(ctx), n50, gtdb_representatives=gtdb_lookup(ctx)
+        clusters,
+        quality,
+        taxonomy_lookup(ctx),
+        n50,
+        gtdb_representatives=gtdb_lookup(ctx),
+        refined=refined_representatives(ctx.derep_dir),
     )
     warn_missing_n50(n50, logger)
     out = ctx.derep_dir / CLUSTER_SUMMARY_TSV

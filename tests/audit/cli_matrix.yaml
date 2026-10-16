@@ -634,6 +634,87 @@ commands:
         - docs/audit/cli-matrix.md
         nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
         live: tests/live/test_dereplicators.py::test_keeper_quality_promotes_the_best_scored_member
+      --refine:
+        param: DereplicateParams.refine
+        value: GCA_000001
+        with_args:
+        - --refine-ani
+        - '0.999'
+        validated: stage
+        docs:
+        - docs/usage.md
+        - docs/output.md
+        - docs/cli-reference.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
+        live: 'n/a: covered offline in tests/unit/test_derep_refine.py (fake dereplicator)'
+        observable: derep/refined.tsv lists the lineage genomes
+      --refine-ani:
+        param: DereplicateParams.refine_ani
+        value: '0.999'
+        validated: unit_interval
+        docs:
+        - docs/usage.md
+        - docs/cli-reference.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
+        live: 'n/a: covered offline in tests/unit/test_derep_refine.py (fake dereplicator)'
+  derep-refine:
+    dispatch: stage
+    base_args:
+    - -wd
+    - '{wd}'
+    - --refine
+    - GCA_000001
+    - --refine-ani
+    - '0.999'
+    flags:
+      --workdir:
+        aliases:
+        - -wd
+        param: workdir
+        value: '{alt_dir}'
+        validated: stage
+        docs:
+        - docs/cli-reference.md
+        - docs/usage.md
+        - docs/output.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
+        live: 'n/a: covered offline in tests/unit/test_derep_refine.py (fake dereplicator)'
+        observable: derep/refined.tsv and the refined clusters are written
+      --refine:
+        param: DerepRefineParams.seeds
+        value: GCA_000002
+        validated: stage
+        docs:
+        - docs/usage.md
+        - docs/cli-reference.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
+        live: 'n/a: covered offline in tests/unit/test_derep_refine.py (fake dereplicator)'
+      --refine-ani:
+        param: DerepRefineParams.ani
+        value: '0.9995'
+        validated: unit_interval
+        docs:
+        - docs/usage.md
+        - docs/cli-reference.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
+        live: 'n/a: covered offline in tests/unit/test_derep_refine.py (fake dereplicator)'
+      --threads:
+        aliases:
+        - -t
+        param: DerepRefineParams.threads
+        value: '2'
+        validated: range
+        invalid: '0'
+        docs:
+        - docs/cli-reference.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
+        live: 'n/a: covered offline in tests/unit/test_derep_refine.py (fake dereplicator)'
   dereplicate-chunk:
     dispatch: step:repgenr.stages.derep_steps.dereplicate_chunk
     base_args:
@@ -3326,6 +3407,31 @@ commands:
         nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
         live: 'n/a: forwarded to the stage builder unchanged (wiring test); the stage flag is covered
           live'
+      --refine:
+        param: DereplicateParams.refine
+        value: GCA_000001
+        with_args:
+        - --refine-ani
+        - '0.999'
+        validated: stage
+        docs:
+        - docs/usage.md
+        - docs/output.md
+        - docs/cli-reference.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
+        live: 'n/a: forwarded to the stage builder unchanged (wiring test); the stage flag is covered offline'
+        observable: derep/refined.tsv lists the lineage genomes
+      --refine-ani:
+        param: DereplicateParams.refine_ani
+        value: '0.999'
+        validated: unit_interval
+        docs:
+        - docs/usage.md
+        - docs/cli-reference.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
+        live: 'n/a: forwarded to the stage builder unchanged (wiring test); the stage flag is covered offline'
       --tool-arg:
         param: DereplicateParams.extra
         value: mode=greedy

@@ -365,6 +365,8 @@ def dereplicate_params(
     extra: Any = _UNSET,
     allow_incomplete: Any = _UNSET,
     keeper: Any = _UNSET,
+    refine: Any = _UNSET,
+    refine_ani: Any = _UNSET,
 ) -> DereplicateParams:
     from ..core.errors import UserInputError
     from ..dereplicators.base import registry as _derep_registry
@@ -387,6 +389,9 @@ def dereplicate_params(
     ):
         if value is not _UNSET:
             _require_unit_interval(value, label)
+    _check_refine(refine, refine_ani)
+    if refine is not _UNSET and refine and target_reps is not _UNSET and target_reps > 0:
+        raise UserInputError("--refine cannot be combined with --target-reps.")
     return _build(
         DereplicateParams,
         tool=tool,
@@ -403,7 +408,30 @@ def dereplicate_params(
         extra=extra,
         allow_incomplete=allow_incomplete,
         keeper=keeper,
+        refine=refine,
+        refine_ani=refine_ani,
     )
+
+
+def _check_refine(refine: Any, refine_ani: Any) -> None:
+    """A --refine seed needs --refine-ani, a unit fraction; the stage checks
+    that it is finer than the secondary ANI and warns on an ANI without
+    seeds."""
+    from ..core.errors import UserInputError
+
+    seeds = [] if refine is _UNSET or refine is None else list(refine)
+    ani = None if refine_ani is _UNSET else refine_ani
+    if seeds and ani is None:
+        raise UserInputError("--refine needs --refine-ani.")
+    if ani is not None:
+        _require_unit_interval(ani, "--refine-ani")
+
+
+def derep_refine_params(*, seeds: Any = _UNSET, ani: Any = _UNSET, threads: Any = _UNSET):
+    from ..stages.derep_refine import DerepRefineParams
+
+    _check_refine(seeds, ani)
+    return _build(DerepRefineParams, seeds=seeds, ani=ani, threads=threads)
 
 
 def phylo_params(

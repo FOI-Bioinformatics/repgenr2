@@ -1403,6 +1403,67 @@ through `--derep_reduce` and `--derep_target_reps`. The merge step takes the
 taxonomy from `selection.tsv` when one reaches it and from the canonical
 genome filenames otherwise.
 
+#### Finer resolution inside a lineage
+
+One secondary ANI applies to the whole set. A study often needs coarse
+coverage of a species and more genomes inside one lineage, such as a
+clinically relevant genotype or an outbreak clade. `--refine` keeps that
+lineage at a finer resolution without changing the rest of the result.
+
+The lineage is named by seeds. Give one or a few genomes known to belong to
+it (`--refine SEED`, repeatable: a filename, a filename without its suffix,
+or an accession) and a finer ANI (`--refine-ani`, above `--secondary-ani`).
+The dereplication runs as usual; then every cluster that holds a seed is
+taken as the lineage, and its genomes, the representative included, are
+dereplicated again with the same tool and settings at the finer ANI. The
+clusters this gives replace the coarse one. Nothing outside the seed clusters
+changes, and a seed alone in its cluster has nothing to refine and is
+reported.
+
+```bash
+# In one run: the species at 0.99, the lineage of GCA_000123 at 0.999
+repgenr dereplicate -wd $WD --tool skder --refine GCA_000123 --refine-ani 0.999
+
+# After the fact, on the result on disk, without repeating the coarse pass
+repgenr derep-stock -wd $WD --action pack --name coarse
+repgenr derep-refine -wd $WD --refine GCA_000123 --refine-ani 0.999
+```
+
+`derep-refine` takes the tool and thresholds from the completed `dereplicate`
+record, so it needs one (a record restored by `derep-stock` counts). It
+rewrites the dereplication outputs in place and records a `derep_refine`
+stage; `phylo` and `tree2tax` then rebuild from the refined set. A later
+`dereplicate` (forced, or with changed inputs) recomputes the coarse result
+and discards the refinement, so store the result you want to keep with
+`derep-stock` first. `repgenr run ... --refine SEED --refine-ani F` passes
+both to its `dereplicate` stage. A seed given as an accession needs the
+version suffix the filename carries (`GCA_000123.1` when the file is named
+so); unknown seeds, the outgroup, a genome the dereplicator rejected and an
+ANI that is not finer are refused before the coarse pass runs.
+
+The keeper rule chooses the representative of each refined cluster as of any
+other. `--reduce species|genus` leaves the refined clusters apart, since they
+share a species by construction; the species then keeps one representative
+outside the lineage and the refined ones inside it. `--refine` cannot be
+combined with `--target-reps`, whose search sets the secondary ANI itself.
+The outgroup is never part of a lineage.
+
+`derep-refine` can be applied more than once, for another lineage or for the
+same seed at another ANI. A seed refined before brings in its original
+coarse cluster, read from `refined.tsv`, so refining it again at a finer ANI
+starts from the same genomes and not from the fine cluster it sits in now;
+the rows of lineages left untouched are kept. On a result reduced with
+`--reduce`, a cluster on disk is a whole taxon group, and the lineage is
+refined as such, with a warning. The seeds and ANI of a `derep-refine` live
+in its own stage record; `derep-stock` stores the `dereplicate` record and
+`refined.tsv`, so after an unpack the file alone describes the refinement.
+
+The lineage genomes are listed in `derep/refined.tsv` (genome, seed, the
+coarse representative, the final representative and status), and the
+`refined` column of `cluster_summary.tsv` marks the clusters the refinement
+produced (see [output.md](output.md)). The stage record holds the seeds, the
+ANI and the counts. `derep-stock` stores and restores the file with the run.
+
 #### The sourmash dereplicator and its sketch cache
 
 `--tool sourmash` reads the genome sketches of the working directory (see

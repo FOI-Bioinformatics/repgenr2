@@ -93,6 +93,8 @@ SHARED_FLAGS: list[tuple[str, str, str]] = (
     # --num-processes is not shared: on run it also sets the annotate workers.
     + [("dereplicate", "run", f) for f in ("--reduce", "--target-reps")]
     + [("dereplicate", "run", "--allow-incomplete")]
+    + [("dereplicate", "run", f) for f in ("--refine", "--refine-ani")]
+    + [("dereplicate", "derep-refine", f) for f in ("--refine", "--refine-ani")]
     + [("dereplicate", "dereplicate-chunk", "--tool-arg")]
     + [("annotate", "annotate-build", f) for f in ("--tool", "--bakta-db")]
     + [("dereplicate", "dereplicate-merge", "--tool-arg")]

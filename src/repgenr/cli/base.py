@@ -32,6 +32,7 @@ from ..core.contracts import (
     GENOMES_MAP_TSV,
     OUTGROUP_ACCESSION_TXT,
     READS_TSV,
+    REFINED_TSV,
     SEGMENTS_TSV,
     SELECTION_TSV,
     TREE2TAX_NODES_TSV,
@@ -173,6 +174,11 @@ HELP_RUN_NUM_PROCESSES = (
     "workers and, with --msa-source coregene, the genomes annotated at once. "
     "0 = auto (~threads/4, capped by cores)."
 )
+HELP_REFINE = (
+    "Seed of a lineage to keep at finer resolution (filename, stem or accession; "
+    "repeatable): every cluster holding a seed is dereplicated again at --refine-ani."
+)
+HELP_REFINE_ANI = "Secondary ANI for the clusters of the --refine seeds; above --secondary-ani."
 HELP_PRE_PRIMARY_ANI = "Stage-1 (intra-chunk) primary ANI; defaults to --primary-ani."
 HELP_PRE_SECONDARY_ANI = "Stage-1 (intra-chunk) secondary ANI; defaults to --secondary-ani."
 HELP_REDUCE = (
@@ -263,7 +269,7 @@ PANEL_STEPS = "Nextflow data-channel steps"
 COMMAND_PANELS: dict[str, tuple[str, ...]] = {
     PANEL_PIPELINE: ("run", "status"),
     PANEL_ENTRY: ("metadata", "genome", "vmetadata", "vgenome", "ingest", "reads", "assemble"),
-    PANEL_CORE: ("dereplicate", "annotate", "snptype", "phylo", "tree2tax"),
+    PANEL_CORE: ("dereplicate", "derep-refine", "annotate", "snptype", "phylo", "tree2tax"),
     PANEL_INSPECT: ("census", "glance", "cluster-summary", "derep-unpack", "derep-stock", "sketch"),
     PANEL_ENV: ("list-tools", "doctor", "versions"),
     PANEL_STEPS: (
@@ -454,6 +460,10 @@ STAGE_INPUTS: dict[str, Any] = {
         ctx.workdir / "virus_download_wd" / "metadata_ncbi.tsv",
     ],
     "dereplicate": lambda ctx, p: [ctx.genomes_dir],
+    # Its own output is an input, digested again after the run (below), so a
+    # repeat is skipped and any later dereplicate or unpack reruns it. The
+    # manifest is left out: the stage rewrites it too.
+    "derep_refine": lambda ctx, p: [ctx.derep_dir / CLUSTERS_TSV, ctx.genomes_dir],
     "snptype": lambda ctx, p: [
         ctx.genomes_dir if getattr(p, "all_genomes", False) else ctx.representatives_dir
     ],
@@ -580,6 +590,7 @@ STAGE_DELIVERABLES: dict[str, Any] = {
     "genome": _genome_deliverables,
     "vgenome": lambda ctx, p: _genome_set_deliverables(ctx),
     "dereplicate": _dereplicate_deliverables,
+    "derep_refine": lambda ctx, p: [ctx.derep_dir / REFINED_TSV, ctx.derep_dir / CLUSTERS_TSV],
     "snptype": lambda ctx, p: [ctx.snp_dir / CORE_SNP_FASTA],
     "annotate": lambda ctx, p: [ctx.annotations_dir / ANNOTATIONS_TSV],
     "phylo": lambda ctx, p: [ctx.tree_dir / TREE_NWK],
@@ -696,6 +707,7 @@ QUERY_ONLY_FLAGS: dict[str, tuple[str, ...]] = {
 # the run, so an identical repeat matches the new state and skips.
 _REDIGEST_AFTER_RUN: dict[str, Any] = {
     "derep_stock": lambda p: getattr(p, "action", None) == "unpack",
+    "derep_refine": lambda p: True,
     "metadata": lambda p: getattr(p, "nodownload", False),
 }
 

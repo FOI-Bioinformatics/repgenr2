@@ -24,6 +24,7 @@ from ..core.contracts import (
     CLUSTER_SUMMARY_TSV,
     CLUSTERS_TSV,
     GENOME_STATUS_TSV,
+    REFINED_TSV,
     atomic_replace,
     list_fasta,
     read_clusters,
@@ -35,7 +36,7 @@ from ..core.process import link_or_copy, remove_tree
 from ..dereplicators.base import DerepResult
 from .dereplicate import _update_manifest
 
-_FLAT_FILES = (CLUSTERS_TSV, GENOME_STATUS_TSV, CLUSTER_SUMMARY_TSV)
+_FLAT_FILES = (CLUSTERS_TSV, GENOME_STATUS_TSV, CLUSTER_SUMMARY_TSV, REFINED_TSV)
 # The dereplicate record of the stored run, written by pack.
 _RECORD_JSON = "record.json"
 _RECORD_FIELDS = ("tool", "params", "tool_versions", "completed")
@@ -273,7 +274,7 @@ def _unpack(ctx: WorkdirContext, run_path: Path) -> None:
         ctx.save_config()
     # The summary is not restored: it is rebuilt below from the restored
     # clusters and the live manifest.
-    for name in (CLUSTERS_TSV, GENOME_STATUS_TSV):
+    for name in (CLUSTERS_TSV, GENOME_STATUS_TSV, REFINED_TSV):
         src = run_path / name
         if src.exists():
             shutil.copy2(src, ctx.derep_dir / name)
@@ -302,7 +303,12 @@ def _unpack(ctx: WorkdirContext, run_path: Path) -> None:
     # the live manifest, as `cluster-summary` writes it. The stored copy stays
     # in the store as the pack-time view.
     from ..core.resources import usable_cpus
-    from .cluster_summary import gtdb_lookup, summarise_clusters, taxonomy_lookup
+    from .cluster_summary import (
+        gtdb_lookup,
+        refined_representatives,
+        summarise_clusters,
+        taxonomy_lookup,
+    )
     from .derep_keeper import N50_MAX_WORKERS, N50Lookup, warn_missing_n50
     from .dereplicate import quality_lookup
 
@@ -315,6 +321,7 @@ def _unpack(ctx: WorkdirContext, run_path: Path) -> None:
             taxonomy_lookup(ctx),
             n50,
             gtdb_representatives=gtdb_lookup(ctx),
+            refined=refined_representatives(ctx.derep_dir),
         ),
     )
     warn_missing_n50(n50, ctx.logger)

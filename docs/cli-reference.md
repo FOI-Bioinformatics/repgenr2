@@ -84,6 +84,8 @@ is 'vmetadata --source'. --platform filters the sequencing platform with
 | `--pre-secondary-ani` |  | Stage-1 (intra-chunk) secondary ANI; defaults to --secondary-ani. |
 | `--reduce` | `none` | Taxonomy-aware reduction after ANI: none, species, or genus (one representative per taxon). |
 | `--target-reps` | `0` | Target representative count: search --secondary-ani to land near it (0 = off; re-runs dereplication per search step). |
+| `--refine` |  | Seed of a lineage to keep at finer resolution (filename, stem or accession; repeatable): every cluster holding a seed is dereplicated again at --refine-ani. |
+| `--refine-ani` |  | Secondary ANI for the clusters of the --refine seeds; above --secondary-ani. |
 | `--tool-arg` |  | Tool tuning as key=value (repeatable), e.g. mode=greedy. |
 | `--with-snptype` | off | Run the standalone snptype stage (with --snptyper, --mask, --reference) after dereplication, so the SNP tables are produced whatever builds the tree. |
 | `--treebuilder` | `iqtree` | auto, fasttree, iqtree, mashtree, raxmlng, ska2, skani, sourmash, veryfasttree. |
@@ -304,6 +306,23 @@ Cluster genomes by ANI and select representatives.
 | `--tool-arg` |  | Tool tuning as key=value (repeatable), e.g. mode=greedy. |
 | `--allow-incomplete` | off | Proceed with a warning when the input genome set is incomplete. |
 | `--keeper` | `quality` | Representative choice per cluster: quality (manifest CheckM values and genome N50), gtdb (a GTDB species representative first, then quality) or tool (adapter's own). |
+| `--refine` |  | Seed of a lineage to keep at finer resolution (filename, stem or accession; repeatable): every cluster holding a seed is dereplicated again at --refine-ani. |
+| `--refine-ani` |  | Secondary ANI for the clusters of the --refine seeds; above --secondary-ani. |
+
+### derep-refine
+
+Keep more genomes inside a lineage: dereplicate the seeds' clusters again at a finer ANI.
+
+Refines the dereplication on disk with the tool and settings of its
+record, without repeating it. Store the current result first with
+derep-stock if it should be kept.
+
+| option | default | description |
+|---|---|---|
+| `-wd`, `--workdir` | required | Working directory. |
+| `--refine` | required | Seed of a lineage to keep at finer resolution (filename, stem or accession; repeatable): every cluster holding a seed is dereplicated again at --refine-ani. |
+| `--refine-ani` | required | Secondary ANI for the clusters of the --refine seeds; above --secondary-ani. |
+| `-t`, `--threads` | `16` | Threads for the external tool (default 16, or the CPU limit when lower). |
 
 ### annotate
 

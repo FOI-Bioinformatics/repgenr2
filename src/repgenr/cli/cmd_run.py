@@ -56,6 +56,8 @@ from .base import (
     HELP_RANKS,
     HELP_REDUCE,
     HELP_REFERENCE,
+    HELP_REFINE,
+    HELP_REFINE_ANI,
     HELP_REMOVE_OUTGROUP,
     HELP_ROOT,
     HELP_ROOT_NAME,
@@ -348,6 +350,8 @@ def run(
     ),
     reduce: str = typer.Option("none", "--reduce", help=HELP_REDUCE),
     target_reps: int = typer.Option(0, "--target-reps", help=HELP_TARGET_REPS),
+    refine: list[str] = typer.Option([], "--refine", help=HELP_REFINE),
+    refine_ani: float | None = typer.Option(None, "--refine-ani", help=HELP_REFINE_ANI),
     tool_arg: list[str] = typer.Option([], "--tool-arg", help=HELP_DEREP_TOOL_ARG),
     # --- SNP typing ---
     with_snptype: bool = typer.Option(
@@ -504,6 +508,8 @@ def run(
             reduce=reduce,
             target_reps=target_reps,
             extra=derep_extra,
+            refine=refine,
+            refine_ani=refine_ani,
         )
         phylo_params(
             treebuilder=treebuilder,
@@ -701,6 +707,8 @@ def run(
             extra=derep_extra,
             keeper=keeper,
             allow_incomplete=allow_incomplete,
+            refine=refine,
+            refine_ani=refine_ani,
         ),
     )
 

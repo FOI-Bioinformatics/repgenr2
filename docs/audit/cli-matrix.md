@@ -3,7 +3,7 @@
 Generated from `tests/audit/cli_matrix.yaml` by `scripts/render_cli_matrix.py`;
 `tests/unit/test_cli_matrix.py` keeps both in step with the command tree.
 
-33 commands, 399 flags (399 with a live test or an n/a reason, 0 pending).
+34 commands, 407 flags (407 with a live test or an n/a reason, 0 pending).
 
 ## Global flags
 
@@ -100,6 +100,19 @@ dispatch: `stage`
 | `--tool-arg` |  | DereplicateParams.extra | callback | n/a: workdir command; the Nextflow layer uses the stateless steps | tests/live/test_dereplicators.py::test_tool_arg_reaches_the_tool_command_line | docs/developing.md, docs/cli-reference.md, docs/usage.md, docs/audit/cli-matrix.md |
 | `--allow-incomplete` |  | DereplicateParams.allow_incomplete | none | n/a: workdir command; the Nextflow layer uses the stateless steps | tests/live/test_dereplicators.py::test_allow_incomplete_gates_a_missing_genome | docs/cli-reference.md, docs/audit/cli-matrix.md |
 | `--keeper` |  | DereplicateParams.keeper | choice | n/a: workdir command; the Nextflow layer uses the stateless steps | tests/live/test_dereplicators.py::test_keeper_quality_promotes_the_best_scored_member | docs/usage.md, docs/choosing-tools.md, docs/cli-reference.md, docs/audit/scaling-audit.md, docs/audit/cli-matrix.md |
+| `--refine` |  | DereplicateParams.refine | stage | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: covered offline in tests/unit/test_derep_refine.py (fake dereplicator) | docs/usage.md, docs/output.md, docs/cli-reference.md, docs/audit/cli-matrix.md |
+| `--refine-ani` |  | DereplicateParams.refine_ani | unit_interval | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: covered offline in tests/unit/test_derep_refine.py (fake dereplicator) | docs/usage.md, docs/cli-reference.md, docs/audit/cli-matrix.md |
+
+## derep-refine
+
+dispatch: `stage`
+
+| flag | aliases | param | validated | nextflow | live | docs |
+|---|---|---|---|---|---|---|
+| `--workdir` | -wd | workdir | stage | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: covered offline in tests/unit/test_derep_refine.py (fake dereplicator) | docs/cli-reference.md, docs/usage.md, docs/output.md, docs/audit/cli-matrix.md |
+| `--refine` |  | DerepRefineParams.seeds | stage | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: covered offline in tests/unit/test_derep_refine.py (fake dereplicator) | docs/usage.md, docs/cli-reference.md, docs/audit/cli-matrix.md |
+| `--refine-ani` |  | DerepRefineParams.ani | unit_interval | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: covered offline in tests/unit/test_derep_refine.py (fake dereplicator) | docs/usage.md, docs/cli-reference.md, docs/audit/cli-matrix.md |
+| `--threads` | -t | DerepRefineParams.threads | range | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: covered offline in tests/unit/test_derep_refine.py (fake dereplicator) | docs/cli-reference.md, docs/audit/cli-matrix.md |
 
 ## dereplicate-chunk
 
@@ -446,6 +459,8 @@ dispatch: `stage`
 | `--num-processes` | -p | DereplicateParams.num_processes | none | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: forwarded to the stage builder unchanged (wiring test); the stage flag is covered live | docs/cli-reference.md, docs/audit/cli-matrix.md |
 | `--reduce` |  | DereplicateParams.reduce | choice | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: forwarded to the stage builder unchanged (wiring test); the stage flag is covered live | docs/cli-reference.md, docs/audit/cli-matrix.md |
 | `--target-reps` |  | DereplicateParams.target_reps | range | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: forwarded to the stage builder unchanged (wiring test); the stage flag is covered live | docs/cli-reference.md, docs/audit/cli-matrix.md |
+| `--refine` |  | DereplicateParams.refine | stage | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: forwarded to the stage builder unchanged (wiring test); the stage flag is covered offline | docs/usage.md, docs/output.md, docs/cli-reference.md, docs/audit/cli-matrix.md |
+| `--refine-ani` |  | DereplicateParams.refine_ani | unit_interval | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: forwarded to the stage builder unchanged (wiring test); the stage flag is covered offline | docs/usage.md, docs/cli-reference.md, docs/audit/cli-matrix.md |
 | `--tool-arg` |  | DereplicateParams.extra | callback | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: forwarded to the stage builder unchanged (wiring test); the stage flag is covered live | docs/cli-reference.md, docs/audit/cli-matrix.md |
 | `--all-genomes` |  | PhyloParams.all_genomes | none | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: forwarded to the stage builder unchanged (wiring test); the stage flag is covered live | docs/cli-reference.md, docs/audit/cli-matrix.md |
 | `--bootstrap` | -B | PhyloParams.bootstrap | range | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: forwarded to the stage builder unchanged (wiring test); the stage flag is covered live | docs/cli-reference.md, docs/audit/cli-matrix.md |
