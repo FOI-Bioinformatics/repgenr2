@@ -1,8 +1,9 @@
 # Audit records
 
-Reference material that informed the current design. It is kept for the
-citations and measurements it holds; the conclusions that still apply have
-been folded into the code and the user pages.
+This directory holds the records that informed the current design. They are
+kept for the citations and measurements they contain. The conclusions that
+still apply have been incorporated into the code and the user pages, so a user
+of RepGenR2 does not need to read these records.
 
 | File | Content |
 |------|---------|
