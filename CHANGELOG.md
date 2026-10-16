@@ -7,6 +7,11 @@ All notable changes to RepGenR2 are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- `--refine-file TSV` on `dereplicate`, `run` and `derep-refine`: several
+  lineages, each refined at its own ANI (columns `seed` and `ani`; the seeds
+  of one ANI form one lineage). `refined.tsv` gains a trailing `ani` column
+  and the stage record a `refine_lineages` entry; on `derep-refine`,
+  `--refine` and `--refine-ani` are now optional when a file is given.
 - `dereplicate --refine SEED... --refine-ani F` and `repgenr derep-refine`:
   finer resolution inside a lineage of interest. Every cluster that holds a
   seed (a filename, stem or accession) is dereplicated again with the same

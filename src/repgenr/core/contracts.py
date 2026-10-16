@@ -449,7 +449,8 @@ class RefinedRow:
     ``coarse_representative`` that cluster's representative before the
     refinement, ``representative`` the genome's representative after it (the
     genome itself when it is one; blank for ``fail_qc``), ``status`` its
-    final status.
+    final status, ``ani`` the secondary ANI of the refinement (blank in files
+    written before the column existed).
     """
 
     genome: str
@@ -457,9 +458,10 @@ class RefinedRow:
     coarse_representative: str
     representative: str
     status: str
+    ani: str = ""
 
 
-_REFINED_COLUMNS = ("genome", "seed", "coarse_representative", "representative", "status")
+_REFINED_COLUMNS = ("genome", "seed", "coarse_representative", "representative", "status", "ani")
 
 
 def write_refined(path: Path, rows: Sequence[RefinedRow]) -> None:
@@ -467,7 +469,9 @@ def write_refined(path: Path, rows: Sequence[RefinedRow]) -> None:
         writer = _tsv_writer(fo)
         writer.writerow(_REFINED_COLUMNS)
         for r in sorted(rows, key=lambda r: (r.coarse_representative, r.representative, r.genome)):
-            writer.writerow([r.genome, r.seed, r.coarse_representative, r.representative, r.status])
+            writer.writerow(
+                [r.genome, r.seed, r.coarse_representative, r.representative, r.status, r.ani]
+            )
 
 
 def read_refined(path: Path) -> list[RefinedRow]:

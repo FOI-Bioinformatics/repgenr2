@@ -86,6 +86,7 @@ is 'vmetadata --source'. --platform filters the sequencing platform with
 | `--target-reps` | `0` | Target representative count: search --secondary-ani to land near it (0 = off; re-runs dereplication per search step). |
 | `--refine` |  | Seed of a lineage to keep at finer resolution (filename, stem or accession; repeatable): every cluster holding a seed is dereplicated again at --refine-ani. |
 | `--refine-ani` |  | Secondary ANI for the clusters of the --refine seeds; above --secondary-ani. |
+| `--refine-file` |  | TSV with the columns seed and ani: several lineages, each refined at its own ANI (the seeds of one ANI form one lineage). |
 | `--tool-arg` |  | Tool tuning as key=value (repeatable), e.g. mode=greedy. |
 | `--with-snptype` | off | Run the standalone snptype stage (with --snptyper, --mask, --reference) after dereplication, so the SNP tables are produced whatever builds the tree. |
 | `--treebuilder` | `iqtree` | auto, fasttree, iqtree, mashtree, raxmlng, ska2, skani, sourmash, veryfasttree. |
@@ -308,6 +309,7 @@ Cluster genomes by ANI and select representatives.
 | `--keeper` | `quality` | Representative choice per cluster: quality (manifest CheckM values and genome N50), gtdb (a GTDB species representative first, then quality) or tool (adapter's own). |
 | `--refine` |  | Seed of a lineage to keep at finer resolution (filename, stem or accession; repeatable): every cluster holding a seed is dereplicated again at --refine-ani. |
 | `--refine-ani` |  | Secondary ANI for the clusters of the --refine seeds; above --secondary-ani. |
+| `--refine-file` |  | TSV with the columns seed and ani: several lineages, each refined at its own ANI (the seeds of one ANI form one lineage). |
 
 ### derep-refine
 
@@ -320,8 +322,9 @@ derep-stock if it should be kept.
 | option | default | description |
 |---|---|---|
 | `-wd`, `--workdir` | required | Working directory. |
-| `--refine` | required | Seed of a lineage to keep at finer resolution (filename, stem or accession; repeatable): every cluster holding a seed is dereplicated again at --refine-ani. |
-| `--refine-ani` | required | Secondary ANI for the clusters of the --refine seeds; above --secondary-ani. |
+| `--refine` |  | Seed of a lineage to keep at finer resolution (filename, stem or accession; repeatable): every cluster holding a seed is dereplicated again at --refine-ani. |
+| `--refine-ani` |  | Secondary ANI for the clusters of the --refine seeds; above --secondary-ani. |
+| `--refine-file` |  | TSV with the columns seed and ani: several lineages, each refined at its own ANI (the seeds of one ANI form one lineage). |
 | `-t`, `--threads` | `16` | Threads for the external tool (default 16, or the CPU limit when lower). |
 
 ### annotate

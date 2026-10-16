@@ -29,6 +29,7 @@ from .base import (
     HELP_REDUCE,
     HELP_REFINE,
     HELP_REFINE_ANI,
+    HELP_REFINE_FILE,
     HELP_SECONDARY_ANI,
     HELP_SKETCH,
     HELP_TARGET_FAMILY,
@@ -189,6 +190,7 @@ def dereplicate(
     ),
     refine: list[str] = typer.Option([], "--refine", help=HELP_REFINE),
     refine_ani: float | None = typer.Option(None, "--refine-ani", help=HELP_REFINE_ANI),
+    refine_file: Path | None = typer.Option(None, "--refine-file", help=HELP_REFINE_FILE),
 ) -> None:
     """Cluster genomes by ANI and select representatives."""
     from ..dereplicators.base import registry as _derep_registry
@@ -219,6 +221,7 @@ def dereplicate(
             keeper=keeper,
             refine=refine,
             refine_ani=refine_ani,
+            refine_file=None if refine_file is None else str(refine_file.resolve()),
         )
 
     _run("dereplicate", workdir, build)
@@ -227,8 +230,9 @@ def dereplicate(
 @app.command(name="derep-refine", rich_help_panel=PANEL_CORE)
 def derep_refine(
     workdir: Path = typer.Option(..., "-wd", "--workdir", help=HELP_WORKDIR),
-    refine: list[str] = typer.Option(..., "--refine", help=HELP_REFINE),
-    refine_ani: float = typer.Option(..., "--refine-ani", help=HELP_REFINE_ANI),
+    refine: list[str] = typer.Option([], "--refine", help=HELP_REFINE),
+    refine_ani: float | None = typer.Option(None, "--refine-ani", help=HELP_REFINE_ANI),
+    refine_file: Path | None = typer.Option(None, "--refine-file", help=HELP_REFINE_FILE),
     threads: int = typer.Option(
         DEFAULT_THREADS, "-t", "--threads", min=1, help=HELP_THREADS, callback=resolve_threads
     ),
@@ -244,5 +248,10 @@ def derep_refine(
     _run(
         "derep_refine",
         workdir,
-        lambda: derep_refine_params(seeds=refine, ani=refine_ani, threads=threads),
+        lambda: derep_refine_params(
+            seeds=refine,
+            ani=refine_ani,
+            refine_file=None if refine_file is None else str(refine_file.resolve()),
+            threads=threads,
+        ),
     )

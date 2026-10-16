@@ -1448,6 +1448,23 @@ outside the lineage and the refined ones inside it. `--refine` cannot be
 combined with `--target-reps`, whose search sets the secondary ANI itself.
 The outgroup is never part of a lineage.
 
+Several lineages, each at its own ANI, are given in a file:
+`--refine-file refine.tsv`, a TSV with the columns `seed` and `ani`, one
+seed per row; the seeds of one ANI form one lineage, and a cluster claimed
+by two ANIs is refused (seeds whose coarse cluster was refined before count
+as one cluster). The file can be combined with `--refine` and `--refine-ani`,
+which apply to the `--refine` seeds only, and its content is part of the
+resume inputs, so editing it reruns the refinement; the path is stored as
+an absolute path. Blank lines and lines starting with `#` are skipped. The `ani` column of `refined.tsv` and the
+`refine_lineages` entry of the stage record hold each lineage's ANI.
+
+```text
+seed	ani
+GCA_000123.1	0.999
+GCA_000456.1	0.999
+GCA_000789.1	0.9995
+```
+
 `derep-refine` can be applied more than once, for another lineage or for the
 same seed at another ANI. A seed refined before brings in its original
 coarse cluster, read from `refined.tsv`, so refining it again at a finer ANI
