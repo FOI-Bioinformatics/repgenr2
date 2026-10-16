@@ -17,6 +17,12 @@ above 90, contamination below 5).
 
 ``--keeper gtdb`` adds one preference before that: a GTDB species
 representative in the cluster is kept (:func:`prefer_gtdb_representatives`).
+
+Reading the N50s is the only part of the step that touches the genome files.
+Before the clusters are compared, the N50s they need are read in parallel
+(:meth:`N50Lookup.prefetch`), one genome per worker thread; the comparison
+itself then runs on cached values, in cluster order, so the choices and the
+log lines are the same for any number of threads.
 """
 
 from __future__ import annotations
@@ -29,6 +35,7 @@ from collections.abc import Callable, Collection, Iterable, Mapping
 from pathlib import Path
 
 from ..core.errors import UserInputError
+from ..core.executors import parallel_map
 from ..core.process import is_gzip
 from ..dereplicators.base import STATUS_CONTAINED, STATUS_REPRESENTATIVE, DerepResult
 
@@ -95,8 +102,10 @@ def genome_n50(path: Path) -> int:
         if newline < 0:
             lengths.append(0)
             continue
-        body = record[newline + 1 :]
-        lengths.append(len(body) - body.count(b"\n") - body.count(b"\r") - body.count(b" "))
+        # Counted in place: a slice of the body would copy it.
+        start = newline + 1
+        breaks = record.count(b"\n", start) + record.count(b"\r", start)
+        lengths.append(len(record) - start - breaks - record.count(b" ", start))
     lengths.sort(reverse=True)
     half = sum(lengths) / 2
     running = 0
@@ -114,11 +123,30 @@ class N50Lookup:
     a run reads only the genomes whose scores are compared. ``known`` seeds
     values computed elsewhere (a chunk's ``genome_n50.tsv``). A genome found
     in no directory has no N50 (``None``), which adds nothing to its score.
+    :meth:`prefetch` reads a batch of genomes with ``workers`` threads.
     """
 
-    def __init__(self, dirs: Iterable[Path], *, known: Mapping[str, int] | None = None) -> None:
+    def __init__(
+        self,
+        dirs: Iterable[Path],
+        *,
+        known: Mapping[str, int] | None = None,
+        workers: int = 1,
+    ) -> None:
         self._dirs = list(dirs)
         self._cache: dict[str, int | None] = dict(known or {})
+        self._workers = max(1, workers)
+
+    def prefetch(self, names: Iterable[str]) -> None:
+        """Read the N50 of each genome not yet known, ``workers`` at a time.
+
+        The reads are file I/O and zlib decompression, which release the GIL,
+        so threads run them in parallel. The cache is filled from this thread
+        only, after the reads.
+        """
+        todo = sorted({n for n in names if n not in self._cache})
+        values = parallel_map(self._read, todo, self._workers)
+        self._cache.update(zip(todo, values, strict=True))
 
     def __call__(self, name: str) -> int | None:
         if name not in self._cache:
@@ -172,6 +200,43 @@ def rank_key(name: str, quality: Quality, n50: N50Of) -> tuple[float, float, flo
     )
 
 
+def _compared(incumbent: str, others: Iterable[str], quality: Quality) -> list[str]:
+    """The genomes :func:`choose_keeper` ranks: the scored ones, limited to
+    high-quality genomes when the incumbent has no quality."""
+    pool = list(dict.fromkeys([incumbent, *others]))
+    scored = [n for n in pool if n in quality]
+    if incumbent not in quality:
+        scored = [n for n in scored if is_high_quality(*quality[n])]
+    return scored
+
+
+def prefetch_n50(
+    n50: N50Of | None,
+    groups: Iterable[tuple[str, Iterable[str]]],
+    quality: Quality,
+    *,
+    scored_incumbents: bool = False,
+) -> None:
+    """Read in parallel the N50s the keeper rule needs for ``groups``, each an
+    (incumbent, others) pair, when ``n50`` is an :class:`N50Lookup`.
+
+    These are the genomes :func:`choose_keeper` ranks when it compares two or
+    more, and the one it promotes alone over an unscored incumbent (its score
+    is logged). ``scored_incumbents`` adds each scored incumbent, whose N50
+    the cluster summary reports. Any other ``n50`` is called lazily.
+    """
+    if not isinstance(n50, N50Lookup):
+        return
+    names: set[str] = set()
+    for incumbent, others in groups:
+        compared = _compared(incumbent, others, quality)
+        if len(compared) > 1 or compared != [incumbent]:
+            names.update(compared)
+        if scored_incumbents and incumbent in quality:
+            names.add(incumbent)
+    n50.prefetch(names)
+
+
 def choose_keeper(
     incumbent: str,
     others: Iterable[str],
@@ -186,10 +251,7 @@ def choose_keeper(
     is high quality (:func:`is_high_quality`); otherwise the incumbent stays.
     """
     n50_of = n50 or _no_n50
-    pool = list(dict.fromkeys([incumbent, *others]))
-    scored = [n for n in pool if n in quality]
-    if incumbent not in quality:
-        scored = [n for n in scored if is_high_quality(*quality[n])]
+    scored = _compared(incumbent, others, quality)
     if not scored:
         return incumbent
     if len(scored) == 1:
@@ -242,6 +304,7 @@ def rescore_representatives(
     """
     if not quality:
         return result, 0
+    prefetch_n50(n50, result.clusters.items(), quality)
 
     rep_paths = {p.name: p for p in result.representatives}
     new_reps: list[Path] = []
@@ -311,6 +374,12 @@ def prefer_gtdb_representatives(
     tool_picks = set(result.clusters)
     result, _ = rescore_representatives(result, quality, logger, n50)
     flagged = set(gtdb_representatives)
+    # The quality rule above read most of these; this covers clusters whose
+    # GTDB representatives it did not rank.
+    gtdb_groups = [
+        [n for n in (rep, *members) if n in flagged] for rep, members in result.clusters.items()
+    ]
+    prefetch_n50(n50, ((g[0], g[1:]) for g in gtdb_groups if len(g) > 1), quality)
 
     rep_paths = {p.name: p for p in result.representatives}
     new_reps: list[Path] = []

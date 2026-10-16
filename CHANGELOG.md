@@ -223,6 +223,14 @@ All notable changes to RepGenR2 are documented here. The format follows
   that later entries implement (batches A to D; E deferred).
 
 ### Changed
+- `dereplicate`, `dereplicate-chunk`, `dereplicate-merge`, `cluster-summary`
+  and `derep-stock`: the keeper step reads the genome N50s it compares in
+  parallel, with `-t` threads (all usable CPUs for `cluster-summary` and
+  `derep-stock`), before it compares the clusters. Reading the genome files
+  was the only costly part of the step and ran one genome after another.
+  The comparison and its log lines stay in cluster order, so the chosen
+  representatives do not depend on the thread count. Measured on 64 gzipped
+  4 Mb genomes on this Mac: 0.82 s on one thread, 0.43 s on eight.
 - `--treebuilder auto` without an alignment request (no `--msa-source
   snptype`, `--mask` or `--msa`) now chooses among the alignment-free
   builders once the leaf count exceeds the selected aligner's declared limit

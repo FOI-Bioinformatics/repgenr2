@@ -55,6 +55,7 @@ from .derep_keeper import (
     choose_keeper,
     log_unpromoted,
     prefer_gtdb_representatives,
+    prefetch_n50,
     rescore_representatives,
 )
 
@@ -210,7 +211,7 @@ def run(ctx: WorkdirContext, params: DereplicateParams) -> DerepResult:
     quality: dict[str, tuple[float, float]] = {}
     gtdb: set[str] = set()
     # N50 per genome for the keeper score and the summary, each genome read once.
-    n50 = N50Lookup([ctx.genomes_dir])
+    n50 = N50Lookup([ctx.genomes_dir], workers=params.threads)
     if params.keeper == "gtdb":
         # Only the clustered genomes count: the outgroup (usually a GTDB
         # representative itself), genomes no longer under genomes/ and genomes
@@ -878,14 +879,20 @@ def _reduce_by_taxonomy(
         genome: state for genome, state in result.genome_status.items() if state == STATUS_FAIL_QC
     }
 
-    left_to_size: list[str] = []
+    # keeper: the largest existing cluster, then lexical name; the quality
+    # rule may then replace it, as within a cluster. Preferred genomes
+    # (GTDB species representatives under --keeper gtdb), when the group
+    # holds any, are the only candidates.
+    picks = []
     for members in groups.values():
-        # keeper: the largest existing cluster, then lexical name; the quality
-        # rule may then replace it, as within a cluster. Preferred genomes
-        # (GTDB species representatives under --keeper gtdb), when the group
-        # holds any, are the only candidates.
         pool = [n for n in members if n in prefer] or members
-        keeper = max(pool, key=lambda n: (len(result.clusters.get(n, [])), n))
+        by_size = max(pool, key=lambda n: (len(result.clusters.get(n, [])), n))
+        picks.append((members, pool, by_size))
+    if quality:
+        prefetch_n50(n50, ((by_size, pool) for _, pool, by_size in picks), quality)
+
+    left_to_size: list[str] = []
+    for members, pool, keeper in picks:
         if quality:
             by_size = keeper
             keeper = choose_keeper(by_size, pool, quality, n50)
