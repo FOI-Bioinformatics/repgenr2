@@ -1524,7 +1524,8 @@ a multi-copy genome is a gap for it; families multi-copy in at least 5% of
 the genomes (`dup_margin=`) are left out by default (`single_copy=false`
 keeps them). A genome that shares no selected family is dropped from the
 alignment with a warning, and an outgroup in that state is an error. `--clean-mode` and `filtered=` are
-Panaroo's and have no effect here. On 24 complete Wolbachia genomes, where
+Panaroo's and have no effect here; they are left out of the resume
+fingerprint and the alignment stamp, so changing them reruns nothing. On 24 complete Wolbachia genomes, where
 Panaroo at its defaults found no gene in 95% of them, PPanGGOLiN selected
 398 single-copy families and the whole route, IQ-TREE included, took under
 four minutes (see [verification.md](verification.md)). Its declared limit
@@ -1897,8 +1898,14 @@ from `--phylo_args` (quotes around a value are dropped and the last
 phylo task's `ext.args` is not seen. `--bakta_db` is linked into each task;
 under `stageInMode 'copy'`, or on a cloud executor without a shared file
 system, it would be copied once per genome, so there give the tasks a path
-they can read through `BAKTA_DB` instead. The viral path has no
-annotation step, since the annotators are prokaryotic. The annotator, the
+they can read through `BAKTA_DB` instead. Each record directory carries
+`annotation.json` with the annotator, its version and the database version,
+and `annotate-index` indexes each record with the tool named there (its
+`--tool` applies only to records without the file), so a set annotated by
+two tools is refused by the core-gene pass rather than read under one name.
+The viral path has no annotation step, since the annotators are
+prokaryotic; with `--msa-source coregene` in `--phylo_args` it logs a
+warning, as the phylo task would then annotate every genome itself. The annotator, the
 core-gene builder and the tree builder must each be reachable from their
 tasks: with `--repgenr_opts '--bin-dir bakta=<env>/bin --bin-dir
 ppanggolin=<env>/bin'` for satellite environments, or a container profile.

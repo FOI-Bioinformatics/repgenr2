@@ -400,3 +400,111 @@ def test_phylo_build_re_annotates_when_the_annotator_changes(tmp_path: Path, too
         }
     finally:
         annot_registry.unregister("fakeannot2")
+
+
+class _IgnoringCoreGene(_FakeCoreGene):
+    """A builder that, like PPanGGOLiN, SCARAP and OrthoFinder, does not read
+    Panaroo's cleaning mode or its filtered alignment."""
+
+    capabilities = ToolCapabilities(
+        name="fakecg_ignoring", ignored_params=frozenset({"clean_mode", "filtered"})
+    )
+
+
+def test_settings_a_builder_ignores_change_neither_key_nor_fingerprint(
+    tmp_path: Path, register_tool
+) -> None:
+    from repgenr.cli.base import _stage_fingerprint
+
+    register_tool(cg_registry, "fakecg", _FakeCoreGene)
+    register_tool(cg_registry, "fakecg_ignoring", _IgnoringCoreGene)
+    genomes = [tmp_path / "a.fasta", tmp_path / "b.fasta"]
+    for g in genomes:
+        g.write_text(">x\nACGT\n", encoding="utf-8")
+
+    def key(tool: str, **extra) -> str:
+        return phylo_mod._msa_key(
+            genomes, None, PhyloParams(msa_source="coregene", coregene=tool, extra=extra), None, "d"
+        )
+
+    def fingerprint(tool: str, **extra) -> str:
+        params = PhyloParams(msa_source="coregene", coregene=tool, extra=extra)
+        return _stage_fingerprint("phylo", params, {}, {})
+
+    for probe in (key, fingerprint):
+        ignoring = probe("fakecg_ignoring")
+        assert ignoring == probe("fakecg_ignoring", clean_mode="moderate")
+        assert ignoring == probe("fakecg_ignoring", filtered=False)
+        assert ignoring != probe("fakecg_ignoring", core_threshold=0.9)
+        reading = probe("fakecg")
+        assert reading != probe("fakecg", clean_mode="moderate")
+        assert reading != probe("fakecg", filtered=False)
+    assert (
+        phylo_mod._coregene_setting(
+            PhyloParams(coregene="fakecg_ignoring", extra={"clean_mode": "moderate"}), "clean_mode"
+        )
+        is None
+    )
+
+
+def test_precheck_refuses_unannotated_genomes_before_any_tool_runs(workdir: Path, tools) -> None:
+    _reps(workdir)
+    ctx = WorkdirContext(workdir, create=True, logger=_LOG)
+    with pytest.raises(UserInputError, match="repgenr annotate"):
+        phylo_mod.precheck(ctx, _params())
+    # Another source, or a builder that reads genomes, does not read annotations.
+    phylo_mod.precheck(ctx, _params(msa_source="aligner"))
+    phylo_mod.precheck(ctx, _params(treebuilder="faketree_genomes_cg"))
+    annotate_run(ctx, AnnotateStageParams(tool="fakeannot"))
+    phylo_mod.precheck(ctx, _params())
+    phylo_mod.precheck(ctx, _params(treebuilder="auto"))
+    assert _FakeCoreGene.calls == []
+
+
+def test_a_refused_core_gene_rerun_keeps_the_finished_record(workdir: Path, tools) -> None:
+    from typer.testing import CliRunner
+
+    from repgenr.cli.main import app
+    from repgenr.core.config import Config
+
+    reps = _reps(workdir)
+    ctx = WorkdirContext(workdir, create=True, logger=_LOG)
+    annotate_run(ctx, AnnotateStageParams(tool="fakeannot"))
+    ctx.save_config()
+    argv = [
+        "phylo", "-wd", str(workdir), "--treebuilder", "faketree_cg",
+        "--msa-source", "coregene", "--coregene", "fakecg", "--no-outgroup",
+    ]  # fmt: skip
+    done = CliRunner().invoke(app, argv)
+    assert done.exit_code == 0, done.output
+    assert Config.load(workdir).stages["phylo"].completed
+    # A new representative without an annotation: the rerun is refused
+    # before the record is marked incomplete.
+    (reps[0].parent / "Fam_gen_sp_GCA_000009.fasta").write_text(">s9\nACGT\n", encoding="utf-8")
+    refused = CliRunner().invoke(app, argv)
+    assert refused.exit_code == 2, refused.output
+    assert "repgenr annotate" in refused.output
+    assert Config.load(workdir).stages["phylo"].completed
+    assert len(_FakeCoreGene.calls) == 1
+
+
+def test_precheck_leaves_small_sets_and_genome_builders_to_the_stage(workdir: Path, tools) -> None:
+    reps = _reps(workdir)
+    ctx = WorkdirContext(workdir, create=True, logger=_LOG)
+    # An alignment-free builder named explicitly reads genomes, not annotations.
+    phylo_mod.precheck(ctx, _params(treebuilder="faketree_genomes_cg"))
+    # Too few genomes for a tree: the stage names that first, not annotate.
+    reps[0].unlink()
+    phylo_mod.precheck(ctx, _params())
+
+
+def test_settings_outside_coregene_do_not_change_default_fingerprints() -> None:
+    from repgenr.cli.base import _stage_fingerprint
+
+    default = _stage_fingerprint("phylo", PhyloParams(), {}, {})
+    assert default == _stage_fingerprint("phylo", PhyloParams(extra={}), {}, {})
+    assert default == _stage_fingerprint(
+        "phylo", PhyloParams(extra={"clean_mode": "moderate"}), {}, {}
+    )
+    masked = PhyloParams(msa_source="snptype", extra={"mask": "gubbins"})
+    assert _stage_fingerprint("phylo", masked, {}, {}) != default

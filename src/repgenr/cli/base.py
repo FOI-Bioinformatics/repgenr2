@@ -723,12 +723,20 @@ def _assemble_precheck(ctx: WorkdirContext, params: Any) -> None:
     precheck(ctx, params)
 
 
+def _phylo_precheck(ctx: WorkdirContext, params: Any) -> None:
+    from ..stages.phylo import precheck
+
+    precheck(ctx, params)
+
+
 _STAGE_PRECHECKS: dict[str, Any] = {
     "derep_stock": _derep_stock_precheck,
     "dereplicate": _dereplicate_precheck,
     "ingest": _ingest_precheck,
     # A wrong database path on a rerun must not leave the finished record dirty.
     "assemble": _assemble_precheck,
+    # A core-gene tree over unannotated genomes is refused before any tool runs.
+    "phylo": _phylo_precheck,
 }
 
 # Query modes keyed on a value rather than a flag.
@@ -869,6 +877,19 @@ _NON_RESULT_PARAMS = frozenset(
 )
 
 
+def _phylo_fingerprint_params(payload: dict) -> dict:
+    from ..stages.phylo import fingerprint_params
+
+    return fingerprint_params(payload)
+
+
+# Stage-specific views of the parameters before they are hashed, for settings
+# that some tools of a family ignore: stage -> callable(dict) -> dict.
+_FINGERPRINT_NORMALISERS: dict[str, Any] = {
+    "phylo": _phylo_fingerprint_params,
+}
+
+
 # Fingerprint format version. Bumping it guarantees fingerprints from older
 # releases never false-match, so old workdirs rerun once instead of skipping
 # against semantics they were not computed under.
@@ -892,6 +913,9 @@ def _stage_fingerprint(
     else:
         payload = dict(vars(params))
     payload = {k: v for k, v in payload.items() if k not in _NON_RESULT_PARAMS}
+    normalise = _FINGERPRINT_NORMALISERS.get(stage_name)
+    if normalise is not None:
+        payload = normalise(payload)
     blob = json.dumps(
         {
             "fpv": _FINGERPRINT_VERSION,

@@ -114,6 +114,17 @@ def annotate_core(
     try:
         staged = stage_plain_inputs([genome], annotator.capabilities, inputs, logger)
         result = annotator.call(staged[genome], name, tmp, params, logger)
+        cache.write_provenance(
+            tmp,
+            {
+                "annotator": tool,
+                "annotator_version": versions.get(tool, ""),
+                "db_version": versions.get(f"{tool}-db", ""),
+                "extra": cache.extra_text(
+                    {**annotator.capabilities.default_params, **params.extra}
+                ),
+            },
+        )
     except BaseException:
         remove_tree(tmp)
         raise
@@ -167,21 +178,36 @@ def index_from_directories(
 ) -> Path:
     """Write ``annotations.tsv`` for the record directories under ``directory``
     (``annotate-build`` outputs gathered by a workflow). The genome digest is
-    unknown there, so the rows carry the GFF digest and the tool only; the
-    core-gene pass needs no more.
+    unknown there, so the rows carry the GFF digest and the annotation
+    details; the core-gene pass needs no more.
 
-    ``probe_version=False`` leaves the annotator version empty instead of
-    asking the tool: a workflow task that only gathers the records usually
-    does not have the annotator, and under a container backend the probe
-    would check the image."""
+    Each record is indexed with the annotator, version, database version and
+    extras its ``annotation.json`` names; ``tool`` (and its probed version)
+    applies only to a record without one. A record made by another tool than
+    ``tool`` is indexed as what it is, so the core-gene pass
+    refuses a mixed set instead of reading it under one name.
+
+    ``probe_version=False`` leaves the annotator version of such a record
+    empty instead of asking the tool: a workflow task that only gathers the
+    records usually does not have the annotator, and under a container
+    backend the probe would check the image."""
     from ..annotators.base import registry as annotator_registry
 
-    version = ""
-    if probe_version:
-        try:
-            version = annotator_registry.create(tool).preflight().get(tool, "")
-        except Exception:  # noqa: BLE001 - the index is written on a host without the tool too
+    probed: list[str] = []
+
+    def fallback_version() -> str:
+        # Asked once, and only for a record without annotation.json: under a
+        # container backend every probe is a container run.
+        if not probed:
             version = ""
+            if probe_version:
+                try:
+                    version = annotator_registry.create(tool).preflight().get(tool, "")
+                except Exception:  # noqa: BLE001 - the index is written on a host without the tool too
+                    version = ""
+            probed.append(version)
+        return probed[0]
+
     records: dict[str, AnnotationRecord] = {}
     for entry in sorted(
         p for p in directory.iterdir() if p.is_dir() and not p.name.startswith(".")
@@ -190,15 +216,32 @@ def index_from_directories(
         if not gff.is_file():
             logger.warning("%s holds no %s; skipped", entry, gff.name)
             continue
+        provenance = cache.read_provenance(directory, entry.name) or {
+            "annotator": tool,
+            "annotator_version": fallback_version(),
+            "db_version": "",
+            "extra": "",
+        }
+        if provenance["annotator"] != tool:
+            # Info, not a warning: phylo-build's own directory can hold records
+            # of an earlier --annotator outside the current set, and the
+            # core-gene pass refuses a set that actually mixes annotators.
+            logger.info(
+                "%s was annotated with %s, not %s; indexed as %s",
+                entry.name,
+                provenance["annotator"],
+                tool,
+                provenance["annotator"],
+            )
         records[entry.name] = AnnotationRecord(
             record_name=entry.name,
             set=cache.SET_GENOMES,
             genome_path="",
             genome_digest="",
-            annotator=tool,
-            annotator_version=version,
-            db_version="",
-            extra="",
+            annotator=provenance["annotator"],
+            annotator_version=provenance["annotator_version"],
+            db_version=provenance["db_version"],
+            extra=provenance["extra"],
             gff_digest=cache.gff_digest(gff),
             completed=datetime.now(UTC).isoformat(),
         )
@@ -210,8 +253,9 @@ def index_from_directories(
 def annotate_index(params: AnnotateIndexParams, logger: logging.Logger) -> Path:
     """Write ``annotations.tsv`` for gathered record directories (stateless).
 
-    The annotator version is left empty: the task that gathers the records
-    usually does not have the annotator.
+    Each record is indexed with the annotator its ``annotation.json`` names;
+    ``tool`` applies to records without one, whose annotator version is left
+    empty (the task that gathers the records usually does not have the tool).
     """
     if params.tool not in annotator_registry.names():
         raise UserInputError(

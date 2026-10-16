@@ -415,3 +415,60 @@ def test_annotate_index_step(tmp_path: Path, monkeypatch) -> None:
     empty.mkdir()
     with pytest.raises(UserInputError, match="No annotated records"):
         annotate_index(AnnotateIndexParams(annotations_dir=empty), logging.getLogger("t"))
+
+
+def test_each_gathered_record_is_indexed_with_the_tool_that_made_it(
+    tmp_path: Path, fake, caplog
+) -> None:
+    """annotate-build writes annotation.json; annotate-index reads it per
+    record, and uses --tool only for a record without one."""
+    from repgenr.stages.annotate import (
+        AnnotateBuildParams,
+        AnnotateIndexParams,
+        annotate_build,
+        annotate_index,
+    )
+    from repgenr.stages.coregene import annotated_set
+
+    gathered = tmp_path / "annotations"
+    for name in ("Fam_Gen_sp_GCA_1.1", "Fam_Gen_sp_GCA_2.1"):
+        genome = tmp_path / f"{name}.fasta"
+        genome.write_text(">c\nACGT\n", encoding="utf-8")
+        annotate_build(
+            AnnotateBuildParams(genome=genome, out_dir=gathered, tool="fakeannot", extra={"k": 1}),
+            logging.getLogger("t"),
+        )
+    provenance = cache.read_provenance(gathered, "Fam_Gen_sp_GCA_1.1")
+    assert provenance == {
+        "annotator": "fakeannot",
+        "annotator_version": "1.0",
+        "db_version": "",
+        "extra": "k=1",
+    }
+    # Told bakta, the index still names the tool that made the records.
+    with caplog.at_level(logging.INFO):
+        annotate_index(
+            AnnotateIndexParams(annotations_dir=gathered, tool="bakta"), logging.getLogger("t")
+        )
+    rows = cache.read_index(gathered)
+    assert {(r.annotator, r.annotator_version, r.extra) for r in rows.values()} == {
+        ("fakeannot", "1.0", "k=1")
+    }
+    assert "annotated with fakeannot, not bakta" in caplog.text
+
+    # A record from an earlier version (no annotation.json) takes --tool, so
+    # a set mixing it with the others is refused by the core-gene pass.
+    old = gathered / "Fam_Gen_sp_GCA_3.1"
+    old.mkdir()
+    (old / "Fam_Gen_sp_GCA_3.1.gff3").write_text("##gff-version 3\n##FASTA\n>x\nAC\n", "utf-8")
+    annotate_index(
+        AnnotateIndexParams(annotations_dir=gathered, tool="bakta"), logging.getLogger("t")
+    )
+    rows = cache.read_index(gathered)
+    assert rows["Fam_Gen_sp_GCA_3.1"].annotator == "bakta"
+    assert rows["Fam_Gen_sp_GCA_3.1"].annotator_version == ""
+    with pytest.raises(UserInputError, match="mix annotators"):
+        annotated_set(gathered, sorted(rows))
+    # An unreadable file counts as absent.
+    (old / cache.PROVENANCE).write_text("{not json", encoding="utf-8")
+    assert cache.read_provenance(gathered, "Fam_Gen_sp_GCA_3.1") is None

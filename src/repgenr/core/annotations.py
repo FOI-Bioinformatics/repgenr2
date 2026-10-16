@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import csv
 import hashlib
+import json
 import logging
 import os
 import shutil
@@ -28,6 +29,11 @@ GFF_SUFFIX = ".gff3"
 _PARTIAL = ".partial"
 SET_GENOMES = "genomes"
 SET_OUTGROUP = "outgroup"
+# Written into each record directory by the annotating step, so a workflow
+# that gathers the directories can index each record with the tool that made
+# it rather than the one the indexing task was told about.
+PROVENANCE = "annotation.json"
+PROVENANCE_KEYS = ("annotator", "annotator_version", "db_version", "extra")
 
 
 @dataclass(frozen=True)
@@ -77,6 +83,28 @@ def record_dir(directory: Path, record_name: str) -> Path:
 
 def gff_path(directory: Path, record_name: str) -> Path:
     return record_dir(directory, record_name) / f"{record_name}{GFF_SUFFIX}"
+
+
+def write_provenance(record: Path, provenance: Mapping[str, str]) -> None:
+    """Write the annotator, its version, the database version and the extras
+    of one record into ``record/annotation.json``."""
+    data = {k: str(provenance.get(k, "")) for k in PROVENANCE_KEYS}
+    (record / PROVENANCE).write_text(
+        json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
+
+
+def read_provenance(directory: Path, record_name: str) -> dict[str, str] | None:
+    """The provenance of one record, or None when the file is absent or
+    unreadable (records written before it existed)."""
+    path = record_dir(directory, record_name) / PROVENANCE
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if not isinstance(data, dict) or not data.get("annotator"):
+        return None
+    return {k: str(data.get(k) or "") for k in PROVENANCE_KEYS}
 
 
 def read_index(directory: Path) -> dict[str, AnnotationRecord]:

@@ -355,12 +355,52 @@ def _msa_key(
         payload["coregene"] = {
             "tool": params.coregene,
             "core_threshold": _core_threshold(params.extra),
-            "clean_mode": str(params.extra.get("clean_mode", "strict")),
-            "filtered": _filtered(params.extra),
+            "clean_mode": _coregene_setting(params, "clean_mode"),
+            "filtered": _coregene_setting(params, "filtered"),
             "annotations": annotations,
         }
     blob = json.dumps(payload, sort_keys=True, default=str)
     return hashlib.sha256(blob.encode("utf-8")).hexdigest()
+
+
+def _coregene_ignored(tool: str) -> frozenset[str]:
+    """The core-gene parameters ``tool`` declares it does not read."""
+    from ..coregenes.base import registry as coregene_registry
+
+    try:
+        return frozenset(coregene_registry.get(tool).capabilities.ignored_params)
+    except Exception:  # noqa: BLE001 - an unknown builder is refused when it runs
+        return frozenset()
+
+
+def _coregene_setting(params: PhyloParams, key: str) -> str | bool | None:
+    """``clean_mode`` or ``filtered`` as the core-gene builder reads it, or None
+    when the builder ignores it, so changing a setting the builder never reads
+    neither rebuilds the alignment nor reruns the stage."""
+    if key in _coregene_ignored(params.coregene):
+        return None
+    if key == "clean_mode":
+        return str(params.extra.get("clean_mode", "strict"))
+    return _filtered(params.extra)
+
+
+def fingerprint_params(payload: dict) -> dict:
+    """The phylo parameters as the resume fingerprint sees them.
+
+    ``clean_mode`` and ``filtered`` are removed from ``extra`` when the
+    core-gene builder ignores them (PPanGGOLiN, SCARAP, OrthoFinder) or when
+    no core-gene pass runs, so a changed value reruns nothing it cannot
+    change.
+    """
+    extra = payload.get("extra")
+    if not isinstance(extra, dict) or not ({"clean_mode", "filtered"} & extra.keys()):
+        return payload
+    drop: set[str] = {"clean_mode", "filtered"}
+    if payload.get("msa_source") == "coregene":
+        drop &= _coregene_ignored(str(payload.get("coregene")))
+    if not drop:
+        return payload
+    return {**payload, "extra": {k: v for k, v in extra.items() if k not in drop}}
 
 
 def _read_msa_stamp(artifact: Path, key: str) -> dict | None:
@@ -1272,7 +1312,7 @@ def run(ctx: WorkdirContext, params: PhyloParams) -> Path:
                 else None
             ),
             "clean_mode": (
-                str(params.extra.get("clean_mode", "strict"))
+                _coregene_setting(params, "clean_mode")
                 if is_msa and params.msa_source == "coregene"
                 else None
             ),
@@ -1299,6 +1339,41 @@ def run(ctx: WorkdirContext, params: PhyloParams) -> Path:
     )
     ctx.save_config()
     return outcome.tree
+
+
+_SILENT = logging.getLogger(__name__ + ".precheck")
+_SILENT.addHandler(logging.NullHandler())
+_SILENT.propagate = False
+
+
+def precheck(ctx: WorkdirContext, params: PhyloParams) -> None:
+    """Refusals checked before the harness marks the stage record incomplete.
+
+    With ``--msa-source coregene`` and a builder that reads an alignment, a
+    genome of the set (or the outgroup) without an annotation, or a set that
+    mixes annotators, is refused here, before any tool runs, so the record of
+    the last finished tree stays complete. The core-gene pass repeats the
+    check for callers that bypass the harness.
+    """
+    if params.msa_source != "coregene":
+        return
+    if params.treebuilder != "auto":
+        try:
+            kind = treebuilder_registry.get(params.treebuilder).input_kind
+        except Exception:  # noqa: BLE001 - an unknown builder is refused by the stage
+            return
+        if kind != InputKind.MSA_FASTA:
+            return
+    from .coregene import annotated_set
+
+    names = [record_name(g) for g in _genome_set(ctx, params.all_genomes)]
+    if len(names) < MIN_TREE_GENOMES:
+        return  # the stage body names the missing genomes or the size limit first
+    # The stage body logs the outgroup choice; the precheck stays silent.
+    outgroup_file, _ = _resolve_outgroup(ctx, params.no_outgroup, _SILENT)
+    if outgroup_file is not None:
+        names.append(record_name(outgroup_file))
+    annotated_set(ctx.annotations_dir, names)
 
 
 def _genome_set(ctx: WorkdirContext, all_genomes: bool) -> list[Path]:
