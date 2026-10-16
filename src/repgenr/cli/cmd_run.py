@@ -47,7 +47,6 @@ from .base import (
     HELP_NO_OUTGROUP,
     HELP_NODE_BASENAME,
     HELP_NODOWNLOAD,
-    HELP_NUM_PROCESSES,
     HELP_OUTGROUP_ACCESSION,
     HELP_PRE_PRIMARY_ANI,
     HELP_PRE_SECONDARY_ANI,
@@ -60,6 +59,7 @@ from .base import (
     HELP_REMOVE_OUTGROUP,
     HELP_ROOT,
     HELP_ROOT_NAME,
+    HELP_RUN_NUM_PROCESSES,
     HELP_SECONDARY_ANI,
     HELP_TARGET_FAMILY,
     HELP_TARGET_GENUS,
@@ -335,7 +335,7 @@ def run(
         help=HELP_KEEPER,
     ),
     process_size: int | None = typer.Option(None, "-s", "--process-size", help=HELP_PROCESS_SIZE),
-    num_processes: int = typer.Option(0, "-p", "--num-processes", help=HELP_NUM_PROCESSES),
+    num_processes: int = typer.Option(0, "-p", "--num-processes", help=HELP_RUN_NUM_PROCESSES),
     pre_primary_ani: float | None = typer.Option(
         None,
         "--pre-primary-ani",
@@ -735,6 +735,7 @@ def run(
                 all_genomes=all_genomes,
                 bakta_db=bakta_db,
                 allow_incomplete=allow_incomplete,
+                num_processes=num_processes,
             ),
         )
     _run(

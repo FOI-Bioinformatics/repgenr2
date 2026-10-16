@@ -3,7 +3,7 @@
 Generated from `tests/audit/cli_matrix.yaml` by `scripts/render_cli_matrix.py`;
 `tests/unit/test_cli_matrix.py` keeps both in step with the command tree.
 
-33 commands, 398 flags (398 with a live test or an n/a reason, 0 pending).
+33 commands, 399 flags (399 with a live test or an n/a reason, 0 pending).
 
 ## Global flags
 
@@ -307,6 +307,7 @@ dispatch: `stage`
 | `--threads` | -t | AnnotateStageParams.threads | range | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: covered offline in tests/unit/test_annotate_stage.py (the live run needs bakta and its database) | docs/cli-reference.md, docs/audit/cli-matrix.md |
 | `--tool-arg` |  | AnnotateStageParams.extra | callback | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: covered offline in tests/unit/test_annotate_stage.py (the live run needs bakta and its database) | docs/cli-reference.md, docs/usage.md, docs/audit/cli-matrix.md |
 | `--allow-incomplete` |  | AnnotateStageParams.allow_incomplete | none | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: covered offline in tests/unit/test_annotate_stage.py (the live run needs bakta and its database) | docs/cli-reference.md, docs/audit/cli-matrix.md |
+| `--num-processes` | -p | AnnotateStageParams.num_processes | range | n/a: workdir command; the Nextflow layer runs one ANNOTATE task per genome | n/a: covered offline in tests/unit/test_annotate_stage.py (the live run needs bakta and its database) | docs/cli-reference.md, docs/usage.md, docs/audit/cli-matrix.md |
 
 ## annotate-index
 

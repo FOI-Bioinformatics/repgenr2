@@ -165,6 +165,14 @@ HELP_NUM_PROCESSES = (
     "Parallel stage-1 chunk workers (threads split across them). "
     "0 = auto (~threads/4, capped by cores)."
 )
+HELP_ANNOTATE_PROCESSES = (
+    "Genomes annotated at once (threads split across them). 0 = auto (~threads/4, capped by cores)."
+)
+HELP_RUN_NUM_PROCESSES = (
+    "Parallel workers, threads split across them: dereplicate's stage-1 chunk "
+    "workers and, with --msa-source coregene, the genomes annotated at once. "
+    "0 = auto (~threads/4, capped by cores)."
+)
 HELP_PRE_PRIMARY_ANI = "Stage-1 (intra-chunk) primary ANI; defaults to --primary-ani."
 HELP_PRE_SECONDARY_ANI = "Stage-1 (intra-chunk) secondary ANI; defaults to --secondary-ani."
 HELP_REDUCE = (

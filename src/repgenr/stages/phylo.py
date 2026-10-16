@@ -1188,7 +1188,13 @@ def _step_annotations(
             )
         return params.annotations_dir
     from ..core.annotations import gff_path, read_index
-    from .annotate import AnnotateBuildParams, annotate_build, index_from_directories
+    from ..core.executors import parallel_each
+    from .annotate import (
+        AnnotateBuildParams,
+        annotate_build,
+        annotate_jobs,
+        index_from_directories,
+    )
 
     out = params.out_dir / "annotations"
     inputs = list(genomes) + ([outgroup_file] if outgroup_file is not None else [])
@@ -1202,25 +1208,33 @@ def _step_annotations(
         or existing.get(record_name(g), None) is None
         or existing[record_name(g)].annotator != params.annotator
     ]
+    jobs, per_genome = annotate_jobs(params.phylo.threads, 0, len(todo))
     logger.info(
-        "Annotating %d of %d genomes with %s under %s (the rest are already there)",
+        "Annotating %d of %d genomes with %s under %s (the rest are already there), "
+        "%d at a time with %d thread(s) each",
         len(todo),
         len(inputs),
         params.annotator,
         out,
+        jobs,
+        per_genome,
     )
-    for genome in todo:
-        annotate_build(
+    parallel_each(
+        lambda genome: annotate_build(
             AnnotateBuildParams(
                 genome=genome,
                 out_dir=out,
                 tool=params.annotator,
                 bakta_db=params.bakta_db,
-                threads=params.phylo.threads,
+                threads=per_genome,
                 extra={},
             ),
             logger,
-        )
+        ),
+        todo,
+        jobs,
+        lambda _genome, _result: None,
+    )
     index_from_directories(out, params.annotator, logger)
     return out
 
