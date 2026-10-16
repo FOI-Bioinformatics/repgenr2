@@ -3,7 +3,7 @@
 Generated from `tests/audit/cli_matrix.yaml` by `scripts/render_cli_matrix.py`;
 `tests/unit/test_cli_matrix.py` keeps both in step with the command tree.
 
-34 commands, 410 flags (410 with a live test or an n/a reason, 0 pending).
+35 commands, 427 flags (427 with a live test or an n/a reason, 0 pending).
 
 ## Global flags
 
@@ -115,6 +115,30 @@ dispatch: `stage`
 | `--refine-ani` |  | DerepRefineParams.ani | unit_interval | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: covered offline in tests/unit/test_derep_refine.py (fake dereplicator) | docs/usage.md, docs/cli-reference.md, docs/audit/cli-matrix.md |
 | `--threads` | -t | DerepRefineParams.threads | range | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: covered offline in tests/unit/test_derep_refine.py (fake dereplicator) | docs/cli-reference.md, docs/audit/cli-matrix.md |
 | `--refine-file` |  | DerepRefineParams.refine_file | stage | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: covered offline in tests/integration/test_derep_refine_stage.py (fake dereplicator) | docs/usage.md, docs/cli-reference.md, docs/audit/cli-matrix.md |
+
+## dereplicate-refine
+
+dispatch: `step:repgenr.stages.derep_steps.dereplicate_refine`
+
+| flag | aliases | param | validated | nextflow | live | docs |
+|---|---|---|---|---|---|---|
+| `--contract-dir` |  | RefineStepParams.contract_dir | stage | module: fixed by the process script | n/a: covered offline in tests/integration/test_derep_steps.py::test_refine_step_refines_a_merged_contract | docs/cli-reference.md, docs/audit/cli-matrix.md |
+| `--genomes-fofn` |  | RefineStepParams.genomes | stage | module: fixed by the process script | n/a: covered offline in tests/integration/test_derep_steps.py::test_refine_step_refines_a_merged_contract | docs/cli-reference.md, docs/audit/cli-matrix.md |
+| `--out` | -o | RefineStepParams.out_dir | none | module: fixed by the process script | n/a: covered offline in tests/integration/test_derep_steps.py::test_refine_step_refines_a_merged_contract | docs/cli-reference.md, docs/audit/cli-matrix.md |
+| `--tool` |  | RefineStepParams.tool | registry | params.derep_tool | n/a: covered offline in tests/integration/test_derep_steps.py::test_refine_step_refines_a_merged_contract | docs/usage.md, docs/cli-reference.md, docs/audit/cli-matrix.md |
+| `--primary-ani` | -pani | RefineStepParams.primary_ani | unit_interval | params.derep_primary_ani | n/a: covered offline in tests/integration/test_derep_steps.py::test_refine_step_refines_a_merged_contract | docs/cli-reference.md, docs/audit/cli-matrix.md |
+| `--secondary-ani` | -sani | RefineStepParams.secondary_ani | unit_interval | params.derep_secondary_ani | n/a: covered offline in tests/integration/test_derep_steps.py::test_refine_step_refines_a_merged_contract | docs/cli-reference.md, docs/audit/cli-matrix.md |
+| `--aligned-fraction` | -af | RefineStepParams.aligned_fraction | unit_interval | params.derep_aligned_fraction | n/a: covered offline in tests/integration/test_derep_steps.py::test_refine_step_refines_a_merged_contract | docs/cli-reference.md, docs/audit/cli-matrix.md |
+| `--threads` | -t | RefineStepParams.threads | range | task.cpus | n/a: covered offline in tests/integration/test_derep_steps.py::test_refine_step_refines_a_merged_contract | docs/cli-reference.md, docs/audit/cli-matrix.md |
+| `--virus` |  | RefineStepParams.extra | none | params.mode | n/a: covered offline in tests/integration/test_derep_steps.py::test_refine_step_refines_a_merged_contract | docs/cli-reference.md, docs/audit/cli-matrix.md |
+| `--tool-arg` |  | RefineStepParams.extra | callback | n/a: not exposed; add to ext.args in conf/modules.config | n/a: covered offline in tests/integration/test_derep_steps.py::test_refine_step_refines_a_merged_contract | docs/cli-reference.md, docs/audit/cli-matrix.md |
+| `--selection-tsv` |  | RefineStepParams.selection_tsv | stage | module: staged selection.tsv | n/a: covered offline in tests/integration/test_derep_steps.py::test_refine_step_refines_a_merged_contract | docs/cli-reference.md, docs/audit/cli-matrix.md |
+| `--keeper` |  | RefineStepParams.keeper | choice | params.derep_keeper | n/a: covered offline in tests/integration/test_derep_steps.py::test_refine_step_refines_a_merged_contract | docs/cli-reference.md, docs/audit/cli-matrix.md |
+| `--refine` |  | RefineStepParams.seeds | stage | params.derep_refine | n/a: covered offline in tests/integration/test_derep_steps.py::test_refine_step_refines_a_merged_contract | docs/usage.md, docs/cli-reference.md, docs/audit/cli-matrix.md |
+| `--refine-ani` |  | RefineStepParams.ani | unit_interval | params.derep_refine_ani | n/a: covered offline in tests/integration/test_derep_steps.py::test_refine_step_refines_a_merged_contract | docs/usage.md, docs/cli-reference.md, docs/audit/cli-matrix.md |
+| `--refine-file` |  | RefineStepParams.refine_file | stage | params.derep_refine_file | n/a: covered offline in tests/integration/test_derep_steps.py::test_refine_step_refines_a_merged_contract | docs/usage.md, docs/cli-reference.md, docs/audit/cli-matrix.md |
+| `--sketches-dir` |  | RefineStepParams.sketches_dir | stage | module: staged sketches/ directory | n/a: covered offline in tests/integration/test_derep_steps.py::test_refine_step_refines_a_merged_contract | docs/cli-reference.md, docs/audit/cli-matrix.md |
+| `--versions-out` |  | RefineStepParams.versions_out | none | module: fixed by the process script | n/a: covered offline in tests/integration/test_derep_steps.py::test_refine_step_refines_a_merged_contract | docs/cli-reference.md, docs/audit/cli-matrix.md |
 
 ## dereplicate-chunk
 

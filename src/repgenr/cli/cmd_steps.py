@@ -42,6 +42,9 @@ from .base import (
     HELP_RANKS,
     HELP_READS_SKETCH,
     HELP_REFERENCE,
+    HELP_REFINE,
+    HELP_REFINE_ANI,
+    HELP_REFINE_FILE,
     HELP_REMOVE_OUTGROUP,
     HELP_ROOT,
     HELP_ROOT_NAME,
@@ -550,6 +553,92 @@ def dereplicate_merge_cmd(
                 keeper=keeper,
                 reduce=reduce,
                 target_reps=target_reps,
+                versions_out=versions_out,
+                sketches_dir=sketches_dir,
+            ),
+            logger,
+        )
+
+
+@app.command(name="dereplicate-refine", rich_help_panel=PANEL_STEPS)
+def dereplicate_refine_cmd(
+    contract_dir: Path = typer.Option(
+        ..., "--contract-dir", help="A dereplication result directory (the merge step's output)."
+    ),
+    genomes_fofn: Path = typer.Option(
+        ..., "--genomes-fofn", help="File of every clustered genome's FASTA path, one per line."
+    ),
+    out_dir: Path = typer.Option(..., "-o", "--out", help="Output dir for the refined result."),
+    tool: str = typer.Option("skder", "--tool", help=_derep_help(auto=False)),
+    primary_ani: float = typer.Option(0.90, "-pani", "--primary-ani", help=HELP_PRIMARY_ANI),
+    secondary_ani: float = typer.Option(0.99, "-sani", "--secondary-ani", help=HELP_SECONDARY_ANI),
+    aligned_fraction: float = typer.Option(
+        0.50, "-af", "--aligned-fraction", help=HELP_ALIGNED_FRACTION
+    ),
+    threads: int = typer.Option(
+        DEFAULT_THREADS, "-t", "--threads", min=1, help=HELP_THREADS, callback=resolve_threads
+    ),
+    virus: bool = typer.Option(False, "--virus", help=HELP_VIRUS),
+    tool_arg: list[str] = typer.Option([], "--tool-arg", help=HELP_DEREP_TOOL_ARG),
+    selection_tsv: Path | None = typer.Option(
+        None,
+        "--selection-tsv",
+        help="selection.tsv with quality columns; enables quality-aware representatives.",
+    ),
+    keeper: str = typer.Option(
+        "quality",
+        "--keeper",
+        help="Representative choice when --selection-tsv is given: "
+        "quality (selection.tsv CheckM values and genome N50), gtdb (GTDB species "
+        "representative first, then quality) or tool (adapter's own pick).",
+    ),
+    refine: list[str] = typer.Option([], "--refine", help=HELP_REFINE),
+    refine_ani: float | None = typer.Option(None, "--refine-ani", help=HELP_REFINE_ANI),
+    refine_file: Path | None = typer.Option(None, "--refine-file", help=HELP_REFINE_FILE),
+    sketches_dir: Path | None = typer.Option(None, "--sketches-dir", help=HELP_SKETCHES_DIR),
+    versions_out: Path | None = typer.Option(None, "--versions-out", help=HELP_VERSIONS_OUT),
+) -> None:
+    """Refine the lineages of the seeds in a dereplication result at finer ANIs."""
+    from ..dereplicators.base import registry as _derep_registry
+    from ..stages.derep_steps import RefineStepParams, dereplicate_refine
+
+    logger = configure_logging(None, level=_RUN_STATE["log_level"])
+    with stage_errors(logger):
+        _require_choice(tool, set(_derep_registry.names()), "--tool")
+        _require_unit_interval(primary_ani, "--primary-ani")
+        _require_unit_interval(secondary_ani, "--secondary-ani")
+        _require_unit_interval(aligned_fraction, "--aligned-fraction")
+        _require_choice(keeper, {"quality", "gtdb", "tool"}, "--keeper")
+        if refine_ani is not None:
+            _require_unit_interval(refine_ani, "--refine-ani")
+        if not refine and refine_file is None:
+            raise UserInputError(
+                "Give at least one --refine seed (with --refine-ani) or --refine-file."
+            )
+        genomes = _read_path_fofn(genomes_fofn)
+        dereplicate_refine(
+            RefineStepParams(
+                tool=tool,
+                contract_dir=contract_dir,
+                genomes=genomes,
+                out_dir=out_dir,
+                primary_ani=primary_ani,
+                secondary_ani=secondary_ani,
+                aligned_fraction=aligned_fraction,
+                threads=threads,
+                extra={
+                    **_parse_key_values(tool_arg, "--tool-arg"),
+                    **(
+                        gated_extra(_derep_registry, tool, "virus", True, flag="--virus")
+                        if virus
+                        else {}
+                    ),
+                },
+                selection_tsv=selection_tsv,
+                keeper=keeper,
+                seeds=refine,
+                ani=refine_ani,
+                refine_file=None if refine_file is None else str(refine_file.resolve()),
                 versions_out=versions_out,
                 sketches_dir=sketches_dir,
             ),

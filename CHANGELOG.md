@@ -7,6 +7,13 @@ All notable changes to RepGenR2 are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- Nextflow: the lineage refinement. With `--derep_refine` and
+  `--derep_refine_ani`, or `--derep_refine_file`, a `DEREP_REFINE` task
+  follows `DEREP_MERGE`, running the new stateless step `repgenr
+  dereplicate-refine` over the merged result and every genome of the run;
+  its result, with `refined.tsv`, is published as `dereplicate/refined/` and
+  feeds the tree. The step takes the same flags as `dereplicate-chunk` plus
+  `--contract-dir`, `--refine`, `--refine-ani` and `--refine-file`.
 - `--refine-file TSV` on `dereplicate`, `run` and `derep-refine`: several
   lineages, each refined at its own ANI (columns `seed` and `ani`; the seeds
   of one ANI form one lineage). `refined.tsv` gains a trailing `ani` column
