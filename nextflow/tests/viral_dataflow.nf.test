@@ -37,6 +37,38 @@ nextflow_pipeline {
         }
     }
 
+    test("--msa-source coregene in phylo_args is warned about on the viral path") {
+        when {
+            params {
+                outdir = "$outputDir"
+                derep_process_size = 1
+                derep_tool = 'sourmash'
+                phylo_args = '--treebuilder iqtree --msa-source coregene'
+            }
+        }
+        then {
+            assert workflow.success
+            // log.warn goes to the run log, beside the test's output directory.
+            def log = new File("$outputDir/../meta/nextflow.log").text
+            assert log.contains('the viral pipeline does not support well')
+        }
+    }
+
+    test("the viral path does not warn without --msa-source coregene") {
+        when {
+            params {
+                outdir = "$outputDir"
+                derep_process_size = 1
+                derep_tool = 'sourmash'
+            }
+        }
+        then {
+            assert workflow.success
+            def log = new File("$outputDir/../meta/nextflow.log").text
+            assert !log.contains('the viral pipeline does not support well')
+        }
+    }
+
     test("a run without an outgroup still reaches phylo and tree2tax") {
         // The optional outgroup output stays unmatched; the join placeholder
         // keeps the downstream tuples well-formed (live audit finding).

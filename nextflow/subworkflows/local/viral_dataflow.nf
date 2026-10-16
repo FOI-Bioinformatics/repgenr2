@@ -10,6 +10,7 @@ include { PHYLO               } from '../../modules/local/dataflow/phylo'
 include { PHYLO_MSA           } from '../../modules/local/dataflow/phylo_msa'
 include { PHYLO_TREE          } from '../../modules/local/dataflow/phylo_tree'
 include { TREE2TAX            } from '../../modules/local/dataflow/tree2tax'
+include { phylo_uses_coregene } from './annotate_scatter'
 
 workflow VIRAL_DATAFLOW {
     take:
@@ -17,6 +18,16 @@ workflow VIRAL_DATAFLOW {
 
     main:
     def ch_versions = channel.empty()
+
+    // The annotators (bakta, prokka) are for prokaryotes, so the viral path
+    // has no annotation step; with --msa-source coregene the phylo task would
+    // annotate every genome itself, one after another, with a bacterial tool.
+    if (phylo_uses_coregene(params.phylo_args)) {
+        log.warn "phylo_args selects --msa-source coregene, which the viral pipeline does not " +
+            "support well: it has no annotation step (bakta and prokka annotate prokaryotic " +
+            "genomes), so the phylo task would annotate every genome itself. Consider " +
+            "--msa-source aligner or snptype for viral sets."
+    }
 
     VACQUIRE(ch_meta)
     ch_versions = ch_versions.mix(VACQUIRE.out.versions)

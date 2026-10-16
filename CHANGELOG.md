@@ -16,7 +16,15 @@ All notable changes to RepGenR2 are documented here. The format follows
   `annotate_args`. Before, the phylo task annotated every genome itself, one
   after another.
 - `repgenr annotate-index --annotations-dir DIR --tool T`: a stateless step
-  that writes `annotations.tsv` for gathered `annotate-build` records.
+  that writes `annotations.tsv` for gathered `annotate-build` records. Each
+  record directory now carries `annotation.json` (annotator, version,
+  database version, tuning), and the index takes the annotator of each
+  record from it; `--tool` applies only to records without the file.
+- `phylo` with `--msa-source coregene` checks, before the stage record is
+  marked incomplete and before any tool runs, that every genome of the set
+  and the outgroup has an annotation from one annotator.
+- Nextflow: the viral path warns when `phylo_args` selects
+  `--msa-source coregene`, since it has no annotation step.
 - `--coregene orthofinder`: a fourth core-gene builder. OrthoFinder compares
   every proteome against every other (DIAMOND by default, `search=`) and
   clusters orthogroups with MCL (`inflation=`); the adapter stops it after
@@ -184,6 +192,11 @@ All notable changes to RepGenR2 are documented here. The format follows
   the column and rejects an empty rank.
 
 ### Fixed
+- `--clean-mode` and `filtered=` no longer enter the phylo resume
+  fingerprint or the core-gene alignment stamp when the core-gene builder
+  ignores them (PPanGGOLiN, SCARAP, OrthoFinder), and the stage record shows
+  `clean_mode` as null there; changing them reran the stage before. An
+  existing alignment from these builders is rebuilt once.
 - PPanGGOLiN hung without end under a long work path, as in a Nextflow
   task: NEM, its partitioning code, keeps file names in 200-character
   buffers, and `--tmpdir` under the work directory overflowed them, so a
