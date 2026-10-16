@@ -15,7 +15,6 @@ disk without repeating the coarse pass.
 
 from __future__ import annotations
 
-import csv
 import logging
 import sqlite3
 from collections.abc import Collection, Iterable, Mapping, Sequence
@@ -106,30 +105,39 @@ def read_refine_file(path: Path) -> list[RefineGroup]:
     if not path.is_file():
         raise UserInputError(f"--refine-file {path} is not a file.")
     by_ani: dict[float, list[str]] = {}
-    with open(path, encoding="utf-8", newline="") as fo:
-        reader = csv.DictReader(fo, delimiter="\t")
-        if reader.fieldnames is None or not {"seed", "ani"} <= set(reader.fieldnames):
+    # utf-8-sig drops the byte-order mark a spreadsheet export may write;
+    # comment lines (#) and blank lines are skipped, also before the header.
+    with open(path, encoding="utf-8-sig", newline="") as fo:
+        lines = [
+            (n, line)
+            for n, line in enumerate(fo.read().splitlines(), start=1)
+            if line.strip() and not line.lstrip().startswith("#")
+        ]
+    if not lines:
+        raise UserInputError(f"--refine-file {path} names no seed.")
+    header = [c.strip() for c in lines[0][1].split("\t")]
+    if not {"seed", "ani"} <= set(header):
+        raise UserInputError(f"--refine-file {path} needs the tab-separated columns seed and ani.")
+    seed_col, ani_col = header.index("seed"), header.index("ani")
+    for n, line in lines[1:]:
+        cells = line.split("\t")
+        seed = cells[seed_col].strip() if seed_col < len(cells) else ""
+        text = cells[ani_col].strip() if ani_col < len(cells) else ""
+        if not seed:
+            continue
+        try:
+            ani = float(text)
+        except ValueError:
             raise UserInputError(
-                f"--refine-file {path} needs the tab-separated columns seed and ani."
+                f"--refine-file {path}, line {n}: ani must be a number, not {text!r}."
+            ) from None
+        if not 0.0 < ani <= 1.0:
+            raise UserInputError(
+                f"--refine-file {path}, line {n}: ani must be in (0, 1], got {ani}."
             )
-        for n, rec in enumerate(reader, start=2):
-            seed = (rec.get("seed") or "").strip()
-            text = (rec.get("ani") or "").strip()
-            if not seed or seed.startswith("#"):
-                continue
-            try:
-                ani = float(text)
-            except ValueError:
-                raise UserInputError(
-                    f"--refine-file {path}, line {n}: ani must be a number, not {text!r}."
-                ) from None
-            if not 0.0 < ani <= 1.0:
-                raise UserInputError(
-                    f"--refine-file {path}, line {n}: ani must be in (0, 1], got {ani}."
-                )
-            group = by_ani.setdefault(ani, [])
-            if seed not in group:
-                group.append(seed)
+        group = by_ani.setdefault(ani, [])
+        if seed not in group:
+            group.append(seed)
     if not by_ani:
         raise UserInputError(f"--refine-file {path} names no seed.")
     return [RefineGroup(tuple(seeds), ani) for ani, seeds in sorted(by_ani.items())]
@@ -145,6 +153,11 @@ def refine_groups(
         if ani is None:
             raise UserInputError("--refine needs --refine-ani.")
         groups.append(RefineGroup(tuple(dict.fromkeys(s.strip() for s in seeds)), ani))
+    elif ani is not None and refine_file:
+        raise UserInputError(
+            "--refine-ani applies to --refine seeds; the ANI of each lineage in "
+            "--refine-file comes from its ani column."
+        )
     if refine_file:
         groups += read_refine_file(Path(refine_file).expanduser())
     if not groups:
@@ -322,8 +335,9 @@ def lineages_of(
         for rep in lineage.coarse_representatives:
             if rep in claimed:
                 raise UserInputError(
-                    f"Seeds {claimed[rep]} and {lineage.seed_of[rep]} fall in one cluster "
-                    f"(of {rep}) but are given at different ANIs; a lineage has one."
+                    f"Seeds {claimed[rep]} and {lineage.seed_of[rep]} share a cluster (that "
+                    f"of {rep}, or the coarse cluster it was refined from) but are given at "
+                    "different ANIs; a lineage has one."
                 )
             claimed[rep] = lineage.seed_of[rep]
         if lineage.genomes:
@@ -438,10 +452,14 @@ def refined_rows(result: DerepResult, lineage: Lineage) -> list[RefinedRow]:
 
 
 def record_params(lineages: Sequence[Lineage], rows: Sequence[RefinedRow]) -> dict:
-    """The refinement's entries for a stage record: the totals, and one entry
-    per lineage. ``refine_ani`` is the one ANI when every lineage shares it."""
+    """The refinement's entries for a stage record: the totals of this
+    request and one entry per lineage; earlier refinements kept in ``rows``
+    are not counted. ``refine_ani`` is the one ANI when every lineage shares
+    it."""
     anis = sorted({lineage.ani for lineage in lineages})
-    reps = {r.genome for r in rows if r.status == STATUS_REPRESENTATIVE}
+    inside = {g for lineage in lineages for g in lineage.genomes}
+    # This request's lineages only: rows may also hold earlier refinements.
+    reps = {r.genome for r in rows if r.status == STATUS_REPRESENTATIVE and r.genome in inside}
     return {
         "refine_seeds": sorted({s for lineage in lineages for s in lineage.seed_of.values()}),
         "refine_ani": anis[0] if len(anis) == 1 else None,
@@ -627,6 +645,8 @@ def run(ctx: WorkdirContext, params: DerepRefineParams) -> DerepResult:
             # repeat of the same request on the same result does nothing.
             "refine_request": request_key(groups),
             "base_completed": record.completed,
+            # Named as given: doctor rebuilds the stage inputs from the record.
+            **({"refine_file": params.refine_file} if params.refine_file else {}),
         },
         tool_versions=versions,
         completed=datetime.now(UTC).isoformat(),

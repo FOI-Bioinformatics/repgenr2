@@ -389,9 +389,43 @@ def test_two_lineages_each_at_their_own_ani(workdir: Path, genomes, tiered, tmp_
         [[A112, C311], 0.999],
         [["GCA_000212"], 0.9995],
     ]
+    # doctor rebuilds the stage inputs from the record: nothing is stale.
+    from repgenr.core.doctor import _changed_by_stage
+
+    assert _changed_by_stage(workdir, ctx.config) == {}
     # Editing the file changes the request: the stage reruns.
     refine_file.write_text(f"seed\tani\n{A112}\t0.9995\n", encoding="utf-8")
     ctx.close()
     _Tiered.calls = []
     cli_base._run("derep_refine", workdir, lambda: DerepRefineParams(refine_file=str(refine_file)))
     assert _Tiered.calls == [(3, 0.9995)]
+
+
+def test_a_second_refinement_counts_its_own_representatives(workdir: Path, genomes, tiered) -> None:
+    ctx = _ctx(workdir)
+    run(ctx, DereplicateParams(tool="tiered", refine=[A111], refine_ani=0.999))
+    ctx.close()
+    _invoke(workdir, [B212])
+    ctx = WorkdirContext(workdir)
+    rec = ctx.config.stages["derep_refine"].params
+    assert rec["refine_genomes"] == 3 and rec["refine_representatives"] == 2
+    assert {r.genome for r in read_refined(ctx.derep_dir / REFINED_TSV)} == {
+        A111,
+        A112,
+        A121,
+        B211,
+        B212,
+        B221,
+    }
+
+
+def test_two_seeds_of_one_refined_coarse_cluster_at_two_anis_are_refused(
+    workdir: Path, genomes, tiered, tmp_path
+) -> None:
+    ctx = _ctx(workdir)
+    run(ctx, DereplicateParams(tool="tiered", refine=[A111], refine_ani=0.999))
+    refine_file = tmp_path / "refine.tsv"
+    # A111 and A121 now sit in different fine clusters of one coarse cluster.
+    refine_file.write_text(f"seed\tani\n{A111}\t0.9995\n{A121}\t0.9999\n", encoding="utf-8")
+    with pytest.raises(UserInputError, match="share a cluster"):
+        refine_run(ctx, DerepRefineParams(refine_file=str(refine_file)))

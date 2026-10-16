@@ -512,7 +512,7 @@ def run(
             extra=derep_extra,
             refine=refine,
             refine_ani=refine_ani,
-            refine_file=None if refine_file is None else str(refine_file),
+            refine_file=None if refine_file is None else str(refine_file.resolve()),
         )
         phylo_params(
             treebuilder=treebuilder,
@@ -712,7 +712,7 @@ def run(
             allow_incomplete=allow_incomplete,
             refine=refine,
             refine_ani=refine_ani,
-            refine_file=None if refine_file is None else str(refine_file),
+            refine_file=None if refine_file is None else str(refine_file.resolve()),
         ),
     )
 

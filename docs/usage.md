@@ -1451,9 +1451,11 @@ The outgroup is never part of a lineage.
 Several lineages, each at its own ANI, are given in a file:
 `--refine-file refine.tsv`, a TSV with the columns `seed` and `ani`, one
 seed per row; the seeds of one ANI form one lineage, and a cluster claimed
-by two ANIs is refused. The file can be combined with `--refine` and
-`--refine-ani`, and its content is part of the resume inputs, so editing it
-reruns the refinement. The `ani` column of `refined.tsv` and the
+by two ANIs is refused (seeds whose coarse cluster was refined before count
+as one cluster). The file can be combined with `--refine` and `--refine-ani`,
+which apply to the `--refine` seeds only, and its content is part of the
+resume inputs, so editing it reruns the refinement; the path is stored as
+an absolute path. Blank lines and lines starting with `#` are skipped. The `ani` column of `refined.tsv` and the
 `refine_lineages` entry of the stage record hold each lineage's ANI.
 
 ```text

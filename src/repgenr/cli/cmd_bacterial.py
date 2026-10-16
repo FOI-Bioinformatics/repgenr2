@@ -221,7 +221,7 @@ def dereplicate(
             keeper=keeper,
             refine=refine,
             refine_ani=refine_ani,
-            refine_file=None if refine_file is None else str(refine_file),
+            refine_file=None if refine_file is None else str(refine_file.resolve()),
         )
 
     _run("dereplicate", workdir, build)
@@ -251,7 +251,7 @@ def derep_refine(
         lambda: derep_refine_params(
             seeds=refine,
             ani=refine_ani,
-            refine_file=None if refine_file is None else str(refine_file),
+            refine_file=None if refine_file is None else str(refine_file.resolve()),
             threads=threads,
         ),
     )

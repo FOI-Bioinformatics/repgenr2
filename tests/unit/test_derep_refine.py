@@ -261,6 +261,17 @@ def test_refine_file_groups_seeds_by_ani(tmp_path: Path) -> None:
         refine.refine_groups(["GCA_2"], None, None)
     with pytest.raises(UserInputError, match="at least one"):
         refine.refine_groups([], None, None)
+    # A BOM, CRLF, header whitespace, a comment before the header and extra
+    # columns are accepted; the line number of an error counts file lines.
+    path.write_text(
+        "\ufeff# lineages\r\nani \tseed\tnote\r\n\r\n0.999\tGCA_1\tx\r\n", encoding="utf-8"
+    )
+    assert refine.read_refine_file(path) == [refine.RefineGroup(("GCA_1",), 0.999)]
+    path.write_text("seed\tani\n\n\nGCA_1\tabc\n", encoding="utf-8")
+    with pytest.raises(UserInputError, match="line 4"):
+        refine.read_refine_file(path)
+    with pytest.raises(UserInputError, match="applies to --refine seeds"):
+        refine.refine_groups([], 0.999, str(path))
     for text, match in [
         ("seed\n", "columns seed and ani"),
         ("seed\tani\nX\tabc\n", "must be a number"),
