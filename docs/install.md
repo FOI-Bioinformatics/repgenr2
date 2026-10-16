@@ -298,10 +298,13 @@ BioContainers are `linux/amd64`. On Apple Silicon pass
 
 ## Per-tool table
 
-The table lists, for each adapter, its conda package, whether it ran natively
-on Apple Silicon, its container pin, and the databases or extras it needs.
-"Native on macOS arm64" records what was run on the audit machine (Apple
-Silicon) and is taken from the adapter status table in
+The table lists the adapters by group, in the order a run uses them (read,
+genome, alignment and tree tools; CheckM2, which scores assemblies in the
+reads chain, is not a pluggable family and sits with the read tools), and
+gives for each its conda package, whether it ran natively on Apple Silicon,
+its container pin, and the databases or extras it needs. "Native on macOS
+arm64" records what was run on the audit machine (Apple Silicon) and is taken
+from the adapter status table in
 [verification.md](verification.md#adapter-status). "No" means not run natively
 there, not that the tool cannot work on another platform. The container pin is
 the image in the adapter's declared capabilities; `none` means the adapter
@@ -311,10 +314,19 @@ the `envs/` files, and the environment that holds each tool is listed in
 
 | Family | Tool | conda package | Native on macOS arm64 | Container pin | Databases or extras |
 |---|---|---|---|---|---|
+| Assembler | skesa | `skesa` | yes | `skesa:2.5.1` | none |
+| Assembler | shovill | `shovill` | no | `shovill:1.4.2` | none |
+| Assembler | flye | `flye` | yes | `flye:2.9.6` | none |
+| Polisher | medaka | `medaka` | no | `medaka:2.2.2` | medaka models. Reads from SRA have no basecaller in their headers; the adapter then assumes ONT's bacterial R10.4.1 model and records it. Give another with `--tool-arg model=...` |
+| Polisher | racon | `racon`, `minimap2` | yes | `racon:1.5.0`; minimap2 runs from `minimap2:2.28` | none |
+| Classifier | sourmash | `sourmash` | yes | `sourmash:4.9.4` | a GTDB sourmash sketch and its lineages CSV |
+| Quality (reads chain) | checkm2 | `checkm2` | no | `checkm2:1.1.0` | CheckM2 database: `checkm2 database --download`, then `--checkm2-db` or `CHECKM2DB` |
 | Dereplicator | drep | `drep` (brings `checkm-genome` on linux-64) | no | `drep:3.7.1` | CheckM reference data through `CHECKM_DATA_PATH`, or `--ignoreGenomeQuality` |
 | Dereplicator | skder | `skder`, `skani` | yes | none (Wave) | none |
 | Dereplicator | galah | `galah` | yes | `galah:0.4.2` | none |
 | Dereplicator | sourmash | `sourmash` | yes | `sourmash:4.9.4` | `sourmash_plugin_branchwater` for the sparse back-end (extra `sparse`) |
+| Annotator | bakta | `bakta` | yes | `bakta:1.12.2` | bakta database: `bakta_db download --output DIR --type light` (1.4 GB download, about 4 GB unpacked; `--type full` is 30 GB and about 84 GB unpacked, with more specific CDS annotation), then `--bakta-db DIR` or `BAKTA_DB` |
+| Annotator | prokka | `prokka` | yes, from an osx-64 environment under Rosetta (tbl2asn is not packaged for arm64) | `prokka:1.15.6` | none |
 | Aligner | progressivemauve | `mauvealigner`, `boost-cpp=1.74.0` | no (unpackaged on macOS) | `mauve:2.4.0.snapshot_2015_02_13` | none |
 | Aligner | sibeliaz | `sibeliaz` | yes | none (Wave) | none |
 | Aligner | cactus | not on conda | no | `cactus:v2.9.3` | none |
@@ -323,6 +335,10 @@ the `envs/` files, and the environment that holds each tool is listed in
 | SNP typer | parsnp | `parsnp`, `harvesttools` | yes, from an osx-64 environment | none (Wave) | none |
 | SNP typer | ska2 | `ska2` | yes | `ska2:0.5.1` | none |
 | Masker | gubbins | `gubbins` | yes | `gubbins:3.4.3` | a multi-threaded RAxML build for more than one thread (see [usage.md](usage.md#snp-typing-and-masking)) |
+| Core-gene builder | panaroo | `panaroo`, `mafft` | yes, from an osx-64 environment under Rosetta (its dependency prokka is not packaged for arm64; `CONDA_SUBDIR=osx-64`) | `panaroo:1.8.0` | none |
+| Core-gene builder | ppanggolin | `ppanggolin`, `mafft` | yes | `ppanggolin:2.3.2` | none |
+| Core-gene builder | scarap | `scarap`, `mmseqs`, `mafft` | yes | `scarap:1.0.2` | none |
+| Core-gene builder | orthofinder | `orthofinder`, `diamond`, `mafft` | yes | `orthofinder:3.1.5` | none |
 | Tree builder | iqtree | `iqtree` | yes | `iqtree:3.1.3` | none |
 | Tree builder | fasttree | `fasttree` | yes | `fasttree:2.2.0` | none |
 | Tree builder | veryfasttree | `veryfasttree` | no record (offline contract test only) | `veryfasttree:4.0.5` | none |
@@ -331,19 +347,6 @@ the `envs/` files, and the environment that holds each tool is listed in
 | Tree builder | sourmash | `sourmash` | yes | `sourmash:4.9.4` | `rapidnj` for the joining step; without it more than 5000 leaves are refused (optional; `rapidnj:2.3.3` under a container backend) |
 | Tree builder | skani | `skani` | no record (offline contract test only) | `skani:0.3.2` | `rapidnj` for the joining step above a few thousand leaves (optional; `rapidnj:2.3.3` under a container backend) |
 | Tree builder | ska2 | `ska2` | no record (offline contract test only) | `ska2:0.5.1` | `rapidnj` for the joining step above a few thousand leaves (optional) |
-| Assembler | skesa | `skesa` | yes | `skesa:2.5.1` | none |
-| Assembler | shovill | `shovill` | no | `shovill:1.4.2` | none |
-| Assembler | flye | `flye` | yes | `flye:2.9.6` | none |
-| Classifier | sourmash | `sourmash` | yes | `sourmash:4.9.4` | a GTDB sourmash sketch and its lineages CSV |
-| Polisher | medaka | `medaka` | no | `medaka:2.2.2` | medaka models. Reads from SRA have no basecaller in their headers; the adapter then assumes ONT's bacterial R10.4.1 model and records it. Give another with `--tool-arg model=...` |
-| Polisher | racon | `racon`, `minimap2` | yes | `racon:1.5.0`; minimap2 runs from `minimap2:2.28` | none |
-| Annotator | bakta | `bakta` | yes | `bakta:1.12.2` | bakta database: `bakta_db download --output DIR --type light` (1.4 GB download, about 4 GB unpacked; `--type full` is 30 GB and about 84 GB unpacked, with more specific CDS annotation), then `--bakta-db DIR` or `BAKTA_DB` |
-| Annotator | prokka | `prokka` | yes, from an osx-64 environment under Rosetta (tbl2asn is not packaged for arm64) | `prokka:1.15.6` | none |
-| Core-gene builder | panaroo | `panaroo`, `mafft` | yes, from an osx-64 environment under Rosetta (its dependency prokka is not packaged for arm64; `CONDA_SUBDIR=osx-64`) | `panaroo:1.8.0` | none |
-| Core-gene builder | ppanggolin | `ppanggolin`, `mafft` | yes | `ppanggolin:2.3.2` | none |
-| Core-gene builder | scarap | `scarap`, `mmseqs`, `mafft` | yes | `scarap:1.0.2` | none |
-| Core-gene builder | orthofinder | `orthofinder`, `diamond`, `mafft` | yes | `orthofinder:3.1.5` | none |
-| Quality (reads chain) | checkm2 | `checkm2` | no | `checkm2:1.1.0` | CheckM2 database: `checkm2 database --download`, then `--checkm2-db` or `CHECKM2DB` |
 
 The genome download steps also need `ncbi-datasets-cli`.
 

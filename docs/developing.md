@@ -228,25 +228,30 @@ Staleness is decided from those records, not from file times.
 ## 3. Tool families and the registry
 
 There are ten tool families. Each is an abstract base class (ABC) plus a
-`Registry` bound to an entry-point group:
+`Registry` bound to an entry-point group. The table lists them in the order a
+run uses them, grouped by what they work on: read tools turn sequencing runs
+into genome assemblies, genome tools reduce and annotate a genome set,
+alignment tools produce the multiple sequence alignment, and tree tools build
+the tree. Data sources (GTDB, NCBI Datasets, NCBI Virus, BV-BRC, ENA) are
+built into the stages and are not pluggable.
 
-| Family | ABC | Method | Returns | Entry-point group |
-|---|---|---|---|---|
-| Dereplicator | `repgenr.dereplicators.base.Dereplicator` | `dereplicate(genomes, out_dir, params, logger)` | `DerepResult` | `repgenr.dereplicators` |
-| Aligner | `repgenr.aligners.base.Aligner` | `align(genomes, reference, out_dir, params, logger)` | `AlignResult` | `repgenr.aligners` |
-| SNP typer | `repgenr.snptypers.base.SnpTyper` | `call(genomes, reference, out_dir, params, logger)` | `SnpResult` | `repgenr.snptypers` |
-| Masker | `repgenr.maskers.base.Masker` | `mask(full_alignment, out_dir, params: MaskParams, logger)` | masked variable-site FASTA `Path` | `repgenr.maskers` |
-| Tree builder | `repgenr.treebuilders.base.TreeBuilder` | `build(msa_or_genomes, out_dir, params, logger)` | Newick `Path` | `repgenr.treebuilders` |
-| Annotator | `repgenr.annotators.base.Annotator` | `call(genome, record_name, out_dir, params, logger)` | `AnnotateResult` | `repgenr.annotators` |
-| Core-gene builder | `repgenr.coregenes.base.CoreGeneBuilder` | `call(gffs, out_dir, params, logger)` | `CoreGeneResult` | `repgenr.coregenes` |
-| Assembler | `repgenr.assemblers.base.Assembler` | `assemble(reads, out_dir, params, logger)` | `AssemblyResult` | `repgenr.assemblers` |
-| Polisher | `repgenr.polishers.base.Polisher` | `polish(reads, draft, out_dir, params, logger)` | `PolishResult` | `repgenr.polishers` |
-| Classifier | `repgenr.classifiers.base.Classifier` | `classify(genomes, out_dir, params, logger)` | `dict[str, Classification]` | `repgenr.classifiers` |
+| Group | Family | ABC | Method | Returns | Entry-point group |
+|---|---|---|---|---|---|
+| Read tools | Assembler | `repgenr.assemblers.base.Assembler` | `assemble(reads, out_dir, params, logger)` | `AssemblyResult` | `repgenr.assemblers` |
+| Read tools | Polisher | `repgenr.polishers.base.Polisher` | `polish(reads, draft, out_dir, params, logger)` | `PolishResult` | `repgenr.polishers` |
+| Read tools | Classifier | `repgenr.classifiers.base.Classifier` | `classify(genomes, out_dir, params, logger)` | `dict[str, Classification]` | `repgenr.classifiers` |
+| Genome tools | Dereplicator | `repgenr.dereplicators.base.Dereplicator` | `dereplicate(genomes, out_dir, params, logger)` | `DerepResult` | `repgenr.dereplicators` |
+| Genome tools | Annotator | `repgenr.annotators.base.Annotator` | `call(genome, record_name, out_dir, params, logger)` | `AnnotateResult` | `repgenr.annotators` |
+| Alignment tools | Aligner | `repgenr.aligners.base.Aligner` | `align(genomes, reference, out_dir, params, logger)` | `AlignResult` | `repgenr.aligners` |
+| Alignment tools | SNP typer | `repgenr.snptypers.base.SnpTyper` | `call(genomes, reference, out_dir, params, logger)` | `SnpResult` | `repgenr.snptypers` |
+| Alignment tools | Masker | `repgenr.maskers.base.Masker` | `mask(full_alignment, out_dir, params: MaskParams, logger)` | masked variable-site FASTA `Path` | `repgenr.maskers` |
+| Alignment tools | Core-gene builder | `repgenr.coregenes.base.CoreGeneBuilder` | `call(gffs, out_dir, params, logger)` | `CoreGeneResult` | `repgenr.coregenes` |
+| Tree tools | Tree builder | `repgenr.treebuilders.base.TreeBuilder` | `build(msa_or_genomes, out_dir, params, logger)` | Newick `Path` | `repgenr.treebuilders` |
 
-The parameter dataclasses are `DerepParams`, `AlignParams`, `SnpParams`,
-`MaskParams`, `TreeParams`, `AnnotateParams`, `CoreGeneParams`,
-`AssembleParams`, `PolishParams` and `ClassifyParams`, each in the family's
-`base.py`.
+The parameter dataclasses are, in the same order, `AssembleParams`,
+`PolishParams`, `ClassifyParams`, `DerepParams`, `AnnotateParams`,
+`AlignParams`, `SnpParams`, `MaskParams`, `CoreGeneParams` and `TreeParams`,
+each in the family's `base.py`.
 
 In-tree and third-party adapters are discovered the same way, through
 package entry points, so the core never imports a concrete adapter. A third

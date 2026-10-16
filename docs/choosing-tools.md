@@ -1,8 +1,9 @@
 # Choosing tools
 
-RepGenR2 has ten tool families (dereplicators, aligners, SNP typers, maskers,
-tree builders, assemblers, classifiers, polishers, annotators and core-gene
-builders), and most stages work with their defaults. This page is for users
+RepGenR2 has ten tool families in four groups: read tools (assemblers,
+polishers, classifiers), genome tools (dereplicators, annotators), alignment
+tools (aligners, SNP typers, maskers, core-gene builders) and tree tools (tree
+builders). Most stages work with their defaults. This page is for users
 who need to decide what to use when the defaults do not fit. It starts from
 four questions about the dataset, gives a decision table, then describes the
 trade-offs of each family, and ends with the genome limit each adapter
@@ -14,12 +15,12 @@ Contents:
 - [Start from the question](#start-from-the-question)
 - [Decision table](#decision-table)
 - [By number of genomes](#by-number-of-genomes)
-- [Entry points](#entry-points)
-- [Dereplicators](#dereplicators)
-- [Phylogeny routes](#phylogeny-routes)
-- [Core-gene builders](#core-gene-builders)
-- [Tree builders](#tree-builders)
-- [Assemblers and polishers](#assemblers-and-polishers)
+- [Entry points](#entry-points) (where the genomes come from)
+- Read tools: [Assemblers and polishers](#assemblers-and-polishers)
+- Genome tools: [Dereplicators](#dereplicators)
+- Alignment tools: [Phylogeny routes](#phylogeny-routes) (aligners, SNP
+  typers and maskers), [Core-gene builders](#core-gene-builders)
+- Tree tools: [Tree builders](#tree-builders)
 - [CLI `run` or Nextflow](#cli-run-or-nextflow)
 - [How `auto` chooses](#how-auto-chooses)
 - [Declared limits](#declared-limits)
@@ -192,6 +193,33 @@ Notes on the table:
 
 `run` chains the stages for the GTDB path, and takes `--viral`, `--reads` or
 `--genomes-dir` for the others (see [usage.md](usage.md)).
+
+## Assemblers and polishers
+
+These apply to the reads chain only (`reads`, `assemble`).
+
+| Sequencing platform | Assembler (`--assembler auto`) | Polisher (`--polisher auto`) |
+|---|---|---|
+| Illumina | `skesa`. `shovill` (SPAdes) is the alternative for paired reads. | None |
+| Oxford Nanopore | `flye` | `medaka` (`racon` when medaka is not installed) |
+| PacBio CLR | `flye` | `racon` with minimap2 overlaps (`--polish-rounds`) |
+| PacBio HiFi | `flye` | None |
+
+Points that bear on the choice:
+
+- Medaka needs the basecaller model. Reads mirrored through SRA lack it, so
+  the adapter assumes ONT's bacterial R10.4.1 model and records that; give
+  another with `--tool-arg model=...`.
+- On one ONT run (SRR28800588) polishing did not change the CheckM2 scores,
+  because the Flye draft was already gene-complete at that resolution.
+  Unpolished long-read assemblies still carry indel errors that matter for SNP
+  typing and alignment.
+- `shovill` needs a read pair; `auto` assembles a single-file run with
+  `skesa`.
+
+Run selection (`--max-bases`, `--drop-selection`, `--one-per-sample`), the
+organism check with `--classifier`, and the reuse of CheckM2 scores are
+described in [Starting from sequencing reads](usage.md#starting-from-sequencing-reads).
 
 ## Dereplicators
 
@@ -390,33 +418,6 @@ while `mashtree` and the sourmash builder write none. `--collapse-length` and
 diameter maps a distance cutoff (for example about 95 % ANI) onto the
 taxonomy without supports. Units and examples are in
 [Collapsing weak splits in tree2tax](usage.md#collapsing-weak-splits-in-tree2tax).
-
-## Assemblers and polishers
-
-These apply to the reads chain only (`reads`, `assemble`).
-
-| Sequencing platform | Assembler (`--assembler auto`) | Polisher (`--polisher auto`) |
-|---|---|---|
-| Illumina | `skesa`. `shovill` (SPAdes) is the alternative for paired reads. | None |
-| Oxford Nanopore | `flye` | `medaka` (`racon` when medaka is not installed) |
-| PacBio CLR | `flye` | `racon` with minimap2 overlaps (`--polish-rounds`) |
-| PacBio HiFi | `flye` | None |
-
-Points that bear on the choice:
-
-- Medaka needs the basecaller model. Reads mirrored through SRA lack it, so
-  the adapter assumes ONT's bacterial R10.4.1 model and records that; give
-  another with `--tool-arg model=...`.
-- On one ONT run (SRR28800588) polishing did not change the CheckM2 scores,
-  because the Flye draft was already gene-complete at that resolution.
-  Unpolished long-read assemblies still carry indel errors that matter for SNP
-  typing and alignment.
-- `shovill` needs a read pair; `auto` assembles a single-file run with
-  `skesa`.
-
-Run selection (`--max-bases`, `--drop-selection`, `--one-per-sample`), the
-organism check with `--classifier`, and the reuse of CheckM2 scores are
-described in [Starting from sequencing reads](usage.md#starting-from-sequencing-reads).
 
 ## CLI `run` or Nextflow
 

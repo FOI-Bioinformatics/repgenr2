@@ -29,11 +29,11 @@ RepGenR2 builds such a set in five steps:
 RepGenR2 is the second generation of RepGenR (Representative-Genome
 Repositories). It is an importable Python package (Python 3.12 or later,
 distributed as `repgenr2`, installed as the `repgenr` command) with ten
-pluggable tool families and an optional Nextflow pipeline for scatter-gather
-runs on HPC and cloud executors. The largest end-to-end runs recorded are 1157
-bacterial genomes (one genus, 12 minutes) and 1256 viral genomes
-(Hepeviridae). Larger sizes are measured per tool in the
-[scaling audit](docs/audit/scaling-audit.md).
+pluggable tool families, grouped as read, genome, alignment and tree tools,
+and an optional Nextflow pipeline for scatter-gather runs on HPC and cloud
+executors. The largest end-to-end runs recorded are 1157 bacterial genomes
+(one genus, 12 minutes) and 1256 viral genomes (Hepeviridae). Larger sizes are
+measured per tool in the [scaling audit](docs/audit/scaling-audit.md).
 
 ## Pipeline routes
 
@@ -68,22 +68,56 @@ compares the routes.
 
 ## Tool families
 
-Tools are discovered through Python entry points, so adding one needs no
-change to the core (see [docs/developing.md](docs/developing.md)). There are
-ten tool families:
+RepGenR2 runs external tools through adapters. The adapters belong to ten
+tool families, and each family can be swapped without changing the rest of
+the pipeline. The families fall into four groups, by what they work on and
+in the order a run uses them. A fifth group, background data, is built in
+rather than pluggable. Adapters are discovered through Python entry points,
+so adding one needs no change to the core (see
+[docs/developing.md](docs/developing.md)).
+
+**Background data** (built in, not pluggable): where taxa, genomes and runs
+come from, and the reference databases some tools read.
+
+| Kind | Sources |
+|------|---------|
+| Taxonomy and genome metadata | GTDB (full table or API) for bacteria and archaea, including the species-representative flag that `--keeper gtdb` reads; NCBI Virus (default) or BV-BRC for viruses |
+| Genome sequences | NCBI Datasets; local FASTA files (`ingest`); viral sequences come with the NCBI Virus or BV-BRC download |
+| Sequencing runs | ENA (runs mirrored from SRA) |
+| Reference databases | bakta database (annotation), CheckM2 database (assembly quality), GTDB sourmash sketch and lineages (organism check, `--classifier` and `--screen-reads`) |
+
+**Read tools**: sequencing runs to checked genome assemblies (`reads`,
+`assemble`).
+
+| Family | Built-in adapters |
+|--------|-------------------|
+| Assemblers | `skesa`, `shovill` (Illumina), `flye` (ONT, PacBio) |
+| Polishers | `medaka` (ONT), `racon` with minimap2 (PacBio CLR); correct long-read assemblies |
+| Classifiers | `sourmash` (gather against a GTDB sketch); confirm the organism of each assembly |
+
+**Genome tools**: a genome set to representatives and annotations
+(`dereplicate`, `annotate`).
 
 | Family | Built-in adapters |
 |--------|-------------------|
 | Dereplicators | `drep`, `skder`, `galah`, `sourmash` |
-| Aligners | `progressivemauve`, `sibeliaz`, `cactus` |
+| Annotators | `bakta` (default; needs its database), `prokka`; for the core-gene route |
+
+**Alignment tools**: genomes to the multiple sequence alignment (MSA) a tree
+is built from (`phylo`, `snptype`).
+
+| Family | Built-in adapters |
+|--------|-------------------|
+| Aligners | `progressivemauve`, `sibeliaz`, `cactus` (whole-genome alignment) |
 | SNP typers | `simple` (samtools/bcftools), `snippy`, `parsnp`, `ska2` (reference-free) |
-| Maskers | `gubbins` (recombination masking via `--mask`) |
-| Annotators | `bakta` (default; needs its database), `prokka`; used by `annotate` for the core-gene route |
-| Core-gene builders | `panaroo` (with mafft), `ppanggolin`, `scarap`, `orthofinder`; used by `phylo --msa-source coregene` |
-| Tree builders | `iqtree`, `fasttree`, `veryfasttree`, `raxmlng` (MSA), `mashtree`, `sourmash`, `skani`, `ska2` (alignment-free) |
-| Assemblers | `skesa`, `shovill` (Illumina), `flye` (ONT, PacBio); used by the reads route |
-| Classifiers | `sourmash` (gather against a GTDB sketch); verifies the organism of an assembled run |
-| Polishers | `medaka` (ONT), `racon` with minimap2 (PacBio CLR); correct long-read assemblies in the reads route |
+| Maskers | `gubbins` (recombination masking of the SNP alignment, `--mask`) |
+| Core-gene builders | `panaroo` (with mafft), `ppanggolin`, `scarap`, `orthofinder` (`--msa-source coregene`) |
+
+**Tree tools**: an alignment, or the genomes themselves, to a tree (`phylo`).
+
+| Family | Built-in adapters |
+|--------|-------------------|
+| Tree builders | from an MSA: `iqtree`, `fasttree`, `veryfasttree`, `raxmlng`; alignment-free, from the genomes: `mashtree`, `sourmash`, `skani`, `ska2` |
 
 `repgenr list-tools` prints what is available in the current environment.
 [docs/choosing-tools.md](docs/choosing-tools.md) describes which tools suit a
