@@ -1,22 +1,126 @@
-# Adapter verification status
+# Verification record
 
-Status of each pluggable tool adapter against its real external binary. "Unit"
-means covered by offline tests (mock/parse); "Live" means run end-to-end against
-the installed tool on real or closely-related data.
+This page records the evidence behind RepGenR2's tool adapters and routes:
+for each adapter or route, what was run, on which data, with which tool
+version where one was recorded, and what was measured. It is for users who
+want to judge how far a result can be trusted, and for contributors who add
+or change an adapter. The records were collected on one audit machine
+(macOS, Apple Silicon) and are not a benchmark across platforms.
 
-Live verification used a small GTDB/NCBI **Francisella** set (real download) and
-a closely-related **synthetic** set (for tools that need within-species
-divergence). Tools were installed via conda/mamba on macOS (Apple Silicon).
+Contents:
+
+* [Evidence levels](#evidence-levels)
+* [Adapter status](#adapter-status)
+* [Test conditions and data](#test-conditions-and-data)
+* [Re-running the checks: the live suite](#re-running-the-checks-the-live-suite)
+* [Live suite results](#live-suite-results)
+* [Measured runs](#measured-runs): the reads route, the genus-scale run, SNP
+  phylogeny and typing, the core-gene route, gzipped inputs
+* [Command audit (2026-10-07)](#command-audit-2026-10-07)
+* [Platform notes (macOS / Apple Silicon)](#platform-notes-macos--apple-silicon)
+
+## Evidence levels
+
+Each adapter is placed at one of three levels:
+
+| Level | Meaning |
+|---|---|
+| Real tool, live suite | Run end to end against the installed tool, on real or closely related data, by a test in `tests/live/` that can be re-executed. |
+| Real tool, by hand | Run end to end against the installed tool during an audit and recorded on this page, without a re-executable live test. |
+| Fake binary only | Covered only by offline tests: the contract suite records the argument vector and parses canned output from a fake runner. The real tool has not been run in the records on this page. |
+
+An adapter can be at more than one level; the summary below gives the
+strongest. "Not verified" means that this page holds no record of the
+adapter at all; every built-in adapter has at least the offline tests.
+
+## Adapter status
+
+Where each built-in adapter has been run against its real tool. "Native"
+means the tool on the host `PATH` of the audit machine; "container" means
+through `--container docker` (a pinned image or one minted by Wave). The
+live-suite rows reflect the live suite as it stands. A tool version is given
+only where this page records one.
+
+| Family | Adapter | Evidence level | Native | Container | Where | Tool version recorded |
+|---|---|---|---|---|---|---|
+| dereplicator | skder | real tool, live suite | yes | yes | test_dereplicators, test_container_runs | not recorded |
+| dereplicator | galah | real tool, live suite | yes | yes | test_dereplicators, test_container_runs (pinned image) | galah 0.4.2 and 0.5.2 (`--genome-info` check, #233) |
+| dereplicator | sourmash | real tool, live suite | yes | yes | test_dereplicators, test_aux_commands, test_container_runs (pinned image) | not recorded |
+| dereplicator | drep | real tool, live suite | no | yes | test_container_runs (pinned and Wave images; also `glance`) | container pin dRep 3.7.1; the local dRep 3.4.5 fails (see the command audit observations) |
+| aligner | sibeliaz | real tool, live suite | yes | yes | test_steps, test_container_runs | not recorded |
+| aligner | progressivemauve | real tool, live suite | no | yes | test_container_runs, test_nextflow (unpackaged on macOS) | not recorded |
+| aligner | cactus | real tool, live suite | no | yes | test_container_runs (pinned image) | cactus v2.9.3 (Docker, gzip check) |
+| SNP typer | simple | real tool, live suite | yes | yes | test_species_set, test_container_runs | not recorded |
+| SNP typer | parsnp | real tool, live suite | yes | no | test_species_set (osx-64 env) | ParSNP 2.1.5 (gzip check) |
+| SNP typer | ska2 | real tool, live suite | yes | yes | test_species_set, test_container_runs (pinned image) | ska2 0.5.1 (gzip check) |
+| SNP typer | snippy | real tool, live suite | no | yes | test_container_runs (pinned image) | snippy 4.6.0 (pinned BioContainer, gzip check) |
+| masker | gubbins | real tool, live suite | yes | yes | test_species_set, test_container_runs (pinned image) | not recorded |
+| tree builder | iqtree | real tool, live suite | yes | yes | test_species_set, test_container_runs (pinned image) | not recorded |
+| tree builder | fasttree | real tool, live suite | yes | yes | test_species_set, test_container_runs (pinned image) | not recorded |
+| tree builder | raxmlng | real tool, live suite | yes | yes | test_species_set, test_container_runs (pinned image) | not recorded |
+| tree builder | mashtree | real tool, live suite | yes | yes | test_treebuilders_offline, test_species_set, test_container_runs (pinned image) | not recorded |
+| tree builder | sourmash | real tool, live suite | yes | yes | test_treebuilders_offline, test_container_runs (pinned image) | not recorded |
+| tree builder | veryfasttree | fake binary only | no | no | offline contract test | none |
+| tree builder | skani | fake binary only | no | no | offline contract test | none |
+| tree builder | ska2 | fake binary only | no | no | offline contract test | none |
+| annotator | bakta | real tool, by hand | yes | no | core-gene route on Wolbachia (2026-10-15) | bakta 1.12.2, light database (osx-arm64) |
+| annotator | prokka | real tool, by hand | yes | no | core-gene route on Wolbachia (2026-10-15) | prokka 1.15.6 (needs Rosetta on this machine) |
+| core-gene builder | panaroo | real tool, by hand | yes | no | core-gene route on Wolbachia (2026-10-15) | Panaroo 1.8.0 with mafft (osx-64 under Rosetta) |
+| core-gene builder | ppanggolin | real tool, by hand | yes | no | core-gene route on Wolbachia (2026-10-15), also through a temporary Nextflow harness | PPanGGOLiN 2.3.2 (osx-arm64) |
+| core-gene builder | scarap | real tool, by hand | yes | no | core-gene route on Wolbachia (2026-10-15) | SCARAP 1.0.2 (noarch) |
+| core-gene builder | orthofinder | real tool, by hand | yes | no | core-gene route on Wolbachia (2026-10-15) | OrthoFinder 3.1.5 (noarch) with DIAMOND 2.2.8 |
+| assembler | skesa | real tool, live suite | yes | yes | test_container_runs (pinned image, simulated reads; a `requires_binary` test covers the host); test_reads (SRR25474756); native by hand in the reads audit (#226) | not recorded |
+| assembler | shovill | real tool, live suite | no | yes | test_container_runs (pinned image, simulated reads) | not recorded |
+| assembler | flye | real tool, live suite | yes | yes | test_container_runs (pinned image, simulated 120 kb genome at 40x ONT-like reads, one contig); native by hand in the reads audit (#226) | not recorded |
+| classifier | sourmash | real tool, by hand | yes | yes | genome-qc and assemble on Wolbachia assemblies against the GTDB rs226 sketch, native and pinned image (2026-09-14) | not recorded |
+| polisher | medaka | real tool, live suite | no | yes | test_reads (SRR28800588 through the pinned image, see [Polishing an ONT assembly](#polishing-an-ont-assembly-2026-09-16)); CheckM2 before/after recorded there | not recorded |
+| polisher | racon | real tool, by hand | yes | no | offline contract test (minimap2 and racon argv, rounds, stdout capture); native by hand in the reads audit (#226) | not recorded |
+| quality (CheckM2, not an adapter family) | checkm2 | real tool, by hand | no | yes | offline test on a canned quality report; pinned image with the CheckM2 database by hand in the reads audit (#226), because the host builds fail on macOS | not recorded |
+
+Notes on the table:
+
+* drep, progressivemauve, cactus and snippy have been verified only inside
+  containers.
+* skder and SibeliaZ run in Wave-minted images only: their BioContainer
+  images are BusyBox-based and the GNU-only calls in their shell wrappers
+  fail there, which is why they carry no pinned image.
+* The veryfasttree, skani and ska2 tree builders have offline contract tests
+  (`tests/unit/test_adapter_contracts.py`) but no record on this page of a
+  run against the real tool.
+* The core-gene rows were run natively, each tool reached through
+  `--bin-dir`; no container run is recorded.
+
+## Test conditions and data
+
+**Machine.** The audit machine is a macOS computer on Apple Silicon (11
+cores, 18 GB, as recorded for the genus-scale run), with Docker Desktop
+using Rosetta for amd64 images. Tools were installed via conda/mamba. Several
+working directories lived on an external volume. Amd64-only images ran under
+emulation, which inflates their wall times. The core-gene runs are recorded
+as on "an Apple Silicon laptop".
+
+**Data sets** named in the records:
+
+| Data set | As recorded | Used in |
+|---|---|---|
+| Small Francisella set | A small GTDB/NCBI set, real download | Early live verification |
+| Synthetic sets | Seeded genome sets from `benchmarks/genomegen.py`, staged with `repgenr ingest`; closely related, for tools that need within-species divergence | The live suite |
+| francisella_all | Every GTDB genome of the genus Francisella: 1157 genomes, 937 of them F. tularensis; 68 representatives after dereplication | Genus-scale run, SNP phylogeny, SNP typing throughput |
+| 30 F. tularensis genomes | GTDB r232, quality scores 99.44 to 100 | Keeper check (#254) |
+| The 50-genome set, clonal_50, clonal_50_clustered, pureclone_20, mixed_1000_clustered (20 truth clusters) | Local test sets named in the command audit and the gzip checks | Command audit, gzip checks |
+| Wolbachia | Three supergroup-A genomes (wMel, wRi, wHa); four across supergroups (adding wBm, D, and wOo, C); 24 complete genomes | Core-gene route |
+| SRR25474756 | Mycoplasmopsis arginini, Illumina MiSeq paired, 134 MB | Reads chain, Nextflow reads mode |
+| SRR28800588 | Mycoplasmoides genitalium, MinION, 85 MB | Polishing, Nextflow reads mode |
 
 ## Re-running the checks: the live suite
 
-The records below were collected by hand. `tests/live/` holds the
-re-executable form: pytest tests marked `live` that run the installed
-`repgenr` console script against real tools on seeded synthetic genome sets
-(`benchmarks/genomegen.py`) staged with `repgenr ingest`. They are deselected
-by default and never run in CI. Copy `tests/live/live.example.toml` to
-`live.local.toml`, point it at the conda environments that hold each tool,
-and run:
+The measured-run and audit records on this page were collected by hand. `tests/live/`
+holds the re-executable form: pytest tests marked `live` that run the
+installed `repgenr` console script against real tools on seeded synthetic
+genome sets (`benchmarks/genomegen.py`) staged with `repgenr ingest`. They
+are deselected by default and never run in CI. Copy
+`tests/live/live.example.toml` to `live.local.toml`, point it at the conda
+environments that hold each tool, and run:
 
 ```bash
 conda run -n repgenr_dev --no-capture-output \
@@ -25,101 +129,10 @@ conda run -n repgenr_dev --no-capture-output \
 
 Markers `network` and `container` select the tests that need GTDB/NCBI or
 Docker; `-m "live and not network and not container"` is the offline subset.
-Tests whose tool is not on PATH are skipped, not failed. See
+Tests whose tool is not on `PATH` are skipped, not failed. See
 `tests/live/README.md`.
 
-## Adapter status
-
-Where each built-in adapter has been run against its real tool, from the
-live suite as it stands. "Native" means the tool on the host PATH of the
-audit machine; "container" means through `--container docker` (a pinned
-image or one minted by Wave). An adapter with neither has only the offline
-contract test, which checks the argument vector against canned output.
-
-| Family | Adapter | Native | Container | Live module |
-|---|---|---|---|---|
-| dereplicator | skder | yes | yes | test_dereplicators, test_container_runs |
-| dereplicator | galah | yes | yes | test_dereplicators, test_container_runs (pinned image) |
-| dereplicator | sourmash | yes | yes | test_dereplicators, test_aux_commands, test_container_runs (pinned image) |
-| dereplicator | drep | no | yes | test_container_runs (pinned and Wave images; also `glance`) |
-| aligner | sibeliaz | yes | yes | test_steps, test_container_runs |
-| aligner | progressivemauve | no | yes | test_container_runs, test_nextflow (unpackaged on macOS) |
-| aligner | cactus | no | yes | test_container_runs (pinned image) |
-| SNP typer | simple | yes | yes | test_species_set, test_container_runs |
-| SNP typer | parsnp | yes | no | test_species_set (osx-64 env) |
-| SNP typer | ska2 | yes | yes | test_species_set, test_container_runs (pinned image) |
-| SNP typer | snippy | no | yes | test_container_runs (pinned image) |
-| masker | gubbins | yes | yes | test_species_set, test_container_runs (pinned image) |
-| tree builder | iqtree | yes | yes | test_species_set, test_container_runs (pinned image) |
-| tree builder | fasttree | yes | yes | test_species_set, test_container_runs (pinned image) |
-| tree builder | raxmlng | yes | yes | test_species_set, test_container_runs (pinned image) |
-| tree builder | mashtree | yes | yes | test_treebuilders_offline, test_species_set, test_container_runs (pinned image) |
-| tree builder | sourmash | yes | yes | test_treebuilders_offline, test_container_runs (pinned image) |
-| assembler | skesa | yes | yes | test_container_runs (pinned image, simulated reads; a `requires_binary` test covers the host); native by hand in the reads audit (#226) |
-| assembler | shovill | no | yes | test_container_runs (pinned image, simulated reads) |
-| assembler | flye | yes | yes | test_container_runs (pinned image, simulated 120 kb genome at 40x ONT-like reads, one contig); native by hand in the reads audit (#226) |
-| classifier | sourmash | yes | yes | genome-qc and assemble on Wolbachia assemblies against the GTDB rs226 sketch, native and pinned image (2026-09-14) |
-| polisher | medaka | no | yes | test_reads (SRR28800588 through the pinned image, see below); CheckM2 before/after recorded below |
-| polisher | racon | yes | no | offline contract test (minimap2 and racon argv, rounds, stdout capture); native by hand in the reads audit (#226) |
-| quality | checkm2 | no | yes | offline test on a canned quality report; pinned image with the CheckM2 database by hand in the reads audit (#226), because the host builds fail on macOS |
-
-drep, progressivemauve, cactus and snippy have been verified only inside
-containers. skder and SibeliaZ run in Wave-minted images only: their
-BioContainer images are BusyBox-based and the GNU-only calls in their shell
-wrappers fail there, which is why they carry no pinned image.
-
-## Polishing an ONT assembly (2026-09-16)
-
-SRR28800588 (Mycoplasmoides genitalium, MinION, 85 MB) assembled with Flye
-and polished with medaka through the pinned images under amd64 emulation.
-SRA rewrites FASTQ headers, so the reads named no basecaller; the adapter
-used ONT's bacterial R10.4.1 model and recorded that assumption.
-
-| Step | Result | Wall time |
-|---|---|---|
-| flye | 2 contigs, 593908 bp, N50 579957 | about 3 min |
-| medaka (assumed bacterial model) | 2 contigs, 593932 bp | about 1 min |
-| CheckM2, unpolished draft | 98.90 complete, 0.09 contamination | |
-| CheckM2, polished | 98.90 complete, 0.09 contamination | 22 min for both, emulated |
-
-On this run the Flye draft was already gene-complete at CheckM2 resolution
-and polishing changed 24 bp of total length without moving the scores. The
-12% contamination seen earlier on DRR351706 came from an MDA-amplified
-library, which `reads --drop-selection` now excludes by default, not from a
-lack of polishing. Polishing still matters for downstream SNP typing and
-alignment, where indel errors are not absorbed by gene calling.
-
-## Reads chain on a public run (2026-09-14)
-
-`tests/live/test_reads.py` selects SRR25474756 (Mycoplasmopsis arginini,
-Illumina MiSeq paired, 134 MB) from ENA, downloads and verifies both files,
-and assembles them with SKESA in its pinned image under amd64 emulation on
-the audit machine:
-
-| Step | Result | Wall time |
-|---|---|---|
-| reads (ENA, Entrez lineage) | 1 run, labelled Metamycoplasmataceae / Mycoplasmopsis / arginini | 2 s |
-| fetch (HTTPS, md5) | 134 MB | 80 s |
-| skesa (4 threads, emulated) | 24 contigs, 670879 bp, N50 86129, 308x | 70 s |
-
-The stateless steps behind the Nextflow reads mode (`assemble-run`,
-`reads-gather`) are run on the same accession by
-`test_reads_steps_assemble_a_public_run`; `genome-qc` has only the offline
-tests with fakes, since the audit machine holds neither a CheckM2 database
-nor a GTDB sketch. The Nextflow layer itself is covered by the nf-test stub
-suite (`reads_select_process`, `reads_assemble_process`,
-`genome_qc_process`, `reads_gather_process`, `acquire_reads`,
-`reads_dataflow` and the `main.nf` reads-mode test) and, with real tools, by
-`test_nextflow.py::test_main_reads_mode`, which runs `--mode reads` on
-SRR25474756 (Illumina, skesa) and SRR28800588 (ONT, flye) through the pinned
-images with the docker backend, then sourmash dereplication, a mashtree tree
-and tree2tax (2026-09-14: two assembly tasks of 1m39s and 2m47s, the whole
-run under seven minutes; two leaves in the tree). That run surfaced two
-fixes: the steps resolve their paths before a containerised tool sees them,
-and the container backend binds the real directory behind a symlinked
-staging path.
-
-## Results
+## Live suite results
 
 The table below is rendered from the junit output of the last complete run
 on the audit machine (Apple Silicon, Docker Desktop with Rosetta) by
@@ -213,11 +226,77 @@ Last run 2026-09-10 13:11 UTC: 75 passed, 0 failed, 0 errors, 0 skipped, 25 min 
 
 What each module covers, with the flags it exercises, is in
 `docs/audit/cli-matrix.md` (the `live` column) and `tests/live/README.md`.
+The modules `test_reads`, `test_gzip_inputs`, `test_container_signals` and
+`test_sketches_live` are not in this table; their results are recorded in
+the sections below where this page has them.
 
-## Genus-scale run (real data, 2026-09-10)
+## Measured runs
 
-One `run` over every GTDB genome of a genus, on the audit machine (11 cores,
-18 GB), workdir on an external volume:
+Each section states the data, the tools and the conditions, then the
+measurements.
+
+### Reads chain on a public run (2026-09-14)
+
+* **Data:** SRR25474756 (Mycoplasmopsis arginini, Illumina MiSeq paired,
+  134 MB), selected from ENA.
+* **Tools:** SKESA in its pinned image under amd64 emulation; version not
+  recorded.
+* **Run by:** `tests/live/test_reads.py`, which selects the run, downloads
+  and verifies both files, and assembles them.
+
+| Step | Result | Wall time |
+|---|---|---|
+| reads (ENA, Entrez lineage) | 1 run, labelled Metamycoplasmataceae / Mycoplasmopsis / arginini | 2 s |
+| fetch (HTTPS, md5) | 134 MB | 80 s |
+| skesa (4 threads, emulated) | 24 contigs, 670879 bp, N50 86129, 308x | 70 s |
+
+The stateless steps behind the Nextflow reads mode (`assemble-run`,
+`reads-gather`) are run on the same accession by
+`test_reads_steps_assemble_a_public_run`. `genome-qc` has only the offline
+tests with fakes, since the audit machine holds neither a CheckM2 database
+nor a GTDB sketch. The Nextflow layer itself is covered by the nf-test stub
+suite (`reads_select_process`, `reads_assemble_process`,
+`genome_qc_process`, `reads_gather_process`, `acquire_reads`,
+`reads_dataflow` and the `main.nf` reads-mode test) and, with real tools, by
+`test_nextflow.py::test_main_reads_mode`. That test runs `--mode reads` on
+SRR25474756 (Illumina, skesa) and SRR28800588 (ONT, flye) through the pinned
+images with the docker backend, then sourmash dereplication, a mashtree tree
+and tree2tax (2026-09-14: two assembly tasks of 1m39s and 2m47s, the whole
+run under seven minutes; two leaves in the tree). That run surfaced two
+fixes: the steps resolve their paths before a containerised tool sees them,
+and the container backend binds the real directory behind a symlinked
+staging path.
+
+### Polishing an ONT assembly (2026-09-16)
+
+* **Data:** SRR28800588 (Mycoplasmoides genitalium, MinION, 85 MB).
+* **Tools:** Flye, medaka and CheckM2 through the pinned images under amd64
+  emulation; versions not recorded.
+* **Model:** SRA rewrites FASTQ headers, so the reads named no basecaller.
+  The adapter used ONT's bacterial R10.4.1 model and recorded that
+  assumption.
+
+| Step | Result | Wall time |
+|---|---|---|
+| flye | 2 contigs, 593908 bp, N50 579957 | about 3 min |
+| medaka (assumed bacterial model) | 2 contigs, 593932 bp | about 1 min |
+| CheckM2, unpolished draft | 98.90 complete, 0.09 contamination | |
+| CheckM2, polished | 98.90 complete, 0.09 contamination | 22 min for both, emulated |
+
+On this run the Flye draft was already gene-complete at CheckM2 resolution,
+and polishing changed 24 bp of total length without moving the scores. The
+12% contamination seen earlier on DRR351706 came from an MDA-amplified
+library, which `reads --drop-selection` now excludes by default, not from a
+lack of polishing. Polishing still matters for downstream SNP typing and
+alignment, where indel errors are not absorbed by gene calling.
+
+### Genus-scale run (real data, 2026-09-10)
+
+* **Data:** every GTDB genome of the genus Francisella (francisella_all).
+* **Tools:** skDER for dereplication, mashtree for the tree; versions not
+  recorded.
+* **Conditions:** one `run` on the audit machine (11 cores, 18 GB), working
+  directory on an external volume.
 
 ```bash
 repgenr run -wd work/francisella_all -d all -l genus -tg Francisella \
@@ -235,12 +314,15 @@ repgenr run -wd work/francisella_all -d all -l genus -tg Francisella \
 
 12 minutes end to end, 25 CPU-minutes, 2.9 GB on disk, `doctor` clean.
 
-## SNP phylogeny on the genus-scale set (2026-09-10)
+### SNP phylogeny on the genus-scale set (2026-09-10)
 
-The 68 Francisella representatives plus the outgroup, three ways, on the same
-machine. `simple` maps every genome to one reference with minimap2 and calls
-haploid consensus SNPs; the reference here was the alphabetically first genome,
-a different species from most of the set.
+* **Data:** the 68 Francisella representatives plus the outgroup.
+* **Tools:** mashtree; ska2 with IQ-TREE; the `simple` typer with Gubbins and
+  IQ-TREE; versions not recorded.
+* **Conditions:** the same machine. `simple` maps every genome to one
+  reference with minimap2 and calls haploid consensus SNPs; the reference
+  here was the alphabetically first genome, a different species from most of
+  the set.
 
 | Path | Wall time | Sites | Outcome |
 |---|---|---|---|
@@ -249,9 +331,10 @@ a different species from most of the set.
 | simple + Gubbins + IQ-TREE, 8 threads | 87 min, then failed | 812015 core SNP, 2054227 alignment columns | Gubbins crashed in its recombination scan |
 
 The genus alignment is 39% variable. Gubbins is built for isolates of one
-species; its scan allocates per-SNP arrays on the thread stack and dies with a
-bus error on input this diverse, whatever tree builder it uses and however many
-threads. Where the boundary sits, measured on subsets of the same alignment:
+species. Its scan allocates per-SNP arrays on the thread stack and stops
+with a bus error on input this diverse, whatever tree builder it uses and
+however many threads. Where the boundary sits, measured on subsets of the
+same alignment:
 
 | Subset | Genomes | Variable columns | Gubbins |
 |---|---|---|---|
@@ -261,31 +344,34 @@ threads. Where the boundary sits, measured on subsets of the same alignment:
 | tularensis + philomiragia | 27 | 345308 (16.8%) | bus error |
 | whole genus | 68 | 809060 (39.4%) | bus error |
 
-The masker now estimates this fraction, warns above 10%, and reports the figure
-if Gubbins fails. Recombination masking belongs to a within-species run; a
-genus-level set is served by mashtree or an alignment-based path.
+The masker now estimates this fraction, warns above 10%, and reports the
+figure if Gubbins fails. Recombination masking belongs to a within-species
+run; a genus-level set is served by mashtree or an alignment-based path.
 
 Masking changes the answer where it does run. On the nine F. tularensis
-representatives, IQ-TREE with 1000 ultrafast bootstrap replicates took 27 s on
-the 105597 unmasked variable sites and 21 s on the 19723 Gubbins kept. The two
-topologies share no internal split (Robinson-Foulds 12 of a possible 12), and
-both carry high support: median 98 unmasked, 96 masked. Note what the sites
-rest on. These genomes were mapped to the alphabetically first genome of the
-whole genus, another species, and 5.1% of that reference's columns vary within
-a species usually described as clonal. A within-species run wants `--reference`
-pointed at a genome of that species; the stage warns when it falls back.
+representatives, IQ-TREE with 1000 ultrafast bootstrap replicates took 27 s
+on the 105597 unmasked variable sites and 21 s on the 19723 Gubbins kept.
+The two topologies share no internal split (Robinson-Foulds 12 of a possible
+12), and both carry high support: median 98 unmasked, 96 masked. The sites
+rest on a choice of reference: these genomes were mapped to the
+alphabetically first genome of the whole genus, another species, and 5.1% of
+that reference's columns vary within a species usually described as clonal.
+A within-species run needs `--reference` pointed at a genome of that
+species; the stage warns when it falls back.
 
-Gubbins also needs a multi-threaded RAxML build (`raxmlHPC-PTHREADS*`) whenever
-it is given more than one thread. The osx-arm64 conda package has none, so the
-masker falls back to IQ-TREE, which cost 76 of the 87 minutes above on this
-alignment. `--tool-arg gubbins_tree_builder=fasttree` with
+Gubbins also needs a multi-threaded RAxML build (`raxmlHPC-PTHREADS*`)
+whenever it is given more than one thread. The osx-arm64 conda package has
+none, so the masker falls back to IQ-TREE, which cost 76 of the 87 minutes
+above on this alignment. `--tool-arg gubbins_tree_builder=fasttree` with
 `gubbins_first_tree_builder=rapidnj` did the same work in 6 minutes.
 
-## SNP typing throughput (2026-09-11)
+### SNP typing throughput (2026-09-11)
 
-The `simple` typer on the 68 Francisella representatives, 8 threads, workdir on
-the external volume. The stage maps each genome against the reference, then
-reduces the stacked consensuses to variable columns.
+* **Data:** the 68 Francisella representatives.
+* **Tools:** the `simple` typer, 8 threads; versions not recorded.
+* **Conditions:** working directory on the external volume. The stage maps
+  each genome against the reference, then reduces the stacked consensuses to
+  variable columns.
 
 | | Serial, plain VCF | Concurrent, compressed BCF |
 |---|---|---|
@@ -297,20 +383,247 @@ The old scratch was 8.3 GB of uncompressed pileup VCF, which twice filled a
 disk during this audit. What remains is the whole-genome alignment the stage
 publishes for maskers.
 
+### Core-gene route on Wolbachia (2026-10-15)
+
+* **Data:** three supergroup-A Wolbachia genomes (wMel, wRi, wHa), a
+  four-genome set across supergroups, and 24 complete Wolbachia genomes.
+* **Tools and versions:** given in the paragraph below and at the head of
+  each subsection.
+
+First live run of `annotate` and `phylo --msa-source coregene`, on an Apple
+Silicon laptop: bakta 1.12.2 with the light database (osx-arm64), Panaroo
+1.8.0 with mafft (osx-64 under Rosetta; Panaroo's dependency chain pulls
+prokka, which has no arm64 build), IQ-TREE from `envs/core.yml`, each tool
+reached through `--bin-dir`.
+
+- **Annotation.** bakta annotated a 1.0 to 1.5 Mb Wolbachia genome in 38 to
+  47 seconds with 8 threads (1270 CDS for wMel), far below the 5 to 15
+  minutes its README quotes for a typical bacterial genome. Every GFF3
+  carried the `##FASTA` section Panaroo needs. A second `annotate` reused
+  every record.
+- **Panaroo reads bakta's GFF3** from a list file, one path per line, and
+  names its samples after the file stem, which is the genome's record name
+  (`Wolbachiaceae_wolbachia_sp_GCF_000008025.1`), so the tree leaves match
+  the genome set.
+- **End to end**, on three supergroup-A genomes (wMel, wRi, wHa), with
+  `--clean-mode sensitive` and otherwise default settings: 45 core genes,
+  52050 columns, three records, about 70 seconds for Panaroo and 11 for
+  IQ-TREE; `tree/tree.nwk` named all three.
+- **The annotator makes no difference.** prokka 1.15.6 on the same three
+  genomes gave the same 45 genes and 52050 columns, and branch lengths
+  equal to six digits. It took 135 seconds against bakta's 45 per genome
+  and needs Rosetta here, so bakta stays the default.
+- **Panaroo's clustering identity governs how much of the core survives.**
+  Its first pass groups only genes at least `-c` identical, 0.98 by
+  default, so on a divergent set most orthologues of a gene fall into
+  separate clusters. On the three supergroup-A genomes, varying `-c`
+  alone:
+
+  | `-c` (`--aligner-arg threshold=`) | genes in all three |
+  |---|---|
+  | 0.98 (Panaroo's default) | 52 |
+  | 0.95 | 226 |
+  | 0.90 | 638 |
+  | 0.80 | 796 |
+
+  (genes present in all three, counted from
+  `gene_presence_absence_roary.csv`; the alignment step of the 0.80 run was
+  not carried through. These are the clusters before Panaroo's entropy
+  filter, which is why the default run above reports 45 genes in
+  `core_gene_stats.json` against the 52 here.)
+
+  The set matters as much as the setting. At that same default identity
+  two of these genomes shared 1054 genes, three shared 52 and four across
+  supergroups shared none, so a wider set needs a lower identity, not the
+  same one. `--family_threshold` (0.7, the later protein-family step) does
+  not substitute for it: on the four-genome cross-supergroup set, 0.5 and
+  0.3 left the result unchanged.
+
+  Published benchmarks say the same: RIBAP (Genome Biology 2024) records
+  Panaroo's default as 98%, measures a genus-level core of 16.12% for
+  Klebsiella and about 0% for Chlamydia at the defaults, and recovers
+  larger core sets after lowering `-c` through 0.95, 0.9, 0.8, 0.7 and
+  0.6, while warning that too low a value assigns genes that are not
+  orthologues. The Panaroo paper's own benchmarks are species-level (a
+  tuberculosis outbreak, a Klebsiella collection).
+- **Across Wolbachia supergroups the defaults give nothing.** With wBm (D)
+  and wOo (C) beside the supergroup-A pair, no gene was in all four: 548
+  genes in one genome, 1050 in two, 5 in three, unchanged by the cleaning
+  mode. Over 24 complete Wolbachia genomes (9214 clusters) the defaults
+  gave 0 genes at 95% occupancy, 1 at 90%, 4 at 80%, 59 at 70% and 95 at
+  50%, with a spike of 831 genes shared by exactly 10 genomes: the
+  signature of clustering that succeeds only inside a close subgroup.
+  Lowering `--core-threshold` therefore buys a little at the cost of a soft
+  core, while lowering `--aligner-arg threshold=` addresses the cause. Read
+  `tree/msa/core_gene_stats.json`, which carries both the gene count and the
+  identity used, before concluding that a set has no core.
+
+#### PPanGGOLiN on the same genomes
+
+PPanGGOLiN 2.3.2 (osx-arm64 build) on the bakta annotations, at its
+defaults (MMseqs2 protein clustering at 80% identity and 80% coverage):
+
+| set | Panaroo defaults, genes in all genomes | PPanGGOLiN strict core | PPanGGOLiN persistent |
+|---|---|---|---|
+| 3 supergroup-A genomes | 52 | 661 | 1697 (every family) |
+| 24 complete genomes | 0 at 95% occupancy | 370 | 539 |
+
+- **On three genomes the persistent partition is uninformative.**
+  PPanGGOLiN warned that three genomes are too few to partition and put
+  all 1697 families, including those in one genome, in it. This is why the
+  adapter defaults to the soft core at `--core-threshold` and warns when
+  `partition=persistent` is asked of fewer than 15 genomes.
+- **On 24 genomes** it chose K = 5 (three named partitions: 539 persistent,
+  709 shell, split into three subpartitions, and 3309 cloud families). The workflow took 53 seconds and the DNA
+  alignments of the persistent families 97 seconds.
+- **End to end**, `repgenr phylo --all-genomes --msa-source coregene
+  --coregene ppanggolin --treebuilder iqtree --no-outgroup --root
+  midpoint -t 8` on the 24-genome workdir: 398 single-copy soft-core
+  families (`--single_copy`, the adapter's default), 419047 columns, 24
+  records; PPanGGOLiN 54 seconds, the whole stage 221 seconds with
+  IQ-TREE; `tree/tree.nwk` named all 24 genomes.
+- The difference from Panaroo is the clustering, not the data: Panaroo
+  groups genes at 98% nucleotide identity first, PPanGGOLiN groups
+  proteins at 80%. The first suits a species with annotation noise to
+  clean, the second a divergent set.
+
+#### SCARAP on the same genomes
+
+SCARAP 1.0.2 (noarch build) on the bakta protein and gene files, at its
+defaults (`core -f 0.95`, method `FH`, 100 seed genomes):
+
+- **Three supergroup-A genomes:** 782 core genes; `core` 114 seconds,
+  `concat` 47 seconds.
+- **24 complete genomes:** 576 single-copy core genes in the direct run,
+  577 through RepGenR2; `core` 159 seconds, `concat` 58 seconds. All 24
+  were seeds, so the seed draw does not explain the one-gene difference,
+  which was not investigated further.
+- **End to end**, `repgenr phylo --all-genomes --msa-source coregene
+  --coregene scarap --treebuilder iqtree --no-outgroup --root midpoint -t
+  8`: 577 genes, 618594 columns, 24 records, 388 seconds for the stage;
+  `tree/tree.nwk` named all 24 genomes.
+- **Agreement with PPanGGOLiN.** The two IQ-TREE trees on these 24
+  genomes share 20 of their 21 non-trivial splits (Robinson-Foulds
+  distance 2, normalised 0.048). Panaroo at its defaults gave no tree on
+  this set.
+
+| builder | core genes on 24 Wolbachia genomes | alignment columns | stage time |
+|---|---|---|---|
+| Panaroo (defaults) | 0 at 95% occupancy | none | refused |
+| PPanGGOLiN (soft core 0.95, single copy) | 398 | 419047 | 186 s |
+| SCARAP (core 0.95) | 577 | 618594 | 388 s |
+
+#### OrthoFinder, alone and inside SCARAP
+
+OrthoFinder 3.1.5 (noarch) with DIAMOND 2.2.8, on the same bakta proteomes.
+
+- **Orthogroups only** (`-og`), run directly: 25 seconds for three genomes
+  and 343 seconds for 24, which kept 790 and 584 orthogroups single-copy in
+  at least 95% of the genomes.
+- **End to end**, `repgenr phylo --all-genomes --msa-source coregene
+  --coregene orthofinder --treebuilder iqtree --no-outgroup --root
+  midpoint -t 8` on the 24 genomes: 585 orthogroups (the adapter's
+  selection gives 584 on the direct run's table, so the one-orthogroup
+  difference is between the two OrthoFinder runs), 619944 columns, every
+  gene back-translated to codons with no length mismatch; the search took
+  293 seconds, the 585 mafft alignments 62, and the stage 515 with IQ-TREE.
+- **SCARAP's O-B and O-D methods failed at first:** OrthoFinder finished,
+  and SCARAP 1.0.2 then stopped on `DataFrame.append`, removed in pandas 2.
+  With pandas 1.5.3 (Python 3.11) both ran. On three genomes they found 769
+  (`O-D`) and 767 (`O-B`) core genes against 782 for the default `FH`; on
+  24 genomes 565 and 568 against 576, taking 576 and 677 seconds against 99
+  for `FH` (these three ran beside another job, so the times are high, but
+  the ratio holds). `FH` gave the same 576 genes under pandas 1.5 as under
+  pandas 2.3, so keeping pandas older than 2 in `envs/scarap.yml` does not
+  change the default method's result.
+- **Through RepGenR2**, `--coregene scarap --aligner-arg method=O-D`: 564
+  genes, 604140 columns, 380 seconds for the core-gene step and 525 for the
+  stage.
+
+Pairwise Robinson-Foulds comparison of the four IQ-TREE trees on the 24
+genomes (21 non-trivial splits each):
+
+| | PPanGGOLiN | SCARAP `FH` | SCARAP `O-D` | OrthoFinder |
+|---|---|---|---|---|
+| PPanGGOLiN | | 20 shared | 20 shared | 20 shared |
+| SCARAP `FH` | | | 21 shared (identical) | 19 shared |
+| SCARAP `O-D` | | | | 19 shared |
+
+#### The core-gene route in Nextflow
+
+A temporary harness wired `DEREPLICATE_SCATTER`, `ANNOTATE_SCATTER` and
+`PHYLO` on the three supergroup-A genomes, with bakta and the light
+database for `ANNOTATE`, `--phylo_args '--msa-source coregene --coregene
+ppanggolin --treebuilder iqtree --no-outgroup --root midpoint'`, and the
+satellite environments given through `--repgenr_opts '--bin-dir ...'`.
+
+- Three `ANNOTATE` tasks ran in parallel, and `PHYLO` indexed the staged
+  records with `annotate-index` and read them through `--annotations-dir`.
+- PPanGGOLiN then stopped making progress: its pool waited at "Estimating
+  the optimal number of partitions" with every worker idle. Run directly,
+  the same command finished in five seconds without `--tmpdir` and stalled
+  with the task's 189-character `--tmpdir`. NEM, the partitioning code
+  PPanGGOLiN bundles, keeps file names in 200-character buffers. Past 120
+  characters the adapter now passes a short link to its temporary
+  directory instead, so the files stay on the work volume.
+- With that fix and `-resume`, the dereplication and the three annotations
+  came from the cache and `PHYLO` built 611 genes and 615353 columns with
+  PPanGGOLiN and a three-leaf tree with IQ-TREE, about one minute for the
+  task. A fresh run without `-resume`, all six tasks executed, gave the
+  same 611 genes through the link, which was removed afterwards.
+
+### Gzipped genomes in the aligners and typers (2026-10-08)
+
+* **Data:** gzipped genomes from `pureclone_20` (three or four `.fasta.gz`
+  files), with the uncompressed files as a control; four synthetic 50 kb
+  genomes for the live tests.
+* **Tools and versions:** as listed in the first table.
+
+Before the change:
+
+| Tool | Reads gzip | Evidence |
+|---|---|---|
+| progressiveMauve (pinned BioContainer) | no | signal 11, exit 11; plain control exit 0 |
+| SibeliaZ (native) | no | wrapper exits 0; TwoPaCo stops with "Can't read the input file"; the MAF has no alignment rows, and the adapter reported spoa running out of memory (exit 3) |
+| cactus v2.9.3 (Docker) | yes | HAL written in 125 s; cactus decompresses `.gz` inputs itself |
+| ParSNP 2.1.5 | no | UnicodeDecodeError for a gzipped reference and for gzipped queries |
+| snippy 4.6.0 (pinned BioContainer) | no | gzipped `--ref`: "Could not guess format", exit 2; gzipped `--ctgs`: BioPerl "not FASTA", exit 25 |
+| ska2 0.5.1 | yes | `ska build` keeps both samples |
+| sourmash tree builder | yes | leaves were `x.fasta` (named by `Path.stem`, fixed in #241) |
+| mashtree | yes | leaves are `x` |
+| simple typer | yes | minimap2 reads gzipped queries; the adapter decompresses the reference |
+
+After the change, the tools marked "no" are given decompressed copies by the
+stage. Live checks:
+
+| Check | Result |
+|---|---|
+| `test_gzip_inputs::test_sibeliaz_aligns_gzipped_genomes` (four synthetic 50 kb genomes, gzipped; `phylo-build --aligner sibeliaz`) | passed; MSA records and leaves without `.fasta`, `scratch/phylo_inputs/` removed. Without the change: the empty-MAF error |
+| `test_gzip_inputs::test_parsnp_types_gzipped_genomes` (same set; `--msa-source snptype --snptyper parsnp`) | passed. Without the change: UnicodeDecodeError, exit 6 |
+| `phylo-build --snptyper parsnp` on four gzipped `pureclone_20` genomes | exit 0 in 26 s; four leaves named without `.fasta`; the decompressed reference is left out of ParSNP's query directory |
+
+SibeliaZ on four `pureclone_20` genomes was stopped after 7 minutes with the
+gzipped and with the uncompressed files alike: the macOS wrapper's block
+alignment step waited in `xargs` with no `spoa` process and an almost empty
+MAF. The stall does not depend on gzip and is left open.
+
 ## Command audit (2026-10-07)
 
 Every `repgenr` subcommand was checked against its help text, argument
 validation, an offline run on small local data, resume, the error surface
-and the matching offline tests. The checks used the offline test suite and the
-live offline subset (`-m "live and not network and not container"`), with no
-network access and no Docker. Audit data lived on an external volume. The 28
-commands were audited in six batches, one per help panel. In the first table a
-cell is `ok` (agrees with the documentation), `fixed` (a defect was found and
-corrected), `open` (a finding was left for the maintainer), `n/a` (the check
-does not apply, for example resume for a stateless step or a live test that
-does not exist) or `not run` (a live test exists but needs the network or a
-container). The Result column takes the worst cell, in the order open, fixed,
-ok, and also counts the docs agreement check.
+and the matching offline tests. The checks used the offline test suite and
+the live offline subset (`-m "live and not network and not container"`),
+with no network access and no Docker. Audit data lived on an external
+volume. The 28 commands were audited in six batches, one per help panel.
+
+### Results per command
+
+A cell is `ok` (agrees with the documentation), `fixed` (a defect was found
+and corrected), `open` (a finding was left for the maintainer), `n/a` (the
+check does not apply, for example resume for a stateless step or a live test
+that does not exist) or `not run` (a live test exists but needs the network
+or a container). The Result column takes the worst cell, in the order open,
+fixed, ok, and also counts the docs agreement check.
 
 | Command | Help | Validation | Offline run | Resume | Errors | Live subset | Result |
 |---|---|---|---|---|---|---|---|
@@ -343,9 +656,11 @@ ok, and also counts the docs agreement check.
 | genome-qc | ok | ok | ok | n/a | ok | n/a | ok |
 | reads-gather | ok | ok | fixed | n/a | ok | n/a | fixed |
 
-Defects found and fixed, with the commit that fixed each. Several commits
-change shared code (the stage runner, the contract readers and the Newick
-parser), so they also apply to commands other than the one named.
+### Defects found and fixed
+
+Each defect is listed with the commit or pull request that fixed it. Several
+commits change shared code (the stage runner, the contract readers and the
+Newick parser), so they also apply to commands other than the one named.
 
 | Command | Defect | Commit |
 |---|---|---|
@@ -516,15 +831,18 @@ parser), so they also apply to commands other than the one named.
 | install | Review of #238: with a configured `defaults` channel and flexible priority (Miniconda, Anaconda) the core solve ran for more than 17 minutes; every file now lists `nodefaults`, and the eight solves rerun with it all pass (core linux-64 31 s, osx-arm64 14 s; satellites 18 to 27 s). `envs/mauve.yml` and the adapter's Wave spec name `mauvealigner` with `boost-cpp=1.74.0` (1.2.0, the 2022 progressiveMauve build that runs against boost 1.74 in a linux-64 container) instead of the static 2015 `progressivemauve` build, whose boost pin had no effect, and the Java GUI of `mauve`. Under the append rule Gubbins runs core's IQ-TREE 3 (same tree on a small set); `--bin-dir` gives it its own 2.4 | #238 |
 | install, all stages | `--bin-dir TOOL=DIR` and `REPGENR_BIN_DIRS`: in unit tests, a tool found only in its directory passes preflight and its subprocess sees that directory first on `PATH` while another tool's does not; a wrapper's helper is taken from the same directory; Gubbins chooses IQ-TREE from its directory with none on `PATH`; the snptype record names the directory used | #247 |
 
-Observations left for the maintainer. None changed a documented behaviour, so
-they are recorded here and not fixed.
+### Observations left for the maintainer
+
+None of these changed a documented behaviour, so they were recorded here and
+not fixed at the time. Where a later row of the defects table addresses one,
+the observation says so.
 
 | Area | Observation |
 |---|---|
 | Phylogeny | cactus renames its samples ('.' to '_'), while `tree2tax` resolves the outgroup leaf by file stem, so with a versioned accession such as `GCF_000001.1` the outgroup never matched a leaf. tree2tax warned and left the tree unrooted, and later exited 3 naming the outgroup; since the second audit pass the cactus adapter renames the alignment records back to genome stems and phylo restores renamed leaves. |
 | Phylogeny | ParSNP's internal RAxML step refuses fewer than four genomes, so `--snptyper parsnp` exits 6 on a three-genome set; the three-genome check in `phylo` does not cover this. |
 | SNP typing | The `simple` typer used to fill sequence a genome lacks with the reference base; a copy of a genome with 500 kb removed differed from that genome at 20539 sites on the 50-genome set. Fixed in #232: uncovered positions are written as N and a column counts only where a base was called. |
-| Exit codes | A missing tool found by the preflight (exit 4, for example `snptype --mask gubbins` without Gubbins) leaves the stage shown as `[interrupted]` in `status`, although nothing ran; the harness keeps the provisional record for exit 4 and 6 alike. |
+| Exit codes | A missing tool found by the preflight (exit 4, for example `snptype --mask gubbins` without Gubbins) leaves the stage shown as `[interrupted]` in `status`, although nothing ran; the harness keeps the provisional record for exit 4 and 6 alike. The #234 row of the defects table changes this: a refusal that changed no deliverable now leaves the record as it was. |
 | Environment | ParSNP reads every file in its input directory, so the AppleDouble `._*.fasta` files macOS writes on exFAT volumes break it; stage the genomes on an APFS disk. |
 | Exit codes | When every assembly fails, `assemble` and `reads-gather` exit 3 and not 6; this is documented behaviour in the exit-code table of docs/usage.md, with the reasons in `excused_runs.tsv`. |
 | assemble | A missing CheckM2 result is kept with a warning and not excused; this is documented behaviour in docs/usage.md, since a run CheckM2 could not score is not evidence of a poor assembly. |
@@ -541,231 +859,15 @@ they are recorded here and not fixed.
 | Environment | `status` and `doctor` on a long-running workdir (`francisella_all`) were not exercised, because that workdir was not on the audit machine. |
 | ingest | Any name with four or more `_`-separated tokens is read as Family_genus_species_ACCESSION (`sample_1_run_A.fasta` gives accession `A`); documented, with `--selection` as the remedy. |
 | Resume | `metadata --metadata-path`, `reads --accession-file` and `assemble --outgroup` record relative paths as given, as ingest did before this audit. |
-| vgenome | On the NCBI Virus path the species is the record's organism name, which is often a strain or an older name (Orthohantavirus: `Hantaanvirus-CGAa1011`; Mammarenavirus: `Argentinian mammarenavirus` and `Mammarenavirus juninense` under one taxid). One species then splits into several species tokens, which affects `--target-species`, the median-of-medians window and the outgroup candidates. A lineage-derived binomial is proposed in the deep-audit report. |
-| vgenome | NCBI Virus segment labels are not normalised (`M`, `M; medium`, `middle`), so one segment can count as two labels when an isolate mixes them. |
+| vgenome | On the NCBI Virus path the species is the record's organism name, which is often a strain or an older name (Orthohantavirus: `Hantaanvirus-CGAa1011`; Mammarenavirus: `Argentinian mammarenavirus` and `Mammarenavirus juninense` under one taxid). One species then splits into several species tokens, which affects `--target-species`, the median-of-medians window and the outgroup candidates. A lineage-derived binomial is proposed in the deep-audit report. Addressed in #227 (defects table): the species is now the current NCBI Taxonomy species of the taxid. |
+| vgenome | NCBI Virus segment labels are not normalised (`M`, `M; medium`, `middle`), so one segment can count as two labels when an isolate mixes them. Addressed in #227 (defects table): labels are normalised. |
 | dereplicate | On `mixed_1000_clustered` (20 truth clusters) skder, galah, sourmash sparse and sourmash dense all recover the truth partition at the defaults (adjusted Rand index 1.0); sparse and dense pick different representatives within clusters, as choosing-tools.md states. |
-| dereplicate | Without manifest quality, galah picks a 40 percent fragment as the representative of its cluster (input order), and sourmash keeps the fragment as its own cluster (k-mer similarity counts the missing part). `--keeper quality` with manifest quality corrects the first. |
-| dereplicate | `--target-reps` with `--process-size` re-sketches the union of chunk representatives at each search step, since the union changes with the threshold; on 50 genomes the search took 87 s against 22 s unchunked. |
+| dereplicate | Without manifest quality, galah picks a 40 percent fragment as the representative of its cluster (input order), and sourmash keeps the fragment as its own cluster (k-mer similarity counts the missing part). `--keeper quality` with manifest quality corrects the first. See also #233 and #254 in the defects table (galah input order by file size; the keeper's replacement rule). |
+| dereplicate | `--target-reps` with `--process-size` re-sketches the union of chunk representatives at each search step, since the union changes with the threshold; on 50 genomes the search took 87 s against 22 s unchunked. Addressed in #233 (defects table) for sourmash: the union is now assembled from the chunk zips. |
 | doctor | The first-bytes FASTA check reads every genome: 28 s for 1000 genomes on an exFAT USB volume (about 35 ms per file, not cached between runs); 8 to 16 threads gave 1.3 to 1.7 times. `status` reads no genome content and takes 0.4 s there. `doctor --quick` skips the check (#242). |
 | doctor | Opening the WAL-mode manifest lets SQLite create or touch `manifest.sqlite-shm` and `-wal`; no data changes. |
 | Environment | dRep 3.4.5 in the local environment fails in fastANI parsing (`read_csv` no longer accepts `delim_whitespace` in the installed pandas); ANImf (`--virus`) runs. The container pin is dRep 3.7.1. Seen again on 2026-10-08 (pandas 3.0.6; this dRep has no skani option). |
 | dereplicate | The workdir stage applies the keeper once to the final clusters; the Nextflow steps apply it per chunk and after the merge. Final representatives agreed on clonal_50 with skDER, sourmash and galah at -s 25, apart from ties among equal scores. |
-
-## Core-gene route on Wolbachia (2026-10-15)
-
-First live run of `annotate` and `phylo --msa-source coregene`, on an Apple
-Silicon laptop: bakta 1.12.2 with the light database (osx-arm64), Panaroo
-1.8.0 with mafft (osx-64 under Rosetta; Panaroo's dependency chain pulls
-prokka, which has no arm64 build), IQ-TREE from `envs/core.yml`, each tool
-reached through `--bin-dir`.
-
-- **Annotation.** bakta annotated a 1.0 to 1.5 Mb Wolbachia genome in 38 to
-  47 seconds with 8 threads (1270 CDS for wMel), far below the 5 to 15
-  minutes its README quotes for a typical bacterial genome. Every GFF3
-  carried the `##FASTA` section Panaroo needs. A second `annotate` reused
-  every record.
-- **Panaroo reads bakta's GFF3** from a list file, one path per line, and
-  names its samples after the file stem, which is the genome's record name
-  (`Wolbachiaceae_wolbachia_sp_GCF_000008025.1`), so the tree leaves match
-  the genome set.
-- **End to end**, on three supergroup-A genomes (wMel, wRi, wHa), with
-  `--clean-mode sensitive` and otherwise default settings: 45 core genes,
-  52050 columns, three records, about 70 seconds for Panaroo and 11 for
-  IQ-TREE; `tree/tree.nwk` named all three.
-- **The annotator makes no difference.** prokka 1.15.6 on the same three
-  genomes gave the same 45 genes and 52050 columns, and branch lengths
-  equal to six digits. It took 135 seconds against bakta's 45 per genome
-  and needs Rosetta here, so bakta stays the default.
-- **Panaroo's clustering identity governs how much of the core survives.**
-  Its first pass groups only genes at least `-c` identical, 0.98 by
-  default, so on a divergent set most orthologues of a gene fall into
-  separate clusters. On the three supergroup-A genomes, varying `-c`
-  alone:
-
-  | `-c` (`--aligner-arg threshold=`) | genes in all three |
-  |---|---|
-  | 0.98 (Panaroo's default) | 52 |
-  | 0.95 | 226 |
-  | 0.90 | 638 |
-  | 0.80 | 796 |
-
-  (genes present in all three, counted from
-  `gene_presence_absence_roary.csv`; the alignment step of the 0.80 run was
-  not carried through. These are the clusters before Panaroo's entropy
-  filter, which is why the default run above reports 45 genes in
-  `core_gene_stats.json` against the 52 here.)
-
-  The set matters as much as the setting. At that same default identity
-  two of these genomes shared 1054 genes, three shared 52 and four across
-  supergroups shared none, so a wider set needs a lower identity, not the
-  same one. `--family_threshold` (0.7, the later protein-family step) does
-  not substitute for it: on the four-genome cross-supergroup set, 0.5 and
-  0.3 left the result unchanged.
-
-  Published benchmarks say the same: RIBAP (Genome Biology 2024) records
-  Panaroo's default as 98%, measures a genus-level core of 16.12% for
-  Klebsiella and about 0% for Chlamydia at the defaults, and recovers
-  larger core sets after lowering `-c` through 0.95, 0.9, 0.8, 0.7 and
-  0.6, while warning that too low a value assigns genes that are not
-  orthologues. The Panaroo paper's own benchmarks are species-level (a
-  tuberculosis outbreak, a Klebsiella collection).
-- **Across Wolbachia supergroups the defaults give nothing.** With wBm (D)
-  and wOo (C) beside the supergroup-A pair, no gene was in all four: 548
-  genes in one genome, 1050 in two, 5 in three, unchanged by the cleaning
-  mode. Over 24 complete Wolbachia genomes (9214 clusters) the defaults
-  gave 0 genes at 95% occupancy, 1 at 90%, 4 at 80%, 59 at 70% and 95 at
-  50%, with a spike of 831 genes shared by exactly 10 genomes: the
-  signature of clustering that succeeds only inside a close subgroup.
-  Lowering `--core-threshold` therefore buys a little at the cost of a soft
-  core, while lowering `--aligner-arg threshold=` addresses the cause. Read
-  `tree/msa/core_gene_stats.json`, which carries both the gene count and the
-  identity used, before concluding that a set has no core.
-
-### PPanGGOLiN on the same genomes
-
-PPanGGOLiN 2.3.2 (osx-arm64 build) on the bakta annotations, at its
-defaults (MMseqs2 protein clustering at 80% identity and 80% coverage):
-
-| set | Panaroo defaults, genes in all genomes | PPanGGOLiN strict core | PPanGGOLiN persistent |
-|---|---|---|---|
-| 3 supergroup-A genomes | 52 | 661 | 1697 (every family) |
-| 24 complete genomes | 0 at 95% occupancy | 370 | 539 |
-
-- **On three genomes the persistent partition is uninformative.**
-  PPanGGOLiN warned that three genomes are too few to partition and put
-  all 1697 families, including those in one genome, in it. This is why the
-  adapter defaults to the soft core at `--core-threshold` and warns when
-  `partition=persistent` is asked of fewer than 15 genomes.
-- **On 24 genomes** it chose K = 5 (three named partitions: 539 persistent,
-  709 shell, split into three subpartitions, and 3309 cloud families). The workflow took 53 seconds and the DNA
-  alignments of the persistent families 97 seconds.
-- **End to end**, `repgenr phylo --all-genomes --msa-source coregene
-  --coregene ppanggolin --treebuilder iqtree --no-outgroup --root
-  midpoint -t 8` on the 24-genome workdir: 398 single-copy soft-core
-  families (`--single_copy`, the adapter's default), 419047 columns, 24
-  records; PPanGGOLiN 54 seconds, the whole stage 221 seconds with
-  IQ-TREE; `tree/tree.nwk` named all 24 genomes.
-- The difference from Panaroo is the clustering, not the data: Panaroo
-  groups genes at 98% nucleotide identity first, PPanGGOLiN groups
-  proteins at 80%. The first suits a species with annotation noise to
-  clean, the second a divergent set.
-
-### SCARAP on the same genomes
-
-SCARAP 1.0.2 (noarch build) on the bakta protein and gene files, at its
-defaults (`core -f 0.95`, method `FH`, 100 seed genomes):
-
-- **Three supergroup-A genomes:** 782 core genes; `core` 114 seconds,
-  `concat` 47 seconds.
-- **24 complete genomes:** 576 single-copy core genes in the direct run,
-  577 through RepGenR2; `core` 159 seconds, `concat` 58 seconds. All 24
-  were seeds, so the seed draw does not explain the one-gene difference,
-  which was not investigated further.
-- **End to end**, `repgenr phylo --all-genomes --msa-source coregene
-  --coregene scarap --treebuilder iqtree --no-outgroup --root midpoint -t
-  8`: 577 genes, 618594 columns, 24 records, 388 seconds for the stage;
-  `tree/tree.nwk` named all 24 genomes.
-- **Agreement with PPanGGOLiN.** The two IQ-TREE trees on these 24
-  genomes share 20 of their 21 non-trivial splits (Robinson-Foulds
-  distance 2, normalised 0.048). Panaroo at its defaults gave no tree on
-  this set.
-
-| builder | core genes on 24 Wolbachia genomes | alignment columns | stage time |
-|---|---|---|---|
-| Panaroo (defaults) | 0 at 95% occupancy | none | refused |
-| PPanGGOLiN (soft core 0.95, single copy) | 398 | 419047 | 186 s |
-| SCARAP (core 0.95) | 577 | 618594 | 388 s |
-
-### OrthoFinder, alone and inside SCARAP
-
-OrthoFinder 3.1.5 (noarch) with DIAMOND 2.2.8, on the same bakta proteomes.
-
-- **Orthogroups only** (`-og`), run directly: 25 seconds for three genomes
-  and 343 seconds for 24, which kept 790 and 584 orthogroups single-copy in
-  at least 95% of the genomes.
-- **End to end**, `repgenr phylo --all-genomes --msa-source coregene
-  --coregene orthofinder --treebuilder iqtree --no-outgroup --root
-  midpoint -t 8` on the 24 genomes: 585 orthogroups (the adapter's
-  selection gives 584 on the direct run's table, so the one-orthogroup
-  difference is between the two OrthoFinder runs), 619944 columns, every
-  gene back-translated to codons with no length mismatch; the search took
-  293 seconds, the 585 mafft alignments 62, and the stage 515 with IQ-TREE.
-- **SCARAP's O-B and O-D methods failed at first:** OrthoFinder finished,
-  and SCARAP 1.0.2 then stopped on `DataFrame.append`, removed in pandas 2.
-  With pandas 1.5.3 (Python 3.11) both ran. On three genomes they found 769
-  (`O-D`) and 767 (`O-B`) core genes against 782 for the default `FH`; on
-  24 genomes 565 and 568 against 576, taking 576 and 677 seconds against 99
-  for `FH` (these three ran beside another job, so the times are high, but
-  the ratio holds). `FH` gave the same 576 genes under pandas 1.5 as under
-  pandas 2.3, so keeping pandas older than 2 in `envs/scarap.yml` does not
-  change the default method's result.
-- **Through RepGenR2**, `--coregene scarap --aligner-arg method=O-D`: 564
-  genes, 604140 columns, 380 seconds for the core-gene step and 525 for the
-  stage.
-
-Pairwise Robinson-Foulds comparison of the four IQ-TREE trees on the 24
-genomes (21 non-trivial splits each):
-
-| | PPanGGOLiN | SCARAP `FH` | SCARAP `O-D` | OrthoFinder |
-|---|---|---|---|---|
-| PPanGGOLiN | | 20 shared | 20 shared | 20 shared |
-| SCARAP `FH` | | | 21 shared (identical) | 19 shared |
-| SCARAP `O-D` | | | | 19 shared |
-
-### The core-gene route in Nextflow
-
-A temporary harness wired `DEREPLICATE_SCATTER`, `ANNOTATE_SCATTER` and
-`PHYLO` on the three supergroup-A genomes, with bakta and the light
-database for `ANNOTATE`, `--phylo_args '--msa-source coregene --coregene
-ppanggolin --treebuilder iqtree --no-outgroup --root midpoint'`, and the
-satellite environments given through `--repgenr_opts '--bin-dir ...'`.
-
-- Three `ANNOTATE` tasks ran in parallel, and `PHYLO` indexed the staged
-  records with `annotate-index` and read them through `--annotations-dir`.
-- PPanGGOLiN then stopped making progress: its pool waited at "Estimating
-  the optimal number of partitions" with every worker idle. Run directly,
-  the same command finished in five seconds without `--tmpdir` and stalled
-  with the task's 189-character `--tmpdir`. NEM, the partitioning code
-  PPanGGOLiN bundles, keeps file names in 200-character buffers. Past 120
-  characters the adapter now passes a short link to its temporary
-  directory instead, so the files stay on the work volume.
-- With that fix and `-resume`, the dereplication and the three annotations
-  came from the cache and `PHYLO` built 611 genes and 615353 columns with
-  PPanGGOLiN and a three-leaf tree with IQ-TREE, about one minute for the
-  task. A fresh run without `-resume`, all six tasks executed, gave the
-  same 611 genes through the link, which was removed afterwards.
-
-## Gzipped genomes in the aligners and typers (2026-10-08)
-
-Each tool was given gzipped genomes from `pureclone_20` (three or four
-`.fasta.gz` files), with the uncompressed files as a control. Before the
-change:
-
-| Tool | Reads gzip | Evidence |
-|---|---|---|
-| progressiveMauve (pinned BioContainer) | no | signal 11, exit 11; plain control exit 0 |
-| SibeliaZ (native) | no | wrapper exits 0; TwoPaCo stops with "Can't read the input file"; the MAF has no alignment rows, and the adapter reported spoa running out of memory (exit 3) |
-| cactus v2.9.3 (Docker) | yes | HAL written in 125 s; cactus decompresses `.gz` inputs itself |
-| ParSNP 2.1.5 | no | UnicodeDecodeError for a gzipped reference and for gzipped queries |
-| snippy 4.6.0 (pinned BioContainer) | no | gzipped `--ref`: "Could not guess format", exit 2; gzipped `--ctgs`: BioPerl "not FASTA", exit 25 |
-| ska2 0.5.1 | yes | `ska build` keeps both samples |
-| sourmash tree builder | yes | leaves were `x.fasta` (named by `Path.stem`, fixed in #241) |
-| mashtree | yes | leaves are `x` |
-| simple typer | yes | minimap2 reads gzipped queries; the adapter decompresses the reference |
-
-After the change, the tools marked "no" are given decompressed copies by the
-stage. Live checks:
-
-| Check | Result |
-|---|---|
-| `test_gzip_inputs::test_sibeliaz_aligns_gzipped_genomes` (four synthetic 50 kb genomes, gzipped; `phylo-build --aligner sibeliaz`) | passed; MSA records and leaves without `.fasta`, `scratch/phylo_inputs/` removed. Without the change: the empty-MAF error |
-| `test_gzip_inputs::test_parsnp_types_gzipped_genomes` (same set; `--msa-source snptype --snptyper parsnp`) | passed. Without the change: UnicodeDecodeError, exit 6 |
-| `phylo-build --snptyper parsnp` on four gzipped `pureclone_20` genomes | exit 0 in 26 s; four leaves named without `.fasta`; the decompressed reference is left out of ParSNP's query directory |
-
-SibeliaZ on four `pureclone_20` genomes was stopped after 7 minutes with the
-gzipped and with the uncompressed files alike: the macOS wrapper's block
-alignment step waited in `xargs` with no `spoa` process and an almost empty
-MAF. The stall does not depend on gzip and is left open.
 
 ## Platform notes (macOS / Apple Silicon)
 
