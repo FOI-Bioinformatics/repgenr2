@@ -11,6 +11,7 @@ from .base import (
     HELP_ALIGNER_ARG,
     HELP_ALL_GENOMES,
     HELP_ALLOW_INCOMPLETE,
+    HELP_ANNOTATE_PROCESSES,
     HELP_ANNOTATOR,
     HELP_BAKTA_DB,
     HELP_BOOTSTRAP,
@@ -65,6 +66,9 @@ def annotate(
         "--allow-incomplete",
         help=HELP_ALLOW_INCOMPLETE,
     ),
+    num_processes: int = typer.Option(
+        0, "-p", "--num-processes", min=0, help=HELP_ANNOTATE_PROCESSES
+    ),
 ) -> None:
     """Annotate the genome set once (GFF3 per genome, cached) for the core-gene route.
 
@@ -82,6 +86,7 @@ def annotate(
             bakta_db=bakta_db,
             allow_incomplete=allow_incomplete,
             extra=_parse_key_values(tool_arg, "--tool-arg"),
+            num_processes=num_processes,
         )
 
     _run("annotate", workdir, build)

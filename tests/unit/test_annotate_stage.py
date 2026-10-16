@@ -472,3 +472,151 @@ def test_each_gathered_record_is_indexed_with_the_tool_that_made_it(
     # An unreadable file counts as absent.
     (old / cache.PROVENANCE).write_text("{not json", encoding="utf-8")
     assert cache.read_provenance(gathered, "Fam_Gen_sp_GCA_3.1") is None
+
+
+def test_annotate_jobs_splits_the_threads(monkeypatch) -> None:
+    from repgenr.stages import annotate as stage
+
+    monkeypatch.setattr(stage, "usable_cpus", lambda: 64)
+    assert stage.annotate_jobs(16, 0, 100) == (4, 4)  # auto: one genome per four threads
+    assert stage.annotate_jobs(16, 0, 2) == (2, 8)  # never more than the genomes
+    assert stage.annotate_jobs(3, 0, 100) == (1, 3)
+    assert stage.annotate_jobs(8, 3, 100) == (3, 2)
+    assert stage.annotate_jobs(2, 5, 100) == (2, 1)  # at least one thread each
+    assert stage.annotate_jobs(16, 0, 0) == (1, 16)
+    monkeypatch.setattr(stage, "usable_cpus", lambda: 2)
+    assert stage.annotate_jobs(16, 0, 100) == (2, 8)  # capped by the usable CPUs
+
+
+def test_stage_annotates_genomes_in_parallel(
+    workdir: Path, genome_files, fake, monkeypatch
+) -> None:
+    """Several genomes run at once with the threads split between them, each
+    in its own scratch, and every one lands in the index."""
+    import threading
+    import time
+
+    from repgenr.stages import annotate as stage
+
+    monkeypatch.setattr(stage, "usable_cpus", lambda: 64)
+    lock = threading.Lock()
+    state = {"running": 0, "peak": 0}
+    threads_seen: list[int] = []
+    real_call = _FakeAnnotator.call
+
+    def call(self, genome, record_name, out_dir, params, logger):
+        with lock:
+            state["running"] += 1
+            state["peak"] = max(state["peak"], state["running"])
+            threads_seen.append(params.threads)
+        time.sleep(0.1)
+        try:
+            return real_call(self, genome, record_name, out_dir, params, logger)
+        finally:
+            with lock:
+                state["running"] -= 1
+
+    monkeypatch.setattr(_FakeAnnotator, "call", call)
+    ctx = _ctx(workdir)
+    summary = run(ctx, AnnotateStageParams(tool="fakeannot", all_genomes=True, threads=8))
+    assert summary.annotated == 3
+    assert state["peak"] == 2
+    assert threads_seen == [4, 4, 4]
+    assert len(cache.read_index(ctx.annotations_dir)) == 3
+    assert not (ctx.scratch_dir / "annotate").exists()
+
+
+def test_a_failed_genome_keeps_the_others_in_the_index(
+    workdir: Path, genome_files, fake, monkeypatch
+) -> None:
+    """One genome fails while another runs: the running one finishes and is
+    indexed, the error is raised, and a rerun annotates only what is missing."""
+    import threading
+
+    gate = threading.Event()
+    real_call = _FakeAnnotator.call
+
+    def call(self, genome, record_name, out_dir, params, logger):
+        if record_name.endswith("000001"):
+            gate.wait(5)
+            return real_call(self, genome, record_name, out_dir, params, logger)
+        if record_name.endswith("000002"):
+            # Released only after this worker has raised and set the stop flag.
+            threading.Timer(0.2, gate.set).start()
+            raise RuntimeError("annotator failed")
+        return real_call(self, genome, record_name, out_dir, params, logger)
+
+    monkeypatch.setattr(_FakeAnnotator, "call", call)
+    ctx = _ctx(workdir)
+    with pytest.raises(RuntimeError, match="annotator failed"):
+        run(ctx, AnnotateStageParams(tool="fakeannot", all_genomes=True, num_processes=2))
+    assert list(cache.read_index(ctx.annotations_dir)) == [
+        "Francisellaceae_francisella_tularensis_GCA_000001"
+    ]
+
+    monkeypatch.setattr(_FakeAnnotator, "call", real_call)
+    _FakeAnnotator.calls = []
+    summary = run(ctx, AnnotateStageParams(tool="fakeannot", all_genomes=True, num_processes=2))
+    assert summary.reused == 1 and summary.annotated == 2
+    assert sorted(_FakeAnnotator.calls) == [
+        "Francisellaceae_francisella_tularensis_GCA_000002",
+        "Francisellaceae_francisella_tularensis_GCA_000003",
+    ]
+
+
+def test_parallel_builds_share_an_output_directory(tmp_path: Path, fake) -> None:
+    """annotate-build runs side by side in one directory (phylo-build) without
+    removing each other's scratch."""
+    from repgenr.core.executors import parallel_each
+    from repgenr.stages.annotate import AnnotateBuildParams, annotate_build
+
+    genomes = []
+    for i in range(4):
+        g = tmp_path / f"g{i}.fasta.gz"
+        import gzip
+
+        g.write_bytes(gzip.compress(f">g{i}\nACGT\n".encode()))
+        genomes.append(g)
+    out = tmp_path / "annotations"
+    parallel_each(
+        lambda g: annotate_build(
+            AnnotateBuildParams(genome=g, out_dir=out, tool="fakeannot", threads=1),
+            logging.getLogger("t"),
+            shared_out_dir=True,
+        ),
+        genomes,
+        4,
+        lambda _g, _r: None,
+    )
+    assert sorted(p.name for p in out.iterdir()) == [".scratch", "g0", "g1", "g2", "g3"]
+    assert not any((out / ".scratch").iterdir())  # each build removed its own scratch
+    annotate_build(
+        AnnotateBuildParams(genome=genomes[0], out_dir=out, tool="fakeannot", threads=1),
+        logging.getLogger("t"),
+    )
+    assert not (out / ".scratch").exists()  # a single build removes the root
+
+
+def test_the_worker_count_leaves_the_fingerprint_unchanged() -> None:
+    from repgenr.cli.base import _stage_fingerprint
+
+    def fingerprint(**kw) -> str:
+        return _stage_fingerprint("annotate", AnnotateStageParams(**kw), {}, {})
+
+    assert fingerprint() == fingerprint(num_processes=4) == fingerprint(threads=2)
+    assert fingerprint() != fingerprint(all_genomes=True)
+
+
+def test_publish_leaves_a_dot_old_record_partial_alone(tmp_path: Path) -> None:
+    """Publishing X must not remove the partial directory of a record named
+    X.old that is being annotated beside it."""
+    other = cache.partial_dir(tmp_path, "X.old")
+    other.mkdir(parents=True)
+    (other / "work").write_text("in progress", encoding="utf-8")
+    cache.record_dir(tmp_path, "X").mkdir()
+    cache.partial_dir(tmp_path, "X").mkdir()
+    cache.publish(tmp_path, "X")
+    assert (other / "work").is_file()
+    (tmp_path / ".X.partial.old").mkdir()
+    cache.clear_partials(tmp_path)
+    assert not other.exists() and not (tmp_path / ".X.partial.old").exists()

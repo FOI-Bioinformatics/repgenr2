@@ -2136,6 +2136,19 @@ commands:
         - docs/audit/cli-matrix.md
         nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
         live: 'n/a: covered offline in tests/unit/test_annotate_stage.py (the live run needs bakta and its database)'
+      --num-processes:
+        aliases:
+        - -p
+        param: AnnotateStageParams.num_processes
+        value: '2'
+        validated: range
+        invalid: '-1'
+        docs:
+        - docs/cli-reference.md
+        - docs/usage.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'n/a: workdir command; the Nextflow layer runs one ANNOTATE task per genome'
+        live: 'n/a: covered offline in tests/unit/test_annotate_stage.py (the live run needs bakta and its database)'
   annotate-index:
     dispatch: step:repgenr.stages.annotate.annotate_index
     base_args:

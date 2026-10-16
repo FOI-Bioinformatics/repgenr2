@@ -79,7 +79,7 @@ is 'vmetadata --source'. --platform filters the sequencing platform with
 | `--aligned-fraction` | `0.5` | Minimum aligned fraction in (0, 1] for a pair to be compared. |
 | `--keeper` | `quality` | Representative choice per cluster: quality (manifest CheckM values and genome N50), gtdb (a GTDB species representative first, then quality) or tool (adapter's own). |
 | `-s`, `--process-size` |  | Chunk size; when set and exceeded, two-stage chunking runs for any tool. |
-| `-p`, `--num-processes` | `0` | Parallel stage-1 chunk workers (threads split across them). 0 = auto (~threads/4, capped by cores). |
+| `-p`, `--num-processes` | `0` | Parallel workers, threads split across them: dereplicate's stage-1 chunk workers and, with --msa-source coregene, the genomes annotated at once. 0 = auto (~threads/4, capped by cores). |
 | `--pre-primary-ani` |  | Stage-1 (intra-chunk) primary ANI; defaults to --primary-ani. |
 | `--pre-secondary-ani` |  | Stage-1 (intra-chunk) secondary ANI; defaults to --secondary-ani. |
 | `--reduce` | `none` | Taxonomy-aware reduction after ANI: none, species, or genus (one representative per taxon). |
@@ -320,6 +320,7 @@ On this command --tool selects the annotator.
 | `-t`, `--threads` | `16` | Threads for the external tool (default 16, or the CPU limit when lower). |
 | `--tool-arg` |  | Annotator tuning as key=value (repeatable). |
 | `--allow-incomplete` | off | Proceed with a warning when the input genome set is incomplete. |
+| `-p`, `--num-processes` | `0` | Genomes annotated at once (threads split across them). 0 = auto (~threads/4, capped by cores). |
 
 ### snptype
 

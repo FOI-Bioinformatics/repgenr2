@@ -1187,8 +1187,17 @@ def _step_annotations(
                 f"phylo-build: --annotations-dir {params.annotations_dir} is not a directory."
             )
         return params.annotations_dir
+    from ..annotators.base import registry as annotator_registry
     from ..core.annotations import gff_path, read_index
-    from .annotate import AnnotateBuildParams, annotate_build, index_from_directories
+    from ..core.executors import parallel_each
+    from ..core.process import remove_tree
+    from .annotate import (
+        AnnotateBuildParams,
+        _database,
+        annotate_build,
+        annotate_jobs,
+        index_from_directories,
+    )
 
     out = params.out_dir / "annotations"
     inputs = list(genomes) + ([outgroup_file] if outgroup_file is not None else [])
@@ -1202,25 +1211,58 @@ def _step_annotations(
         or existing.get(record_name(g), None) is None
         or existing[record_name(g)].annotator != params.annotator
     ]
+    jobs, per_genome = annotate_jobs(params.phylo.threads, 0, len(todo))
     logger.info(
-        "Annotating %d of %d genomes with %s under %s (the rest are already there)",
+        "Annotating %d of %d genomes with %s under %s (the rest are already there), "
+        "%d at a time with %d thread(s) each",
         len(todo),
         len(inputs),
         params.annotator,
         out,
+        jobs,
+        per_genome,
     )
-    for genome in todo:
-        annotate_build(
-            AnnotateBuildParams(
-                genome=genome,
-                out_dir=out,
-                tool=params.annotator,
-                bakta_db=params.bakta_db,
-                threads=params.phylo.threads,
-                extra={},
+    versions: dict[str, str] | None = None
+    if todo and params.annotator in annotator_registry.names():
+        # One preflight for the whole set: under a container backend each
+        # check is a container run.
+        annotator = annotator_registry.create(params.annotator)
+        db = _database(params.annotator, annotator, params.bakta_db)
+        versions = annotator.preflight()
+        if db is not None:
+            versions[f"{params.annotator}-db"] = annotator.database_version(db)
+    try:
+        parallel_each(
+            lambda genome: annotate_build(
+                AnnotateBuildParams(
+                    genome=genome,
+                    out_dir=out,
+                    tool=params.annotator,
+                    bakta_db=params.bakta_db,
+                    threads=per_genome,
+                    extra={},
+                ),
+                logger,
+                versions=versions,
+                shared_out_dir=True,
             ),
-            logger,
+            todo,
+            jobs,
+            lambda _genome, _result: None,
+            logger=logger,
+            describe=record_name,
         )
+    except BaseException:
+        remove_tree(out / ".scratch")
+        # Index what finished, so a rerun reuses it; the build error is the
+        # one to report.
+        if out.is_dir():
+            try:
+                index_from_directories(out, params.annotator, logger)
+            except Exception as exc:  # noqa: BLE001 - the build error is the one to report
+                logger.warning("Could not index the finished annotations: %s", exc)
+        raise
+    remove_tree(out / ".scratch")
     index_from_directories(out, params.annotator, logger)
     return out
 

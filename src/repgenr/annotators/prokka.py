@@ -87,7 +87,7 @@ class ProkkaAnnotator(Annotator):
                 self.capabilities,
                 cmd,
                 logger=logger,
-                log_prefix="prokka",
+                log_prefix=f"prokka {record_name}",
                 extra_mounts=[os.path.dirname(os.path.abspath(genome))],
             )
         except ToolExecutionError as exc:

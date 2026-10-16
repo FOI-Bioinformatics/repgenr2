@@ -457,13 +457,14 @@ def test_run_coregene_inserts_annotate_before_phylo(monkeypatch, tmp_path) -> No
         [
             *("run", "-wd", str(tmp_path / "wd"), "-l", "genus", "-tg", "francisella"),
             *("--msa-source", "coregene", "--annotator", "prokka", "--all-genomes"),
-            *("--core-threshold", "0.9", "--clean-mode", "moderate"),
+            *("--core-threshold", "0.9", "--clean-mode", "moderate", "-p", "3"),
         ],
     )
     assert result.exit_code == 0, result.output
     assert order.index("annotate") == order.index("phylo") - 1
     annotate = built["annotate"]
     assert annotate.tool == "prokka" and annotate.all_genomes is True
+    assert annotate.num_processes == 3
     phylo = built["phylo"]
     assert phylo.msa_source == "coregene" and phylo.coregene == "panaroo"
     assert phylo.extra["core_threshold"] == 0.9 and phylo.extra["clean_mode"] == "moderate"

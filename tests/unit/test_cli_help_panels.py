@@ -90,7 +90,8 @@ SHARED_FLAGS: list[tuple[str, str, str]] = (
     + [("phylo", "phylo-build", f) for f in ("--msa-source", "--aligner-arg", "--mask")]
     + [("dereplicate", "run", f) for f in ("--tool-arg", "--keeper", "--pre-primary-ani")]
     + [("dereplicate", "run", f) for f in ("--pre-secondary-ani", "--process-size")]
-    + [("dereplicate", "run", f) for f in ("--num-processes", "--reduce", "--target-reps")]
+    # --num-processes is not shared: on run it also sets the annotate workers.
+    + [("dereplicate", "run", f) for f in ("--reduce", "--target-reps")]
     + [("dereplicate", "run", "--allow-incomplete")]
     + [("dereplicate", "dereplicate-chunk", "--tool-arg")]
     + [("annotate", "annotate-build", f) for f in ("--tool", "--bakta-db")]

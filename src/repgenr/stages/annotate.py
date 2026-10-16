@@ -5,7 +5,10 @@
 default, prokka without a database), keeps the results under
 ``annotations/<record>/`` with an index, and on a later run annotates only
 what is new or stale (a changed genome, annotator, tool version, database
-version or extras); records no longer in the set are removed.
+version or extras); records no longer in the set are removed. Several
+genomes are annotated at once (``num_processes``, by default about one per
+four threads) with the threads split between them, since an annotator uses
+many threads in only some of its steps.
 ``annotate_core`` is the stateless per-genome step the data-channel
 ``annotate-build`` command and Nextflow use.
 """
@@ -24,8 +27,10 @@ from ..core.annotations import AnnotationRecord
 from ..core.context import WorkdirContext
 from ..core.contracts import list_fasta, record_name
 from ..core.errors import UserInputError, WorkdirError
+from ..core.executors import parallel_each
 from ..core.plugins import warn_unconsumed_extras
 from ..core.process import remove_tree, stage_plain_inputs
+from ..core.resources import usable_cpus
 from .phylo import _resolve_outgroup
 from .snptype import _check_inputs, _genome_set
 
@@ -39,6 +44,9 @@ class AnnotateStageParams:
     bakta_db: str | None = None
     allow_incomplete: bool = False
     extra: dict = field(default_factory=dict)
+    # Genomes annotated at once (0 = auto, see annotate_jobs); threads are
+    # split between them.
+    num_processes: int = 0
 
 
 @dataclass
@@ -78,6 +86,19 @@ def _database(tool: str, annotator: Annotator, given: str | None) -> Path | None
 
     raw = given or bakta_db_from_env()
     return check_bakta_db(Path(raw).expanduser() if raw else None)
+
+
+def annotate_jobs(threads: int, requested: int, genomes: int) -> tuple[int, int]:
+    """(genomes annotated at once, threads per genome) for a thread budget.
+
+    ``requested`` 0 means about one genome per four threads, capped by the
+    CPUs this process may use. Never more genomes than ``genomes`` or than
+    ``threads``, so each genome has at least one thread and the total stays
+    within the budget.
+    """
+    jobs = requested if requested > 0 else max(1, min(threads // 4, usable_cpus()))
+    jobs = max(1, min(jobs, threads, genomes))
+    return jobs, max(1, threads // jobs)
 
 
 def annotate_core(
@@ -141,8 +162,19 @@ def annotate_core(
     )
 
 
-def annotate_build(params: AnnotateBuildParams, logger: logging.Logger) -> AnnotateResult:
-    """Annotate one genome from explicit paths (stateless; no config)."""
+def annotate_build(
+    params: AnnotateBuildParams,
+    logger: logging.Logger,
+    *,
+    versions: dict[str, str] | None = None,
+    shared_out_dir: bool = False,
+) -> AnnotateResult:
+    """Annotate one genome from explicit paths (stateless; no config).
+
+    ``versions`` is a preflight the caller ran once for several builds.
+    ``shared_out_dir`` leaves ``out_dir/.scratch`` for the caller to remove,
+    as builds running side by side in one directory share it.
+    """
     from ..core.versions import write_versions_fragment
 
     if params.tool not in annotator_registry.names():
@@ -156,17 +188,22 @@ def annotate_build(params: AnnotateBuildParams, logger: logging.Logger) -> Annot
     warn_unconsumed_extras(annotator.capabilities, params.extra, logger, family="Annotator")
     db = _database(params.tool, annotator, params.bakta_db)
     name = params.record_name or record_name(params.genome)
+    # One scratch per record, so several builds can share out_dir at once.
+    scratch = params.out_dir / ".scratch" / name
     result, versions = annotate_core(
         params.genome,
         name,
         params.out_dir / name,
-        params.out_dir / ".scratch",
+        scratch,
         params.tool,
         AnnotateParams(threads=params.threads, db=db, extra=dict(params.extra)),
         logger,
         annotator=annotator,
+        versions=None if versions is None else dict(versions),
     )
-    remove_tree(params.out_dir / ".scratch")
+    remove_tree(scratch)
+    if not shared_out_dir:
+        remove_tree(params.out_dir / ".scratch")
     if params.versions_out is not None:
         write_versions_fragment(params.versions_out, versions)
     logger.info("Annotated %s into %s", name, result.gff.parent)
@@ -341,6 +378,7 @@ def run(ctx: WorkdirContext, params: AnnotateStageParams) -> AnnotateSummary:
 
     annotated = reused = 0
     scratch = ctx.scratch_dir / "annotate"
+    todo: list[tuple[Path, str, str, str]] = []
     for genome, which in sets:
         name = record_name(genome)
         digest = cache.genome_digest(genome)
@@ -364,18 +402,37 @@ def run(ctx: WorkdirContext, params: AnnotateStageParams) -> AnnotateSummary:
                 records[name] = replace(current, set=which)
             reused += 1
             continue
+        todo.append((genome, which, name, digest))
+
+    jobs, per_genome = annotate_jobs(params.threads, params.num_processes, len(todo))
+    if todo:
+        logger.info(
+            "Annotating %d genome(s) with %s, %d at a time with %d thread(s) each",
+            len(todo),
+            params.tool,
+            jobs,
+            per_genome,
+        )
+
+    def annotate_one(task: tuple[Path, str, str, str]) -> AnnotateResult:
+        genome, _which, name, _digest = task
         logger.info("Annotating %s with %s", name, params.tool)
         result, _ = annotate_core(
             genome,
             name,
             cache.record_dir(directory, name),
-            scratch,
+            scratch / name,
             params.tool,
-            AnnotateParams(threads=params.threads, db=db, extra=dict(params.extra)),
+            AnnotateParams(threads=per_genome, db=db, extra=dict(params.extra)),
             logger,
             annotator=annotator,
             versions=dict(versions),
         )
+        return result
+
+    def record(task: tuple[Path, str, str, str], result: AnnotateResult) -> None:
+        nonlocal annotated
+        genome, which, name, digest = task
         records[name] = AnnotationRecord(
             record_name=name,
             set=which,
@@ -388,9 +445,18 @@ def run(ctx: WorkdirContext, params: AnnotateStageParams) -> AnnotateSummary:
             gff_digest=cache.gff_digest(result.gff),
             completed=datetime.now(UTC).isoformat(),
         )
-        # Written after every genome, so an interrupted run keeps what it did.
+        # Written after every genome, on this thread, so an interrupted or
+        # failed run keeps what finished.
         cache.write_index(directory, records)
         annotated += 1
+        logger.info("Annotated %s (%d of %d)", name, annotated, len(todo))
+
+    try:
+        parallel_each(
+            annotate_one, todo, jobs, record, logger=logger, describe=lambda task: task[2]
+        )
+    finally:
+        remove_tree(scratch)
     remove_tree(scratch)
     index = cache.write_index(directory, records)
     logger.info(
