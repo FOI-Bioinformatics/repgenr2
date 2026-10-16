@@ -29,7 +29,16 @@ from ..core.contracts import (
     write_cluster_summary,
 )
 from ..core.errors import WorkdirError
-from .derep_keeper import N50Lookup, N50Of, best_score, choose_keeper, warn_missing_n50
+from ..core.resources import usable_cpus
+from .derep_keeper import (
+    N50_MAX_WORKERS,
+    N50Lookup,
+    N50Of,
+    best_score,
+    choose_keeper,
+    prefetch_n50,
+    warn_missing_n50,
+)
 
 Quality = Mapping[str, tuple[float, float]]
 # filename -> (genus, species) as recorded in the manifest or selection.tsv.
@@ -62,6 +71,7 @@ def summarise_clusters(
     """
     taxonomy = taxonomy or {}
     flagged = set(gtdb_representatives)
+    prefetch_n50(n50, clusters.items(), quality, scored_incumbents=True)
     rows = [
         _summarise(rep, members, quality, taxonomy, n50, rep in flagged)
         for rep, members in clusters.items()
@@ -190,7 +200,7 @@ def run(ctx: WorkdirContext, params: ClusterSummaryParams) -> Path:
     quality = quality_lookup(ctx)
     if not quality:
         logger.info("No assembly quality in the manifest; quality columns are left blank")
-    n50 = N50Lookup([ctx.genomes_dir])
+    n50 = N50Lookup([ctx.genomes_dir], workers=min(usable_cpus(), N50_MAX_WORKERS))
     rows = summarise_clusters(
         clusters, quality, taxonomy_lookup(ctx), n50, gtdb_representatives=gtdb_lookup(ctx)
     )

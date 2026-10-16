@@ -225,7 +225,7 @@ def dereplicate_chunk(params: ChunkParams, logger: logging.Logger) -> DerepResul
     )
     scratch = _fresh(params.out_dir / "scratch")
     result = adapter.dereplicate(params.genomes, scratch, derep_params, logger)
-    n50 = N50Lookup(sorted({g.parent for g in params.genomes}))
+    n50 = N50Lookup(sorted({g.parent for g in params.genomes}), workers=params.threads)
 
     if params.keeper == "quality" and params.selection_tsv is not None:
         quality = _quality_from_selection(params.selection_tsv)
@@ -268,10 +268,9 @@ def dereplicate_chunk(params: ChunkParams, logger: logging.Logger) -> DerepResul
     # N50 of the scored members it may still compare. In a cluster with two or
     # more scored genomes the keeper has read them already (cached); only a
     # scored member under an unscored representative is read here.
-    for members in result.clusters.values():
-        for name in members:
-            if name in summary_quality:
-                n50(name)
+    n50.prefetch(
+        name for members in result.clusters.values() for name in members if name in summary_quality
+    )
     _write_n50(params.out_dir / GENOME_N50_TSV, n50.computed())
     shutil.rmtree(scratch, ignore_errors=True)  # drop tool intermediates from the output
     logger.info(
@@ -331,7 +330,7 @@ def dereplicate_merge(params: MergeParams, logger: logging.Logger) -> DerepResul
         stage2 = adapter.dereplicate(union, scratch, derep_params, logger)
     final = _compose_two_stage(stage1, stage2, logger)
     rep_dirs = [d / _REPRESENTATIVES_DIR for d in params.chunk_dirs]
-    n50 = N50Lookup(rep_dirs, known=_read_n50(params.chunk_dirs))
+    n50 = N50Lookup(rep_dirs, known=_read_n50(params.chunk_dirs), workers=params.threads)
 
     if params.keeper == "quality" and params.selection_tsv is not None:
         # Only stage-1 representatives are staged at the merge step (each
