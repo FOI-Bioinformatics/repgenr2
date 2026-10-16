@@ -120,10 +120,10 @@ stage (`core/executors.py`).
   `nextflow/conf/modules.config` maps from the pipeline parameters, and they
   are published from configuration rather than from the module files.
 * Most modules call a stateless step. The acquisition modules run a stage in
-  a task-local working directory (`metadata`, `vmetadata` and `vgenome`).
+  a task-local working directory (`metadata`, `vmetadata`, `vgenome` and `reads`).
 * Resource labels in `nextflow/conf/base.config` (`process_low`,
   `process_medium`, `process_high`, `process_assembly`) place heavy processes,
-  such as `PHYLO` when it runs Cactus, on large nodes.
+  such as `PHYLO`, which may run Cactus, on large nodes.
 * The pipeline schema does not restrict tool names, so an adapter installed
   as a plugin is selectable from Nextflow as well.
 
@@ -277,7 +277,8 @@ Set these per-family attributes, or inherit the default deliberately:
   variable-site FASTA that replaces the typer's core-SNP output. A `SnpTyper`
   should therefore set `SnpResult.full_alignment` whenever it can produce
   one. `--mask` with a typer that declares no full alignment is refused
-  before any SNP calling runs.
+  before any SNP calling runs; a typer that declares one but returns
+  `full_alignment=None` is refused after calling.
 * `Masker.tree_output()`: the masker's own tree from the last call, when it
   builds one (Gubbins does); the stage keeps it as `masker_tree.nwk`.
 * `Annotator.requires_database`: True for a tool that needs a database
@@ -558,8 +559,9 @@ These are the commands CI runs (`.github/workflows/ci.yml`); CI adds
 `live` marker is deselected by default (`addopts = "-m 'not live'"` in
 `pyproject.toml`), and a test marked `@pytest.mark.requires_binary("name")`
 is skipped when the binary is not on `PATH` (`tests/conftest.py`). Some tests
-read the documentation: `test_docs_tool_limits.py`, `test_cli_matrix.py`,
-`test_version_consistency.py`, `test_genome_stage.py` and
+read the documentation or the changelog: `test_docs_tool_limits.py`,
+`test_cli_matrix.py`, `test_version_consistency.py` (CHANGELOG.md),
+`test_genome_stage.py` and
 `test_vmetadata_stage.py` under `tests/unit/`.
 
 #### Unit tests for an adapter

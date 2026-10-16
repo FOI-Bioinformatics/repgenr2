@@ -38,9 +38,9 @@ The page distinguishes two kinds of figures:
 
 - **Measured.** A time, a memory figure or a result from a recorded run, in
   [verification.md](verification.md) or
-  [audit/scaling-audit.md](audit/scaling-audit.md). Unless stated otherwise,
-  times are from one machine (11 cores, 18 GB). Treat them as orders of
-  magnitude.
+  [audit/scaling-audit.md](audit/scaling-audit.md). The times in
+  [By number of genomes](#by-number-of-genomes) are from one machine (11
+  cores, 18 GB). Treat them as orders of magnitude.
 - **Declared.** The `recommended_max_genomes` value an adapter sets in its
   code. `auto` selection and the scale warnings use it. Most declared values
   have no recorded measurement behind them. Where the text gives a declared
@@ -368,46 +368,28 @@ they need installed: bakta needs its database and prokka needs none (see
 ### Automatic choice of tree builder
 
 `--treebuilder auto` picks the builder whose declared scale fits the leaf
-count, the outgroup included. When `--msa-source snptype` or `--mask` is
-given, the choice is made among the builders that consume an alignment, so
-the request is honoured rather than dropped. When nothing asks for an
-alignment and the leaf count exceeds the selected aligner's declared limit
-(500 for the default `progressivemauve`), the choice is made among the
-alignment-free builders. A builder that needs an alignment would otherwise
-make that aligner run on a set past its scale. The log names the aligner and
-its limit when this applies. The full rule is in
+count, the outgroup included. A request that only an alignment can honour
+(`--msa-source snptype` or `coregene`, or `--mask`) limits the choice to
+builders that consume one. The full rule is in
 [How `auto` chooses](#how-auto-chooses).
 
 ### Rooting
 
-The stage adds the outgroup to the input and passes it to builders that can
-root. Whatever the builder, `phylo` then roots `tree/tree.nwk` itself
-(`--root`): on the outgroup branch by default when an outgroup is staged, so
-the trees of `fasttree`, `mashtree` and `sourmash` are rooted as well; at the
-midpoint with `--root midpoint`; or not at all with `--root none`. The
-builder's own output is kept as `tree/tree.unrooted.nwk`. On an
-outgroup-rooted tree the taxonomy from `tree2tax` separates the outgroup from
-one ingroup clade. See [usage.md](usage.md#rooting-the-tree).
+`phylo` roots `tree/tree.nwk` itself, whatever the builder: on the outgroup
+by default when one is staged, at the midpoint with `--root midpoint`, or not
+at all with `--root none`. The choice therefore does not depend on whether a
+builder can root. Details are in [Rooting the tree](usage.md#rooting-the-tree).
 
 ### Collapsing weak splits in tree2tax
 
-`tree2tax` can collapse weak splits before it names nodes:
-
-- `--collapse-length L` merges a node whose branch is shorter than `L` in the
-  tree's own units.
-- `--collapse-support S` merges a node whose support is below the fraction
-  `S`. IQ-TREE and RAxML-NG supports are normalised automatically. `mashtree`
-  and the sourmash builder write no supports, so `--collapse-support` does
-  nothing for them and the stage warns.
-- `--collapse-diameter D` keeps the fewest clades whose leaf-to-leaf distance
-  stays within `D` and merges everything inside each, which maps a distance
-  cutoff onto the taxonomy without supports. The unit is the tree's own: a
-  mash distance of about 0.05 at 95 % ANI for mashtree; one minus the Jaccard
-  similarity for the sourmash builder, where 95 % ANI is near 0.88 at k = 31;
-  substitutions per variable site for the ML builders.
-
-The root, the outgroup split and the leaves never collapse. See
-[usage.md](usage.md#collapsing-weak-splits-in-tree2tax).
+The tree builder decides which collapsing options apply. `--collapse-support`
+needs supports: IQ-TREE writes them only with bootstrap replicates (`-B`),
+FastTree writes SH-like local supports and RAxML-NG bootstraps by default,
+while `mashtree` and the sourmash builder write none. `--collapse-length` and
+`--collapse-diameter` use branch lengths and so work on every builder; the
+diameter maps a distance cutoff (for example about 95 % ANI) onto the
+taxonomy without supports. Units and examples are in
+[Collapsing weak splits in tree2tax](usage.md#collapsing-weak-splits-in-tree2tax).
 
 ## Assemblers and polishers
 
@@ -420,40 +402,21 @@ These apply to the reads chain only (`reads`, `assemble`).
 | PacBio CLR | `flye` | `racon` with minimap2 overlaps (`--polish-rounds`) |
 | PacBio HiFi | `flye` | None |
 
-Notes:
+Points that bear on the choice:
 
-- Medaka needs the basecaller model. Dorado names it in the read headers. Reads
-  mirrored through SRA have rewritten headers, so the adapter assumes ONT's
-  bacterial R10.4.1 model and records that. Give another with `--tool-arg
-  model=...`.
+- Medaka needs the basecaller model. Reads mirrored through SRA lack it, so
+  the adapter assumes ONT's bacterial R10.4.1 model and records that; give
+  another with `--tool-arg model=...`.
 - On one ONT run (SRR28800588) polishing did not change the CheckM2 scores,
   because the Flye draft was already gene-complete at that resolution.
   Unpolished long-read assemblies still carry indel errors that matter for SNP
   typing and alignment.
-- The ENA selection filters that matter most are `--max-bases`, which drops
-  whole-host libraries above a size, and `--drop-selection`, which drops
-  libraries by ENA library selection. Its default is `MDA`: amplified
-  libraries assemble into chimeric, uneven contigs. The 12% contamination
-  seen on one library came from MDA amplification, which the default now
-  drops.
-- `--classifier auto` (the default) verifies each assembly's organism with
-  sourmash gather against a GTDB sketch when one is given; without a sketch
-  the check is skipped and the log says so. Each gather against the GTDB
-  rs226 representatives sketch holds about 0.6 GB, so the number run at once
-  is bounded by `--memory-gb` as well as `--threads`. When GTDB has moved a
-  species to another genus of the same family (family and epithet agree), the
-  genome is flagged `genus_renamed` rather than `classifier_disagrees`.
-- `shovill` needs a read pair. A run that ENA labels PAIRED but lists with one
-  FASTQ file is planned as single-end, so `--assembler shovill` excuses it
-  before downloading; `auto` assembles it with `skesa`.
-- Changing only the CheckM2 gate (`--min-completeness`,
-  `--max-contamination`) reuses the scores stored per run. CheckM2 runs again
-  only for contigs, a database or a CheckM2 version it has not scored.
-  `--force` does not bypass the stored scores; delete
-  `assemblies/<run>/checkm2.json` to score a run again.
-- `--one-per-sample` (the default) keeps one run per sample. A long-read run is
-  preferred when it has at least 100 Mb and a tenth of the largest short-read
-  run.
+- `shovill` needs a read pair; `auto` assembles a single-file run with
+  `skesa`.
+
+Run selection (`--max-bases`, `--drop-selection`, `--one-per-sample`), the
+organism check with `--classifier`, and the reuse of CheckM2 scores are
+described in [Starting from sequencing reads](usage.md#starting-from-sequencing-reads).
 
 ## CLI `run` or Nextflow
 
@@ -552,7 +515,7 @@ How the declared limits relate to the measurements on this page:
 |---|---|
 | tree builder `sourmash` (2000) | Lowered after the scaling-audit measurement; kept until the rapidNJ path is measured. |
 | tree builder `mashtree` (10000) | Measured at 5000 genomes (53 min, 7.6 GB), not above. |
-| dereplicators `skder`, `galah`, `sourmash` (unbounded) | Measured up to 5000 genomes, not above. |
+| dereplicators `skder`, `galah`, `sourmash` (unbounded) | Measured up to 5000 genomes in the scaling audit; chunked skder also ran on 6888 Bacillaceae genomes (see [Chunked dereplication](usage.md#chunked-dereplication)). galah and sourmash not measured above 5000. |
 | aligner `progressivemauve` (500) | Measured at 20 and 50 genomes only. |
 | aligner `sibeliaz` (2000) | Not supported by a run: SibeliaZ did not finish within an hour at 20 genomes. |
 | other aligners, SNP typers | Not run at scale. |

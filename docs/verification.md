@@ -114,7 +114,7 @@ as on "an Apple Silicon laptop".
 
 ## Re-running the checks: the live suite
 
-The records on this page were collected by hand. `tests/live/`
+The measured-run and audit records on this page were collected by hand. `tests/live/`
 holds the re-executable form: pytest tests marked `live` that run the
 installed `repgenr` console script against real tools on seeded synthetic
 genome sets (`benchmarks/genomegen.py`) staged with `repgenr ingest`. They
@@ -863,7 +863,7 @@ the observation says so.
 | vgenome | NCBI Virus segment labels are not normalised (`M`, `M; medium`, `middle`), so one segment can count as two labels when an isolate mixes them. Addressed in #227 (defects table): labels are normalised. |
 | dereplicate | On `mixed_1000_clustered` (20 truth clusters) skder, galah, sourmash sparse and sourmash dense all recover the truth partition at the defaults (adjusted Rand index 1.0); sparse and dense pick different representatives within clusters, as choosing-tools.md states. |
 | dereplicate | Without manifest quality, galah picks a 40 percent fragment as the representative of its cluster (input order), and sourmash keeps the fragment as its own cluster (k-mer similarity counts the missing part). `--keeper quality` with manifest quality corrects the first. See also #233 and #254 in the defects table (galah input order by file size; the keeper's replacement rule). |
-| dereplicate | `--target-reps` with `--process-size` re-sketches the union of chunk representatives at each search step, since the union changes with the threshold; on 50 genomes the search took 87 s against 22 s unchunked. Addressed in #233 (defects table): the union is now assembled from the chunk zips. |
+| dereplicate | `--target-reps` with `--process-size` re-sketches the union of chunk representatives at each search step, since the union changes with the threshold; on 50 genomes the search took 87 s against 22 s unchunked. Addressed in #233 (defects table) for sourmash: the union is now assembled from the chunk zips. |
 | doctor | The first-bytes FASTA check reads every genome: 28 s for 1000 genomes on an exFAT USB volume (about 35 ms per file, not cached between runs); 8 to 16 threads gave 1.3 to 1.7 times. `status` reads no genome content and takes 0.4 s there. `doctor --quick` skips the check (#242). |
 | doctor | Opening the WAL-mode manifest lets SQLite create or touch `manifest.sqlite-shm` and `-wal`; no data changes. |
 | Environment | dRep 3.4.5 in the local environment fails in fastANI parsing (`read_csv` no longer accepts `delim_whitespace` in the installed pandas); ANImf (`--virus`) runs. The container pin is dRep 3.7.1. Seen again on 2026-10-08 (pandas 3.0.6; this dRep has no skani option). |

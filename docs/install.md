@@ -40,7 +40,7 @@ Contents:
 |---|---|---|
 | Linux x86_64 workstation | The core conda environment plus the satellites you need, appended after core on `PATH` (sections 1 and 2), or containers | All thirteen files under `envs/` solve on linux-64. Cactus and the databases are not included. |
 | HPC cluster | `--container singularity` with `--container-cache` on shared storage | Tools run from pinned images without site installs. Images are pulled once and reused. |
-| macOS on Apple Silicon | The core environment (osx-arm64) with satellites appended on `PATH`; containers for progressiveMauve, Cactus, snippy, dRep, shovill, medaka and CheckM2 | These were run inside containers on the audit machine (`verification.md`); the CheckM2 host builds fail on macOS. skder, galah, sourmash, SibeliaZ, `simple`, parsnp, ska2, Gubbins, the tree builders, skesa, flye and racon ran natively. |
+| macOS on Apple Silicon | The core environment (osx-arm64) with satellites appended on `PATH`; containers for progressiveMauve, Cactus, snippy, dRep, shovill, medaka and CheckM2 | These were run inside containers on the audit machine (`verification.md`); the CheckM2 host builds fail on macOS. skder, galah, sourmash, SibeliaZ, `simple`, parsnp, ska2, Gubbins, iqtree, fasttree, raxmlng, mashtree and the sourmash tree builder, skesa, flye and racon ran natively. |
 | Nextflow on a cluster | A site image or conda per profile; `-profile slurm,singularity` | The `slurm` profile sets only the executor. The container profiles set `--container` for every stage. |
 | Nextflow on a cloud executor | A site config with the executor, queue and an image that provides `repgenr` and the tools | No cloud profile ships, because the region, queue and image are site-specific (see [usage.md](usage.md#profiles)). |
 
@@ -92,7 +92,7 @@ on every change to `envs/` and once a week (`.github/workflows/envs.yml`).
 
 | File | Environment | Contents | Platforms that solve |
 |---|---|---|---|
-| `envs/core.yml` | `repgenr` | Python 3.12, RepGenR2, sourmash and branchwater, skDER, skani, galah, dRep, datasets, SibeliaZ, minimap2, samtools, bcftools, ska2, skesa, shovill, flye, medaka, racon, FastTree, IQ-TREE, RAxML-NG | linux-64, osx-arm64 |
+| `envs/core.yml` | `repgenr` | Python 3.12, RepGenR2, sourmash and branchwater, skDER, skani, galah, dRep, datasets, SibeliaZ, minimap2, samtools, bcftools, ska2, skesa, shovill, flye, medaka, racon, FastTree, VeryFastTree, IQ-TREE, RAxML-NG, rapidNJ | linux-64, osx-arm64 |
 | `envs/gubbins.yml` | `repgenr-gubbins` | Gubbins (Python 3.10, with its own IQ-TREE 2 and RAxML) | linux-64, osx-64, osx-arm64 |
 | `envs/mashtree.yml` | `repgenr-mashtree` | mashtree (brings samtools 0.1.19) | linux-64, osx-64, osx-arm64 |
 | `envs/snippy.yml` | `repgenr-snippy` | snippy 4.6 | linux-64, osx-64 |
@@ -325,12 +325,12 @@ the `envs/` files, and the environment that holds each tool is listed in
 | Masker | gubbins | `gubbins` | yes | `gubbins:3.4.3` | a multi-threaded RAxML build for more than one thread (see [usage.md](usage.md#snp-typing-and-masking)) |
 | Tree builder | iqtree | `iqtree` | yes | `iqtree:3.1.3` | none |
 | Tree builder | fasttree | `fasttree` | yes | `fasttree:2.2.0` | none |
-| Tree builder | veryfasttree | `veryfasttree` | yes | `veryfasttree:4.0.5` | none |
+| Tree builder | veryfasttree | `veryfasttree` | no record (offline contract test only) | `veryfasttree:4.0.5` | none |
 | Tree builder | raxmlng | `raxml-ng` | yes | `raxml-ng:2.0.3` | none |
 | Tree builder | mashtree | `mashtree` | yes | `mashtree:1.4.6` | none |
 | Tree builder | sourmash | `sourmash` | yes | `sourmash:4.9.4` | `rapidnj` for the joining step; without it more than 5000 leaves are refused (optional; `rapidnj:2.3.3` under a container backend) |
-| Tree builder | skani | `skani` | yes | `skani:0.3.2` | `rapidnj` for the joining step above a few thousand leaves (optional; `rapidnj:2.3.3` under a container backend) |
-| Tree builder | ska2 | `ska2` | yes | `ska2:0.5.1` | `rapidnj` for the joining step above a few thousand leaves (optional) |
+| Tree builder | skani | `skani` | no record (offline contract test only) | `skani:0.3.2` | `rapidnj` for the joining step above a few thousand leaves (optional; `rapidnj:2.3.3` under a container backend) |
+| Tree builder | ska2 | `ska2` | no record (offline contract test only) | `ska2:0.5.1` | `rapidnj` for the joining step above a few thousand leaves (optional) |
 | Assembler | skesa | `skesa` | yes | `skesa:2.5.1` | none |
 | Assembler | shovill | `shovill` | no | `shovill:1.4.2` | none |
 | Assembler | flye | `flye` | yes | `flye:2.9.6` | none |
@@ -338,8 +338,8 @@ the `envs/` files, and the environment that holds each tool is listed in
 | Polisher | medaka | `medaka` | no | `medaka:2.2.2` | medaka models. Reads from SRA have no basecaller in their headers; the adapter then assumes ONT's bacterial R10.4.1 model and records it. Give another with `--tool-arg model=...` |
 | Polisher | racon | `racon`, `minimap2` | yes | `racon:1.5.0`; minimap2 runs from `minimap2:2.28` | none |
 | Annotator | bakta | `bakta` | yes | `bakta:1.12.2` | bakta database: `bakta_db download --output DIR --type light` (1.4 GB download, about 4 GB unpacked; `--type full` is 30 GB and about 84 GB unpacked, with more specific CDS annotation), then `--bakta-db DIR` or `BAKTA_DB` |
-| Annotator | prokka | `prokka` | no (tbl2asn is not packaged for arm64) | `prokka:1.15.6` | none |
-| Core-gene builder | panaroo | `panaroo`, `mafft` | no (its dependency prokka is not packaged for arm64; `CONDA_SUBDIR=osx-64` works) | `panaroo:1.8.0` | none |
+| Annotator | prokka | `prokka` | yes, from an osx-64 environment under Rosetta (tbl2asn is not packaged for arm64) | `prokka:1.15.6` | none |
+| Core-gene builder | panaroo | `panaroo`, `mafft` | yes, from an osx-64 environment under Rosetta (its dependency prokka is not packaged for arm64; `CONDA_SUBDIR=osx-64`) | `panaroo:1.8.0` | none |
 | Core-gene builder | ppanggolin | `ppanggolin`, `mafft` | yes | `ppanggolin:2.3.2` | none |
 | Core-gene builder | scarap | `scarap`, `mmseqs`, `mafft` | yes | `scarap:1.0.2` | none |
 | Core-gene builder | orthofinder | `orthofinder`, `diamond`, `mafft` | yes | `orthofinder:3.1.5` | none |
