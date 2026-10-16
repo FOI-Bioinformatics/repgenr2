@@ -299,10 +299,12 @@ BioContainers are `linux/amd64`. On Apple Silicon pass
 ## Per-tool table
 
 The table lists the adapters by group, in the order a run uses them (read,
-genome, alignment and tree tools), and gives for each its conda package, whether it ran natively
-on Apple Silicon, its container pin, and the databases or extras it needs.
-"Native on macOS arm64" records what was run on the audit machine (Apple
-Silicon) and is taken from the adapter status table in
+genome, alignment and tree tools; CheckM2, which scores assemblies in the
+reads chain, is not a pluggable family and sits with the read tools), and
+gives for each its conda package, whether it ran natively on Apple Silicon,
+its container pin, and the databases or extras it needs. "Native on macOS
+arm64" records what was run on the audit machine (Apple Silicon) and is taken
+from the adapter status table in
 [verification.md](verification.md#adapter-status). "No" means not run natively
 there, not that the tool cannot work on another platform. The container pin is
 the image in the adapter's declared capabilities; `none` means the adapter

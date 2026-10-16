@@ -31,10 +31,9 @@ Repositories). It is an importable Python package (Python 3.12 or later,
 distributed as `repgenr2`, installed as the `repgenr` command) with ten
 pluggable tool families, grouped as read, genome, alignment and tree tools,
 and an optional Nextflow pipeline for scatter-gather runs on HPC and cloud
-executors. The largest end-to-end runs recorded are 1157
-bacterial genomes (one genus, 12 minutes) and 1256 viral genomes
-(Hepeviridae). Larger sizes are measured per tool in the
-[scaling audit](docs/audit/scaling-audit.md).
+executors. The largest end-to-end runs recorded are 1157 bacterial genomes
+(one genus, 12 minutes) and 1256 viral genomes (Hepeviridae). Larger sizes are
+measured per tool in the [scaling audit](docs/audit/scaling-audit.md).
 
 ## Pipeline routes
 
@@ -83,9 +82,9 @@ come from, and the reference databases some tools read.
 | Kind | Sources |
 |------|---------|
 | Taxonomy and genome metadata | GTDB (full table or API) for bacteria and archaea, including the species-representative flag that `--keeper gtdb` reads; NCBI Virus (default) or BV-BRC for viruses |
-| Genome sequences | NCBI Datasets; local FASTA files (`ingest`) |
+| Genome sequences | NCBI Datasets; local FASTA files (`ingest`); viral sequences come with the NCBI Virus or BV-BRC download |
 | Sequencing runs | ENA (runs mirrored from SRA) |
-| Reference databases | bakta database (annotation), CheckM2 database (assembly quality), GTDB sourmash sketch and lineages (organism check of assemblies) |
+| Reference databases | bakta database (annotation), CheckM2 database (assembly quality), GTDB sourmash sketch and lineages (organism check, `--classifier` and `--screen-reads`) |
 
 **Read tools**: sequencing runs to checked genome assemblies (`reads`,
 `assemble`).
