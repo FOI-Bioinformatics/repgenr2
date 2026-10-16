@@ -446,7 +446,7 @@ def test_each_gathered_record_is_indexed_with_the_tool_that_made_it(
         "extra": "k=1",
     }
     # Told bakta, the index still names the tool that made the records.
-    with caplog.at_level(logging.WARNING):
+    with caplog.at_level(logging.INFO):
         annotate_index(
             AnnotateIndexParams(annotations_dir=gathered, tool="bakta"), logging.getLogger("t")
         )

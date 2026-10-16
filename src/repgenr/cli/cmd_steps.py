@@ -219,7 +219,8 @@ def annotate_index_cmd(
         "bakta",
         "--tool",
         help="Annotator assumed for a record without annotation.json (output of an "
-        "earlier version); each other record is indexed with the annotator it names.",
+        "earlier version): bakta or prokka. Each other record is indexed with the "
+        "annotator it names.",
     ),
 ) -> None:
     """Index gathered annotate-build outputs (stateless data-channel step; writes

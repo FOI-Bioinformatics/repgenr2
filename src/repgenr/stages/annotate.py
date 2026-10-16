@@ -184,7 +184,7 @@ def index_from_directories(
     Each record is indexed with the annotator, version, database version and
     extras its ``annotation.json`` names; ``tool`` (and its probed version)
     applies only to a record without one. A record made by another tool than
-    ``tool`` is indexed as what it is, with a warning, so the core-gene pass
+    ``tool`` is indexed as what it is, so the core-gene pass
     refuses a mixed set instead of reading it under one name.
 
     ``probe_version=False`` leaves the annotator version of such a record
@@ -193,12 +193,21 @@ def index_from_directories(
     backend the probe would check the image."""
     from ..annotators.base import registry as annotator_registry
 
-    version = ""
-    if probe_version:
-        try:
-            version = annotator_registry.create(tool).preflight().get(tool, "")
-        except Exception:  # noqa: BLE001 - the index is written on a host without the tool too
+    probed: list[str] = []
+
+    def fallback_version() -> str:
+        # Asked once, and only for a record without annotation.json: under a
+        # container backend every probe is a container run.
+        if not probed:
             version = ""
+            if probe_version:
+                try:
+                    version = annotator_registry.create(tool).preflight().get(tool, "")
+                except Exception:  # noqa: BLE001 - the index is written on a host without the tool too
+                    version = ""
+            probed.append(version)
+        return probed[0]
+
     records: dict[str, AnnotationRecord] = {}
     for entry in sorted(
         p for p in directory.iterdir() if p.is_dir() and not p.name.startswith(".")
@@ -209,12 +218,15 @@ def index_from_directories(
             continue
         provenance = cache.read_provenance(directory, entry.name) or {
             "annotator": tool,
-            "annotator_version": version,
+            "annotator_version": fallback_version(),
             "db_version": "",
             "extra": "",
         }
         if provenance["annotator"] != tool:
-            logger.warning(
+            # Info, not a warning: phylo-build's own directory can hold records
+            # of an earlier --annotator outside the current set, and the
+            # core-gene pass refuses a set that actually mixes annotators.
+            logger.info(
                 "%s was annotated with %s, not %s; indexed as %s",
                 entry.name,
                 provenance["annotator"],

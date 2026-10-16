@@ -486,3 +486,25 @@ def test_a_refused_core_gene_rerun_keeps_the_finished_record(workdir: Path, tool
     assert "repgenr annotate" in refused.output
     assert Config.load(workdir).stages["phylo"].completed
     assert len(_FakeCoreGene.calls) == 1
+
+
+def test_precheck_leaves_small_sets_and_genome_builders_to_the_stage(workdir: Path, tools) -> None:
+    reps = _reps(workdir)
+    ctx = WorkdirContext(workdir, create=True, logger=_LOG)
+    # An alignment-free builder named explicitly reads genomes, not annotations.
+    phylo_mod.precheck(ctx, _params(treebuilder="faketree_genomes_cg"))
+    # Too few genomes for a tree: the stage names that first, not annotate.
+    reps[0].unlink()
+    phylo_mod.precheck(ctx, _params())
+
+
+def test_settings_outside_coregene_do_not_change_default_fingerprints() -> None:
+    from repgenr.cli.base import _stage_fingerprint
+
+    default = _stage_fingerprint("phylo", PhyloParams(), {}, {})
+    assert default == _stage_fingerprint("phylo", PhyloParams(extra={}), {}, {})
+    assert default == _stage_fingerprint(
+        "phylo", PhyloParams(extra={"clean_mode": "moderate"}), {}, {}
+    )
+    masked = PhyloParams(msa_source="snptype", extra={"mask": "gubbins"})
+    assert _stage_fingerprint("phylo", masked, {}, {}) != default

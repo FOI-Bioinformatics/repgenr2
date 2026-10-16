@@ -630,7 +630,7 @@ Index gathered annotate-build outputs (stateless data-channel step; writes
 | option | default | description |
 |---|---|---|
 | `--annotations-dir` | required | Directory holding the record directories annotate-build wrote (<dir>/<name>/<name>.gff3). |
-| `--tool` | `bakta` | Annotator assumed for a record without annotation.json (output of an earlier version); each other record is indexed with the annotator it names. |
+| `--tool` | `bakta` | Annotator assumed for a record without annotation.json (output of an earlier version): bakta or prokka. Each other record is indexed with the annotator it names. |
 
 ### phylo-build
 

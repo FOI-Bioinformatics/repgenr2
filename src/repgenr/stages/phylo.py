@@ -1367,8 +1367,8 @@ def precheck(ctx: WorkdirContext, params: PhyloParams) -> None:
     from .coregene import annotated_set
 
     names = [record_name(g) for g in _genome_set(ctx, params.all_genomes)]
-    if not names:
-        return  # the stage body names the missing genome stage
+    if len(names) < MIN_TREE_GENOMES:
+        return  # the stage body names the missing genomes or the size limit first
     # The stage body logs the outgroup choice; the precheck stays silent.
     outgroup_file, _ = _resolve_outgroup(ctx, params.no_outgroup, _SILENT)
     if outgroup_file is not None:

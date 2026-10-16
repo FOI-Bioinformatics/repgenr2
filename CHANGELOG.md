@@ -196,7 +196,10 @@ All notable changes to RepGenR2 are documented here. The format follows
   fingerprint or the core-gene alignment stamp when the core-gene builder
   ignores them (PPanGGOLiN, SCARAP, OrthoFinder), and the stage record shows
   `clean_mode` as null there; changing them reran the stage before. An
-  existing alignment from these builders is rebuilt once.
+  existing alignment from these builders is rebuilt once. Outside
+  `--msa-source coregene` the two settings are left out entirely, so a
+  working directory whose phylo stage was given them with another source
+  reruns once.
 - PPanGGOLiN hung without end under a long work path, as in a Nextflow
   task: NEM, its partitioning code, keeps file names in 200-character
   buffers, and `--tmpdir` under the work directory overflowed them, so a
