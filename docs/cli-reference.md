@@ -607,6 +607,29 @@ Dereplicate one chunk of genomes (scatter step; writes a chunk result dir).
 | `--sketches-dir` |  | A sketches/ directory of <record name>.sig.zip files (k=21, 31, 51; scaled=1000) made from these genomes. A sourmash tool reads them instead of sketching; other tools ignore it. |
 | `--versions-out` |  | Write resolved tool versions (YAML fragment) here. |
 
+### dereplicate-merge
+
+Dereplicate the union of chunk representatives (gather step).
+
+| option | default | description |
+|---|---|---|
+| `-o`, `--out` | required | Output dir for the merged result. |
+| `--chunk-dir` |  | A chunk result directory (repeatable). |
+| `--chunk-fofn` |  | File listing chunk result directories, one per line. |
+| `--tool` | `skder` | drep, galah, skder, sourmash. |
+| `-pani`, `--primary-ani` | `0.9` | Primary (pre-clustering) ANI threshold in (0, 1]. |
+| `-sani`, `--secondary-ani` | `0.99` | Secondary (final cluster) ANI threshold in (0, 1]. |
+| `-af`, `--aligned-fraction` | `0.5` | Minimum aligned fraction in (0, 1] for a pair to be compared. |
+| `-t`, `--threads` | `16` | Threads for the external tool (default 16, or the CPU limit when lower). |
+| `--virus` | off | Pass virus-tuned parameters to dRep (--tool drep); the other tools do not read it. |
+| `--tool-arg` |  | Tool tuning as key=value (repeatable), e.g. mode=greedy. |
+| `--selection-tsv` |  | selection.tsv with quality columns; enables quality-aware representatives. |
+| `--keeper` | `quality` | Representative choice when --selection-tsv is given: quality (selection.tsv CheckM values and genome N50), gtdb (GTDB species representative first, then quality) or tool (adapter's own pick). |
+| `--reduce` | `none` | Taxonomy-aware reduction after the merge: none, species, or genus (one representative per taxon; taxonomy from --selection-tsv or the filenames). |
+| `--target-reps` | `0` | Target representative count: search --secondary-ani of the merge pass to land near it (0 = off; re-runs the merge per search step). |
+| `--sketches-dir` |  | A sketches/ directory of <record name>.sig.zip files (k=21, 31, 51; scaled=1000) made from these genomes. A sourmash tool reads them instead of sketching; other tools ignore it. |
+| `--versions-out` |  | Write resolved tool versions (YAML fragment) here. |
+
 ### dereplicate-refine
 
 Refine the lineages of the seeds in a dereplication result at finer ANIs.
@@ -628,29 +651,6 @@ Refine the lineages of the seeds in a dereplication result at finer ANIs.
 | `--refine` |  | Seed of a lineage to keep at finer resolution (filename, stem or accession; repeatable): every cluster holding a seed is dereplicated again at --refine-ani. |
 | `--refine-ani` |  | Secondary ANI for the clusters of the --refine seeds; above --secondary-ani. |
 | `--refine-file` |  | TSV with the columns seed and ani: several lineages, each refined at its own ANI (the seeds of one ANI form one lineage). |
-| `--sketches-dir` |  | A sketches/ directory of <record name>.sig.zip files (k=21, 31, 51; scaled=1000) made from these genomes. A sourmash tool reads them instead of sketching; other tools ignore it. |
-| `--versions-out` |  | Write resolved tool versions (YAML fragment) here. |
-
-### dereplicate-merge
-
-Dereplicate the union of chunk representatives (gather step).
-
-| option | default | description |
-|---|---|---|
-| `-o`, `--out` | required | Output dir for the merged result. |
-| `--chunk-dir` |  | A chunk result directory (repeatable). |
-| `--chunk-fofn` |  | File listing chunk result directories, one per line. |
-| `--tool` | `skder` | drep, galah, skder, sourmash. |
-| `-pani`, `--primary-ani` | `0.9` | Primary (pre-clustering) ANI threshold in (0, 1]. |
-| `-sani`, `--secondary-ani` | `0.99` | Secondary (final cluster) ANI threshold in (0, 1]. |
-| `-af`, `--aligned-fraction` | `0.5` | Minimum aligned fraction in (0, 1] for a pair to be compared. |
-| `-t`, `--threads` | `16` | Threads for the external tool (default 16, or the CPU limit when lower). |
-| `--virus` | off | Pass virus-tuned parameters to dRep (--tool drep); the other tools do not read it. |
-| `--tool-arg` |  | Tool tuning as key=value (repeatable), e.g. mode=greedy. |
-| `--selection-tsv` |  | selection.tsv with quality columns; enables quality-aware representatives. |
-| `--keeper` | `quality` | Representative choice when --selection-tsv is given: quality (selection.tsv CheckM values and genome N50), gtdb (GTDB species representative first, then quality) or tool (adapter's own pick). |
-| `--reduce` | `none` | Taxonomy-aware reduction after the merge: none, species, or genus (one representative per taxon; taxonomy from --selection-tsv or the filenames). |
-| `--target-reps` | `0` | Target representative count: search --secondary-ani of the merge pass to land near it (0 = off; re-runs the merge per search step). |
 | `--sketches-dir` |  | A sketches/ directory of <record name>.sig.zip files (k=21, 31, 51; scaled=1000) made from these genomes. A sourmash tool reads them instead of sketching; other tools ignore it. |
 | `--versions-out` |  | Write resolved tool versions (YAML fragment) here. |
 

@@ -34,8 +34,9 @@ process DEREP_REFINE {
     # Forward tool exit codes (OOM kill -> 137) so errorStrategy can retry.
     export REPGENR_PROPAGATE_TOOL_EXIT=1
 
-    # Every genome of the run, as a file-of-filenames (never argv -- ARG_MAX).
-    ls -1 genomes/* > genomes.fofn
+    # Every genome of the run, as a file-of-filenames. printf is a shell
+    # builtin, so the list never passes through an argv (ARG_MAX).
+    printf '%s\n' genomes/* > genomes.fofn
 
     sel=""
     [ -e selection.tsv ] && sel="--selection-tsv selection.tsv"

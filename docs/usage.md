@@ -2654,7 +2654,12 @@ the merged result and every genome of the run are staged in, the clusters of
 the seeds are dereplicated again at the finer ANI (`repgenr
 dereplicate-refine`), and the refined result, published as
 `dereplicate/refined/` with its `refined.tsv`, is the one the tree is built
-from (see [Finer resolution inside a lineage](#finer-resolution-inside-a-lineage)).
+from; `dereplicate/merged/` stays published beside it as the coarse result
+(see [Finer resolution inside a lineage](#finer-resolution-inside-a-lineage)).
+The refined directory holds the contract files and no `genome_n50.tsv`.
+Seeds without an ANI, an ANI without seeds, or an ANI not above
+`--derep_secondary_ani` are refused at launch. The reads route runs the
+same subworkflow, so the refinement applies there too.
 
 A standalone harness runs it on a directory of genome FASTAs (no GTDB/NCBI
 front-end), useful for testing and for dereplicating a local collection:

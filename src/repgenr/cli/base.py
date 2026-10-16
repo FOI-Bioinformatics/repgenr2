@@ -279,8 +279,8 @@ COMMAND_PANELS: dict[str, tuple[str, ...]] = {
     PANEL_STEPS: (
         "genome-fetch",
         "dereplicate-chunk",
-        "dereplicate-refine",
         "dereplicate-merge",
+        "dereplicate-refine",
         "annotate-build",
         "annotate-index",
         "phylo-build",

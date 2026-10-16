@@ -843,7 +843,7 @@ commands:
         - docs/cli-reference.md
         - docs/audit/cli-matrix.md
         nextflow: params.mode
-        live: 'n/a: covered offline in tests/integration/test_derep_steps.py::test_refine_step_refines_a_merged_contract'
+        live: 'n/a: forwarded to the adapter extras as on dereplicate-chunk (wiring test)'
       --tool-arg:
         param: RefineStepParams.extra
         value: mode=greedy
@@ -862,7 +862,7 @@ commands:
         - docs/cli-reference.md
         - docs/audit/cli-matrix.md
         nextflow: 'module: staged selection.tsv'
-        live: 'n/a: covered offline in tests/integration/test_derep_steps.py::test_refine_step_refines_a_merged_contract'
+        live: 'n/a: covered offline in tests/integration/test_derep_steps.py::test_refine_step_reads_selection_quality_gtdb_outgroup_and_sketches'
       --keeper:
         param: RefineStepParams.keeper
         value: tool
@@ -871,7 +871,7 @@ commands:
         - docs/cli-reference.md
         - docs/audit/cli-matrix.md
         nextflow: params.derep_keeper
-        live: 'n/a: covered offline in tests/integration/test_derep_steps.py::test_refine_step_refines_a_merged_contract'
+        live: 'n/a: covered offline in tests/integration/test_derep_steps.py::test_refine_step_reads_selection_quality_gtdb_outgroup_and_sketches'
       --refine:
         param: RefineStepParams.seeds
         value: GCA_000002
@@ -910,7 +910,7 @@ commands:
         - docs/cli-reference.md
         - docs/audit/cli-matrix.md
         nextflow: 'module: staged sketches/ directory'
-        live: 'n/a: covered offline in tests/integration/test_derep_steps.py::test_refine_step_refines_a_merged_contract'
+        live: 'n/a: covered offline in tests/integration/test_derep_steps.py::test_refine_step_reads_selection_quality_gtdb_outgroup_and_sketches'
       --versions-out:
         param: RefineStepParams.versions_out
         value: '{file}'

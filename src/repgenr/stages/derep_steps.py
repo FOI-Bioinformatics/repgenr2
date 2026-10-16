@@ -484,7 +484,7 @@ def _step_sketches(
     )
 
 
-def _load_chunk(chunk_dir: Path) -> DerepResult:
+def _load_chunk(chunk_dir: Path, step: str = "dereplicate-merge") -> DerepResult:
     """Read a chunk result directory back into a DerepResult.
 
     Reads the per-genome statuses as well as the clusters: genomes the chunk
@@ -493,20 +493,18 @@ def _load_chunk(chunk_dir: Path) -> DerepResult:
     """
     clusters_path = chunk_dir / CLUSTERS_TSV
     if not clusters_path.exists():
-        raise WorkdirError(f"dereplicate-merge: {clusters_path} not found (not a chunk result).")
+        raise WorkdirError(f"{step}: {clusters_path} not found (not a dereplication result).")
     clusters = read_clusters(clusters_path)
     status_path = chunk_dir / GENOME_STATUS_TSV
     if not status_path.exists():
-        raise WorkdirError(f"dereplicate-merge: {status_path} not found (not a chunk result).")
+        raise WorkdirError(f"{step}: {status_path} not found (not a dereplication result).")
     status = read_genome_status(status_path)
     rep_dir = chunk_dir / _REPRESENTATIVES_DIR
     reps: list[Path] = []
     for rep_name in clusters:
         rep_path = rep_dir / rep_name
         if not rep_path.exists():
-            raise WorkdirError(
-                f"dereplicate-merge: representative file missing in chunk: {rep_path}"
-            )
+            raise WorkdirError(f"{step}: representative file missing: {rep_path}")
         reps.append(rep_path)
     return DerepResult(representatives=reps, clusters=clusters, genome_status=status)
 
@@ -650,7 +648,7 @@ def dereplicate_refine(params: RefineStepParams, logger: logging.Logger) -> Dere
         check_refine_ani(g.ani, params.secondary_ani)
     if not params.contract_dir.is_dir():
         raise WorkdirError(f"dereplicate-refine: --contract-dir {params.contract_dir} not found.")
-    result = _load_chunk(params.contract_dir)
+    result = _load_chunk(params.contract_dir, "dereplicate-refine")
     paths = {g.name: g for g in params.genomes}
     missing = sorted(n for n in result.genome_status if n not in paths)
     if missing:

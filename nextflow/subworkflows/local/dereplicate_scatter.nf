@@ -60,6 +60,16 @@ workflow DEREPLICATE_SCATTER {
 
     def ch_reps = DEREP_MERGE.out.reps.map { meta, dir -> tuple(meta.run, dir) }
     if (params.derep_refine || params.derep_refine_file) {
+        // Refused at launch, not after the chunk and merge tasks.
+        if (params.derep_refine && !params.derep_refine_ani) {
+            error "--derep_refine needs --derep_refine_ani"
+        }
+        if (!params.derep_refine && params.derep_refine_ani) {
+            error "--derep_refine_ani applies to --derep_refine seeds; a refine file carries its own ani column"
+        }
+        if (params.derep_refine_ani && (params.derep_refine_ani as Double) <= (params.derep_secondary_ani as Double)) {
+            error "--derep_refine_ani ${params.derep_refine_ani} is not finer than --derep_secondary_ani ${params.derep_secondary_ani}"
+        }
         // The merged result joined with every genome of its run: the lineage
         // members are not among the merge's representatives.
         def ch_refine_in = ch_reps
