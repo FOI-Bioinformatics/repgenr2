@@ -883,7 +883,7 @@ def _reduce_by_taxonomy(
     # rule may then replace it, as within a cluster. Preferred genomes
     # (GTDB species representatives under --keeper gtdb), when the group
     # holds any, are the only candidates.
-    picks = []
+    picks: list[tuple[list[str], list[str], str]] = []
     for members in groups.values():
         pool = [n for n in members if n in prefer] or members
         by_size = max(pool, key=lambda n: (len(result.clusters.get(n, [])), n))

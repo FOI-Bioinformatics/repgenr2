@@ -31,6 +31,7 @@ from ..core.contracts import (
 from ..core.errors import WorkdirError
 from ..core.resources import usable_cpus
 from .derep_keeper import (
+    N50_MAX_WORKERS,
     N50Lookup,
     N50Of,
     best_score,
@@ -199,7 +200,7 @@ def run(ctx: WorkdirContext, params: ClusterSummaryParams) -> Path:
     quality = quality_lookup(ctx)
     if not quality:
         logger.info("No assembly quality in the manifest; quality columns are left blank")
-    n50 = N50Lookup([ctx.genomes_dir], workers=usable_cpus())
+    n50 = N50Lookup([ctx.genomes_dir], workers=min(usable_cpus(), N50_MAX_WORKERS))
     rows = summarise_clusters(
         clusters, quality, taxonomy_lookup(ctx), n50, gtdb_representatives=gtdb_lookup(ctx)
     )

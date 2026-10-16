@@ -303,10 +303,10 @@ def _unpack(ctx: WorkdirContext, run_path: Path) -> None:
     # in the store as the pack-time view.
     from ..core.resources import usable_cpus
     from .cluster_summary import gtdb_lookup, summarise_clusters, taxonomy_lookup
-    from .derep_keeper import N50Lookup, warn_missing_n50
+    from .derep_keeper import N50_MAX_WORKERS, N50Lookup, warn_missing_n50
     from .dereplicate import quality_lookup
 
-    n50 = N50Lookup([ctx.genomes_dir], workers=usable_cpus())
+    n50 = N50Lookup([ctx.genomes_dir], workers=min(usable_cpus(), N50_MAX_WORKERS))
     write_cluster_summary(
         ctx.derep_dir / CLUSTER_SUMMARY_TSV,
         summarise_clusters(

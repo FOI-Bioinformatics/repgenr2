@@ -44,6 +44,9 @@ N50_WEIGHT = 0.5
 # MIMAG high-quality draft thresholds (Bowers et al. 2017).
 HQ_MIN_COMPLETENESS = 90.0
 HQ_MAX_CONTAMINATION = 5.0
+# Threads for the N50 reads when no -t is given: each holds about twice a
+# genome in memory, and more threads gained little in a measurement.
+N50_MAX_WORKERS = 8
 # Names listed in a log line before "and N more".
 _LOG_NAMES_MAX = 5
 
@@ -140,8 +143,8 @@ class N50Lookup:
     def prefetch(self, names: Iterable[str]) -> None:
         """Read the N50 of each genome not yet known, ``workers`` at a time.
 
-        The reads are file I/O and zlib decompression, which release the GIL,
-        so threads run them in parallel. The cache is filled from this thread
+        The reads are mostly file I/O and zlib decompression, which release
+        the GIL, so threads run them largely in parallel. The cache is filled from this thread
         only, after the reads.
         """
         todo = sorted({n for n in names if n not in self._cache})
@@ -374,12 +377,22 @@ def prefer_gtdb_representatives(
     tool_picks = set(result.clusters)
     result, _ = rescore_representatives(result, quality, logger, n50)
     flagged = set(gtdb_representatives)
-    # The quality rule above read most of these; this covers clusters whose
-    # GTDB representatives it did not rank.
-    gtdb_groups = [
-        [n for n in (rep, *members) if n in flagged] for rep, members in result.clusters.items()
-    ]
-    prefetch_n50(n50, ((g[0], g[1:]) for g in gtdb_groups if len(g) > 1), quality)
+    if isinstance(n50, N50Lookup):
+        # The genomes ranked below, read in parallel first: among two or more
+        # GTDB representatives, those choose_keeper compares when the
+        # representative is one of them, else the scored ones.
+        ranked: set[str] = set()
+        for rep_name, members in result.clusters.items():
+            in_cluster = [n for n in (rep_name, *members) if n in flagged]
+            if len(in_cluster) < 2:
+                continue
+            if rep_name in flagged:
+                ranked.update(_compared(rep_name, in_cluster, quality))
+            else:
+                scored = [n for n in in_cluster if n in quality]
+                if len(scored) > 1:
+                    ranked.update(scored)
+        n50.prefetch(ranked)
 
     rep_paths = {p.name: p for p in result.representatives}
     new_reps: list[Path] = []

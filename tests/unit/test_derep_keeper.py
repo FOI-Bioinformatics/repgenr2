@@ -250,7 +250,7 @@ def test_prefetch_reads_the_compared_genomes_in_parallel(tmp_path: Path, monkeyp
     assert swaps == 1 and "m2.fasta" in out.clusters  # the largest N50
 
 
-def test_rescore_choices_do_not_depend_on_the_thread_count(tmp_path: Path) -> None:
+def test_rescore_choices_do_not_depend_on_the_thread_count(tmp_path: Path, caplog) -> None:
     """One worker and many give the same representatives and the same log."""
     names = [f"g{i:03d}.fasta" for i in range(60)]
     _write_genomes(tmp_path, {n: [50 + (i * 37) % 400, 30] for i, n in enumerate(names)})
@@ -258,18 +258,22 @@ def test_rescore_choices_do_not_depend_on_the_thread_count(tmp_path: Path) -> No
     status = {n: STATUS_REPRESENTATIVE if n in clusters else STATUS_CONTAINED for n in names}
     quality = {n: (92.0 + (i % 3), 1.0) for i, n in enumerate(names) if i % 4}
 
-    def run(workers: int) -> tuple[dict[str, list[str]], int]:
+    def run(workers: int) -> tuple[dict[str, list[str]], int, list[str]]:
         result = DerepResult(
             representatives=[tmp_path / n for n in clusters],
             clusters={k: list(v) for k, v in clusters.items()},
             genome_status=dict(status),
         )
-        out, swaps = rescore_representatives(
-            result, quality, _LOG, N50Lookup([tmp_path], workers=workers)
-        )
-        return out.clusters, swaps
+        caplog.clear()
+        with caplog.at_level(logging.INFO, logger="keeper"):
+            out, swaps = rescore_representatives(
+                result, quality, _LOG, N50Lookup([tmp_path], workers=workers)
+            )
+        return out.clusters, swaps, [r.getMessage() for r in caplog.records]
 
-    assert run(1) == run(8)
+    one, many = run(1), run(8)
+    assert one[1] > 0 and one[2]
+    assert one == many
 
 
 def test_summary_prefetch_includes_scored_representatives(tmp_path: Path) -> None:
@@ -285,3 +289,60 @@ def test_summary_prefetch_includes_scored_representatives(tmp_path: Path) -> Non
     assert lookup.computed() == {}
     prefetch_n50(lookup, groups, quality, scored_incumbents=True)
     assert lookup.computed() == {"solo.fasta": 100, "rep.fasta": 10}
+
+
+def test_gtdb_prefetch_reads_the_ranked_representatives(tmp_path: Path, monkeypatch) -> None:
+    """Two scored GTDB representatives under an unflagged, unscored tool pick
+    are ranked against each other, so both are read in the prefetch, below
+    the high-quality bar included; nothing is read afterwards."""
+    from repgenr.stages import derep_keeper
+    from repgenr.stages.derep_keeper import prefer_gtdb_representatives
+
+    _write_genomes(
+        tmp_path, {"r.fasta": [10], "g1.fasta": [10], "g2.fasta": [20], "g3.fasta": [30]}
+    )
+    result = DerepResult(
+        representatives=[tmp_path / "r.fasta"],
+        clusters={"r.fasta": ["g1.fasta", "g2.fasta", "g3.fasta"]},
+        genome_status={
+            "r.fasta": STATUS_REPRESENTATIVE,
+            **{g: STATUS_CONTAINED for g in ("g1.fasta", "g2.fasta", "g3.fasta")},
+        },
+    )
+    quality = {"g2.fasta": (80.0, 6.0), "g3.fasta": (80.0, 6.0)}
+    lookup = N50Lookup([tmp_path], workers=2)
+    batches: list[set[str]] = []
+    real = lookup.prefetch
+    monkeypatch.setattr(lookup, "prefetch", lambda names: batches.append(set(names)) or real(names))
+    real_read = derep_keeper.genome_n50
+    lazy: list[str] = []
+    monkeypatch.setattr(
+        derep_keeper,
+        "genome_n50",
+        lambda p: lazy.append(p.name) or real_read(p),
+    )
+
+    out, _ = prefer_gtdb_representatives(
+        result, {"g1.fasta", "g2.fasta", "g3.fasta"}, quality, _LOG, lookup
+    )
+
+    assert {"g2.fasta", "g3.fasta"} in batches
+    assert sorted(lazy) == ["g2.fasta", "g3.fasta"]  # each read once, in the prefetch
+    assert "g3.fasta" in out.clusters  # the larger N50
+
+
+def test_a_corrupt_genome_read_in_a_worker_reaches_the_caller(tmp_path: Path) -> None:
+    """A truncated gzip read on a worker thread raises the same error as a
+    sequential read."""
+    import gzip
+
+    import pytest
+
+    from repgenr.core.errors import UserInputError
+
+    _write_genomes(tmp_path, {f"ok{i}.fasta": [100] for i in range(4)})
+    packed = gzip.compress(b">c\n" + b"A" * 5000 + b"\n")
+    (tmp_path / "bad.fasta").write_bytes(packed[: len(packed) // 2])
+    lookup = N50Lookup([tmp_path], workers=4)
+    with pytest.raises(UserInputError, match="truncated or corrupt"):
+        lookup.prefetch(["bad.fasta", *(f"ok{i}.fasta" for i in range(4))])
