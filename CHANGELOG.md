@@ -229,9 +229,14 @@ All notable changes to RepGenR2 are documented here. The format follows
   another with all threads, while bakta and prokka use many threads in only
   some of their steps. The index is still written on one thread as each
   genome finishes; after a failure the running genomes finish, no new ones
-  start, and the first error is raised. `phylo-build`, when it annotates its
-  own inputs, divides its threads in the same way, and `run --msa-source
-  coregene` passes its `-p` to the annotate stage.
+  start, the first error is raised and later ones are logged. The bakta and
+  prokka log lines name the genome. `phylo-build`, when it annotates its own
+  inputs, divides its threads in the same way, preflights the annotator once
+  and indexes the finished genomes also after a failure, so a rerun reuses
+  them. `run --msa-source coregene` passes its `-p` to the annotate stage.
+  The directory an annotation replaces is moved aside as
+  `.<record>.partial.old`, which can no longer coincide with the partial
+  directory of a record named `<record>.old` annotated at the same time.
 - `dereplicate`, `dereplicate-chunk`, `dereplicate-merge`, `cluster-summary`
   and `derep-stock`: the keeper step reads the genome N50s it compares in
   parallel, with `-t` threads (up to eight for `cluster-summary` and

@@ -138,7 +138,7 @@ class BaktaAnnotator(Annotator):
             self.capabilities,
             cmd,
             logger=logger,
-            log_prefix="bakta",
+            log_prefix=f"bakta {record_name}",
             extra_mounts=[db, os.path.dirname(os.path.abspath(genome))],
         )
         gff = out_dir / f"{record_name}.gff3"

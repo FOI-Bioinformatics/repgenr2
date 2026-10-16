@@ -502,7 +502,6 @@ def test_stage_annotates_genomes_in_parallel(
     lock = threading.Lock()
     state = {"running": 0, "peak": 0}
     threads_seen: list[int] = []
-    inputs_seen: list[Path] = []
     real_call = _FakeAnnotator.call
 
     def call(self, genome, record_name, out_dir, params, logger):
@@ -510,7 +509,6 @@ def test_stage_annotates_genomes_in_parallel(
             state["running"] += 1
             state["peak"] = max(state["peak"], state["running"])
             threads_seen.append(params.threads)
-            inputs_seen.append(genome.parent)
         time.sleep(0.1)
         try:
             return real_call(self, genome, record_name, out_dir, params, logger)
@@ -543,7 +541,8 @@ def test_a_failed_genome_keeps_the_others_in_the_index(
             gate.wait(5)
             return real_call(self, genome, record_name, out_dir, params, logger)
         if record_name.endswith("000002"):
-            gate.set()
+            # Released only after this worker has raised and set the stop flag.
+            threading.Timer(0.2, gate.set).start()
             raise RuntimeError("annotator failed")
         return real_call(self, genome, record_name, out_dir, params, logger)
 
@@ -583,9 +582,41 @@ def test_parallel_builds_share_an_output_directory(tmp_path: Path, fake) -> None
         lambda g: annotate_build(
             AnnotateBuildParams(genome=g, out_dir=out, tool="fakeannot", threads=1),
             logging.getLogger("t"),
+            shared_out_dir=True,
         ),
         genomes,
         4,
         lambda _g, _r: None,
     )
-    assert sorted(p.name for p in out.iterdir()) == ["g0", "g1", "g2", "g3"]
+    assert sorted(p.name for p in out.iterdir()) == [".scratch", "g0", "g1", "g2", "g3"]
+    assert not any((out / ".scratch").iterdir())  # each build removed its own scratch
+    annotate_build(
+        AnnotateBuildParams(genome=genomes[0], out_dir=out, tool="fakeannot", threads=1),
+        logging.getLogger("t"),
+    )
+    assert not (out / ".scratch").exists()  # a single build removes the root
+
+
+def test_the_worker_count_leaves_the_fingerprint_unchanged() -> None:
+    from repgenr.cli.base import _stage_fingerprint
+
+    def fingerprint(**kw) -> str:
+        return _stage_fingerprint("annotate", AnnotateStageParams(**kw), {}, {})
+
+    assert fingerprint() == fingerprint(num_processes=4) == fingerprint(threads=2)
+    assert fingerprint() != fingerprint(all_genomes=True)
+
+
+def test_publish_leaves_a_dot_old_record_partial_alone(tmp_path: Path) -> None:
+    """Publishing X must not remove the partial directory of a record named
+    X.old that is being annotated beside it."""
+    other = cache.partial_dir(tmp_path, "X.old")
+    other.mkdir(parents=True)
+    (other / "work").write_text("in progress", encoding="utf-8")
+    cache.record_dir(tmp_path, "X").mkdir()
+    cache.partial_dir(tmp_path, "X").mkdir()
+    cache.publish(tmp_path, "X")
+    assert (other / "work").is_file()
+    (tmp_path / ".X.partial.old").mkdir()
+    cache.clear_partials(tmp_path)
+    assert not other.exists() and not (tmp_path / ".X.partial.old").exists()

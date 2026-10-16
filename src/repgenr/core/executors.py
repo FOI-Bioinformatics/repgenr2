@@ -53,16 +53,22 @@ def parallel_each[T, R](
     items: Iterable[T],
     workers: int,
     on_done: Callable[[T, R], None],
+    *,
+    logger: logging.Logger | None = None,
+    describe: Callable[[T], str] = str,
 ) -> None:
     """Apply ``fn`` to each item, up to ``workers`` at a time, and hand each
     result to ``on_done`` on the calling thread as it completes.
 
     For work whose results must be recorded as they arrive (an index written
     after every genome), so an interrupted run keeps what finished. On a
-    worker failure the queued items are cancelled, the running ones settle and
-    their results still reach ``on_done``, and the first error is raised. A
-    termination signal cancels the queued items and propagates once the
-    running ones settle. Runs sequentially when ``workers <= 1``.
+    worker failure, or an exception from ``on_done``, the queued items are
+    cancelled (an item a freed worker took up before this thread saw an
+    ``on_done`` error still runs), the running ones settle and their results still reach
+    ``on_done``, and the first error is raised; later failures are logged to
+    ``logger`` as warnings, naming the item by ``describe``. A termination
+    signal cancels the queued items and propagates once the running ones
+    settle. Runs sequentially when ``workers <= 1``.
     """
     items_list: Sequence[T] = list(items)
     if workers <= 1 or len(items_list) <= 1:
@@ -93,13 +99,20 @@ def parallel_each[T, R](
             exc = future.exception()
             if isinstance(exc, _Skipped):
                 continue
-            if exc is not None:
-                if error is None:
-                    error = exc
-                    for pending in future_to_item:
-                        pending.cancel()
-                continue
-            on_done(future_to_item[future], future.result())
+            item = future_to_item[future]
+            if exc is None:
+                try:
+                    on_done(item, future.result())
+                    continue
+                except Exception as done_exc:
+                    exc = done_exc
+            if error is None:
+                error = exc
+                stop.set()
+                for pending in future_to_item:
+                    pending.cancel()
+            elif logger is not None:
+                logger.warning("%s also failed: %s", describe(item), exc)
     except BaseException:
         stop.set()
         pool.shutdown(wait=True, cancel_futures=True)

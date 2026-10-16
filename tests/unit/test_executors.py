@@ -89,7 +89,8 @@ def test_parallel_each_failure_keeps_running_results_and_skips_queued() -> None:
             return x
         if x == 2:
             time.sleep(0.05)
-            gate.set()
+            # Released only after this worker has raised and set the stop flag.
+            threading.Timer(0.2, gate.set).start()
             raise ValueError("boom")
         return x
 
@@ -97,3 +98,35 @@ def test_parallel_each_failure_keeps_running_results_and_skips_queued() -> None:
         parallel_each(work, [1, 2, 3, 4, 5], 2, lambda x, _r: delivered.append(x))
     assert delivered == [1]
     assert sorted(started) == [1, 2]
+
+
+def test_parallel_each_on_done_error_is_the_first_error(caplog) -> None:
+    """An exception from on_done stops the queue like a worker failure; a
+    later worker failure is logged, not raised."""
+    import logging
+
+    from repgenr.core.executors import parallel_each
+
+    gate = threading.Event()
+    started: list[int] = []
+
+    def work(x: int) -> int:
+        started.append(x)
+        if x == 2:
+            gate.wait(5)
+            raise RuntimeError("second failure")
+        return x
+
+    def on_done(x: int, _r: int) -> None:
+        if not gate.is_set():
+            threading.Timer(0.2, gate.set).start()
+        raise OSError("index not written")
+
+    with caplog.at_level(logging.WARNING, logger="t"):
+        with pytest.raises(OSError, match="index not written"):
+            parallel_each(
+                work, [1, 2, 3, 4], 2, on_done, logger=logging.getLogger("t"), describe=str
+            )
+    # Not asserted: which items started. A worker may take up the next item
+    # before this thread runs on_done, so that depends on timing.
+    assert "2 also failed: second failure" in caplog.text

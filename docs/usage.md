@@ -1959,15 +1959,15 @@ resume inputs through its `version.json`, so replacing it re-annotates.
 `kingdom=Bacteria`, `gcode=11` for prokka).
 
 **Run time and parallel genomes.** bakta takes about 5 to 15 minutes per
-genome. An annotator uses many threads in only some of its steps, so the
-stage annotates several genomes at once and splits `-t` between them:
-`-p/--num-processes` sets how many, and the default (0) takes about one
-genome per four threads, capped by the usable CPUs (`-t 16` gives four
-genomes with four threads each). Each running genome is a separate
-annotator process; allow a few GB of memory for each with bakta. A genus-level set is still a cluster job, where the Nextflow route
-runs one task per genome. `phylo-build`, when it annotates its own inputs,
-divides its `-t` in the same way. `repgenr run --msa-source coregene`
-passes its `-p` to the annotate stage.
+genome. An annotator uses many threads in only some of its steps, so the stage
+annotates several genomes at once and splits `-t` between them:
+`-p/--num-processes` sets how many, and the default (0) takes about one genome
+per four threads, capped by the usable CPUs (`-t 16` gives four genomes with
+four threads each). Each running genome is a separate annotator process; allow
+a few GB of memory for each with bakta. A genus-level set is still a cluster
+job, where the Nextflow route runs one task per genome. `phylo-build`, when it
+annotates its own inputs, divides its `-t` in the same way. `repgenr run
+--msa-source coregene` passes its `-p` to the annotate stage.
 
 **Resume.** A later run annotates only the genomes that are new or
 whose genome, annotator, tool version, database version or tuning changed,

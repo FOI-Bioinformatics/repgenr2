@@ -27,6 +27,7 @@ from .inputs import file_digest
 
 GFF_SUFFIX = ".gff3"
 _PARTIAL = ".partial"
+_PARTIAL_OLD = _PARTIAL + ".old"
 SET_GENOMES = "genomes"
 SET_OUTGROUP = "outgroup"
 # Written into each record directory by the annotating step, so a workflow
@@ -161,7 +162,7 @@ def partial_dir(directory: Path, record_name: str) -> Path:
 
 
 def is_partial(name: str) -> bool:
-    return name.startswith(".") and name.endswith(_PARTIAL)
+    return name.startswith(".") and (name.endswith(_PARTIAL) or name.endswith(_PARTIAL_OLD))
 
 
 def clear_partials(directory: Path) -> None:
@@ -178,12 +179,14 @@ def publish(directory: Path, record_name: str) -> Path:
 
     The previous directory is moved aside first and removed only once the new
     one is in place, so a crash between the two leaves one of them, never
-    neither. A leftover ``.<name>.old.partial`` is cleared by
-    :func:`clear_partials`.
+    neither. A leftover ``.<name>.partial.old`` is cleared by
+    :func:`clear_partials`. The suffix differs from a partial directory's, so
+    publishing one record never touches the partial directory of a record
+    named ``<name>.old`` that may be annotated at the same time.
     """
     final = record_dir(directory, record_name)
     tmp = partial_dir(directory, record_name)
-    old = directory / f".{record_name}.old{_PARTIAL}"
+    old = directory / f".{record_name}{_PARTIAL_OLD}"
     shutil.rmtree(old, ignore_errors=True)
     if final.exists():
         os.replace(final, old)

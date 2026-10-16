@@ -15,7 +15,6 @@ many threads in only some of its steps.
 
 from __future__ import annotations
 
-import contextlib
 import logging
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
@@ -163,8 +162,19 @@ def annotate_core(
     )
 
 
-def annotate_build(params: AnnotateBuildParams, logger: logging.Logger) -> AnnotateResult:
-    """Annotate one genome from explicit paths (stateless; no config)."""
+def annotate_build(
+    params: AnnotateBuildParams,
+    logger: logging.Logger,
+    *,
+    versions: dict[str, str] | None = None,
+    shared_out_dir: bool = False,
+) -> AnnotateResult:
+    """Annotate one genome from explicit paths (stateless; no config).
+
+    ``versions`` is a preflight the caller ran once for several builds.
+    ``shared_out_dir`` leaves ``out_dir/.scratch`` for the caller to remove,
+    as builds running side by side in one directory share it.
+    """
     from ..core.versions import write_versions_fragment
 
     if params.tool not in annotator_registry.names():
@@ -189,10 +199,11 @@ def annotate_build(params: AnnotateBuildParams, logger: logging.Logger) -> Annot
         AnnotateParams(threads=params.threads, db=db, extra=dict(params.extra)),
         logger,
         annotator=annotator,
+        versions=None if versions is None else dict(versions),
     )
     remove_tree(scratch)
-    with contextlib.suppress(OSError):
-        (params.out_dir / ".scratch").rmdir()  # only once no other build uses it
+    if not shared_out_dir:
+        remove_tree(params.out_dir / ".scratch")
     if params.versions_out is not None:
         write_versions_fragment(params.versions_out, versions)
     logger.info("Annotated %s into %s", name, result.gff.parent)
@@ -440,7 +451,12 @@ def run(ctx: WorkdirContext, params: AnnotateStageParams) -> AnnotateSummary:
         annotated += 1
         logger.info("Annotated %s (%d of %d)", name, annotated, len(todo))
 
-    parallel_each(annotate_one, todo, jobs, record)
+    try:
+        parallel_each(
+            annotate_one, todo, jobs, record, logger=logger, describe=lambda task: task[2]
+        )
+    finally:
+        remove_tree(scratch)
     remove_tree(scratch)
     index = cache.write_index(directory, records)
     logger.info(
