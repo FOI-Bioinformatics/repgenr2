@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 import pytest
@@ -89,7 +90,7 @@ def genomes(workdir: Path) -> list[Path]:
 
 
 def _ctx(workdir: Path) -> WorkdirContext:
-    return WorkdirContext(workdir, create=True)
+    return WorkdirContext(workdir, create=True, logger=logging.getLogger("test-refine"))
 
 
 def test_dereplicate_refines_the_seed_cluster_in_one_run(workdir: Path, genomes, tiered) -> None:
@@ -223,3 +224,129 @@ def test_stock_carries_the_refined_file(workdir: Path, genomes, tiered) -> None:
     stock_run(ctx, DerepStockParams(action="unpack", name="coarse"))
     assert not (ctx.derep_dir / REFINED_TSV).exists()
     assert not any(r.refined for r in read_cluster_summary(ctx.derep_dir / CLUSTER_SUMMARY_TSV))
+
+
+def _invoke(workdir: Path, seeds: list[str], ani: float = 0.999) -> None:
+    cli_base._run("derep_refine", workdir, lambda: DerepRefineParams(seeds=seeds, ani=ani))
+
+
+def test_a_later_refinement_keeps_the_earlier_one(workdir: Path, genomes, tiered) -> None:
+    """Refining B after A keeps A's fine clusters and its rows; a plain
+    dereplicate afterwards drops the derep_refine record with the result."""
+    ctx = _ctx(workdir)
+    run(ctx, DereplicateParams(tool="tiered", refine=[A111], refine_ani=0.999))
+    ctx.close()
+    _Tiered.calls = []
+    _invoke(workdir, [B212])
+    assert _Tiered.calls == [(3, 0.999)]
+    ctx = WorkdirContext(workdir)
+    assert read_clusters(ctx.derep_dir / CLUSTERS_TSV) == {
+        A111: [A112],
+        A121: [],
+        B211: [B212],
+        B221: [],
+        C311: [],
+    }
+    rows = {r.genome: r for r in read_refined(ctx.derep_dir / REFINED_TSV)}
+    assert set(rows) == {A111, A112, A121, B211, B212, B221}
+    assert rows[A121].seed == A111 and rows[B221].seed == B212
+    summary = {
+        r.representative: r.refined
+        for r in read_cluster_summary(ctx.derep_dir / CLUSTER_SUMMARY_TSV)
+    }
+    assert summary == {A111: True, A121: True, B211: True, B221: True, C311: False}
+    _Tiered.calls = []
+    _invoke(workdir, [B212])  # a repeat is skipped by the harness
+    assert _Tiered.calls == []
+    ctx = WorkdirContext(workdir)
+    run(ctx, DereplicateParams(tool="tiered"))
+    assert "derep_refine" not in ctx.config.stages
+    ctx.close()
+    _Tiered.calls = []
+    _invoke(workdir, [B212])  # the new dereplication is refined again
+    assert _Tiered.calls == [(3, 0.999)]
+
+
+def test_refining_a_seed_again_starts_from_its_coarse_cluster(
+    workdir: Path, genomes, tiered
+) -> None:
+    ctx = _ctx(workdir)
+    run(ctx, DereplicateParams(tool="tiered", refine=[A111], refine_ani=0.999))
+    ctx.close()
+    _Tiered.calls = []
+    _invoke(workdir, [A111], ani=0.9995)
+    # All three genomes of the original coarse cluster, not the two of A111's fine cluster.
+    assert _Tiered.calls == [(3, 0.9995)]
+    ctx = WorkdirContext(workdir)
+    rows = {r.genome: r for r in read_refined(ctx.derep_dir / REFINED_TSV)}
+    assert set(rows) == {A111, A112, A121}
+    assert {r.coarse_representative for r in rows.values()} == {A111}
+    assert ctx.config.stages["derep_refine"].params["refine_ani"] == 0.9995
+
+
+def test_refine_is_refused_before_the_coarse_pass(workdir: Path, genomes, tiered) -> None:
+    from repgenr.stages.dereplicate import precheck
+
+    ctx = _ctx(workdir)
+    for params, text in [
+        (DereplicateParams(tool="tiered", refine=["GCA_999"], refine_ani=0.999), "not under"),
+        (DereplicateParams(tool="tiered", refine=[A111], refine_ani=0.9), "not finer"),
+        (
+            DereplicateParams(tool="tiered", refine=[A111], refine_ani=0.999, target_reps=2),
+            "--target-reps",
+        ),
+    ]:
+        # The harness runs the precheck before the record is touched.
+        with pytest.raises(UserInputError, match=text):
+            precheck(ctx, params)
+        with pytest.raises(UserInputError, match=text):
+            run(ctx, params)
+    assert _Tiered.calls == []
+
+
+def test_refine_with_reduce_keeps_the_lineage_apart(workdir: Path, genomes, tiered) -> None:
+    """Every genome is F. tularensis by filename: --reduce species folds B and
+    C together and leaves the two refined clusters."""
+    from repgenr.core.manifest import GenomeRecord
+
+    ctx = _ctx(workdir)
+    ctx.manifest.upsert_many(
+        [
+            GenomeRecord(
+                accession=f"GCA_000{a}",
+                filename=n,
+                genus="francisella",
+                species="tularensis",
+            )
+            for a, n in zip((111, 112, 121, 211, 212, 221, 311), NAMES, strict=True)
+        ]
+    )
+    run(ctx, DereplicateParams(tool="tiered", refine=[A111], refine_ani=0.999, reduce="species"))
+    clusters = read_clusters(ctx.derep_dir / CLUSTERS_TSV)
+    assert {A111, A121} < set(clusters) and len(clusters) == 3
+    other = next(rep for rep in clusters if rep not in (A111, A121))
+    assert sorted([other, *clusters[other]]) == [B211, B212, B221, C311]
+
+
+def test_refine_after_a_chunked_coarse_pass(workdir: Path, genomes, tiered) -> None:
+    ctx = _ctx(workdir)
+    run(ctx, DereplicateParams(tool="tiered", process_size=4, refine=[B211], refine_ani=0.999))
+    assert _Tiered.calls[-1] == (3, 0.999)
+    assert read_clusters(ctx.derep_dir / CLUSTERS_TSV) == {
+        A111: [A112, A121],
+        B211: [B212],
+        B221: [],
+        C311: [],
+    }
+
+
+def test_derep_refine_with_a_gtdb_keeper_record_warns_nothing_false(
+    workdir: Path, genomes, tiered, caplog
+) -> None:
+    ctx = _ctx(workdir)
+    run(ctx, DereplicateParams(tool="tiered", keeper="gtdb"))
+    caplog.clear()
+    with caplog.at_level(logging.INFO):
+        refine_run(ctx, DerepRefineParams(seeds=[A111], ani=0.999))
+    assert "metadata --force" not in caplog.text
+    assert "no GTDB species representative among the lineage genomes" in caplog.text

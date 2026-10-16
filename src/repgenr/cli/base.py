@@ -460,11 +460,10 @@ STAGE_INPUTS: dict[str, Any] = {
         ctx.workdir / "virus_download_wd" / "metadata_ncbi.tsv",
     ],
     "dereplicate": lambda ctx, p: [ctx.genomes_dir],
-    # Its own outputs (the derep tables, the manifest) are not inputs: the
-    # stage itself checks whether the result on disk is already this
-    # refinement of the recorded dereplication; a plain dereplicate removes
-    # refined.tsv, a missing deliverable, so the refinement reruns after it.
-    "derep_refine": lambda ctx, p: [ctx.genomes_dir],
+    # Its own output is an input, digested again after the run (below), so a
+    # repeat is skipped and any later dereplicate or unpack reruns it. The
+    # manifest is left out: the stage rewrites it too.
+    "derep_refine": lambda ctx, p: [ctx.derep_dir / CLUSTERS_TSV, ctx.genomes_dir],
     "snptype": lambda ctx, p: [
         ctx.genomes_dir if getattr(p, "all_genomes", False) else ctx.representatives_dir
     ],
@@ -708,6 +707,7 @@ QUERY_ONLY_FLAGS: dict[str, tuple[str, ...]] = {
 # the run, so an identical repeat matches the new state and skips.
 _REDIGEST_AFTER_RUN: dict[str, Any] = {
     "derep_stock": lambda p: getattr(p, "action", None) == "unpack",
+    "derep_refine": lambda p: True,
     "metadata": lambda p: getattr(p, "nodownload", False),
 }
 

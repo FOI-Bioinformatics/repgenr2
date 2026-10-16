@@ -127,6 +127,13 @@ def precheck(ctx: WorkdirContext, params: DereplicateParams) -> None:
         raise WorkdirError(
             f"No genome FASTAs found under {ctx.genomes_dir}. Run the genome stage first."
         )
+    if params.refine:
+        # A refinement that cannot run must be refused before the coarse pass.
+        _check_refine_request(ctx, params, genomes)
+    elif params.refine_ani is not None:
+        ctx.logger.warning(
+            "--refine-ani %s is given without --refine seeds; ignored", params.refine_ani
+        )
     tool = params.tool
     if tool == "auto":
         tool = auto_select(registry, len(genomes)) or "skder"
@@ -165,6 +172,9 @@ def run(ctx: WorkdirContext, params: DereplicateParams) -> DerepResult:
         raise WorkdirError(
             f"No genome FASTAs found under {ctx.genomes_dir}. Run the genome stage first."
         )
+    if params.refine:
+        # Also checked by precheck; here for callers that bypass the harness.
+        _check_refine_request(ctx, params, genomes)
 
     tool = params.tool
     if tool == "auto":
@@ -228,10 +238,6 @@ def run(ctx: WorkdirContext, params: DereplicateParams) -> DerepResult:
     # N50 per genome for the keeper score and the summary, each genome read once.
     n50 = N50Lookup([ctx.genomes_dir], workers=params.threads)
     lineage = None
-    if params.refine_ani is not None and not params.refine:
-        logger.warning(
-            "--refine-ani %s is given without --refine seeds; ignored", params.refine_ani
-        )
     if params.refine:
         lineage, result = _refine(
             ctx, adapter, result, genomes, scratch, derep_params, params, logger
@@ -265,7 +271,10 @@ def run(ctx: WorkdirContext, params: DereplicateParams) -> DerepResult:
         )
 
     check_result_complete(result, [g.name for g in genomes])
-    rows = refined_rows(result, lineage) if lineage else []
+    refined_any = lineage is not None and bool(lineage.genomes)
+    rows = refined_rows(result, lineage) if refined_any and lineage else []
+    # A derep-refine record describes a result this run replaces.
+    ctx.config.stages.pop("derep_refine", None)
     # The summary reports quality whichever keeper rule was used, so a
     # --keeper tool run still shows where a member outscores the keeper.
     _write_contract(ctx, result, manifest_quality, n50, refined=rows)
@@ -291,7 +300,11 @@ def run(ctx: WorkdirContext, params: DereplicateParams) -> DerepResult:
             # The tool arguments, also merged below as before; derep-refine
             # reads them from here.
             "tool_args": dict(params.extra or {}),
-            **(record_params(lineage, params.refine_ani or 0.0, rows) if lineage else {}),
+            **(
+                record_params(lineage, params.refine_ani or 0.0, rows)
+                if refined_any and lineage
+                else {}
+            ),
             **(params.extra or {}),
         },
         tool_versions=versions,
@@ -381,6 +394,8 @@ def apply_keeper(
     manifest_quality: Mapping[str, tuple[float, float]],
     n50: N50Of,
     logger: logging.Logger,
+    *,
+    gtdb_warning: bool = True,
 ) -> tuple[DerepResult, int, str, dict[str, tuple[float, float]], set[str]]:
     """Apply the ``--keeper`` rule to every cluster of ``result``.
 
@@ -400,7 +415,7 @@ def apply_keeper(
     if keeper == "gtdb":
         quality = {n: q for n, q in manifest_quality.items() if n in names}
         gtdb = gtdb_lookup(ctx) & names
-        if not gtdb:
+        if not gtdb and gtdb_warning:
             logger.warning(
                 "No clustered genome is flagged as a GTDB species "
                 "representative in the manifest, so "
@@ -416,7 +431,7 @@ def apply_keeper(
             result, swaps = rescore_representatives(result, quality, logger, n50)
         else:
             logger.warning(
-                "No assembly quality in the manifest for the genomes under genomes/, "
+                "No assembly quality in the manifest for the clustered genomes, "
                 "so --keeper quality has no effect: keeping the tool's own "
                 "representatives. GTDB selections carry CheckM quality, assemble "
                 "--checkm2-db scores assemblies, and ingest --selection reads the "
@@ -437,11 +452,8 @@ def _refine(
     logger: logging.Logger,
 ) -> tuple[Lineage, DerepResult]:
     """``--refine``: dereplicate the seeds' clusters again at ``refine_ani``."""
-    if params.refine_ani is None:
-        raise UserInputError("--refine needs --refine-ani.")
-    check_refine_ani(params.refine_ani, params.secondary_ani)
-    accessions, outgroup = manifest_accessions(ctx)
-    seeds = resolve_seeds(params.refine, genomes, accessions=accessions, outgroup=outgroup)
+    seeds = _check_refine_request(ctx, params, genomes)
+    assert params.refine_ani is not None
     lineage = lineage_of(result, seeds, logger)
     if not lineage.genomes:
         logger.warning("Every --refine seed is alone in its cluster; nothing was refined")
@@ -451,6 +463,22 @@ def _refine(
         adapter, lineage, paths, scratch / "refine", derep_params, params.refine_ani, logger
     )
     return lineage, splice(result, lineage, sub, paths, logger)
+
+
+def _check_refine_request(
+    ctx: WorkdirContext, params: DereplicateParams, genomes: Sequence[Path]
+) -> list[str]:
+    """Refuse a ``--refine`` request that cannot run; the resolved seed filenames."""
+    if params.refine_ani is None:
+        raise UserInputError("--refine needs --refine-ani.")
+    if params.target_reps and params.target_reps > 0:
+        raise UserInputError(
+            "--refine cannot be combined with --target-reps: the search sets the secondary "
+            "ANI itself, so the refinement would have no fixed threshold to be finer than."
+        )
+    check_refine_ani(params.refine_ani, params.secondary_ani)
+    accessions, outgroup = manifest_accessions(ctx)
+    return resolve_seeds(params.refine, genomes, accessions=accessions, outgroup=outgroup)
 
 
 def _auto_num_processes(threads: int) -> int:

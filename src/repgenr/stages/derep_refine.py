@@ -122,21 +122,33 @@ def resolve_seeds(
     are refused with their names.
     """
     by_key: dict[str, str] = {}
+    by_accession: dict[str, set[str]] = {}
     for g in genomes:
         by_key[g.name] = g.name
         by_key[strip_fasta_suffix(g.name)] = g.name
         acc = accession_from_filename(g.name)
         if acc:
-            by_key.setdefault(acc, g.name)
+            by_accession.setdefault(acc, set()).add(g.name)
     for acc, filename in (accessions or {}).items():
-        by_key.setdefault(acc, filename)
+        by_accession.setdefault(acc, set()).add(filename)
     out_keys = {n for o in outgroup for n in (o, strip_fasta_suffix(o))}
+    present = {g.name for g in genomes}
     resolved: list[str] = []
     unknown: list[str] = []
     for seed in seeds:
-        name = by_key.get(seed.strip())
-        if name is None or name not in {g.name for g in genomes}:
-            if seed.strip() in out_keys:
+        key = seed.strip()
+        name = by_key.get(key)
+        if name is None:
+            # An accession: refused when two genomes under genomes/ carry it.
+            files = sorted(by_accession.get(key, set()) & present)
+            if len(files) > 1:
+                raise UserInputError(
+                    f"--refine {seed} names {len(files)} genomes ({', '.join(files)}); "
+                    "give the filename."
+                )
+            name = files[0] if files else None
+        if name is None:
+            if key in out_keys:
                 raise UserInputError(
                     f"--refine {seed}: the outgroup is not dereplicated, so it cannot seed "
                     "a lineage."
@@ -152,13 +164,32 @@ def resolve_seeds(
     return resolved
 
 
-def lineage_of(result: DerepResult, seeds: Sequence[str], logger: logging.Logger) -> Lineage:
-    """Every coarse cluster that holds a seed, as the genomes to refine."""
+def lineage_of(
+    result: DerepResult,
+    seeds: Sequence[str],
+    logger: logging.Logger,
+    prior: Sequence[RefinedRow] = (),
+) -> Lineage:
+    """The clusters of ``result`` to refine for ``seeds``: every cluster that
+    holds a seed, whole.
+
+    ``prior`` is the ``refined.tsv`` of a result refined before. A seed that
+    was refined then brings in its original coarse cluster (every genome the
+    rows place under the same ``coarse_representative``), and every current
+    cluster holding one of those genomes joins, so refining a seed again, at
+    another ANI, starts from the same coarse cluster and not from the fine
+    cluster the seed sits in now. ``coarse_rep_of`` keeps that original
+    representative for such genomes.
+    """
     rep_of: dict[str, str] = {}
     for rep, members in result.clusters.items():
         rep_of[rep] = rep
         for m in members:
             rep_of[m] = rep
+    earlier_rep = {r.genome: r.coarse_representative for r in prior}
+    earlier_cluster: dict[str, list[str]] = {}
+    for genome, rep in earlier_rep.items():
+        earlier_cluster.setdefault(rep, []).append(genome)
     genomes: list[str] = []
     coarse: list[str] = []
     seed_of: dict[str, str] = {}
@@ -170,22 +201,34 @@ def lineage_of(result: DerepResult, seeds: Sequence[str], logger: logging.Logger
                 f"--refine {seed}: the genome failed the dereplicator's quality check and "
                 "belongs to no cluster."
             )
-        seed_rep = rep_of.get(seed)
-        if seed_rep is None:
+        if seed not in rep_of:
             raise WorkdirError(f"--refine {seed}: the genome is in no cluster of the result.")
-        if seed_rep in coarse:
-            continue
-        cluster = [seed_rep, *result.clusters[seed_rep]]
+        # The seed's original coarse cluster when it was refined before, else
+        # the seed; then every current cluster holding any of them.
+        start = earlier_cluster.get(earlier_rep.get(seed, ""), [seed])
+        reps = sorted({rep_of[g] for g in start if g in rep_of}, key=list(result.clusters).index)
+        cluster = [g for rep in reps for g in (rep, *result.clusters[rep])]
         if len(cluster) == 1:
             skipped.append(seed)
             logger.info("Refine: %s is alone in its cluster; nothing to refine there", seed)
             continue
-        coarse.append(seed_rep)
-        for g in cluster:
-            genomes.append(g)
-            seed_of[g] = seed
-            coarse_rep_of[g] = seed_rep
+        for rep in reps:
+            if rep in coarse:
+                continue
+            coarse.append(rep)
+            for g in (rep, *result.clusters[rep]):
+                genomes.append(g)
+                seed_of[g] = seed
+                coarse_rep_of[g] = earlier_rep.get(g, rep)
     return Lineage(genomes, coarse, seed_of, coarse_rep_of, skipped)
+
+
+def merge_rows(
+    prior: Sequence[RefinedRow], rows: Sequence[RefinedRow], lineage: Lineage
+) -> list[RefinedRow]:
+    """``rows`` with the earlier refinements of genomes outside ``lineage`` kept."""
+    inside = set(lineage.genomes)
+    return [r for r in prior if r.genome not in inside] + list(rows)
 
 
 def fine_pass(
@@ -296,14 +339,16 @@ def record_params(lineage: Lineage, ani: float, rows: Sequence[RefinedRow]) -> d
 
 
 def manifest_accessions(ctx: WorkdirContext) -> tuple[dict[str, str], set[str]]:
-    """(accession -> filename, outgroup filenames) from the manifest; empty
-    without one."""
+    """(accession -> filename of the ingroup, names and accessions of the
+    outgroup) from the manifest; empty without one."""
     try:
         records = ctx.manifest.all_genomes(include_outgroup=True)
     except (sqlite3.OperationalError, OSError):
         return {}, set()
-    accessions = {r.accession: r.filename for r in records if r.accession and r.filename}
-    outgroup = {r.filename for r in records if r.is_outgroup and r.filename}
+    accessions = {
+        r.accession: r.filename for r in records if r.accession and r.filename and not r.is_outgroup
+    }
+    outgroup = {n for r in records if r.is_outgroup for n in (r.filename, r.accession) if n}
     return accessions, outgroup
 
 
@@ -376,10 +421,17 @@ def run(ctx: WorkdirContext, params: DerepRefineParams) -> DerepResult:
     )
     accessions, outgroup = manifest_accessions(ctx)
     seeds = resolve_seeds(params.seeds, genomes, accessions=accessions, outgroup=outgroup)
-    lineage = lineage_of(result, seeds, logger)
+    prior_rows = read_refined(ctx.derep_dir / REFINED_TSV)
+    lineage = lineage_of(result, seeds, logger, prior_rows)
     if not lineage.genomes:
         raise UserInputError(
             "Every --refine seed is alone in its cluster; there is nothing to refine."
+        )
+    if rec.get("reduce", "none") != "none":
+        logger.warning(
+            "The dereplication was reduced to one representative per %s, so a cluster on "
+            "disk is a whole taxon group; the lineage is refined as such.",
+            rec.get("reduce"),
         )
 
     tool = record.tool
@@ -413,11 +465,18 @@ def run(ctx: WorkdirContext, params: DerepRefineParams) -> DerepResult:
     scratch = ctx.scratch_dir / "derep_refine"
     sub = fine_pass(adapter, lineage, paths, scratch, derep_params, params.ani, logger)
     n50 = N50Lookup([ctx.genomes_dir], workers=params.threads)
-    sub, _swaps, _effective, _quality, _gtdb = apply_keeper(
-        ctx, sub, str(rec.get("keeper", "quality")), manifest_quality, n50, logger
+    keeper = str(rec.get("keeper", "quality"))
+    sub, _swaps, effective, _quality, _gtdb = apply_keeper(
+        ctx, sub, keeper, manifest_quality, n50, logger, gtdb_warning=False
     )
+    if keeper == "gtdb" and effective != "gtdb":
+        logger.info(
+            "Refine: no GTDB species representative among the lineage genomes; the %s "
+            "rule chose the representatives",
+            "quality" if effective == "quality" else "tool's own",
+        )
     refined = splice(result, lineage, sub, paths, logger)
-    rows = refined_rows(refined, lineage)
+    rows = merge_rows(prior_rows, refined_rows(refined, lineage), lineage)
     _write_contract(ctx, refined, manifest_quality, n50, refined=rows)
     _update_manifest(ctx, refined)
     remove_tree(scratch)

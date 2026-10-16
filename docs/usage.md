@@ -1435,14 +1435,28 @@ rewrites the dereplication outputs in place and records a `derep_refine`
 stage; `phylo` and `tree2tax` then rebuild from the refined set. A later
 `dereplicate` (forced, or with changed inputs) recomputes the coarse result
 and discards the refinement, so store the result you want to keep with
-`derep-stock` first. `repgenr run --msa-source ... --refine ... --refine-ani`
-passes both to its `dereplicate` stage.
+`derep-stock` first. `repgenr run ... --refine SEED --refine-ani F` passes
+both to its `dereplicate` stage. A seed given as an accession needs the
+version suffix the filename carries (`GCA_000123.1` when the file is named
+so); unknown seeds, the outgroup, a genome the dereplicator rejected and an
+ANI that is not finer are refused before the coarse pass runs.
 
 The keeper rule chooses the representative of each refined cluster as of any
 other. `--reduce species|genus` leaves the refined clusters apart, since they
-share a species by construction. `--target-reps` searches the secondary ANI
-of the coarse pass only; the refinement adds representatives on top of the
-count it lands on. The outgroup is never part of a lineage.
+share a species by construction; the species then keeps one representative
+outside the lineage and the refined ones inside it. `--refine` cannot be
+combined with `--target-reps`, whose search sets the secondary ANI itself.
+The outgroup is never part of a lineage.
+
+`derep-refine` can be applied more than once, for another lineage or for the
+same seed at another ANI. A seed refined before brings in its original
+coarse cluster, read from `refined.tsv`, so refining it again at a finer ANI
+starts from the same genomes and not from the fine cluster it sits in now;
+the rows of lineages left untouched are kept. On a result reduced with
+`--reduce`, a cluster on disk is a whole taxon group, and the lineage is
+refined as such, with a warning. The seeds and ANI of a `derep-refine` live
+in its own stage record; `derep-stock` stores the `dereplicate` record and
+`refined.tsv`, so after an unpack the file alone describes the refinement.
 
 The lineage genomes are listed in `derep/refined.tsv` (genome, seed, the
 coarse representative, the final representative and status), and the

@@ -390,6 +390,8 @@ def dereplicate_params(
         if value is not _UNSET:
             _require_unit_interval(value, label)
     _check_refine(refine, refine_ani)
+    if refine is not _UNSET and refine and target_reps is not _UNSET and target_reps > 0:
+        raise UserInputError("--refine cannot be combined with --target-reps.")
     return _build(
         DereplicateParams,
         tool=tool,
