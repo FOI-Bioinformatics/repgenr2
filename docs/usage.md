@@ -2735,9 +2735,11 @@ run from the batch, so check `reads_screen.tsv` for such rows. A screen that
 passes no run stops the pipeline, and `--reads_screen` without
 `--gtdb_sketch` and `--gtdb_lineages` is refused before any task.
 `--reads_sketch` alone runs the sketch task and publishes the sketches
-without a screen; both parameters apply to `--mode reads` only. Both tasks need `fastq-dump`
-(sra-tools) and sourmash in the task environment; the screen also needs the
-GTDB sketch on a path every task can read.
+without a screen; both parameters apply to `--mode reads` only. Both tasks
+need `fastq-dump` (sra-tools) and sourmash in the task environment; the
+screen also needs the GTDB sketch on a path every task can read, given as
+parameters (the `REPGENR_GTDB_*` environment variables the CLI accepts are
+not read by the pipeline).
 
 ```bash
 nextflow run nextflow/main.nf --mode reads --outdir results \

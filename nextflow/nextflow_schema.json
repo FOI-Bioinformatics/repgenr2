@@ -159,7 +159,7 @@
                 "reads_screen": {
                     "type": "boolean",
                     "default": false,
-                    "description": "Judge the sketches against the GTDB sketch before any download (READS_SCREEN, the standalone form of repgenr reads-screen: taxon_mismatch, low_match_fraction, duplicate_isolate) and assemble only the runs of passed.txt. Needs gtdb_sketch and gtdb_lineages.",
+                    "description": "Judge the sketches against the GTDB sketch before any download (READS_SCREEN, the standalone form of repgenr reads-screen: taxon_mismatch, low_match_fraction, duplicate_isolate) and assemble only the runs of passed.txt. Needs gtdb_sketch and gtdb_lineages as parameters (the REPGENR_GTDB_* environment variables the CLI accepts are not read here).",
                     "fa_icon": "fas fa-filter"
                 },
                 "reads_screen_args": {

@@ -5,9 +5,8 @@
 // sourmash, so no FASTQ file is written, and params.reads_sketch_spots caps
 // the spots read per run (task.ext.args carries --max-spots). Each stream is
 // a network-bound fastq-dump and sourmash pair, so at least four run at once.
-// Emits the
-// sketches directory, which holds one <variant>/ (all/ or spots_N/) with a
-// .sig.zip per run and the index reads_sketches.tsv. No shared workdir.
+// Emits the sketches directory, which holds one <variant>/ (all/ or spots_N/)
+// with a .sig.zip per run and the index reads_sketches.tsv. No shared workdir.
 
 process READS_SKETCH {
     label 'process_low'
