@@ -41,6 +41,7 @@ from ..core.executors import parallel_map
 from ..core.plugins import preflight
 from ..core.resources import usable_cpus
 from ..core.sourmash import SOURMASH_TOOL
+from ..core.versions import write_versions_fragment
 from .assemble_screen import (
     DUPLICATE_ISOLATE,
     EXCUSED,
@@ -229,6 +230,44 @@ def run(ctx: WorkdirContext, params: ReadsScreenParams) -> int:
             counts["unsketched"],
             sketch_dir.relative_to(ctx.workdir),
         )
+    return counts["passed"]
+
+
+def run_standalone(
+    reads_tsv: Path,
+    sketches_dir: Path,
+    out_root: Path,
+    params: ReadsScreenParams,
+    *,
+    force: bool,
+    logger: logging.Logger,
+    versions_out: Path | None = None,
+) -> int:
+    """Without a workdir: screen the runs of ``reads_tsv`` from the sketches
+    of ``sketches_dir`` (the ``-o DIR`` of reads-sketch) into
+    ``out_root/<variant>/``, and record nothing. ``versions_out`` takes the
+    tool versions as a YAML fragment (Nextflow)."""
+    if not reads_tsv.is_file():
+        raise UserInputError(f"--reads-tsv {reads_tsv} is not a file.")
+    rows = read_reads(reads_tsv)
+    chosen = select_runs(rows, params)
+    variant = resolve_variant(sketches_dir, params.max_spots)
+    _known, max_spots = reads_sketch_variant_spots(variant)
+    settings = settings_of(params)
+    versions = preflight(SOURMASH_TOOL)
+    if versions_out is not None:
+        write_versions_fragment(versions_out, versions)
+    counts = screen_runs(
+        chosen,
+        sketches_dir / variant,
+        out_root / variant,
+        settings,
+        max_spots=max_spots,
+        jobs=params.jobs or default_jobs(),
+        force=force,
+        logger=logger,
+        all_rows=rows,
+    )
     return counts["passed"]
 
 

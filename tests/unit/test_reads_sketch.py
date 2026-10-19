@@ -499,3 +499,38 @@ def test_harness_leaves_no_completed_record_when_every_run_fails(
     status = _runner.invoke(app, ["status", "-wd", wd, "--json"])
     names = {s["name"]: s["state"] for s in json.loads(status.output)["stages"]}
     assert names.get("reads_sketch", "pending") != "done"
+
+
+def test_standalone_sketches_the_runs_of_a_reads_tsv(tmp_path: Path, fake_tools: Path) -> None:
+    reads = tmp_path / "reads.tsv"
+    write_reads(reads, [_row("SRR1"), _row("SRR2")])
+    out = tmp_path / "sketches"
+    versions = tmp_path / "tool_versions.yml"
+    result = _runner.invoke(
+        app,
+        [
+            "reads-sketch",
+            "-o",
+            str(out),
+            "--reads-tsv",
+            str(reads),
+            "--max-spots",
+            "7",
+            "--versions-out",
+            str(versions),
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    index = {r.run_accession: r for r in read_reads_sketches(out / "spots_7" / READS_SKETCHES_TSV)}
+    assert sorted(index) == ["SRR1", "SRR2"] and index["SRR1"].status == "ok"
+    assert "sourmash: 4.9.4" in versions.read_text(encoding="utf-8")
+    subset = _runner.invoke(
+        app, ["reads-sketch", "-o", str(out), "--reads-tsv", str(reads), "--accession", "SRR9"]
+    )
+    assert subset.exit_code == 2 and "Not in" in subset.output
+    missing = _runner.invoke(app, ["reads-sketch", "-o", str(out), "--reads-tsv", "nope.tsv"])
+    assert missing.exit_code == 2 and "is not a file" in missing.output
+    mixed = _runner.invoke(
+        app, ["reads-sketch", "-wd", str(tmp_path / "wd"), "--reads-tsv", str(reads)]
+    )
+    assert mixed.exit_code != 0 and "standalone form" in mixed.output.replace("\n", " ")

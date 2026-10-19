@@ -31,6 +31,7 @@ workflow {
           --metadata_args '<str>'  GTDB selection (bacterial)
           --vmetadata_args / --vgenome_args '<str>'  NCBI Virus selection (viral)
           --reads_args '<str>'   ENA/SRA run selection (reads); --assembler, --checkm2_db, --gtdb_sketch
+          --reads_sketch, --reads_screen  Sketch the runs from the archive stream; screen them against GTDB before any download
           --derep_tool <tool>    Dereplicator for the scatter-gather step
           --derep_process_size N Genomes per dereplication chunk (large inputs)
           --phylo_args '<str>'   Aligner or tree builder for the phylogeny
@@ -45,6 +46,9 @@ workflow {
     // builders would fail inside the first task.
     if (params.phylo_split_msa && (params.phylo_args =~ /--treebuilder(\s+|=)(mashtree|sourmash)\b/).find()) {
         error "phylo_split_msa needs a tree builder that consumes an alignment (iqtree, raxmlng, fasttree); phylo_args is '${params.phylo_args}'"
+    }
+    if (params.mode != 'reads' && (params.reads_sketch || params.reads_screen)) {
+        log.warn "reads_sketch and reads_screen apply to --mode reads only; ignored in ${params.mode} mode"
     }
     log.info paramsSummaryLog(workflow)
 

@@ -10,12 +10,14 @@ from .base import (
     DEFAULT_THREADS,
     HELP_MAX_SPOTS,
     HELP_READS_SKETCH,
+    HELP_READS_TSV_STANDALONE,
     HELP_SCREEN_MIN_FRACTION,
     HELP_SCREEN_READS,
     HELP_SKETCH,
     HELP_SKETCH_JOBS,
     HELP_SKETCH_OUT,
     HELP_THREADS,
+    HELP_VERSIONS_OUT,
     HELP_WORKDIR,
     HELP_WORKDIR_CREATED,
     PANEL_ENTRY,
@@ -130,6 +132,8 @@ def reads_sketch(
     max_spots: int | None = typer.Option(None, "--max-spots", min=1, help=HELP_MAX_SPOTS),
     jobs: int | None = typer.Option(None, "--jobs", min=1, help=HELP_SKETCH_JOBS),
     out: Path | None = typer.Option(None, "-o", "--out", help=HELP_SKETCH_OUT),
+    reads_tsv: Path | None = typer.Option(None, "--reads-tsv", help=HELP_READS_TSV_STANDALONE),
+    versions_out: Path | None = typer.Option(None, "--versions-out", help=HELP_VERSIONS_OUT),
 ) -> None:
     """Sketch the reads of selected runs streamed from SRA, without downloading them."""
     from ..core.logging import configure_logging
@@ -140,6 +144,8 @@ def reads_sketch(
         raise typer.BadParameter("give -wd WORKDIR, or -o DIR for the standalone form")
     if workdir is not None and out is not None:
         raise typer.BadParameter("-o is the standalone form; it does not combine with -wd")
+    if workdir is not None and (reads_tsv is not None or versions_out is not None):
+        raise typer.BadParameter("--reads-tsv and --versions-out belong to the standalone form")
     if workdir is None and platform != "any":
         raise typer.BadParameter("--platform selects from reads.tsv; it needs -wd")
 
@@ -166,12 +172,20 @@ def reads_sketch(
             jobs=jobs,
             force=bool(_RUN_STATE["force"]),
             logger=logger,
+            reads_tsv=None if reads_tsv is None else reads_tsv.resolve(),
+            versions_out=versions_out,
         )
 
 
 @app.command(name="reads-screen", rich_help_panel=PANEL_ENTRY)
 def reads_screen(
-    workdir: Path = typer.Option(..., "-wd", "--workdir", help=HELP_WORKDIR),
+    workdir: Path | None = typer.Option(
+        None,
+        "-wd",
+        "--workdir",
+        help="Workdir with reads.tsv and reads_sketches/; the decisions go to "
+        "reads_screen/<variant>/ and the stage is recorded.",
+    ),
     accession: list[str] = typer.Option(
         [],
         "--accession",
@@ -215,15 +229,38 @@ def reads_screen(
         help="Runs gathered at once (default 4, or the usable CPUs when fewer); each gather "
         "takes about 0.6 GB against the GTDB representatives sketch.",
     ),
+    reads_tsv: Path | None = typer.Option(None, "--reads-tsv", help=HELP_READS_TSV_STANDALONE),
+    sketches_dir: Path | None = typer.Option(
+        None,
+        "--sketches-dir",
+        help="Standalone form: the -o DIR of reads-sketch, holding <variant>/ directories.",
+    ),
+    out: Path | None = typer.Option(
+        None,
+        "-o",
+        "--out",
+        help="Standalone form: write the decisions to DIR/<variant>/ instead of a workdir.",
+    ),
+    versions_out: Path | None = typer.Option(None, "--versions-out", help=HELP_VERSIONS_OUT),
 ) -> None:
     """Judge the sketched runs against GTDB (taxon, match fraction, duplicates) before
     downloading any of them."""
-    from ..stages.reads_screen import ReadsScreenParams
+    from ..core.logging import configure_logging
+    from ..stages.reads_screen import ReadsScreenParams, run_standalone
+    from .base import _RUN_STATE
 
-    _run(
-        "reads_screen",
-        workdir,
-        lambda: ReadsScreenParams(
+    standalone = [reads_tsv, sketches_dir, out]
+    if workdir is None and any(v is None for v in standalone):
+        raise typer.BadParameter(
+            "give -wd WORKDIR, or --reads-tsv, --sketches-dir and -o DIR for the standalone form"
+        )
+    if workdir is not None and (any(v is not None for v in standalone) or versions_out):
+        raise typer.BadParameter(
+            "--reads-tsv, --sketches-dir, -o and --versions-out belong to the standalone form"
+        )
+
+    def build():
+        return ReadsScreenParams(
             accessions=list(accession),
             accession_file=None if accession_file is None else str(accession_file),
             max_spots=max_spots,
@@ -232,8 +269,23 @@ def reads_screen(
             gtdb_sketch=gtdb_sketch,
             gtdb_lineages=gtdb_lineages,
             jobs=jobs,
-        ),
-    )
+        )
+
+    if workdir is not None:
+        _run("reads_screen", workdir, build)
+        return
+    assert reads_tsv is not None and sketches_dir is not None and out is not None
+    logger = configure_logging(None, level=_RUN_STATE["log_level"])
+    with stage_errors(logger):
+        run_standalone(
+            reads_tsv.resolve(),
+            sketches_dir.resolve(),
+            out.resolve(),
+            build(),
+            force=bool(_RUN_STATE["force"]),
+            logger=logger,
+            versions_out=versions_out,
+        )
 
 
 @app.command(rich_help_panel=PANEL_ENTRY)

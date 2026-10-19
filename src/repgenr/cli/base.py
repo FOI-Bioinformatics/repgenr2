@@ -231,6 +231,10 @@ HELP_RANK_RED = (
     "per lineage. Needs branch lengths and a rooted tree."
 )
 HELP_VERSIONS_OUT = "Write resolved tool versions (YAML fragment) here."
+HELP_READS_TSV_STANDALONE = (
+    "Standalone form: a reads.tsv (the reads stage's table) naming the runs, with their "
+    "taxonomy and biosample; --accession and --accession-file then pick a subset of it."
+)
 HELP_SKETCHES_DIR = (
     "A sketches/ directory of <record name>.sig.zip files (k=21, 31, 51; scaled=1000) "
     "made from these genomes. A sourmash tool reads them instead of sketching; "

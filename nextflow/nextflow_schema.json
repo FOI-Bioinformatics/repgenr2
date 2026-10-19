@@ -142,6 +142,31 @@
                     "default": null,
                     "description": "The lineages CSV published with the GTDB sketch.",
                     "fa_icon": "fas fa-file-csv"
+                },
+                "reads_sketch": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Sketch every selected run streamed from the archive (READS_SKETCH, the standalone form of repgenr reads-sketch) and publish the sketches under reads/reads_sketches/. Implied by reads_screen.",
+                    "fa_icon": "fas fa-fingerprint"
+                },
+                "reads_sketch_spots": {
+                    "type": ["integer", "null"],
+                    "default": null,
+                    "minimum": 1,
+                    "description": "Stop the stream of each run after its first N spots (reads-sketch --max-spots); the sketches go to the spots_N variant. Unset sketches the whole run.",
+                    "fa_icon": "fas fa-cut"
+                },
+                "reads_screen": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Judge the sketches against the GTDB sketch before any download (READS_SCREEN, the standalone form of repgenr reads-screen: taxon_mismatch, low_match_fraction, duplicate_isolate) and assemble only the runs of passed.txt. Needs gtdb_sketch and gtdb_lineages as parameters (the REPGENR_GTDB_* environment variables the CLI accepts are not read here).",
+                    "fa_icon": "fas fa-filter"
+                },
+                "reads_screen_args": {
+                    "type": "string",
+                    "default": "",
+                    "description": "Extra flags for reads-screen (--min-fraction, --dup-ani). Reaches READS_SCREEN as task.ext.args after the GTDB paths.",
+                    "fa_icon": "fas fa-sliders-h"
                 }
             }
         },
