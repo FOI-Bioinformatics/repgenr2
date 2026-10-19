@@ -236,7 +236,10 @@ Each adapter declares its container metadata in `ToolCapabilities`:
   single-package adapters pin a BioContainer (galah, sourmash, dRep, snippy,
   ska2, Gubbins, IQ-TREE, FastTree, RAxML-NG, mashtree, and the assemblers and
   polishers). progressiveMauve pins a BioContainer with a compatible boost, and
-  Cactus pins its project image. Four adapters have no pin and run in an image
+  Cactus pins its project image, and sra-tools (`fastq-dump` for
+  `reads-sketch`) pins NCBI's own `ncbi/sra-tools`, built for amd64 and
+  arm64; it is Alpine-based like the skder and SibeliaZ images, which does
+  not affect `fastq-dump`. Four adapters have no pin and run in an image
   only under `--wave`. The `simple` SNP typer (minimap2, samtools, bcftools)
   and parsnp (parsnp, harvesttools) span several packages. The skder and
   SibeliaZ BioContainers are BusyBox-based: the GNU-only calls in their shell
@@ -247,7 +250,8 @@ Each adapter declares its container metadata in `ToolCapabilities`:
   the multi-package adapters. The pin stays the default without Wave.
 
 BioContainers are `linux/amd64`. On Apple Silicon pass
-`--platform linux/amd64` with Rosetta, or use `--wave`.
+`--platform linux/amd64` with Rosetta, or use `--wave`; the sra-tools image
+runs natively there.
 
 #### Storage location
 
