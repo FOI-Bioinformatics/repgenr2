@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import stat
 from pathlib import Path
 
@@ -357,13 +358,20 @@ def test_reads_sketch_command_builds_its_params(monkeypatch, tmp_path: Path) -> 
     assert (p.platform, p.max_spots, p.jobs) == ("ont", 100000, 3)
 
 
+def _plain(output: str) -> str:
+    """Rich's error panel without escapes, box characters and line wrapping."""
+    text = re.sub(r"\x1b\[[0-9;]*m", "", output)
+    text = re.sub(r"[\u2500-\u257f]", " ", text)
+    return " ".join(text.split())
+
+
 def test_reads_sketch_command_needs_a_workdir_or_an_output_directory(tmp_path: Path) -> None:
     result = _runner.invoke(app, ["reads-sketch", "--accession", "SRR1"])
-    assert result.exit_code != 0 and "-o DIR" in result.output
+    assert result.exit_code != 0 and "-o DIR" in _plain(result.output)
     result = _runner.invoke(
         app, ["reads-sketch", "-wd", str(tmp_path / "wd"), "-o", str(tmp_path / "o")]
     )
-    assert result.exit_code != 0 and "standalone" in result.output
+    assert result.exit_code != 0 and "standalone" in _plain(result.output)
 
 
 def test_harness_skips_a_repeat_and_reruns_on_a_new_selection(
