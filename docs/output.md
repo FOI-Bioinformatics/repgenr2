@@ -113,6 +113,15 @@ WD/
 | `reads_sketches/<variant>/<run>.sig.zip` | reads-sketch | One variant directory per cap: `all/` for the whole run, `spots_<N>/` for `--max-spots N`, so sketches at several depths coexist. Inside, the reads sketch of one run of `reads.tsv`, streamed from NCBI with `fastq-dump` and sketched by sourmash without a download: three DNA signatures (k=21, 31, 51, scaled=1000, with abundances) named after the run, the parameters of the `reads.sig.zip` that `assemble` writes beside an assembly. With `--max-spots N` only the first N spots of the run went in. In the standalone form (`-o DIR` instead of `-wd`) the files are written to `DIR/<variant>/`. |
 | `reads_sketches/<variant>/reads_sketches.tsv` | reads-sketch | The index of one variant: one row per run of `reads.tsv` in its order. `status` is `ok`, `failed` or `pending` (never selected); `max_spots` the cap the sketch was made with (empty for the whole run); `spots_read` and `sequences` what `fastq-dump` and sourmash reported; `sketch_file` the file name beside the index; `sketch_params` the sourmash parameter string; `seconds` the wall time of the pipeline; `reason` the last error line of a failed run. Rewritten after every finished run, so an interrupted call keeps what was done. |
 
+## reads-screen
+
+| Path | Produced by | Description |
+|------|-------------|-------------|
+| `reads_screen/<variant>/reads_screen.tsv` | reads-screen | The decisions on the sketches of one variant of `reads_sketches/` (`all/` or `spots_<N>/`): one row per run of `reads.tsv` in its order, with the columns of `screen_reads.tsv` (run, top GTDB match and its genus, the abundance-weighted fraction of the reads in the top species, the earlier run a duplicate was contained in, `decision` as `pass` or `excused`, and the reason: `taxon_mismatch`, `low_match_fraction`, `duplicate_isolate`, or `screen_failed` for a run without a sketch or one the tools failed on). Rows of runs not selected by the call are kept from the earlier table. |
+| `reads_screen/<variant>/passed.txt` | reads-screen | The runs of the table that passed, one accession per line in `reads.tsv` order; `assemble --accession-file` takes it. |
+| `reads_screen/<variant>/<run>/screen.json` | reads-screen | One run's decision with the settings it was made with (thresholds, the resolved GTDB sketch and lineages paths, k=31); kept on a repeat with the same settings while the sketch is unchanged. Absent for a run the tools failed on, so a repeat screens it again. |
+| `reads_screen/<variant>/<run>/screen/` | reads-screen | The `sourmash gather` CSV and the `tax genome` output the decision was made from. |
+
 ## Genome set: genome, ingest, vgenome
 
 These files form the genome set that every later stage reads. On the reads

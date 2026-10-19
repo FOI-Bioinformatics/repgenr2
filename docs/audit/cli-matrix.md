@@ -3,7 +3,7 @@
 Generated from `tests/audit/cli_matrix.yaml` by `scripts/render_cli_matrix.py`;
 `tests/unit/test_cli_matrix.py` keeps both in step with the command tree.
 
-36 commands, 434 flags (434 with a live test or an n/a reason, 0 pending).
+37 commands, 443 flags (443 with a live test or an n/a reason, 0 pending).
 
 ## Global flags
 
@@ -436,6 +436,22 @@ dispatch: `stage`
 | `--max-spots` |  | ReadsSketchParams.max_spots | range | n/a: workdir command; the Nextflow layer has no reads-sketch step yet | tests/live/test_reads_sketch_live.py::test_reads_sketch_streams_two_runs | docs/usage.md, docs/output.md, docs/cli-reference.md, docs/audit/cli-matrix.md |
 | `--jobs` |  | ReadsSketchParams.jobs | range | n/a: workdir command; the Nextflow layer has no reads-sketch step yet | n/a: covered offline with fake fastq-dump and sourmash in tests/unit/test_reads_sketch.py | docs/usage.md, docs/cli-reference.md, docs/audit/cli-matrix.md |
 | `--out` | -o | n/a: the standalone form sketches bare accessions into DIR without a workdir; refused with -wd | stage | n/a: workdir command; the Nextflow layer has no reads-sketch step yet | tests/live/test_reads_sketch_live.py::test_reads_sketch_streams_two_runs | docs/usage.md, docs/output.md, docs/cli-reference.md, docs/audit/cli-matrix.md |
+
+## reads-screen
+
+dispatch: `stage`
+
+| flag | aliases | param | validated | nextflow | live | docs |
+|---|---|---|---|---|---|---|
+| `--workdir` | -wd | workdir | stage | n/a: workdir command; the Nextflow layer has no reads-screen step yet | n/a: covered offline with fake gather tables in tests/unit/test_reads_screen.py; a live check is reported in the pull request | docs/usage.md, docs/output.md, docs/cli-reference.md, docs/audit/cli-matrix.md |
+| `--accession` |  | ReadsScreenParams.accessions | stage | n/a: workdir command; the Nextflow layer has no reads-screen step yet | n/a: covered offline with fake gather tables in tests/unit/test_reads_screen.py; a live check is reported in the pull request | docs/usage.md, docs/cli-reference.md, docs/audit/cli-matrix.md |
+| `--accession-file` |  | ReadsScreenParams.accession_file | stage | n/a: workdir command; the Nextflow layer has no reads-screen step yet | n/a: covered offline with fake gather tables in tests/unit/test_reads_screen.py; a live check is reported in the pull request | docs/usage.md, docs/cli-reference.md, docs/audit/cli-matrix.md |
+| `--max-spots` |  | ReadsScreenParams.max_spots | range | n/a: workdir command; the Nextflow layer has no reads-screen step yet | n/a: covered offline with fake gather tables in tests/unit/test_reads_screen.py; a live check is reported in the pull request | docs/usage.md, docs/output.md, docs/cli-reference.md, docs/audit/cli-matrix.md |
+| `--min-fraction` |  | ReadsScreenParams.min_fraction | unit_interval | n/a: workdir command; the Nextflow layer has no reads-screen step yet | n/a: covered offline with fake gather tables in tests/unit/test_reads_screen.py; a live check is reported in the pull request | docs/usage.md, docs/cli-reference.md, docs/audit/cli-matrix.md |
+| `--dup-ani` |  | ReadsScreenParams.dup_ani | unit_interval | n/a: workdir command; the Nextflow layer has no reads-screen step yet | n/a: covered offline with fake gather tables in tests/unit/test_reads_screen.py; a live check is reported in the pull request | docs/usage.md, docs/cli-reference.md, docs/audit/cli-matrix.md |
+| `--gtdb-sketch` |  | ReadsScreenParams.gtdb_sketch | stage | n/a: workdir command; the Nextflow layer has no reads-screen step yet | n/a: covered offline with fake gather tables in tests/unit/test_reads_screen.py; a live check is reported in the pull request | docs/usage.md, docs/cli-reference.md, docs/audit/cli-matrix.md |
+| `--gtdb-lineages` |  | ReadsScreenParams.gtdb_lineages | stage | n/a: workdir command; the Nextflow layer has no reads-screen step yet | n/a: covered offline with fake gather tables in tests/unit/test_reads_screen.py; a live check is reported in the pull request | docs/usage.md, docs/cli-reference.md, docs/audit/cli-matrix.md |
+| `--jobs` |  | ReadsScreenParams.jobs | range | n/a: workdir command; the Nextflow layer has no reads-screen step yet | n/a: covered offline with fake gather tables in tests/unit/test_reads_screen.py; a live check is reported in the pull request | docs/usage.md, docs/cli-reference.md, docs/audit/cli-matrix.md |
 
 ## run
 

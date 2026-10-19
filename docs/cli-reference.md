@@ -265,6 +265,23 @@ Sketch the reads of selected runs streamed from SRA, without downloading them.
 | `--jobs` |  | Runs streamed at once, each a fastq-dump and a sourmash process (default 4, or the usable CPUs when fewer). |
 | `-o`, `--out` |  | Standalone form: sketch the runs named by --accession/--accession-file into DIR/<variant>/ without a workdir; nothing is recorded. |
 
+### reads-screen
+
+Judge the sketched runs against GTDB (taxon, match fraction, duplicates) before
+downloading any of them.
+
+| option | default | description |
+|---|---|---|
+| `-wd`, `--workdir` | required | Working directory. |
+| `--accession` |  | Restrict to these runs of reads.tsv (repeatable); a run not in reads.tsv is refused. |
+| `--accession-file` |  | File of run accessions, one per line (# comments allowed). |
+| `--max-spots` |  | Screen the sketches of reads-sketch --max-spots N (reads_sketches/spots_N/). Default: all/ when present, else the only variant there. |
+| `--min-fraction` | `0.3` | With --screen-reads: minimum abundance-weighted fraction of the reads in the top GTDB species. |
+| `--dup-ani` | `0.999` | Minimum ANI estimate at which a run contained in an earlier run of the same biosample is a duplicate (duplicate_isolate). |
+| `--gtdb-sketch` |  | GTDB sourmash sketch database (or set REPGENR_GTDB_SKETCH). |
+| `--gtdb-lineages` |  | Lineages CSV published with the GTDB sketch (or set REPGENR_GTDB_LINEAGES). |
+| `--jobs` |  | Runs gathered at once (default 4, or the usable CPUs when fewer); each gather takes about 0.6 GB against the GTDB representatives sketch. |
+
 ### assemble
 
 Fetch and assemble the selected runs; write genomes/ and selection.tsv.

@@ -3057,6 +3057,115 @@ commands:
         nextflow: 'n/a: workdir command; the Nextflow layer has no reads-sketch step yet'
         live: tests/live/test_reads_sketch_live.py::test_reads_sketch_streams_two_runs
         observable: DIR/<variant>/ holds the sketches and reads_sketches.tsv; no workdir record
+  reads-screen:
+    dispatch: stage
+    base_args:
+    - -wd
+    - '{wd}'
+    flags:
+      --workdir:
+        aliases:
+        - -wd
+        param: workdir
+        value: '{alt_dir}'
+        validated: stage
+        docs:
+        - docs/usage.md
+        - docs/output.md
+        - docs/cli-reference.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'n/a: workdir command; the Nextflow layer has no reads-screen step yet'
+        live: 'n/a: covered offline with fake gather tables in tests/unit/test_reads_screen.py; a live check is reported in the pull request'
+        observable: reads_screen/<variant>/reads_screen.tsv, passed.txt and one screen.json per screened run
+      --accession:
+        param: ReadsScreenParams.accessions
+        value: 'SRR25474756'
+        validated: stage
+        docs:
+        - docs/usage.md
+        - docs/cli-reference.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'n/a: workdir command; the Nextflow layer has no reads-screen step yet'
+        live: 'n/a: covered offline with fake gather tables in tests/unit/test_reads_screen.py; a live check is reported in the pull request'
+        observable: only the named runs of reads.tsv are screened; an unknown one is refused
+      --accession-file:
+        param: ReadsScreenParams.accession_file
+        value: '{file}'
+        validated: stage
+        docs:
+        - docs/usage.md
+        - docs/cli-reference.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'n/a: workdir command; the Nextflow layer has no reads-screen step yet'
+        live: 'n/a: covered offline with fake gather tables in tests/unit/test_reads_screen.py; a live check is reported in the pull request'
+      --max-spots:
+        param: ReadsScreenParams.max_spots
+        value: '20000'
+        validated: range
+        invalid: '0'
+        docs:
+        - docs/usage.md
+        - docs/output.md
+        - docs/cli-reference.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'n/a: workdir command; the Nextflow layer has no reads-screen step yet'
+        live: 'n/a: covered offline with fake gather tables in tests/unit/test_reads_screen.py; a live check is reported in the pull request'
+        observable: the sketches of reads_sketches/spots_N/ are judged; the decisions go to reads_screen/spots_N/
+      --min-fraction:
+        param: ReadsScreenParams.min_fraction
+        value: '0.5'
+        validated: unit_interval
+        invalid: '2'
+        docs:
+        - docs/usage.md
+        - docs/cli-reference.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'n/a: workdir command; the Nextflow layer has no reads-screen step yet'
+        live: 'n/a: covered offline with fake gather tables in tests/unit/test_reads_screen.py; a live check is reported in the pull request'
+        observable: a run whose top species fraction is below the value is excused with low_match_fraction
+      --dup-ani:
+        param: ReadsScreenParams.dup_ani
+        value: '0.99'
+        validated: unit_interval
+        invalid: '2'
+        docs:
+        - docs/usage.md
+        - docs/cli-reference.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'n/a: workdir command; the Nextflow layer has no reads-screen step yet'
+        live: 'n/a: covered offline with fake gather tables in tests/unit/test_reads_screen.py; a live check is reported in the pull request'
+        observable: a run contained in an earlier run of the same biosample at this ANI or more is excused with duplicate_isolate
+      --gtdb-sketch:
+        param: ReadsScreenParams.gtdb_sketch
+        value: '{file}'
+        validated: stage
+        docs:
+        - docs/usage.md
+        - docs/cli-reference.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'n/a: workdir command; the Nextflow layer has no reads-screen step yet'
+        live: 'n/a: covered offline with fake gather tables in tests/unit/test_reads_screen.py; a live check is reported in the pull request'
+      --gtdb-lineages:
+        param: ReadsScreenParams.gtdb_lineages
+        value: '{file}'
+        validated: stage
+        docs:
+        - docs/usage.md
+        - docs/cli-reference.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'n/a: workdir command; the Nextflow layer has no reads-screen step yet'
+        live: 'n/a: covered offline with fake gather tables in tests/unit/test_reads_screen.py; a live check is reported in the pull request'
+      --jobs:
+        param: ReadsScreenParams.jobs
+        value: '2'
+        validated: range
+        invalid: '0'
+        docs:
+        - docs/usage.md
+        - docs/cli-reference.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'n/a: workdir command; the Nextflow layer has no reads-screen step yet'
+        live: 'n/a: covered offline with fake gather tables in tests/unit/test_reads_screen.py; a live check is reported in the pull request'
   run:
     dispatch: stage
     base_args:

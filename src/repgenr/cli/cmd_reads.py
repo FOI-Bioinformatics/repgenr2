@@ -169,6 +169,73 @@ def reads_sketch(
         )
 
 
+@app.command(name="reads-screen", rich_help_panel=PANEL_ENTRY)
+def reads_screen(
+    workdir: Path = typer.Option(..., "-wd", "--workdir", help=HELP_WORKDIR),
+    accession: list[str] = typer.Option(
+        [],
+        "--accession",
+        help="Restrict to these runs of reads.tsv (repeatable); a run not in reads.tsv is refused.",
+    ),
+    accession_file: Path | None = typer.Option(
+        None, "--accession-file", help="File of run accessions, one per line (# comments allowed)."
+    ),
+    max_spots: int | None = typer.Option(
+        None,
+        "--max-spots",
+        min=1,
+        help="Screen the sketches of reads-sketch --max-spots N (reads_sketches/spots_N/). "
+        "Default: all/ when present, else the only variant there.",
+    ),
+    min_fraction: float = typer.Option(
+        0.3, "--min-fraction", min=0.0, max=1.0, help=HELP_SCREEN_MIN_FRACTION
+    ),
+    dup_ani: float = typer.Option(
+        0.999,
+        "--dup-ani",
+        min=0.0,
+        max=1.0,
+        help="Minimum ANI estimate at which a run contained in an earlier run of the same "
+        "biosample is a duplicate (duplicate_isolate).",
+    ),
+    gtdb_sketch: str | None = typer.Option(
+        None,
+        "--gtdb-sketch",
+        help="GTDB sourmash sketch database (or set REPGENR_GTDB_SKETCH).",
+    ),
+    gtdb_lineages: str | None = typer.Option(
+        None,
+        "--gtdb-lineages",
+        help="Lineages CSV published with the GTDB sketch (or set REPGENR_GTDB_LINEAGES).",
+    ),
+    jobs: int | None = typer.Option(
+        None,
+        "--jobs",
+        min=1,
+        help="Runs gathered at once (default 4, or the usable CPUs when fewer); each gather "
+        "takes about 0.6 GB against the GTDB representatives sketch.",
+    ),
+) -> None:
+    """Judge the sketched runs against GTDB (taxon, match fraction, duplicates) before
+    downloading any of them."""
+    from ..stages.reads_screen import ReadsScreenParams
+
+    _run(
+        "reads_screen",
+        workdir,
+        lambda: ReadsScreenParams(
+            accessions=list(accession),
+            accession_file=None if accession_file is None else str(accession_file),
+            max_spots=max_spots,
+            min_fraction=min_fraction,
+            dup_ani=dup_ani,
+            gtdb_sketch=gtdb_sketch,
+            gtdb_lineages=gtdb_lineages,
+            jobs=jobs,
+        ),
+    )
+
+
 @app.command(rich_help_panel=PANEL_ENTRY)
 def assemble(
     workdir: Path = typer.Option(..., "-wd", "--workdir", help=HELP_WORKDIR),

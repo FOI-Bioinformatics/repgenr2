@@ -89,6 +89,8 @@ from .assemble_qc import (
     store_cached_quality,
 )
 from .assemble_screen import (
+    GTDB_LINEAGES_ENV,
+    GTDB_SKETCH_ENV,
     SCREEN_DIR,
     SCREEN_FAILED,
     SCREEN_JSON,
@@ -98,6 +100,7 @@ from .assemble_screen import (
     ScreenRecord,
     ScreenSettings,
     read_screen_json,
+    resolve_settings,
     write_screen_json,
     write_screen_table,
 )
@@ -105,8 +108,6 @@ from .ingest import OUTGROUP_ACCESSION_TXT
 from .taxon_match import AGREE, GENUS_RENAMED, genus_agreement
 from .taxon_match import gtdb_tokens as _gtdb_tokens
 
-GTDB_SKETCH_ENV = "REPGENR_GTDB_SKETCH"
-GTDB_LINEAGES_ENV = "REPGENR_GTDB_LINEAGES"
 _DONE_MARKER = "assembly.ok"
 _CONTIGS_NAME = "contigs.fasta"
 # The sketch of an assembly, beside its contigs, with the parameters of the
@@ -1270,32 +1271,14 @@ def screen_settings(params: AssembleParams) -> ScreenSettings | None:
         raise UserInputError(
             "--screen-reads screens the reads sketch; it cannot be combined with --no-reads-sketch."
         )
-    if not 0.0 <= params.screen_min_fraction <= 1.0:
-        raise UserInputError(
-            f"--screen-min-fraction must be within [0, 1] (got {params.screen_min_fraction})."
-        )
-    if not 0.0 < params.screen_dup_ani <= 1.0:
-        raise UserInputError(
-            f"--screen-dup-ani must be within (0, 1] (got {params.screen_dup_ani})."
-        )
-    sketch = params.gtdb_sketch or os.environ.get(GTDB_SKETCH_ENV)
-    lineages = params.gtdb_lineages or os.environ.get(GTDB_LINEAGES_ENV)
-    if not sketch or not lineages:
-        raise UserInputError(
-            "--screen-reads needs the GTDB sketch and the lineages CSV published with it "
-            f"(--gtdb-sketch and --gtdb-lineages, or {GTDB_SKETCH_ENV} and {GTDB_LINEAGES_ENV})."
-        )
-    for flag, value in (("--gtdb-sketch", sketch), ("--gtdb-lineages", lineages)):
-        if not Path(value).expanduser().exists():
-            raise UserInputError(
-                f"{flag} {value} does not exist (from the flag or the environment variable)."
-            )
-    require_sourmash_if_requested(True)
-    return ScreenSettings(
-        min_fraction=params.screen_min_fraction,
-        dup_ani=params.screen_dup_ani,
-        gtdb_sketch=str(Path(sketch).expanduser().resolve()),
-        gtdb_lineages=str(Path(lineages).expanduser().resolve()),
+    return resolve_settings(
+        params.screen_min_fraction,
+        params.screen_dup_ani,
+        params.gtdb_sketch,
+        params.gtdb_lineages,
+        command="--screen-reads",
+        min_fraction_flag="--screen-min-fraction",
+        dup_ani_flag="--screen-dup-ani",
     )
 
 

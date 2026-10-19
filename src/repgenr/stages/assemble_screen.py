@@ -34,6 +34,7 @@ import csv
 import gzip
 import json
 import logging
+import os
 import threading
 import zipfile
 from collections.abc import Iterable, Sequence
@@ -53,7 +54,8 @@ from ..classifiers.sourmash import (
 from ..core import process
 from ..core.containers import run_tool
 from ..core.contracts import ReadRow, atomic_replace
-from ..core.errors import RepGenRError, ToolExecutionError
+from ..core.errors import RepGenRError, ToolExecutionError, UserInputError
+from ..core.plugins import preflight
 from ..core.sourmash import SOURMASH_TOOL
 from .taxon_match import DISAGREE, GENUS_RENAMED, genus_agreement, gtdb_tokens
 
@@ -192,6 +194,55 @@ def write_screen_table(
         writer.writerow(_SCREEN_COLUMNS)
         for run in ordered:
             writer.writerow(rows[run])
+
+
+# --- settings -------------------------------------------------------------------------------
+
+
+GTDB_SKETCH_ENV = "REPGENR_GTDB_SKETCH"
+GTDB_LINEAGES_ENV = "REPGENR_GTDB_LINEAGES"
+
+
+def resolve_settings(
+    min_fraction: float,
+    dup_ani: float,
+    gtdb_sketch: str | None,
+    gtdb_lineages: str | None,
+    *,
+    command: str,
+    min_fraction_flag: str,
+    dup_ani_flag: str,
+) -> ScreenSettings:
+    """The settings of a screen from its flags, with the GTDB paths resolved.
+
+    Refuses (UserInputError) a threshold outside its range, a missing GTDB
+    sketch or lineages CSV (flag or environment variable) and a path that
+    does not exist, and, without sourmash, raises MissingBinaryError; all
+    before anything is written. ``command`` names the caller in the message.
+    """
+    if not 0.0 <= min_fraction <= 1.0:
+        raise UserInputError(f"{min_fraction_flag} must be within [0, 1] (got {min_fraction}).")
+    if not 0.0 < dup_ani <= 1.0:
+        raise UserInputError(f"{dup_ani_flag} must be within (0, 1] (got {dup_ani}).")
+    sketch = gtdb_sketch or os.environ.get(GTDB_SKETCH_ENV)
+    lineages = gtdb_lineages or os.environ.get(GTDB_LINEAGES_ENV)
+    if not sketch or not lineages:
+        raise UserInputError(
+            f"{command} needs the GTDB sketch and the lineages CSV published with it "
+            f"(--gtdb-sketch and --gtdb-lineages, or {GTDB_SKETCH_ENV} and {GTDB_LINEAGES_ENV})."
+        )
+    for flag, value in (("--gtdb-sketch", sketch), ("--gtdb-lineages", lineages)):
+        if not Path(value).expanduser().exists():
+            raise UserInputError(
+                f"{flag} {value} does not exist (from the flag or the environment variable)."
+            )
+    preflight(SOURMASH_TOOL)
+    return ScreenSettings(
+        min_fraction=min_fraction,
+        dup_ani=dup_ani,
+        gtdb_sketch=str(Path(sketch).expanduser().resolve()),
+        gtdb_lineages=str(Path(lineages).expanduser().resolve()),
+    )
 
 
 # --- reads sketch comparison ------------------------------------------------------------
