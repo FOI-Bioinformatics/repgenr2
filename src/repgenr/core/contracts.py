@@ -842,6 +842,25 @@ def read_reads(path: Path) -> list[ReadRow]:
 READS_SKETCHES_DIR = "reads_sketches"
 READS_SKETCHES_TSV = "reads_sketches.tsv"
 READS_SKETCH_STATUSES = ("ok", "failed", "pending")
+# One subdirectory per variant: "all" for the whole run, "spots_N" for the
+# first N spots, so sketches at several depths live side by side.
+READS_SKETCH_ALL = "all"
+_READS_SKETCH_SPOTS = "spots_"
+
+
+def reads_sketch_variant(max_spots: int | None) -> str:
+    """The subdirectory name of the sketches made with this cap."""
+    return READS_SKETCH_ALL if max_spots is None else f"{_READS_SKETCH_SPOTS}{max_spots}"
+
+
+def reads_sketch_variant_spots(name: str) -> int | None | bool:
+    """The cap a variant directory name stands for: None for ``all``, the
+    spot count for ``spots_N``, False for a name that is neither."""
+    if name == READS_SKETCH_ALL:
+        return None
+    if name.startswith(_READS_SKETCH_SPOTS) and name[len(_READS_SKETCH_SPOTS) :].isdigit():
+        return int(name[len(_READS_SKETCH_SPOTS) :])
+    return False
 
 
 @dataclass(frozen=True)

@@ -557,12 +557,18 @@ table (an accession not in it is refused by name, so a typo cannot sketch an
 unrelated run), and `--platform` to one platform. A call adds to the set: a
 run sketched before with the same `--max-spots` is skipped and a later call
 with another selection keeps it, so a few runs can be sketched first and the
-rest later. A different cap, or `--force`, streams a run again. The sketches
-go to `reads_sketches/<run>.sig.zip` and `reads_sketches/reads_sketches.tsv`
-lists every run of `reads.tsv` with its status (`ok`, `failed` or `pending`),
-the cap, the spots and sequences the tools reported and the reason of a
-failure; see [output.md](output.md#reads-sketch). The stage is recorded as
-`reads_sketch`, so `status` and `doctor` see it. A failed run (an accession
+rest later. Each cap is its own variant with its own directory,
+`reads_sketches/all/` for the whole run and `reads_sketches/spots_<N>/` for
+`--max-spots N`, so sketches at several depths live side by side and a new
+cap fills a new directory without touching the others; `--force` streams the
+selected runs of the current variant again. The sketches go to
+`reads_sketches/<variant>/<run>.sig.zip` and the index
+`reads_sketches/<variant>/reads_sketches.tsv` lists every run of `reads.tsv`
+with its status (`ok`, `failed` or `pending`), the cap, the spots and
+sequences the tools reported and the reason of a failure; see
+[output.md](output.md#reads-sketch). The stage is recorded as `reads_sketch`
+(the record names the variant of the last call and the runs each variant
+holds), and `status` lists the variants present. A failed run (an accession
 NCBI does not hold, a network error) is recorded and the others continue;
 since a selected run without a sketch is a missing deliverable, a repeat of
 the same call streams the failed runs again and skips the rest; a run that

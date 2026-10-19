@@ -23,6 +23,7 @@ from repgenr.core.contracts import (
     READS_TSV,
     ReadRow,
     read_reads_sketches,
+    reads_sketch_variant,
     write_reads,
 )
 from repgenr.core.errors import UserInputError, WorkdirError
@@ -239,7 +240,7 @@ def test_run_sketches_every_run_and_indexes_failures(tmp_path: Path, fake_tools:
     ctx = _workdir(tmp_path, [_row("SRR1"), _row("SRR02"), _row("SRR3")])
     sketched = run(ctx, ReadsSketchParams(max_spots=20, jobs=2))
     assert sketched == 2
-    out = ctx.workdir / READS_SKETCHES_DIR
+    out = ctx.workdir / READS_SKETCHES_DIR / "spots_20"
     rows = {r.run_accession: r for r in read_reads_sketches(out / READS_SKETCHES_TSV)}
     assert [r for r in rows] == ["SRR1", "SRR02", "SRR3"]  # the order of reads.tsv
     ok = rows["SRR1"]
@@ -255,6 +256,7 @@ def test_run_sketches_every_run_and_indexes_failures(tmp_path: Path, fake_tools:
     record = ctx.config.stages["reads_sketch"]
     assert record.completed and record.tool == "sourmash"
     assert record.params["max_spots"] == 20 and record.params["selected"] == 3
+    assert record.params["variant"] == "spots_20" and record.params["variants"] == {"spots_20": 2}
     assert (record.params["sketched"], record.params["failed"], record.params["present"]) == (
         2,
         1,
@@ -267,21 +269,33 @@ def test_run_sketches_every_run_and_indexes_failures(tmp_path: Path, fake_tools:
     assert len(calls) == 3 and all("-X 20" in c for c in calls)
 
 
-def test_a_repeat_skips_current_sketches_and_a_new_cap_streams_again(
+def test_a_repeat_skips_current_sketches_and_a_new_cap_is_its_own_variant(
     tmp_path: Path, fake_tools: Path
 ) -> None:
     ctx = _workdir(tmp_path, [_row("SRR1"), _row("SRR2")])
+    root = ctx.workdir / READS_SKETCHES_DIR
     run(ctx, ReadsSketchParams(max_spots=10))
     assert len(_calls(fake_tools)) == 2
     assert run(ctx, ReadsSketchParams(max_spots=10)) == 0
     assert len(_calls(fake_tools)) == 2, "nothing streamed again"
     assert run(ctx, ReadsSketchParams(max_spots=30)) == 2
-    assert len(_calls(fake_tools)) == 4
-    rows = read_reads_sketches(ctx.workdir / READS_SKETCHES_DIR / READS_SKETCHES_TSV)
-    assert {r.max_spots for r in rows} == {30}
-    # --force (ctx.force) streams a current sketch again.
+    assert run(ctx, ReadsSketchParams()) == 2
+    assert len(_calls(fake_tools)) == 6
+    # Three variants side by side, each with its own index and sketches.
+    assert sorted(p.name for p in root.iterdir()) == ["all", "spots_10", "spots_30"]
+    for name, cap in (("all", None), ("spots_10", 10), ("spots_30", 30)):
+        rows = read_reads_sketches(root / name / READS_SKETCHES_TSV)
+        assert {r.max_spots for r in rows} == {cap} and (root / name / "SRR1.sig.zip").is_file()
+    assert reads_sketch_variant(None) == "all" and reads_sketch_variant(30) == "spots_30"
+    assert ctx.config.stages["reads_sketch"].params["variants"] == {
+        "all": 2,
+        "spots_10": 2,
+        "spots_30": 2,
+    }
+    # --force (ctx.force) streams the current variant again, the others untouched.
     ctx.force = True
     assert run(ctx, ReadsSketchParams(max_spots=30)) == 2
+    assert len(_calls(fake_tools)) == 8
 
 
 def test_a_subset_adds_to_the_set_and_the_rest_stay_pending(
@@ -291,16 +305,16 @@ def test_a_subset_adds_to_the_set_and_the_rest_stay_pending(
     run(ctx, ReadsSketchParams(accessions=["SRR2"]))
     rows = {
         r.run_accession: r.status
-        for r in read_reads_sketches(ctx.workdir / READS_SKETCHES_DIR / READS_SKETCHES_TSV)
+        for r in read_reads_sketches(ctx.workdir / READS_SKETCHES_DIR / "all" / READS_SKETCHES_TSV)
     }
     assert rows == {"SRR1": "pending", "SRR2": "ok", "SRR3": "pending"}
     run(ctx, ReadsSketchParams(accessions=["SRR3"]))
     rows = {
         r.run_accession: r.status
-        for r in read_reads_sketches(ctx.workdir / READS_SKETCHES_DIR / READS_SKETCHES_TSV)
+        for r in read_reads_sketches(ctx.workdir / READS_SKETCHES_DIR / "all" / READS_SKETCHES_TSV)
     }
     assert rows == {"SRR1": "pending", "SRR2": "ok", "SRR3": "ok"}
-    assert (ctx.workdir / READS_SKETCHES_DIR / "SRR2.sig.zip").exists()
+    assert (ctx.workdir / READS_SKETCHES_DIR / "all" / "SRR2.sig.zip").exists()
     assert len(_calls(fake_tools)) == 2
     # No cap: the whole run, recorded as an empty max_spots.
     assert all("-X" not in c for c in _calls(fake_tools))
@@ -313,7 +327,7 @@ def test_every_run_failing_is_an_error_and_records_nothing(
     ctx = _workdir(tmp_path, [_row("SRR01"), _row("SRR02")])
     with pytest.raises(WorkdirError, match="Every one of the 2 selected run"):
         run(ctx, ReadsSketchParams())
-    rows = read_reads_sketches(ctx.workdir / READS_SKETCHES_DIR / READS_SKETCHES_TSV)
+    rows = read_reads_sketches(ctx.workdir / READS_SKETCHES_DIR / "all" / READS_SKETCHES_TSV)
     assert [r.status for r in rows] == ["failed", "failed"]
     assert "reads_sketch" not in ctx.config.stages, "no completed record of a failed stage"
 
@@ -323,7 +337,7 @@ def test_a_sourmash_failure_mid_stream_is_blamed_on_sourmash(
 ) -> None:
     ctx = _workdir(tmp_path, [_row("ERR01"), _row("SRR2")])
     assert run(ctx, ReadsSketchParams()) == 1
-    out = ctx.workdir / READS_SKETCHES_DIR
+    out = ctx.workdir / READS_SKETCHES_DIR / "all"
     rows = {r.run_accession: r for r in read_reads_sketches(out / READS_SKETCHES_TSV)}
     assert rows["ERR01"].status == "failed"
     assert rows["ERR01"].reason == "sourmash exited 2: error: cannot sketch ERR01"
@@ -352,9 +366,9 @@ def test_standalone_sketches_bare_accessions_into_a_directory(
         ["SRR1", "SRR1", "SRR02"], out, max_spots=5, jobs=1, force=False, logger=logger
     )
     assert n == 1
-    rows = {r.run_accession: r for r in read_reads_sketches(out / READS_SKETCHES_TSV)}
+    rows = {r.run_accession: r for r in read_reads_sketches(out / "spots_5" / READS_SKETCHES_TSV)}
     assert set(rows) == {"SRR1", "SRR02"} and rows["SRR1"].status == "ok"
-    assert (out / "SRR1.sig.zip").exists()
+    assert (out / "spots_5" / "SRR1.sig.zip").exists()
     with pytest.raises(UserInputError, match="name the runs"):
         run_standalone([], out, max_spots=None, jobs=None, force=False, logger=logger)
     with pytest.raises(UserInputError, match="Not a run accession.*\\.\\./x"):
@@ -432,8 +446,9 @@ def test_harness_skips_a_repeat_and_reruns_on_a_new_selection(
     assert any(key.endswith(READS_SKETCHES_TSV) for key in record.inputs)
     status = _runner.invoke(app, ["status", "-wd", wd, "--json"])
     assert status.exit_code == 0, status.output
-    names = {s["name"]: s["state"] for s in json.loads(status.output)["stages"]}
-    assert names["reads_sketch"] == "done"
+    report = {s["name"]: s for s in json.loads(status.output)["stages"]}
+    assert report["reads_sketch"]["state"] == "done"
+    assert report["reads_sketch"]["detail"] == "variants: all (2 of 2 runs)"
 
 
 def test_harness_streams_a_failed_run_again_on_a_repeat(tmp_path: Path, fake_tools: Path) -> None:
@@ -452,7 +467,7 @@ def test_harness_streams_a_failed_run_again_on_a_repeat(tmp_path: Path, fake_too
     calls = _calls(fake_tools)
     assert len(calls) == 3 and calls[-1].endswith("SRR02"), "only the failed run again"
     # A sketch removed by hand is streamed again the same way.
-    (Path(wd) / READS_SKETCHES_DIR / "SRR1.sig.zip").unlink()
+    (Path(wd) / READS_SKETCHES_DIR / "all" / "SRR1.sig.zip").unlink()
     third = _runner.invoke(app, ["reads-sketch", "-wd", wd, "--accession", "SRR1"])
     assert third.exit_code == 0, third.output
     assert len(_calls(fake_tools)) == 4 and _calls(fake_tools)[-1].endswith("SRR1")

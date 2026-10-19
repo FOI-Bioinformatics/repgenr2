@@ -36,6 +36,8 @@ from ..core.contracts import (
     ReadsSketchRow,
     read_reads,
     read_reads_sketches,
+    reads_sketch_variant,
+    reads_sketch_variant_spots,
     write_reads_sketches,
 )
 from ..core.errors import ToolExecutionError, UserInputError, WorkdirError
@@ -120,7 +122,7 @@ def run(ctx: WorkdirContext, params: ReadsSketchParams) -> int:
             READS_TSV,
             params.platform,
         )
-    out_dir = ctx.workdir / READS_SKETCHES_DIR
+    out_dir = ctx.workdir / READS_SKETCHES_DIR / reads_sketch_variant(params.max_spots)
     index = read_index(out_dir / READS_SKETCHES_TSV)
     sketched, failed, versions = sketch_runs(
         chosen,
@@ -137,22 +139,25 @@ def run(ctx: WorkdirContext, params: ReadsSketchParams) -> int:
         # was accepted: the stage stays incomplete and a repeat runs again.
         raise WorkdirError(
             f"Every one of the {failed} selected run(s) failed to stream; "
-            f"see {READS_SKETCHES_DIR}/{READS_SKETCHES_TSV} and the log."
+            f"see {out_dir.relative_to(ctx.workdir)}/{READS_SKETCHES_TSV} and the log."
         )
     ctx.config.record_stage(
         "reads_sketch",
         tool="sourmash",
         params={
             **asdict(params),
+            "variant": out_dir.name,
             "selected": len(chosen),
             "sketched": sketched,
             "failed": failed,
             "present": sum(1 for r in index.values() if r.status == "ok"),
+            "variants": {name: ok for name, _spots, ok, _n in variants(out_dir.parent)},
         },
         tool_versions=versions,
         completed=datetime.now(UTC).isoformat(),
     )
     ctx.save_config()
+    logger.info("Variants under %s: %s", READS_SKETCHES_DIR, describe_variants(out_dir.parent))
     if failed:
         logger.warning(
             "%d run(s) failed; a repeat of the same call streams them again, since a run "
@@ -194,6 +199,7 @@ def run_standalone(
         )
         for a in dict.fromkeys(accessions)
     ]
+    out_dir = out_dir / reads_sketch_variant(max_spots)
     index = read_index(out_dir / READS_SKETCHES_TSV)
     sketched, failed, _versions = sketch_runs(
         rows,
@@ -208,7 +214,30 @@ def run_standalone(
     )
     if sketched == 0 and failed == len(rows):
         raise WorkdirError(f"Every one of the {failed} run(s) failed to stream; see {out_dir}.")
+    logger.info("Variants under %s: %s", out_dir.parent, describe_variants(out_dir.parent))
     return sketched
+
+
+def variants(root: Path) -> list[tuple[str, int | None, int, int]]:
+    """The variant directories under ``root``: (name, cap, runs with a
+    sketch, rows in the index), ``all`` first and then by rising cap."""
+    if not root.is_dir():
+        return []
+    found = []
+    for entry in root.iterdir():
+        spots = reads_sketch_variant_spots(entry.name)
+        if spots is False or not (entry / READS_SKETCHES_TSV).is_file():
+            continue
+        rows = read_reads_sketches(entry / READS_SKETCHES_TSV)
+        ok = sum(1 for r in rows if r.status == "ok" and (entry / r.sketch_file).is_file())
+        found.append((entry.name, spots, ok, len(rows)))
+    return sorted(found, key=lambda v: (v[1] is not None, v[1] or 0))
+
+
+def describe_variants(root: Path) -> str:
+    """``all (3 of 5 runs), spots_100000 (5 of 5 runs)``, or ``none``."""
+    parts = [f"{name} ({ok} of {n} runs)" for name, _spots, ok, n in variants(root)]
+    return ", ".join(parts) if parts else "none"
 
 
 # The run accessions of SRA, ENA and DDBJ; the name is also the sketch file name.

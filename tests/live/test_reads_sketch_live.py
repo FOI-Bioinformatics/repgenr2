@@ -34,12 +34,14 @@ def test_reads_sketch_streams_two_runs(run_repgenr, tmp_path: Path) -> None:
         "--max-spots",
         "5000",
     )
-    rows = {r.run_accession: r for r in read_reads_sketches(out / READS_SKETCHES_TSV)}
+    variant = out / "spots_5000"
+    rows = {r.run_accession: r for r in read_reads_sketches(variant / READS_SKETCHES_TSV)}
     paired, long_read, bad = rows["SRR25474756"], rows["SRR28800588"], rows["SRR999999999"]
     assert paired.status == "ok" and paired.spots_read == 5000 and paired.sequences == 10000
     assert long_read.status == "ok" and long_read.sequences == 5000
     assert bad.status == "failed" and bad.reason.startswith("fastq-dump exited")
-    assert (out / "SRR25474756.sig.zip").is_file() and not (out / "SRR999999999.sig.zip").exists()
+    assert (variant / "SRR25474756.sig.zip").is_file()
+    assert not (variant / "SRR999999999.sig.zip").exists()
     assert "Sketched 2 run(s), 1 failed" in result.stderr + result.stdout
 
     again = run_repgenr(

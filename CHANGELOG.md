@@ -14,7 +14,9 @@ All notable changes to RepGenR2 are documented here. The format follows
   `--max-spots N` stops after the first N spots. `--accession`,
   `--accession-file` and `--platform` select a subset of `reads.tsv`, and a
   call adds to the set (runs sketched before at the same cap are kept).
-  Writes `reads_sketches/<run>.sig.zip` and `reads_sketches/reads_sketches.tsv`
+  Writes `reads_sketches/<variant>/<run>.sig.zip` and its index
+  `reads_sketches.tsv`, one variant directory per cap (`all/`, `spots_<N>/`)
+  so sketches at several depths coexist,
   (one row per run with status, cap, spots, sequences and the reason of a
   failure) and records a `reads_sketch` stage; `-o DIR` is a standalone form
   for bare accessions. sra-tools (`fastq-dump` 3.0 or later) joins the core

@@ -156,6 +156,15 @@ def _sketch_note(workdir: Path) -> str:
     return f"sketches: {counts[0]}/{counts[1]}"
 
 
+def _reads_sketch_note(workdir: Path) -> str:
+    """'variants: all (3 of 5 runs), spots_100000 (5 of 5 runs)' from reads_sketches/."""
+    from ..core.contracts import READS_SKETCHES_DIR
+    from ..stages.reads_sketch import describe_variants
+
+    found = describe_variants(workdir / READS_SKETCHES_DIR)
+    return "" if found == "none" else f"variants: {found}"
+
+
 def _echo_json(payload: dict[str, Any]) -> None:
     import json
 
@@ -294,6 +303,8 @@ def _status_report(workdir: Path, cfg: Any) -> dict[str, Any]:
             detail = _ingest_note(rec.params) or None
         elif stage == "assemble" and not rec.interrupted:
             detail = _assemble_note(rec.params) or None
+        elif stage == "reads_sketch" and not rec.interrupted:
+            detail = _reads_sketch_note(workdir) or None
         if stage in _SKETCH_STAGES and not rec.interrupted:
             sketches = _sketch_note(workdir)
             if sketches:
