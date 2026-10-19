@@ -1,0 +1,44 @@
+nextflow_process {
+
+    name "READS_SCREEN (stub)"
+    script "../modules/local/dataflow/reads_screen.nf"
+    tag "stub"
+    process "READS_SCREEN"
+    options "-stub"
+    config "./reads_debug.config"
+
+    test("screens the sketched runs and emits passed.txt with the GTDB paths on the command line") {
+        when {
+            params {
+                reads_sketch_spots = 5000
+                gtdb_sketch = '/db/gtdb.sig.zip'
+                gtdb_lineages = '/db/lineages.csv'
+                reads_screen_args = '--min-fraction 0.4'
+            }
+            process {
+                """
+                input[0] = tuple(
+                    [id: 'test', mode: 'reads'],
+                    file("${projectDir}/nextflow/tests/data/reads.tsv"),
+                    file("${projectDir}/nextflow/tests/data/reads_sketches")
+                )
+                """
+            }
+        }
+        then {
+            assert process.success
+            with(process.out.screen.get(0)) {
+                assert get(0).id == 'test'
+                def table = file("${file(get(1))}/spots_5000/reads_screen.tsv").text.split('\n')
+                assert table[0].startsWith('run_accession\ttop_match')
+                assert table.size() == 4
+                assert file("${file(get(1))}/spots_5000/SRR000001/screen.json").exists()
+            }
+            def passed = path(process.out.passed.get(0).get(1)).text.split('\n')
+            assert passed == ['SRR000001', 'SRR000003']
+            assert process.stdout.any { line ->
+                line.contains('ext.args: --max-spots 5000 --gtdb-sketch /db/gtdb.sig.zip --gtdb-lineages /db/lineages.csv --min-fraction 0.4')
+            }
+        }
+    }
+}

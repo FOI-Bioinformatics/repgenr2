@@ -31,6 +31,7 @@ workflow {
           --metadata_args '<str>'  GTDB selection (bacterial)
           --vmetadata_args / --vgenome_args '<str>'  NCBI Virus selection (viral)
           --reads_args '<str>'   ENA/SRA run selection (reads); --assembler, --checkm2_db, --gtdb_sketch
+          --reads_sketch, --reads_screen  Sketch the runs from the archive stream; screen them against GTDB before any download
           --derep_tool <tool>    Dereplicator for the scatter-gather step
           --derep_process_size N Genomes per dereplication chunk (large inputs)
           --phylo_args '<str>'   Aligner or tree builder for the phylogeny

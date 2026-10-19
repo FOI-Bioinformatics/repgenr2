@@ -1,0 +1,4 @@
+run_accession	status	max_spots	spots_read	sequences	sketch_file	sketch_params	seconds	reason
+SRR000001	ok	5000	5000	10000	SRR000001.sig.zip	k=21,k=31,k=51,scaled=1000,abund	1.0	
+SRR000002	ok	5000	5000	10000	SRR000002.sig.zip	k=21,k=31,k=51,scaled=1000,abund	1.0	
+SRR000003	ok	5000	5000	10000	SRR000003.sig.zip	k=21,k=31,k=51,scaled=1000,abund	1.0	

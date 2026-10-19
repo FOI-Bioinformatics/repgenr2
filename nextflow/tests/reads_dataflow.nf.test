@@ -34,6 +34,56 @@ nextflow_pipeline {
         }
     }
 
+    test("with reads_screen only the runs of passed.txt are assembled") {
+        when {
+            params {
+                outdir = "$outputDir"
+                mode = 'reads'
+                reads_args = '-tg francisella --platform illumina --max-runs 5'
+                reads_screen = true
+                reads_sketch_spots = 5000
+                gtdb_sketch = '/db/gtdb.sig.zip'
+                gtdb_lineages = '/db/lineages.csv'
+                derep_process_size = 1
+                derep_tool = 'sourmash'
+            }
+        }
+        then {
+            assert workflow.success
+            def names = workflow.trace.succeeded().collect { t -> t.name }
+            assert names.any { n -> n.contains('READS_SKETCH (francisella)') }
+            assert names.any { n -> n.contains('READS_SCREEN (francisella)') }
+            // The stub screen excuses the second run of reads.tsv as a duplicate.
+            assert names.count { n -> n.contains('READS_ASSEMBLE (francisella.SRR') } == 2
+            assert !names.any { n -> n.contains('READS_ASSEMBLE (francisella.SRR000002)') }
+            assert path("$outputDir/reads/reads_sketches/spots_5000/reads_sketches.tsv").exists()
+            assert path("$outputDir/reads/reads_screen/spots_5000/reads_screen.tsv").exists()
+            assert path("$outputDir/reads/reads_screen/spots_5000/passed.txt").exists()
+            assert path("$outputDir/tree2tax.tsv").exists()
+        }
+    }
+
+    test("with reads_sketch alone the runs are sketched and every run is assembled") {
+        when {
+            params {
+                outdir = "$outputDir"
+                mode = 'reads'
+                reads_args = '-tg francisella --platform illumina --max-runs 5'
+                reads_sketch = true
+                derep_process_size = 1
+                derep_tool = 'sourmash'
+            }
+        }
+        then {
+            assert workflow.success
+            def names = workflow.trace.succeeded().collect { t -> t.name }
+            assert names.any { n -> n.contains('READS_SKETCH (francisella)') }
+            assert !names.any { n -> n.contains('READS_SCREEN') }
+            assert names.count { n -> n.contains('READS_ASSEMBLE (francisella.SRR') } == 3
+            assert path("$outputDir/reads/reads_sketches/all/reads_sketches.tsv").exists()
+        }
+    }
+
     test("with --msa-source coregene the assembled representatives are annotated and staged") {
         config "./annotate_debug.config"
         when {

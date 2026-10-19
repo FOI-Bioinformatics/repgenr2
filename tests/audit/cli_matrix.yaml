@@ -3008,7 +3008,7 @@ commands:
         - docs/output.md
         - docs/cli-reference.md
         - docs/audit/cli-matrix.md
-        nextflow: 'n/a: workdir command; the Nextflow layer has no reads-sketch step yet'
+        nextflow: 'n/a: READS_SKETCH sketches every run of reads.tsv; the selection is bounded with params.reads_args'
         live: tests/live/test_reads_sketch_live.py::test_reads_sketch_streams_two_runs
         observable: reads_sketches/<variant>/ holds one .sig.zip per sketched run and reads_sketches.tsv
       --accession:
@@ -3019,7 +3019,7 @@ commands:
         - docs/usage.md
         - docs/cli-reference.md
         - docs/audit/cli-matrix.md
-        nextflow: 'n/a: workdir command; the Nextflow layer has no reads-sketch step yet'
+        nextflow: 'n/a: READS_SKETCH sketches every run of reads.tsv; the selection is bounded with params.reads_args'
         live: tests/live/test_reads_sketch_live.py::test_reads_sketch_streams_two_runs
         observable: only the named runs of reads.tsv are streamed; an unknown one is refused
       --accession-file:
@@ -3030,7 +3030,7 @@ commands:
         - docs/usage.md
         - docs/cli-reference.md
         - docs/audit/cli-matrix.md
-        nextflow: 'n/a: workdir command; the Nextflow layer has no reads-sketch step yet'
+        nextflow: 'n/a: READS_SKETCH sketches every run of reads.tsv; the selection is bounded with params.reads_args'
         live: 'n/a: covered offline with fake fastq-dump and sourmash in tests/unit/test_reads_sketch.py'
       --platform:
         param: ReadsSketchParams.platform
@@ -3040,7 +3040,7 @@ commands:
         - docs/usage.md
         - docs/cli-reference.md
         - docs/audit/cli-matrix.md
-        nextflow: 'n/a: workdir command; the Nextflow layer has no reads-sketch step yet'
+        nextflow: 'n/a: READS_SKETCH sketches every run of reads.tsv; the selection is bounded with params.reads_args'
         live: 'n/a: covered offline with fake fastq-dump and sourmash in tests/unit/test_reads_sketch.py'
       --max-spots:
         param: ReadsSketchParams.max_spots
@@ -3052,7 +3052,7 @@ commands:
         - docs/output.md
         - docs/cli-reference.md
         - docs/audit/cli-matrix.md
-        nextflow: 'n/a: workdir command; the Nextflow layer has no reads-sketch step yet'
+        nextflow: params.reads_sketch_spots
         live: tests/live/test_reads_sketch_live.py::test_reads_sketch_streams_two_runs
         observable: fastq-dump is called with -X N; the sketches go to reads_sketches/spots_N/
       --jobs:
@@ -3064,7 +3064,7 @@ commands:
         - docs/usage.md
         - docs/cli-reference.md
         - docs/audit/cli-matrix.md
-        nextflow: 'n/a: workdir command; the Nextflow layer has no reads-sketch step yet'
+        nextflow: task.cpus
         live: 'n/a: covered offline with fake fastq-dump and sourmash in tests/unit/test_reads_sketch.py'
       --out:
         aliases:
@@ -3076,9 +3076,30 @@ commands:
         - docs/output.md
         - docs/cli-reference.md
         - docs/audit/cli-matrix.md
-        nextflow: 'n/a: workdir command; the Nextflow layer has no reads-sketch step yet'
+        nextflow: 'module: modules/local/dataflow/reads_sketch.nf (READS_SKETCH runs the standalone form on reads.tsv)'
         live: tests/live/test_reads_sketch_live.py::test_reads_sketch_streams_two_runs
         observable: DIR/<variant>/ holds the sketches and reads_sketches.tsv; no workdir record
+      --reads-tsv:
+        param: 'n/a: the standalone form takes the runs of a reads.tsv instead of bare accessions; refused with -wd'
+        value: '{file}'
+        validated: stage
+        docs:
+        - docs/usage.md
+        - docs/cli-reference.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'module: modules/local/dataflow/reads_sketch.nf (READS_SKETCH runs the standalone form on reads.tsv)'
+        live: 'n/a: covered offline with fake fastq-dump and sourmash in tests/unit/test_reads_sketch.py'
+        observable: the runs of the table are streamed into DIR/<variant>/; a --accession outside it is refused
+      --versions-out:
+        param: 'n/a: the standalone form writes the tool versions here (Nextflow); refused with -wd'
+        value: '{file}'
+        validated: stage
+        docs:
+        - docs/usage.md
+        - docs/cli-reference.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'module: modules/local/dataflow/reads_sketch.nf (READS_SKETCH runs the standalone form on reads.tsv)'
+        live: 'n/a: covered offline with fake fastq-dump and sourmash in tests/unit/test_reads_sketch.py'
   reads-screen:
     dispatch: stage
     base_args:
@@ -3096,7 +3117,7 @@ commands:
         - docs/output.md
         - docs/cli-reference.md
         - docs/audit/cli-matrix.md
-        nextflow: 'n/a: workdir command; the Nextflow layer has no reads-screen step yet'
+        nextflow: 'n/a: READS_SCREEN screens every run of reads.tsv; the selection is bounded with params.reads_args'
         live: 'n/a: covered offline with fake gather tables in tests/unit/test_reads_screen.py; needs the GTDB sketch, which the live suite does not hold'
         observable: reads_screen/<variant>/reads_screen.tsv, passed.txt and one screen.json per screened run
       --accession:
@@ -3107,7 +3128,7 @@ commands:
         - docs/usage.md
         - docs/cli-reference.md
         - docs/audit/cli-matrix.md
-        nextflow: 'n/a: workdir command; the Nextflow layer has no reads-screen step yet'
+        nextflow: 'n/a: READS_SCREEN screens every run of reads.tsv; the selection is bounded with params.reads_args'
         live: 'n/a: covered offline with fake gather tables in tests/unit/test_reads_screen.py; needs the GTDB sketch, which the live suite does not hold'
         observable: only the named runs of reads.tsv are screened; an unknown one is refused
       --accession-file:
@@ -3118,7 +3139,7 @@ commands:
         - docs/usage.md
         - docs/cli-reference.md
         - docs/audit/cli-matrix.md
-        nextflow: 'n/a: workdir command; the Nextflow layer has no reads-screen step yet'
+        nextflow: 'n/a: READS_SCREEN screens every run of reads.tsv; the selection is bounded with params.reads_args'
         live: 'n/a: covered offline with fake gather tables in tests/unit/test_reads_screen.py; needs the GTDB sketch, which the live suite does not hold'
       --max-spots:
         param: ReadsScreenParams.max_spots
@@ -3130,7 +3151,7 @@ commands:
         - docs/output.md
         - docs/cli-reference.md
         - docs/audit/cli-matrix.md
-        nextflow: 'n/a: workdir command; the Nextflow layer has no reads-screen step yet'
+        nextflow: params.reads_sketch_spots
         live: 'n/a: covered offline with fake gather tables in tests/unit/test_reads_screen.py; needs the GTDB sketch, which the live suite does not hold'
         observable: the sketches of reads_sketches/spots_N/ are judged; the decisions go to reads_screen/spots_N/
       --min-fraction:
@@ -3142,7 +3163,7 @@ commands:
         - docs/usage.md
         - docs/cli-reference.md
         - docs/audit/cli-matrix.md
-        nextflow: 'n/a: workdir command; the Nextflow layer has no reads-screen step yet'
+        nextflow: params.reads_screen_args
         live: 'n/a: covered offline with fake gather tables in tests/unit/test_reads_screen.py; needs the GTDB sketch, which the live suite does not hold'
         observable: a run whose top species fraction is below the value is excused with low_match_fraction
       --dup-ani:
@@ -3154,7 +3175,7 @@ commands:
         - docs/usage.md
         - docs/cli-reference.md
         - docs/audit/cli-matrix.md
-        nextflow: 'n/a: workdir command; the Nextflow layer has no reads-screen step yet'
+        nextflow: params.reads_screen_args
         live: 'n/a: covered offline with fake gather tables in tests/unit/test_reads_screen.py; needs the GTDB sketch, which the live suite does not hold'
         observable: a run contained in an earlier run of the same biosample at this ANI or more is excused with duplicate_isolate
       --gtdb-sketch:
@@ -3165,7 +3186,7 @@ commands:
         - docs/usage.md
         - docs/cli-reference.md
         - docs/audit/cli-matrix.md
-        nextflow: 'n/a: workdir command; the Nextflow layer has no reads-screen step yet'
+        nextflow: params.gtdb_sketch
         live: 'n/a: covered offline with fake gather tables in tests/unit/test_reads_screen.py; needs the GTDB sketch, which the live suite does not hold'
       --gtdb-lineages:
         param: ReadsScreenParams.gtdb_lineages
@@ -3175,7 +3196,7 @@ commands:
         - docs/usage.md
         - docs/cli-reference.md
         - docs/audit/cli-matrix.md
-        nextflow: 'n/a: workdir command; the Nextflow layer has no reads-screen step yet'
+        nextflow: params.gtdb_lineages
         live: 'n/a: covered offline with fake gather tables in tests/unit/test_reads_screen.py; needs the GTDB sketch, which the live suite does not hold'
       --jobs:
         param: ReadsScreenParams.jobs
@@ -3186,7 +3207,50 @@ commands:
         - docs/usage.md
         - docs/cli-reference.md
         - docs/audit/cli-matrix.md
-        nextflow: 'n/a: workdir command; the Nextflow layer has no reads-screen step yet'
+        nextflow: task.cpus
+        live: 'n/a: covered offline with fake gather tables in tests/unit/test_reads_screen.py; needs the GTDB sketch, which the live suite does not hold'
+      --reads-tsv:
+        param: 'n/a: the standalone form takes reads.tsv, --sketches-dir and -o instead of -wd; refused with -wd'
+        value: '{file}'
+        validated: stage
+        docs:
+        - docs/usage.md
+        - docs/cli-reference.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'module: modules/local/dataflow/reads_screen.nf (READS_SCREEN runs the standalone form on reads.tsv and the sketches)'
+        live: 'n/a: covered offline with fake gather tables in tests/unit/test_reads_screen.py; needs the GTDB sketch, which the live suite does not hold'
+        observable: the decisions go to DIR/<variant>/ without a workdir record
+      --sketches-dir:
+        param: 'n/a: the standalone form reads the -o DIR of reads-sketch; refused with -wd'
+        value: '{alt_dir}'
+        validated: stage
+        docs:
+        - docs/usage.md
+        - docs/cli-reference.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'module: modules/local/dataflow/reads_screen.nf (READS_SCREEN runs the standalone form on reads.tsv and the sketches)'
+        live: 'n/a: covered offline with fake gather tables in tests/unit/test_reads_screen.py; needs the GTDB sketch, which the live suite does not hold'
+      --out:
+        aliases:
+        - -o
+        param: 'n/a: the standalone form writes DIR/<variant>/; refused with -wd'
+        value: '{alt_dir}'
+        validated: stage
+        docs:
+        - docs/usage.md
+        - docs/cli-reference.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'module: modules/local/dataflow/reads_screen.nf (READS_SCREEN runs the standalone form on reads.tsv and the sketches)'
+        live: 'n/a: covered offline with fake gather tables in tests/unit/test_reads_screen.py; needs the GTDB sketch, which the live suite does not hold'
+      --versions-out:
+        param: 'n/a: the standalone form writes the tool versions here (Nextflow); refused with -wd'
+        value: '{file}'
+        validated: stage
+        docs:
+        - docs/usage.md
+        - docs/cli-reference.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'module: modules/local/dataflow/reads_screen.nf (READS_SCREEN runs the standalone form on reads.tsv and the sketches)'
         live: 'n/a: covered offline with fake gather tables in tests/unit/test_reads_screen.py; needs the GTDB sketch, which the live suite does not hold'
   run:
     dispatch: stage

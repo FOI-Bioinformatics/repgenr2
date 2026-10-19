@@ -264,6 +264,8 @@ Sketch the reads of selected runs streamed from SRA, without downloading them.
 | `--max-spots` |  | Stream only the first N spots of each run (fastq-dump -X; a paired-end spot gives two reads). Default: the whole run. Each cap is its own variant directory, spots_N/ beside all/. The first spots are not a random sample; for a species-level gather on an isolate this is expected to matter little. |
 | `--jobs` |  | Runs streamed at once, each a fastq-dump and a sourmash process (default 4, or the usable CPUs when fewer). |
 | `-o`, `--out` |  | Standalone form: sketch the runs named by --accession/--accession-file into DIR/<variant>/ without a workdir; nothing is recorded. |
+| `--reads-tsv` |  | Standalone form: a reads.tsv (the reads stage's table) naming the runs, with their taxonomy and biosample; --accession and --accession-file then pick a subset of it. |
+| `--versions-out` |  | Write resolved tool versions (YAML fragment) here. |
 
 ### reads-screen
 
@@ -272,7 +274,7 @@ downloading any of them.
 
 | option | default | description |
 |---|---|---|
-| `-wd`, `--workdir` | required | Working directory. |
+| `-wd`, `--workdir` |  | Workdir with reads.tsv and reads_sketches/; the decisions go to reads_screen/<variant>/ and the stage is recorded. |
 | `--accession` |  | Restrict to these runs of reads.tsv (repeatable); a run not in reads.tsv is refused. |
 | `--accession-file` |  | File of run accessions, one per line (# comments allowed). |
 | `--max-spots` |  | Screen the sketches of reads-sketch --max-spots N (reads_sketches/spots_N/). Default: all/ when present, else the only variant there. |
@@ -281,6 +283,10 @@ downloading any of them.
 | `--gtdb-sketch` |  | GTDB sourmash sketch database (or set REPGENR_GTDB_SKETCH). |
 | `--gtdb-lineages` |  | Lineages CSV published with the GTDB sketch (or set REPGENR_GTDB_LINEAGES). |
 | `--jobs` |  | Runs gathered at once (default 4, or the usable CPUs when fewer); each gather takes about 0.6 GB against the GTDB representatives sketch. |
+| `--reads-tsv` |  | Standalone form: a reads.tsv (the reads stage's table) naming the runs, with their taxonomy and biosample; --accession and --accession-file then pick a subset of it. |
+| `--sketches-dir` |  | Standalone form: the -o DIR of reads-sketch, holding <variant>/ directories. |
+| `-o`, `--out` |  | Standalone form: write the decisions to DIR/<variant>/ instead of a workdir. |
+| `--versions-out` |  | Write resolved tool versions (YAML fragment) here. |
 
 ### assemble
 

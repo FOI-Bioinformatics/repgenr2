@@ -7,6 +7,16 @@ All notable changes to RepGenR2 are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- Nextflow: `READS_SKETCH` and `READS_SCREEN` on the reads path. With
+  `--reads_sketch` every selected run is sketched from the archive stream
+  (`--reads_sketch_spots` caps the spots per run) and the sketches are
+  published under `reads/reads_sketches/`; with `--reads_screen` the
+  sketches are judged against `--gtdb_sketch`/`--gtdb_lineages`
+  (`--reads_screen_args` for the thresholds), `reads/reads_screen/` is
+  published and only the runs of `passed.txt` are assembled. Both tasks run
+  the new standalone forms: `reads-sketch -o DIR --reads-tsv reads.tsv` and
+  `reads-screen --reads-tsv reads.tsv --sketches-dir DIR -o OUT`, each with
+  `--versions-out`.
 - `repgenr reads-screen`: judge the sketches of `reads-sketch` against GTDB
   before any download, with the three checks of `assemble --screen-reads`
   (`taxon_mismatch`, `low_match_fraction` below `--min-fraction`,

@@ -37,6 +37,7 @@ from repgenr.stages.reads_screen import (
     precheck,
     resolve_variant,
     run,
+    run_standalone,
     select_runs,
 )
 
@@ -637,3 +638,63 @@ def test_a_failed_unselected_run_is_not_called_stale(
     assert "decided with other settings" not in caplog.text
     assert ctx.config.stages["reads_screen"].params["stale"] == 0
     assert _passed(ctx.workdir, "all") == ["SRR1"]
+
+
+# --- the standalone form (Nextflow) --------------------------------------------------
+
+
+def test_standalone_screens_a_reads_tsv_from_a_sketch_directory(
+    tmp_path: Path, gtdb, gather, ani
+) -> None:
+    rows = [_row("SRR1", "SAMN1"), _row("SRR2", "SAMN1"), _row("SRR3")]
+    reads = tmp_path / "reads.tsv"
+    write_reads(reads, rows)
+    sketches = tmp_path / "sketches"
+    _sketch(tmp_path / "fake", "spots_5000", ["SRR1", "SRR2"])
+    (tmp_path / "fake" / READS_SKETCHES_DIR).rename(sketches)
+    gather.hits = {"SRR1": (_LINEAGE, 0.5), "SRR2": (_LINEAGE, 0.5)}
+    ani[("SRR2", "SRR1")] = 1.0
+    out = tmp_path / "screen"
+    versions = tmp_path / "tool_versions.yml"
+    params = ReadsScreenParams(gtdb_sketch=gtdb[0], gtdb_lineages=gtdb[1], jobs=2)
+    logger = logging.getLogger("test")
+    n = run_standalone(
+        reads, sketches, out, params, force=False, logger=logger, versions_out=versions
+    )
+    assert n == 1
+    lines = (out / "spots_5000" / READS_SCREEN_TSV).read_text(encoding="utf-8").splitlines()
+    assert [line.split("\t")[0] for line in lines[1:]] == ["SRR1", "SRR2", "SRR3"]
+    assert (out / "spots_5000" / PASSED_TXT).read_text(encoding="utf-8") == "SRR1\n"
+    assert "sourmash: 4.9.4" in versions.read_text(encoding="utf-8")
+    assert not (tmp_path / "repgenr.yaml").exists() and not (out / "repgenr.yaml").exists()
+
+
+def test_reads_screen_command_standalone_form_and_its_refusals(monkeypatch, tmp_path: Path) -> None:
+    seen: dict = {}
+
+    def fake(reads_tsv, sketches_dir, out, params, *, force, logger, versions_out):  # noqa: ANN001, ANN202
+        seen.update(reads=reads_tsv, sketches=sketches_dir, out=out, params=params, v=versions_out)
+        return 0
+
+    from repgenr.stages import reads_screen as mod
+
+    monkeypatch.setattr(mod, "run_standalone", fake)
+    (tmp_path / "reads.tsv").write_text("", encoding="utf-8")
+    base = ["reads-screen", "--reads-tsv", str(tmp_path / "reads.tsv")]
+    full = [*base, "--sketches-dir", str(tmp_path / "sk"), "-o", str(tmp_path / "out")]
+    result = _runner.invoke(app, [*full, "--max-spots", "5000", "--versions-out", "v.yml"])
+    assert result.exit_code == 0, result.output
+    assert seen["params"].max_spots == 5000 and seen["v"] == Path("v.yml")
+    assert seen["sketches"] == (tmp_path / "sk").resolve()
+    partial = _runner.invoke(app, base)
+    assert partial.exit_code != 0 and "standalone form" in _plain(partial.output)
+    both = _runner.invoke(app, [*full, "-wd", str(tmp_path / "wd")])
+    assert both.exit_code != 0 and "belong to the standalone form" in _plain(both.output)
+
+
+def _plain(text: str) -> str:
+    import re
+
+    text = re.sub(r"\x1b\[[0-9;]*m", "", text)
+    text = re.sub(r"[\u2500-\u257f]", "", text)
+    return " ".join(text.split())

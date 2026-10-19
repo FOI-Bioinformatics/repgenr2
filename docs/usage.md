@@ -580,9 +580,11 @@ run failed, and then records nothing.
 `--jobs` streams that many runs at once (default 4, or the usable CPUs when
 fewer); each is a `fastq-dump` and a `sourmash` process, bound by the
 network more than by the CPU. The standalone form `-o DIR` with bare
-`--accession` runs (SRR, ERR or DRR accessions) sketches into `DIR` without
-a workdir and records nothing; `--platform` needs `reads.tsv` and is refused
-there.
+`--accession` runs (SRR, ERR or DRR accessions), or with `--reads-tsv` the
+runs of a `reads.tsv`, sketches into `DIR` without a workdir and records
+nothing; `--platform` needs `-wd` and is refused there, and `--versions-out`
+writes the tool versions as a YAML fragment (the Nextflow `READS_SKETCH`
+task uses this form).
 
 The first N spots of a run are not a random sample: an Illumina file starts
 with its first tiles, whose quality profile differs, and an ONT file with
@@ -644,6 +646,12 @@ settings it was made with, beside the gather and `tax genome` output; and
 `assemble --accession-file` takes, so the assembly can be limited to them.
 The stage is recorded as `reads_screen` and `status` lists the variants
 screened with their counts. See [output.md](output.md#reads-screen).
+
+The standalone form `reads-screen --reads-tsv reads.tsv --sketches-dir DIR -o
+OUT` (the `DIR` of `reads-sketch -o`) screens without a workdir and records
+nothing, writing `OUT/<variant>/`; `--versions-out` writes the tool versions
+as a YAML fragment. The Nextflow `READS_SCREEN` task uses this form (see
+[Reads in Nextflow](#reads-in-nextflow)).
 
 A repeat with the same settings gathers nothing again: a decision made with
 the same thresholds and database on the same sketch is kept, and a new
@@ -2608,6 +2616,8 @@ selection target (`francisella` for `-tg francisella`), `mode` is
 | `--assemble_args` | (empty) | Extra `assemble-run` flags in reads mode (`--polisher`, `--min-contig-length`, `--tool-arg`). |
 | `--checkm2_db` | `null` | CheckM2 database; switches on quality scoring and the completeness/contamination gate in reads mode. |
 | `--gtdb_sketch` / `--gtdb_lineages` | `null` | GTDB sourmash sketch and its lineages CSV; switch on classification and GTDB naming in reads mode. |
+| `--reads_sketch` / `--reads_sketch_spots` | `false` / `null` | Sketch every selected run from the archive stream before any download (`READS_SKETCH`), optionally capped at N spots per run. |
+| `--reads_screen` / `--reads_screen_args` | `false` / (empty) | Judge the sketches against the GTDB sketch (`READS_SCREEN`) and assemble only the runs that pass; extra `reads-screen` flags. |
 | `--derep_tool` | `skder` | Dereplicator for the scatter-gather step. |
 | `--derep_process_size` | `null` | Genomes per dereplication chunk (single chunk if unset). |
 | `--derep_primary_ani` / `--derep_secondary_ani` / `--derep_aligned_fraction` | `0.90` / `0.99` / `0.50` | ANI / aligned-fraction thresholds. |
@@ -2698,8 +2708,36 @@ FASTAs, `selection.tsv` and an empty outgroup accession file, the same tuple
 `excused_runs.tsv` and the QC tables are published under `reads/`.
 
 The number of runs is bounded on the selection with
-`--reads_args '--max-runs N'`, and the reads sketch and screen are set through
-`--assemble_args` (see [Stateless steps](#stateless-steps)).
+`--reads_args '--max-runs N'`, and the reads sketch and screen of the
+assembly step are set through `--assemble_args` (see
+[Stateless steps](#stateless-steps)).
+
+#### Reads in Nextflow
+
+`--reads_screen` adds two tasks between the selection and the assemblies.
+`READS_SKETCH` (`reads-sketch --reads-tsv reads.tsv -o sketches`,
+`process_low`) streams every run of `reads.tsv` from the archive into a
+sourmash sketch, the first `--reads_sketch_spots` spots of each when set,
+and publishes them under `reads/reads_sketches/<variant>/`. `READS_SCREEN`
+(`reads-screen --reads-tsv reads.tsv --sketches-dir sketches -o screen`,
+`process_medium`) judges the sketches with the three checks of the assemble
+screen against `--gtdb_sketch` and `--gtdb_lineages`, with
+`--reads_screen_args` for `--min-fraction` and `--dup-ani`, and publishes
+`reads/reads_screen/<variant>/` with `reads_screen.tsv`, one decision per
+run and `passed.txt`. Only the runs of `passed.txt` become `READS_ASSEMBLE`
+tasks; the others are neither fetched nor listed in `excused_runs.tsv`,
+since they never reach the assembly step (their reasons are in
+`reads_screen.tsv`). `--reads_sketch` alone runs the sketch task and
+publishes the sketches without a screen. Both tasks need `fastq-dump`
+(sra-tools) and sourmash in the task environment; the screen also needs the
+GTDB sketch on a path every task can read.
+
+```bash
+nextflow run nextflow/main.nf --mode reads --outdir results \
+    --reads_args "-tg mycoplasmopsis --platform illumina --max-runs 50" \
+    --reads_screen --reads_sketch_spots 200000 \
+    --gtdb_sketch /db/gtdb-rs226-reps.k31-sc10k.sig.zip --gtdb_lineages /db/lineages.csv
+```
 
 ### Genome sketches in Nextflow
 

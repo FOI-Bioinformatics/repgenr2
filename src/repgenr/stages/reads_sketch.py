@@ -49,6 +49,7 @@ from ..core.resources import usable_cpus
 from ..core.sketches import READS_SKETCH_PARAMS, SKETCH_SUFFIX, clear_partials, partial_path
 from ..core.sourmash import SOURMASH_TOOL
 from ..core.sratools import SRATOOLS_TOOL, fastq_dump_command
+from ..core.versions import write_versions_fragment
 from .reads import _ENA_PLATFORM, PLATFORMS, read_accession_file
 
 DEFAULT_JOBS_CAP = 4
@@ -177,33 +178,51 @@ def run_standalone(
     jobs: int | None,
     force: bool,
     logger: logging.Logger,
+    reads_tsv: Path | None = None,
+    versions_out: Path | None = None,
 ) -> int:
-    """``-o DIR`` without a workdir: sketch bare accessions, record nothing."""
-    if not accessions:
-        raise UserInputError("Without -wd, name the runs with --accession or --accession-file.")
-    odd = [a for a in accessions if not _RUN_ACCESSION.match(a)]
-    if odd:
-        raise UserInputError(
-            f"Not a run accession (SRR, ERR or DRR followed by digits): {', '.join(odd)}"
-        )
-    rows = [
-        ReadRow(
-            run_accession=a,
-            biosample="",
-            bioproject="",
-            organism="",
-            taxid="",
-            platform="",
-            instrument_model="",
-            layout="",
-            bases=0,
-            read_count=0,
-        )
-        for a in dict.fromkeys(accessions)
-    ]
+    """``-o DIR`` without a workdir: sketch bare accessions, or the runs of a
+    ``reads.tsv`` (every run, or the named subset), and record nothing.
+    ``versions_out`` takes the tool versions as a YAML fragment (Nextflow)."""
+    if reads_tsv is not None:
+        rows = read_reads(reads_tsv)
+        if accessions:
+            by_run = {r.run_accession: r for r in rows}
+            unknown = [a for a in accessions if a not in by_run]
+            if unknown:
+                raise UserInputError(f"Not in {reads_tsv}: {', '.join(unknown)}.")
+            rows = [by_run[a] for a in dict.fromkeys(accessions)]
+        source = str(reads_tsv)
+    else:
+        if not accessions:
+            raise UserInputError(
+                "Without -wd, name the runs with --accession or --accession-file, or give "
+                "--reads-tsv."
+            )
+        odd = [a for a in accessions if not _RUN_ACCESSION.match(a)]
+        if odd:
+            raise UserInputError(
+                f"Not a run accession (SRR, ERR or DRR followed by digits): {', '.join(odd)}"
+            )
+        rows = [
+            ReadRow(
+                run_accession=a,
+                biosample="",
+                bioproject="",
+                organism="",
+                taxid="",
+                platform="",
+                instrument_model="",
+                layout="",
+                bases=0,
+                read_count=0,
+            )
+            for a in dict.fromkeys(accessions)
+        ]
+        source = "the request"
     out_dir = out_dir / reads_sketch_variant(max_spots)
     index = read_index(out_dir / READS_SKETCHES_TSV)
-    sketched, failed, _versions = sketch_runs(
+    sketched, failed, versions = sketch_runs(
         rows,
         out_dir,
         index,
@@ -212,9 +231,11 @@ def run_standalone(
         force=force,
         logger=logger,
         all_runs=[r.run_accession for r in rows],
-        source="the request",
+        source=source,
     )
-    if sketched == 0 and failed == len(rows):
+    if versions_out is not None:
+        write_versions_fragment(versions_out, versions)
+    if rows and sketched == 0 and failed == len(rows):
         raise WorkdirError(f"Every one of the {failed} run(s) failed to stream; see {out_dir}.")
     logger.info("Variants under %s: %s", out_dir.parent, describe_variants(out_dir.parent))
     return sketched
