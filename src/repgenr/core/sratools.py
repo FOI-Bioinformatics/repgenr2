@@ -11,7 +11,9 @@ from __future__ import annotations
 from .binaries import BinarySpec
 from .plugins import ToolCapabilities
 
-SRATOOLS_IMAGE = "quay.io/biocontainers/sra-tools:3.4.1--h4304569_1"
+# NCBI's own image: built for linux/amd64 and linux/arm64, so it runs natively
+# on Apple Silicon (the amd64-only BioContainer segfaults under emulation there).
+SRATOOLS_IMAGE = "ncbi/sra-tools:3.4.1"
 SRATOOLS_CONDA: tuple[str, ...] = ("bioconda::sra-tools",)
 FASTQ_DUMP_BINARY = BinarySpec("fastq-dump", version_args=("--version",), min_version="3.0")
 

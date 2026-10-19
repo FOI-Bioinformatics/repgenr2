@@ -6,6 +6,12 @@ All notable changes to RepGenR2 are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+- `reads-sketch` under `--container docker` on Apple Silicon: sra-tools now
+  runs from NCBI's multi-architecture image `ncbi/sra-tools:3.4.1` instead
+  of the amd64-only BioContainer, whose emulated `fastq-dump` segfaulted on
+  every run.
+
 ### Added
 - Nextflow: `READS_SKETCH` and `READS_SCREEN` on the reads path. With
   `--reads_sketch` every selected run is sketched from the archive stream

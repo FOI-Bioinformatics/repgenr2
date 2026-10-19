@@ -176,8 +176,9 @@ the tools failed on).
 ### Tools and containers
 
 - `core/sratools.py`: `ToolCapabilities` `sra-tools` with
-  `fastq-dump >= 3.0`, conda `bioconda::sra-tools`, the BioContainer
-  `quay.io/biocontainers/sra-tools:3.4.1--h4304569_1`; `sra-tools>=3.0` in
+  `fastq-dump >= 3.0`, conda `bioconda::sra-tools`, the image
+  `ncbi/sra-tools:3.4.1` (NCBI's multi-architecture image; the amd64-only
+  BioContainer segfaulted under emulation on Apple Silicon); `sra-tools>=3.0` in
   `envs/core.yml`.
 - `core/process.run_pipeline` and `core/containers.run_pipeline` join two
   tools by a pipe, each half with its own image, environment and `--bin-dir`,
