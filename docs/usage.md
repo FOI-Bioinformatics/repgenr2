@@ -595,10 +595,12 @@ starting point, not a tested threshold. The command needs
 `fastq-dump` (sra-tools 3.0 or later, in the core environment) and reaches
 NCBI, not the ENA mirror `assemble` downloads from; a run that only ENA
 holds fails with its reason in the index. Measured on a laptop, 5000 spots
-of a MiSeq run streamed and sketched in about 12 s. Under `--container
-docker` each tool runs in its own image with the pipe between them; on
-Apple Silicon the emulated linux/amd64 `fastq-dump` crashed (observed
-2026-10-19), so run the command on the host there.
+of a MiSeq run streamed and sketched in about 12 s on the host and about
+25 s under Docker. Under `--container docker` each tool runs in its own
+image with the pipe between them; sra-tools runs from NCBI's own image
+(`ncbi/sra-tools`), which is built for amd64 and arm64, so it runs natively
+on Apple Silicon (the amd64-only BioContainer crashed under emulation
+there, observed 2026-10-19).
 
 #### Screening the sketches before any download
 
