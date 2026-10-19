@@ -24,6 +24,7 @@ from repgenr.core.contracts import (
     ReadRow,
     read_reads_sketches,
     reads_sketch_variant,
+    reads_sketch_variant_spots,
     write_reads,
 )
 from repgenr.core.errors import UserInputError, WorkdirError
@@ -287,6 +288,13 @@ def test_a_repeat_skips_current_sketches_and_a_new_cap_is_its_own_variant(
         rows = read_reads_sketches(root / name / READS_SKETCHES_TSV)
         assert {r.max_spots for r in rows} == {cap} and (root / name / "SRR1.sig.zip").is_file()
     assert reads_sketch_variant(None) == "all" and reads_sketch_variant(30) == "spots_30"
+    assert reads_sketch_variant_spots("all") == (True, None)
+    assert reads_sketch_variant_spots("spots_30") == (True, 30)
+    for odd in ("spots_0", "spots_007", "spots_\u00b2", "spots_", "other", ".home.x"):
+        assert reads_sketch_variant_spots(odd) == (False, None), odd
+    # A stray directory and an old flat-layout index are ignored, with a warning.
+    (root / "spots_\u00b2").mkdir()
+    (root / "reads_sketches.tsv").write_text("x\n", encoding="utf-8")
     assert ctx.config.stages["reads_sketch"].params["variants"] == {
         "all": 2,
         "spots_10": 2,
@@ -296,6 +304,11 @@ def test_a_repeat_skips_current_sketches_and_a_new_cap_is_its_own_variant(
     ctx.force = True
     assert run(ctx, ReadsSketchParams(max_spots=30)) == 2
     assert len(_calls(fake_tools)) == 8
+    assert ctx.config.stages["reads_sketch"].params["variants"] == {
+        "all": 2,
+        "spots_10": 2,
+        "spots_30": 2,
+    }
 
 
 def test_a_subset_adds_to_the_set_and_the_rest_stay_pending(
@@ -448,7 +461,7 @@ def test_harness_skips_a_repeat_and_reruns_on_a_new_selection(
     assert status.exit_code == 0, status.output
     report = {s["name"]: s for s in json.loads(status.output)["stages"]}
     assert report["reads_sketch"]["state"] == "done"
-    assert report["reads_sketch"]["detail"] == "variants: all (2 of 2 runs)"
+    assert report["reads_sketch"]["detail"] == "variants: all (2 of 2 runs sketched)"
 
 
 def test_harness_streams_a_failed_run_again_on_a_repeat(tmp_path: Path, fake_tools: Path) -> None:

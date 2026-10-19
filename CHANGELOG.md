@@ -15,10 +15,10 @@ All notable changes to RepGenR2 are documented here. The format follows
   `--accession-file` and `--platform` select a subset of `reads.tsv`, and a
   call adds to the set (runs sketched before at the same cap are kept).
   Writes `reads_sketches/<variant>/<run>.sig.zip` and its index
-  `reads_sketches.tsv`, one variant directory per cap (`all/`, `spots_<N>/`)
-  so sketches at several depths coexist,
-  (one row per run with status, cap, spots, sequences and the reason of a
-  failure) and records a `reads_sketch` stage; `-o DIR` is a standalone form
+  `reads_sketches.tsv` (one row per run with status, cap, spots, sequences
+  and the reason of a failure), one variant directory per cap (`all/`,
+  `spots_<N>/`) so sketches at several depths coexist, and records a
+  `reads_sketch` stage; `-o DIR` is a standalone form
   for bare accessions. sra-tools (`fastq-dump` 3.0 or later) joins the core
   environment, with its BioContainer for `--container`; `run_pipeline` in
   `core.containers` joins two tools by a pipe, each in its own image.

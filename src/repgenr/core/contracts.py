@@ -853,14 +853,19 @@ def reads_sketch_variant(max_spots: int | None) -> str:
     return READS_SKETCH_ALL if max_spots is None else f"{_READS_SKETCH_SPOTS}{max_spots}"
 
 
-def reads_sketch_variant_spots(name: str) -> int | None | bool:
-    """The cap a variant directory name stands for: None for ``all``, the
-    spot count for ``spots_N``, False for a name that is neither."""
+_READS_SKETCH_VARIANT_RE = re.compile(r"spots_([1-9][0-9]*)")
+
+
+def reads_sketch_variant_spots(name: str) -> tuple[bool, int | None]:
+    """Whether ``name`` is a variant directory, and the cap it stands for:
+    ``(True, None)`` for ``all``, ``(True, N)`` for ``spots_N`` as
+    :func:`reads_sketch_variant` writes it, ``(False, None)`` otherwise."""
     if name == READS_SKETCH_ALL:
-        return None
-    if name.startswith(_READS_SKETCH_SPOTS) and name[len(_READS_SKETCH_SPOTS) :].isdigit():
-        return int(name[len(_READS_SKETCH_SPOTS) :])
-    return False
+        return True, None
+    match = _READS_SKETCH_VARIANT_RE.fullmatch(name)
+    if match:
+        return True, int(match.group(1))
+    return False, None
 
 
 @dataclass(frozen=True)

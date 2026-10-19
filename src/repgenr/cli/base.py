@@ -238,16 +238,17 @@ HELP_SKETCHES_DIR = (
 
 HELP_MAX_SPOTS = (
     "Stream only the first N spots of each run (fastq-dump -X; a paired-end spot gives "
-    "two reads). Default: the whole run. The first spots are not a random sample; for a "
-    "species-level gather on an isolate this is expected to matter little."
+    "two reads). Default: the whole run. Each cap is its own variant directory, "
+    "spots_N/ beside all/. The first spots are not a random sample; for a species-level "
+    "gather on an isolate this is expected to matter little."
 )
 HELP_SKETCH_JOBS = (
     "Runs streamed at once, each a fastq-dump and a sourmash process (default 4, or "
     "the usable CPUs when fewer)."
 )
 HELP_SKETCH_OUT = (
-    "Standalone form: sketch the runs named by --accession/--accession-file into DIR "
-    "without a workdir; nothing is recorded."
+    "Standalone form: sketch the runs named by --accession/--accession-file into "
+    "DIR/<variant>/ without a workdir; nothing is recorded."
 )
 
 # Canonical stage order per lineage. Used to show progress (`status`) and by
@@ -974,8 +975,10 @@ def _require_unit_interval(value: float | None, label: str) -> None:
 # finished without sketches gets them from `repgenr sketch`.
 # strict_sources (ingest --strict-sources) only refuses a run; the genomes
 # staged are the same, so a repeat with it skips like one without.
+# "jobs": how many runs assemble or reads-sketch work on at once; the results
+# are the same.
 _NON_RESULT_PARAMS = frozenset(
-    {"threads", "num_processes", "allow_incomplete", "sketch", "strict_sources"}
+    {"threads", "num_processes", "jobs", "allow_incomplete", "sketch", "strict_sources"}
 )
 
 

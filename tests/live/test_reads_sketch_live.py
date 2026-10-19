@@ -48,3 +48,4 @@ def test_reads_sketch_streams_two_runs(run_repgenr, tmp_path: Path) -> None:
         "reads-sketch", "-o", out, "--accession", "SRR25474756", "--max-spots", "5000"
     )
     assert "already sketched" in again.stderr + again.stdout
+    assert sorted(p.name for p in out.iterdir()) == ["spots_5000"]
