@@ -3,7 +3,9 @@
 // Runs the standalone form of `repgenr reads-sketch` on the reads.tsv that
 // READS_SELECT emitted: each run is streamed with fastq-dump and piped into
 // sourmash, so no FASTQ file is written, and params.reads_sketch_spots caps
-// the spots read per run (task.ext.args carries --max-spots). Emits the
+// the spots read per run (task.ext.args carries --max-spots). Each stream is
+// a network-bound fastq-dump and sourmash pair, so at least four run at once.
+// Emits the
 // sketches directory, which holds one <variant>/ (all/ or spots_N/) with a
 // .sig.zip per run and the index reads_sketches.tsv. No shared workdir.
 
@@ -31,7 +33,7 @@ process READS_SKETCH {
     repgenr ${opts} reads-sketch \\
         --reads-tsv ${reads_tsv} \\
         -o sketches \\
-        --jobs ${task.cpus} \\
+        --jobs ${Math.max(4, task.cpus)} \\
         ${args} \\
         --versions-out tool_versions.yml
 

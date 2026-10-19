@@ -185,6 +185,8 @@ def run_standalone(
     ``reads.tsv`` (every run, or the named subset), and record nothing.
     ``versions_out`` takes the tool versions as a YAML fragment (Nextflow)."""
     if reads_tsv is not None:
+        if not reads_tsv.is_file():
+            raise UserInputError(f"--reads-tsv {reads_tsv} is not a file.")
         rows = read_reads(reads_tsv)
         if accessions:
             by_run = {r.run_accession: r for r in rows}

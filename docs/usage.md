@@ -2714,7 +2714,8 @@ assembly step are set through `--assemble_args` (see
 
 #### Reads in Nextflow
 
-`--reads_screen` adds two tasks between the selection and the assemblies.
+`--reads_sketch` adds a sketch task between the selection and the assemblies,
+and `--reads_screen` a screen task after it (the screen implies the sketch).
 `READS_SKETCH` (`reads-sketch --reads-tsv reads.tsv -o sketches`,
 `process_low`) streams every run of `reads.tsv` from the archive into a
 sourmash sketch, the first `--reads_sketch_spots` spots of each when set,
@@ -2727,8 +2728,14 @@ screen against `--gtdb_sketch` and `--gtdb_lineages`, with
 run and `passed.txt`. Only the runs of `passed.txt` become `READS_ASSEMBLE`
 tasks; the others are neither fetched nor listed in `excused_runs.tsv`,
 since they never reach the assembly step (their reasons are in
-`reads_screen.tsv`). `--reads_sketch` alone runs the sketch task and
-publishes the sketches without a screen. Both tasks need `fastq-dump`
+`reads_screen.tsv`). That includes a run whose stream failed in the sketch
+task (`screen_failed: no reads sketch`), which without the screen would
+still have been assembled; a transient archive error therefore drops the
+run from the batch, so check `reads_screen.tsv` for such rows. A screen that
+passes no run stops the pipeline, and `--reads_screen` without
+`--gtdb_sketch` and `--gtdb_lineages` is refused before any task.
+`--reads_sketch` alone runs the sketch task and publishes the sketches
+without a screen; both parameters apply to `--mode reads` only. Both tasks need `fastq-dump`
 (sra-tools) and sourmash in the task environment; the screen also needs the
 GTDB sketch on a path every task can read.
 

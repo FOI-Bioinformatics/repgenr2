@@ -63,6 +63,44 @@ nextflow_pipeline {
         }
     }
 
+    test("a screen that passes no run stops the pipeline with its reason") {
+        when {
+            params {
+                outdir = "$outputDir"
+                mode = 'reads'
+                reads_args = '-tg francisella --platform illumina --max-runs 5'
+                reads_screen = true
+                reads_screen_args = '--min-fraction 0.9'
+                gtdb_sketch = '/db/gtdb.sig.zip'
+                gtdb_lineages = '/db/lineages.csv'
+                derep_process_size = 1
+                derep_tool = 'sourmash'
+            }
+        }
+        then {
+            assert workflow.failed
+            assert workflow.stdout.any { line -> line.contains('passed no run') } ||
+                workflow.stderr.any { line -> line.contains('passed no run') }
+            def names = workflow.trace.succeeded().collect { t -> t.name }
+            assert !names.any { n -> n.contains('READS_ASSEMBLE') }
+        }
+    }
+
+    test("reads_screen without the GTDB sketch is refused before any task") {
+        when {
+            params {
+                outdir = "$outputDir"
+                mode = 'reads'
+                reads_screen = true
+            }
+        }
+        then {
+            assert workflow.failed
+            assert workflow.stdout.any { line -> line.contains('--reads_screen needs --gtdb_sketch') } ||
+                workflow.stderr.any { line -> line.contains('--reads_screen needs --gtdb_sketch') }
+        }
+    }
+
     test("with reads_sketch alone the runs are sketched and every run is assembled") {
         when {
             params {

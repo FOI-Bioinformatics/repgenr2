@@ -528,6 +528,8 @@ def test_standalone_sketches_the_runs_of_a_reads_tsv(tmp_path: Path, fake_tools:
         app, ["reads-sketch", "-o", str(out), "--reads-tsv", str(reads), "--accession", "SRR9"]
     )
     assert subset.exit_code == 2 and "Not in" in subset.output
+    missing = _runner.invoke(app, ["reads-sketch", "-o", str(out), "--reads-tsv", "nope.tsv"])
+    assert missing.exit_code == 2 and "is not a file" in missing.output
     mixed = _runner.invoke(
         app, ["reads-sketch", "-wd", str(tmp_path / "wd"), "--reads-tsv", str(reads)]
     )

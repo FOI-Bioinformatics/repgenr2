@@ -32,9 +32,13 @@ workflow ACQUIRE_READS {
     READS_SELECT(ch_meta)
     ch_versions = ch_versions.mix(READS_SELECT.out.versions)
 
-    // The runs to assemble: every run of reads.tsv, or with the screen the
-    // runs of passed.txt (an empty list stands in for "every run").
-    def ch_keep = READS_SELECT.out.reads.map { meta, _tsv -> tuple(meta, []) }
+    // The runs to assemble: every run of reads.tsv (null), or with the screen
+    // the runs of passed.txt. A screen that passed no run stops the pipeline
+    // rather than assembling nothing, or everything, in silence.
+    def ch_keep = READS_SELECT.out.reads.map { meta, _tsv -> tuple(meta, null) }
+    if (params.reads_screen && !(params.gtdb_sketch && params.gtdb_lineages)) {
+        error "--reads_screen needs --gtdb_sketch and --gtdb_lineages (the GTDB sketch and its lineages CSV)"
+    }
     if (params.reads_sketch || params.reads_screen) {
         READS_SKETCH(READS_SELECT.out.reads)
         ch_versions = ch_versions.mix(READS_SKETCH.out.versions)
@@ -43,14 +47,19 @@ workflow ACQUIRE_READS {
         READS_SCREEN(READS_SELECT.out.reads.join(READS_SKETCH.out.sketches, by: 0))
         ch_versions = ch_versions.mix(READS_SCREEN.out.versions)
         ch_keep = READS_SCREEN.out.passed.map { meta, passed ->
-            tuple(meta, passed.readLines().collect { line -> line.trim() }.findAll { line -> line })
+            def runs = passed.readLines().collect { line -> line.trim() }.findAll { line -> line }
+            if (runs.isEmpty()) {
+                error "READS_SCREEN (${meta.id}) passed no run: every run of reads.tsv was excused " +
+                    "or could not be screened; see reads/reads_screen/<variant>/reads_screen.tsv"
+            }
+            tuple(meta, runs)
         }
     }
 
     // One item per run of reads.tsv, keyed by a nested meta.
     def ch_runs = READS_SELECT.out.reads.join(ch_keep, by: 0).flatMap { meta, tsv, keep ->
         tsv.splitCsv(header: true, sep: '\t')
-            .findAll { row -> keep.isEmpty() || keep.contains(row.run_accession) }
+            .findAll { row -> keep == null || keep.contains(row.run_accession) }
             .collect { row ->
                 tuple(
                     [id: "${meta.id}.${row.run_accession}", mode: meta.mode, run: meta,

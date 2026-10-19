@@ -47,6 +47,9 @@ workflow {
     if (params.phylo_split_msa && (params.phylo_args =~ /--treebuilder(\s+|=)(mashtree|sourmash)\b/).find()) {
         error "phylo_split_msa needs a tree builder that consumes an alignment (iqtree, raxmlng, fasttree); phylo_args is '${params.phylo_args}'"
     }
+    if (params.mode != 'reads' && (params.reads_sketch || params.reads_screen)) {
+        log.warn "reads_sketch and reads_screen apply to --mode reads only; ignored in ${params.mode} mode"
+    }
     log.info paramsSummaryLog(workflow)
 
     def ch_meta = channel.value(run_meta(params))
