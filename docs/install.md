@@ -92,7 +92,7 @@ on every change to `envs/` and once a week (`.github/workflows/envs.yml`).
 
 | File | Environment | Contents | Platforms that solve |
 |---|---|---|---|
-| `envs/core.yml` | `repgenr` | Python 3.12, RepGenR2, sourmash and branchwater, skDER, skani, galah, dRep, datasets, SibeliaZ, minimap2, samtools, bcftools, ska2, skesa, shovill, flye, medaka, racon, FastTree, VeryFastTree, IQ-TREE, RAxML-NG, rapidNJ | linux-64, osx-arm64 |
+| `envs/core.yml` | `repgenr` | Python 3.12, RepGenR2, sourmash and branchwater, skDER, skani, galah, dRep, datasets, SibeliaZ, minimap2, samtools, bcftools, ska2, skesa, shovill, flye, medaka, racon, FastTree, VeryFastTree, IQ-TREE, RAxML-NG, rapidNJ, sra-tools (`fastq-dump` for `reads-sketch`) | linux-64, osx-arm64 |
 | `envs/gubbins.yml` | `repgenr-gubbins` | Gubbins (Python 3.10, with its own IQ-TREE 2 and RAxML) | linux-64, osx-64, osx-arm64 |
 | `envs/mashtree.yml` | `repgenr-mashtree` | mashtree (brings samtools 0.1.19) | linux-64, osx-64, osx-arm64 |
 | `envs/snippy.yml` | `repgenr-snippy` | snippy 4.6 | linux-64, osx-64 |

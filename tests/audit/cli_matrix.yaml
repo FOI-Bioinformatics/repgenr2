@@ -2969,6 +2969,94 @@ commands:
         live: 'n/a: network stage; covered offline on frozen ENA fixtures in tests/unit/test_reads_stage.py'
         secondary:
         - --all-runs
+  reads-sketch:
+    dispatch: stage
+    base_args:
+    - -wd
+    - '{wd}'
+    flags:
+      --workdir:
+        aliases:
+        - -wd
+        param: workdir
+        value: '{alt_dir}'
+        validated: stage
+        docs:
+        - docs/usage.md
+        - docs/output.md
+        - docs/cli-reference.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'n/a: workdir command; the Nextflow layer has no reads-sketch step yet'
+        live: tests/live/test_reads_sketch_live.py::test_reads_sketch_streams_two_runs
+        observable: reads_sketches/ holds one .sig.zip per sketched run and reads_sketches.tsv
+      --accession:
+        param: ReadsSketchParams.accessions
+        value: SRR25474756
+        validated: stage
+        docs:
+        - docs/usage.md
+        - docs/cli-reference.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'n/a: workdir command; the Nextflow layer has no reads-sketch step yet'
+        live: tests/live/test_reads_sketch_live.py::test_reads_sketch_streams_two_runs
+        observable: only the named runs of reads.tsv are streamed; an unknown one is refused
+      --accession-file:
+        param: ReadsSketchParams.accession_file
+        value: '{file}'
+        validated: stage
+        docs:
+        - docs/usage.md
+        - docs/cli-reference.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'n/a: workdir command; the Nextflow layer has no reads-sketch step yet'
+        live: 'n/a: covered offline with fake fastq-dump and sourmash in tests/unit/test_reads_sketch.py'
+      --platform:
+        param: ReadsSketchParams.platform
+        value: ont
+        validated: stage
+        docs:
+        - docs/usage.md
+        - docs/cli-reference.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'n/a: workdir command; the Nextflow layer has no reads-sketch step yet'
+        live: 'n/a: covered offline with fake fastq-dump and sourmash in tests/unit/test_reads_sketch.py'
+      --max-spots:
+        param: ReadsSketchParams.max_spots
+        value: '20000'
+        validated: range
+        invalid: '0'
+        docs:
+        - docs/usage.md
+        - docs/output.md
+        - docs/cli-reference.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'n/a: workdir command; the Nextflow layer has no reads-sketch step yet'
+        live: tests/live/test_reads_sketch_live.py::test_reads_sketch_streams_two_runs
+        observable: fastq-dump is called with -X N; reads_sketches.tsv records max_spots
+      --jobs:
+        param: ReadsSketchParams.jobs
+        value: '2'
+        validated: range
+        invalid: '0'
+        docs:
+        - docs/usage.md
+        - docs/cli-reference.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'n/a: workdir command; the Nextflow layer has no reads-sketch step yet'
+        live: 'n/a: covered offline with fake fastq-dump and sourmash in tests/unit/test_reads_sketch.py'
+      --out:
+        aliases:
+        - -o
+        param: 'n/a: the standalone form sketches bare accessions into DIR without a workdir; refused with -wd'
+        validated: stage
+        docs:
+        - docs/usage.md
+        - docs/output.md
+        - docs/cli-reference.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'n/a: workdir command; the Nextflow layer has no reads-sketch step yet'
+        live: tests/live/test_reads_sketch_live.py::test_reads_sketch_streams_two_runs
+        observable: DIR holds the sketches and reads_sketches.tsv; no workdir record
   run:
     dispatch: stage
     base_args:

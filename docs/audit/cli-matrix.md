@@ -3,7 +3,7 @@
 Generated from `tests/audit/cli_matrix.yaml` by `scripts/render_cli_matrix.py`;
 `tests/unit/test_cli_matrix.py` keeps both in step with the command tree.
 
-35 commands, 427 flags (427 with a live test or an n/a reason, 0 pending).
+36 commands, 434 flags (434 with a live test or an n/a reason, 0 pending).
 
 ## Global flags
 
@@ -422,6 +422,20 @@ dispatch: `stage`
 | `--max-bases` |  | ReadsParams.max_bases | range | params.reads_args | n/a: network stage; covered offline on frozen ENA fixtures in tests/unit/test_reads_stage.py | docs/usage.md, docs/choosing-tools.md, docs/cli-reference.md, docs/audit/cli-matrix.md |
 | `--drop-selection` |  | ReadsParams.drop_selection | none | params.reads_args | n/a: network stage; covered offline on frozen ENA fixtures in tests/unit/test_reads_stage.py | docs/usage.md, docs/choosing-tools.md, docs/cli-reference.md, docs/audit/cli-matrix.md |
 | `--one-per-sample` |  | ReadsParams.one_per_sample | none | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: network stage; covered offline on frozen ENA fixtures in tests/unit/test_reads_stage.py | docs/usage.md, docs/cli-reference.md, docs/audit/cli-matrix.md |
+
+## reads-sketch
+
+dispatch: `stage`
+
+| flag | aliases | param | validated | nextflow | live | docs |
+|---|---|---|---|---|---|---|
+| `--workdir` | -wd | workdir | stage | n/a: workdir command; the Nextflow layer has no reads-sketch step yet | tests/live/test_reads_sketch_live.py::test_reads_sketch_streams_two_runs | docs/usage.md, docs/output.md, docs/cli-reference.md, docs/audit/cli-matrix.md |
+| `--accession` |  | ReadsSketchParams.accessions | stage | n/a: workdir command; the Nextflow layer has no reads-sketch step yet | tests/live/test_reads_sketch_live.py::test_reads_sketch_streams_two_runs | docs/usage.md, docs/cli-reference.md, docs/audit/cli-matrix.md |
+| `--accession-file` |  | ReadsSketchParams.accession_file | stage | n/a: workdir command; the Nextflow layer has no reads-sketch step yet | n/a: covered offline with fake fastq-dump and sourmash in tests/unit/test_reads_sketch.py | docs/usage.md, docs/cli-reference.md, docs/audit/cli-matrix.md |
+| `--platform` |  | ReadsSketchParams.platform | stage | n/a: workdir command; the Nextflow layer has no reads-sketch step yet | n/a: covered offline with fake fastq-dump and sourmash in tests/unit/test_reads_sketch.py | docs/usage.md, docs/cli-reference.md, docs/audit/cli-matrix.md |
+| `--max-spots` |  | ReadsSketchParams.max_spots | range | n/a: workdir command; the Nextflow layer has no reads-sketch step yet | tests/live/test_reads_sketch_live.py::test_reads_sketch_streams_two_runs | docs/usage.md, docs/output.md, docs/cli-reference.md, docs/audit/cli-matrix.md |
+| `--jobs` |  | ReadsSketchParams.jobs | range | n/a: workdir command; the Nextflow layer has no reads-sketch step yet | n/a: covered offline with fake fastq-dump and sourmash in tests/unit/test_reads_sketch.py | docs/usage.md, docs/cli-reference.md, docs/audit/cli-matrix.md |
+| `--out` | -o | n/a: the standalone form sketches bare accessions into DIR without a workdir; refused with -wd | stage | n/a: workdir command; the Nextflow layer has no reads-sketch step yet | tests/live/test_reads_sketch_live.py::test_reads_sketch_streams_two_runs | docs/usage.md, docs/output.md, docs/cli-reference.md, docs/audit/cli-matrix.md |
 
 ## run
 

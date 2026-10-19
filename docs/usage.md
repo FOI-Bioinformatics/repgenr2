@@ -532,6 +532,54 @@ The selection is then filtered:
 Each run is labelled with the family, genus and species of its NCBI taxid, in
 the same filename tokens the GTDB path uses.
 
+#### Sketching runs without downloading them
+
+`reads-sketch` sketches the reads of the selected runs without a download.
+Each run is streamed from NCBI with `fastq-dump -Z` and piped into one
+`sourmash sketch dna` call, so no FASTQ file is written, and `--max-spots N`
+stops the stream after the first N spots of a run (a paired-end spot gives
+two reads). The sketches have the parameters of the reads sketch `assemble`
+writes (k=21, 31 and 51 at scaled=1000, with abundances), so the same
+consumers read them: a `sourmash gather` against the GTDB sketch to see what
+a run holds before assembling it, or a comparison between runs.
+
+```bash
+repgenr reads -wd $WD -ts "Francisella tularensis" --platform illumina
+repgenr reads-sketch -wd $WD --max-spots 200000            # every run of reads.tsv
+repgenr reads-sketch -wd $WD --accession SRR1 --accession SRR2   # a subset
+repgenr reads-sketch -wd $WD --accession-file picked.txt --platform illumina
+repgenr reads-sketch -o sketches/ --accession SRR25474756 --max-spots 100000
+```
+
+The runs come from the workdir's `reads.tsv`; without a selection every run
+is sketched. `--accession` and `--accession-file` restrict to runs of that
+table (an accession not in it is refused by name, so a typo cannot sketch an
+unrelated run), and `--platform` to one platform. A call adds to the set: a
+run sketched before with the same `--max-spots` is skipped and a later call
+with another selection keeps it, so a few runs can be sketched first and the
+rest later. A different cap, or `--force`, streams a run again. The sketches
+go to `reads_sketches/<run>.sig.zip` and `reads_sketches/reads_sketches.tsv`
+lists every run of `reads.tsv` with its status (`ok`, `failed` or `pending`),
+the cap, the spots and sequences the tools reported and the reason of a
+failure; see [output.md](output.md#reads-sketch). The stage is recorded as
+`reads_sketch`, so `status` and `doctor` see it. A failed run (an accession
+NCBI does not hold, a network error) is recorded and the others continue;
+the command fails only when every selected run failed.
+
+`--jobs` streams that many runs at once (default 4, or the usable CPUs when
+fewer); each is a `fastq-dump` and a `sourmash` process, bound by the
+network more than by the CPU. The standalone form `-o DIR` with bare
+`--accession` runs sketches into `DIR` without a workdir and records nothing.
+
+The first N spots of a run are not a random sample: an Illumina file starts
+with its first tiles and an ONT file with the first reads of the run. For
+the k-mer content of a sketch at scaled=1000 this does not matter; 100000
+to 1000000 spots are enough for a species-level `gather`. The command needs
+`fastq-dump` (sra-tools 3.0 or later, in the core environment) and reaches
+NCBI, not the ENA mirror `assemble` downloads from; a run that only ENA
+holds fails with its reason in the index. Measured on a laptop, 5000 spots
+of a MiSeq run streamed and sketched in about 12 s.
+
 #### Assembly
 
 `assemble` downloads each run's FASTQ files from the locations ENA lists, over

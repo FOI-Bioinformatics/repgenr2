@@ -836,6 +836,93 @@ def read_reads(path: Path) -> list[ReadRow]:
     return rows
 
 
+# --- reads sketches (reads-sketch) -----------------------------------------------------
+
+# Reads sketches streamed from the archive without a download, beside reads.tsv.
+READS_SKETCHES_DIR = "reads_sketches"
+READS_SKETCHES_TSV = "reads_sketches.tsv"
+READS_SKETCH_STATUSES = ("ok", "failed", "pending")
+
+
+@dataclass(frozen=True)
+class ReadsSketchRow:
+    """One run of ``reads.tsv`` in the reads-sketch index.
+
+    ``status`` is ``ok`` (sketch written), ``failed`` (the pipeline failed;
+    ``reason`` says why) or ``pending`` (never selected). ``max_spots`` is the
+    cap the sketch was made with, empty for the whole run; ``spots_read`` and
+    ``sequences`` are what the tools reported.
+    """
+
+    run_accession: str
+    status: str
+    max_spots: int | None = None
+    spots_read: int | None = None
+    sequences: int | None = None
+    sketch_file: str = ""
+    sketch_params: str = ""
+    seconds: float | None = None
+    reason: str = ""
+
+
+_READS_SKETCH_COLUMNS = [
+    "run_accession",
+    "status",
+    "max_spots",
+    "spots_read",
+    "sequences",
+    "sketch_file",
+    "sketch_params",
+    "seconds",
+    "reason",
+]
+
+
+def write_reads_sketches(path: Path, rows: list[ReadsSketchRow]) -> None:
+    def cell(value: object) -> str:
+        return "" if value is None else str(value)
+
+    with atomic_replace(path, newline="") as fo:
+        writer = _tsv_writer(fo)
+        writer.writerow(_READS_SKETCH_COLUMNS)
+        for r in rows:
+            writer.writerow(
+                [
+                    r.run_accession,
+                    r.status,
+                    cell(r.max_spots),
+                    cell(r.spots_read),
+                    cell(r.sequences),
+                    r.sketch_file,
+                    r.sketch_params,
+                    "" if r.seconds is None else f"{r.seconds:.1f}",
+                    r.reason,
+                ]
+            )
+
+
+def read_reads_sketches(path: Path) -> list[ReadsSketchRow]:
+    rows = []
+    with open(path, newline="", encoding="utf-8") as fo:
+        reader = csv.DictReader(fo, delimiter="\t")
+        _require_columns(reader, path, _READS_SKETCH_COLUMNS)
+        for rec in reader:
+            rows.append(
+                ReadsSketchRow(
+                    run_accession=rec["run_accession"],
+                    status=rec["status"],
+                    max_spots=int(rec["max_spots"]) if rec["max_spots"] else None,
+                    spots_read=int(rec["spots_read"]) if rec["spots_read"] else None,
+                    sequences=int(rec["sequences"]) if rec["sequences"] else None,
+                    sketch_file=rec["sketch_file"],
+                    sketch_params=rec["sketch_params"],
+                    seconds=float(rec["seconds"]) if rec["seconds"] else None,
+                    reason=rec["reason"],
+                )
+            )
+    return rows
+
+
 @dataclass(frozen=True)
 class AssemblyStatsRow:
     """Per-assembly metrics and labels (assembly_stats.tsv), one row per genome."""

@@ -106,6 +106,13 @@ WD/
 | `virus_download_wd/` | vmetadata | Downloaded viral sequences and the metadata tables `vgenome` selects from, and `download.source` naming the source and target of `download.fa`. On the NCBI Virus path `virus_records.json` holds one record per sequence with its report lineage, its species (the current NCBI Taxonomy species of its taxid, else the ICTV binomial from the lineage, else the organism name), `species_source` naming which of the three applied, `species_name` (the species as NCBI writes it, for display by `census`; empty in records written before it), and the segment label as submitted. `virus_metadata_base.tsv` (and `virus_metadata_ncbi.tsv` on the BV-BRC path) at the root of the working directory are copies of those tables; on the NCBI Virus path its `name` column is the species and `description` the organism name. |
 | `reads.tsv` | reads | The selected sequencing runs: run, sample and study accessions, organism and taxid, the resolved family/genus/species tokens, platform, instrument, layout, bases, the FASTQ locations, checksums and sizes ENA reports (empty when ENA holds no FASTQ mirror), and ENA's library selection (RANDOM, MDA, PCR, ...). |
 
+## reads-sketch
+
+| Path | Produced by | Description |
+|------|-------------|-------------|
+| `reads_sketches/<run>.sig.zip` | reads-sketch | The reads sketch of one run of `reads.tsv`, streamed from NCBI with `fastq-dump` and sketched by sourmash without a download: three DNA signatures (k=21, 31, 51, scaled=1000, with abundances) named after the run, the parameters of the `reads.sig.zip` that `assemble` writes beside an assembly. With `--max-spots N` only the first N spots of the run went in. In the standalone form (`-o DIR` instead of `-wd`) the files are written to `DIR`. |
+| `reads_sketches/reads_sketches.tsv` | reads-sketch | The index: one row per run of `reads.tsv` in its order. `status` is `ok`, `failed` or `pending` (never selected); `max_spots` the cap the sketch was made with (empty for the whole run); `spots_read` and `sequences` what `fastq-dump` and sourmash reported; `sketch_file` the file name beside the index; `sketch_params` the sourmash parameter string; `seconds` the wall time of the pipeline; `reason` the last error line of a failed run. Rewritten after every finished run, so an interrupted call keeps what was done. |
+
 ## Genome set: genome, ingest, vgenome
 
 These files form the genome set that every later stage reads. On the reads
