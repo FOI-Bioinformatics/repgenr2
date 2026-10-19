@@ -565,7 +565,9 @@ failure; see [output.md](output.md#reads-sketch). The stage is recorded as
 `reads_sketch`, so `status` and `doctor` see it. A failed run (an accession
 NCBI does not hold, a network error) is recorded and the others continue;
 since a selected run without a sketch is a missing deliverable, a repeat of
-the same call streams the failed runs again and skips the rest. The command
+the same call streams the failed runs again and skips the rest; a run that
+keeps failing, such as an accession NCBI does not hold, is retried on every
+repeat until the selection is narrowed with `--accession`. The command
 fails (exit 3, as `assemble` with no accepted run) only when every selected
 run failed, and then records nothing.
 
