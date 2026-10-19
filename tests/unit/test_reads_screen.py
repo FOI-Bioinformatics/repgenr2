@@ -109,7 +109,6 @@ def gather(monkeypatch) -> FakeGather:
     fake = FakeGather()
     monkeypatch.setattr(screen, "run_tool", fake.run_tool)
     monkeypatch.setattr(sm, "run_tool", fake.run_tool)
-    monkeypatch.setattr(screen, "preflight", lambda caps: {"sourmash": "4.9.4"})
     monkeypatch.setattr(stage, "preflight", lambda caps: {"sourmash": "4.9.4"})
     return fake
 
@@ -307,7 +306,8 @@ def test_run_applies_the_three_checks_and_writes_table_decisions_and_passed(
         5,
         0,
     )
-    assert (record.params["passed"], record.params["excused"], record.params["failed"]) == (1, 4, 2)
+    counts = {k: record.params[k] for k in ("passed", "excused", "failed", "unsketched")}
+    assert counts == {"passed": 1, "excused": 4, "failed": 0, "unsketched": 2}
     assert record.params["settings"]["gtdb_sketch"] == str(Path(gtdb[0]).resolve())
     assert describe_screens(ctx.workdir / READS_SCREEN_DIR) == (
         "spots_5000 (1 passed, 4 excused of 7 runs)"
@@ -460,7 +460,7 @@ def test_harness_skips_a_repeat_and_screens_a_failed_run_again(
     args = ["reads-screen", "-wd", wd, "--gtdb-sketch", gtdb[0], "--gtdb-lineages", gtdb[1]]
     first = _runner.invoke(app, args)
     assert first.exit_code == 0, first.output
-    assert "1 run(s) could not be screened" in first.output
+    assert "1 run(s) could not be screened (screen_failed: gather)" in first.output
     # The failed run keeps no decision: the repeat runs the stage for it alone.
     gather.fail = set()
     again = _runner.invoke(app, args)
@@ -495,3 +495,62 @@ def test_harness_refuses_without_sketches_and_leaves_no_record(tmp_path: Path, g
     assert result.exit_code == 3, result.output
     assert "No reads sketches" in result.output
     assert "reads_screen" not in Config.load(Path(wd)).stages
+
+
+# --- the duplicate check across calls ---------------------------------------------
+
+
+def test_a_run_that_fails_then_passes_excuses_its_later_duplicate(
+    tmp_path: Path, gtdb, gather, ani
+) -> None:
+    ctx = _workdir(tmp_path, [_row("SRR1", "SAMN1"), _row("SRR2", "SAMN1")])
+    _sketch(ctx.workdir, "all", ["SRR1", "SRR2"])
+    gather.hits = {"SRR1": (_LINEAGE, 0.5), "SRR2": (_LINEAGE, 0.5)}
+    ani[("SRR2", "SRR1")] = 1.0
+    gather.fail = {"SRR1"}
+    assert run(ctx, _params(gtdb)) == 1 and _passed(ctx.workdir, "all") == ["SRR2"]
+    gather.fail = set()
+    assert run(ctx, _params(gtdb)) == 1
+    assert _passed(ctx.workdir, "all") == ["SRR1"]
+    assert _table(ctx.workdir, "all")["SRR2"]["duplicate_of"] == "SRR1"
+
+
+def test_subset_calls_give_the_result_of_one_call(tmp_path: Path, gtdb, gather, ani) -> None:
+    ctx = _workdir(tmp_path, [_row("SRR1", "SAMN1"), _row("SRR2", "SAMN1")])
+    _sketch(ctx.workdir, "all", ["SRR1", "SRR2"])
+    gather.hits = {"SRR1": (_LINEAGE, 0.5), "SRR2": (_LINEAGE, 0.5)}
+    ani[("SRR2", "SRR1")] = 1.0
+    run(ctx, _params(gtdb, accessions=["SRR2"]))
+    assert _passed(ctx.workdir, "all") == ["SRR2"]
+    run(ctx, _params(gtdb, accessions=["SRR1"]))
+    assert _passed(ctx.workdir, "all") == ["SRR1"], "SRR2 is now the duplicate of SRR1"
+    assert gather.gathers == ["SRR2", "SRR1"], "SRR2 was not gathered again"
+    # The duplicate excuse is undone when the earlier run no longer passes.
+    gather.hits["SRR1"] = (_LINEAGE, 0.1)
+    ctx.force = True
+    run(ctx, _params(gtdb, accessions=["SRR1"]))
+    table = _table(ctx.workdir, "all")
+    assert table["SRR1"]["decision"] == "excused" and table["SRR2"]["decision"] == "pass"
+    assert _passed(ctx.workdir, "all") == ["SRR2"]
+
+
+def test_runs_dropped_from_reads_tsv_leave_the_table_and_passed(
+    tmp_path: Path, gtdb, gather, ani
+) -> None:
+    ctx = _workdir(tmp_path, [_row("SRR1"), _row("SRR2")])
+    _sketch(ctx.workdir, "all", ["SRR1", "SRR2"])
+    gather.hits = {"SRR1": (_LINEAGE, 0.5), "SRR2": (_LINEAGE, 0.5)}
+    run(ctx, _params(gtdb))
+    write_reads(ctx.workdir / READS_TSV, [_row("SRR1")])
+    run(ctx, _params(gtdb))
+    assert list(_table(ctx.workdir, "all")) == ["SRR1"]
+    assert _passed(ctx.workdir, "all") == ["SRR1"]
+
+
+def test_the_fraction_reason_names_this_commands_flag(tmp_path: Path, gtdb, gather, ani) -> None:
+    ctx = _workdir(tmp_path, [_row("SRR1")])
+    _sketch(ctx.workdir, "all", ["SRR1"])
+    gather.hits = {"SRR1": (_LINEAGE, 0.1)}
+    run(ctx, _params(gtdb))
+    reason = _table(ctx.workdir, "all")["SRR1"]["reason"]
+    assert "below --min-fraction 0.3" in reason and "--screen-min-fraction" not in reason

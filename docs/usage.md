@@ -645,16 +645,20 @@ settings it was made with, beside the gather and `tax genome` output; and
 The stage is recorded as `reads_screen` and `status` lists the variants
 screened with their counts. See [output.md](output.md#reads-screen).
 
-A repeat with the same settings screens nothing again: a decision made with
+A repeat with the same settings gathers nothing again: a decision made with
 the same thresholds and database on the same sketch is kept, and a new
 sketch of a run (a later `reads-sketch --force`) or a changed threshold
 screens the run again from the kept sketch, without streaming anything. A
 run the tools failed on (`screen_failed: gather`) keeps no decision, so the
-repeat screens it again; `--force` screens every selected run again. The
-duplicate check always follows `reads.tsv` order over kept and new
-decisions alike, so the result of several calls is that of one call over
-every run. `assemble --screen-reads` does not read these decisions: its
-sketch is of the whole run, and it screens again from that.
+repeat screens it again; a selected run without a sketch is listed in the
+table and needs `reads-sketch` first; `--force` screens every selected run
+again. The duplicate check is made again on every call, in `reads.tsv`
+order over every run with a decision made with the same settings, selected
+or not, so several calls give the result of one call over every run: a run
+screened later can excuse a run screened earlier as its duplicate, or stop
+being its duplicate when its own decision changes. `assemble
+--screen-reads` does not read these decisions: its sketch is of the whole
+run, and it screens again from that.
 
 #### Assembly
 
@@ -847,6 +851,12 @@ judged when every run is excused (see
 [output.md](output.md#when-every-sequencing-run-is-excused)), and `--append`
 takes `--max-runs` in the same way. `status` shows the stage as, for example,
 `20 assembled, 35 deferred`.
+
+`assemble --accession SRR... --accession-file FILE` names the runs to
+assemble instead of a count: the other pending runs are deferred in the same
+way, finished runs are kept whether named or not, and an accession not in
+`reads.tsv` is refused. The `passed.txt` of `reads-screen` is such a file, so
+a screened selection can be assembled without editing `reads.tsv`.
 
 The alternative is to bound the selection itself: `reads --max-runs N` keeps
 the N largest runs in `reads.tsv`, and a later `reads` call with a larger N

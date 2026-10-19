@@ -37,7 +37,7 @@ import logging
 import os
 import threading
 import zipfile
-from collections.abc import Iterable, Sequence
+from collections.abc import Collection, Iterable, Sequence
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
@@ -55,7 +55,6 @@ from ..core import process
 from ..core.containers import run_tool
 from ..core.contracts import ReadRow, atomic_replace
 from ..core.errors import RepGenRError, ToolExecutionError, UserInputError
-from ..core.plugins import preflight
 from ..core.sourmash import SOURMASH_TOOL
 from .taxon_match import DISAGREE, GENUS_RENAMED, genus_agreement, gtdb_tokens
 
@@ -179,14 +178,21 @@ def read_screen_table(path: Path) -> dict[str, list[str]]:
 
 
 def write_screen_table(
-    path: Path, records: Sequence[ScreenRecord], order: Sequence[str] = ()
+    path: Path,
+    records: Sequence[ScreenRecord],
+    order: Sequence[str] = (),
+    *,
+    keep: Collection[str] | None = None,
 ) -> None:
     """Write screen_reads.tsv: the rows of ``records`` and, for runs not among
     them, the rows of the existing table; in ``order`` (run accessions), then
-    the remaining runs in the order they were found."""
+    the remaining runs in the order they were found. With ``keep``, rows of
+    other runs (runs no longer in reads.tsv) are dropped."""
     rows = read_screen_table(path)
     for r in records:
         rows[r.run_accession] = _row_cells(r)
+    if keep is not None:
+        rows = {run: cells for run, cells in rows.items() if run in keep}
     ranked = {run: i for i, run in enumerate(order)}
     ordered = sorted(rows, key=lambda run: ranked.get(run, len(ranked)))
     with atomic_replace(path, newline="") as fo:
@@ -217,8 +223,8 @@ def resolve_settings(
 
     Refuses (UserInputError) a threshold outside its range, a missing GTDB
     sketch or lineages CSV (flag or environment variable) and a path that
-    does not exist, and, without sourmash, raises MissingBinaryError; all
-    before anything is written. ``command`` names the caller in the message.
+    does not exist, before anything is written. ``command`` names the caller
+    in the message. The caller checks sourmash (``preflight``).
     """
     if not 0.0 <= min_fraction <= 1.0:
         raise UserInputError(f"{min_fraction_flag} must be within [0, 1] (got {min_fraction}).")
@@ -236,7 +242,6 @@ def resolve_settings(
             raise UserInputError(
                 f"{flag} {value} does not exist (from the flag or the environment variable)."
             )
-    preflight(SOURMASH_TOOL)
     return ScreenSettings(
         min_fraction=min_fraction,
         dup_ani=dup_ani,
@@ -359,9 +364,11 @@ class ScreenGate:
         *,
         duplicates: bool = True,
         gather_slots: int = 1,
+        min_fraction_flag: str = "--screen-min-fraction",
     ) -> None:
         self.settings = settings
         self.duplicates = duplicates
+        self.min_fraction_flag = min_fraction_flag
         self._logger = logger
         self._slots = threading.BoundedSemaphore(max(1, gather_slots))
         self._cond = threading.Condition()
@@ -445,7 +452,7 @@ class ScreenGate:
             shown = "unknown" if fraction is None else f"{fraction:.3f}"
             record.reason = (
                 f"{LOW_MATCH_FRACTION}: top species fraction {shown} below "
-                f"--screen-min-fraction {self.settings.min_fraction:g}"
+                f"{self.min_fraction_flag} {self.settings.min_fraction:g}"
             )
         return record
 

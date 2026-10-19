@@ -19,6 +19,9 @@ All notable changes to RepGenR2 are documented here. The format follows
   sketch screens the run again without streaming anything. Recorded as the
   `reads_screen` stage; `status` lists the screened variants. The settings
   of the screen (`resolve_settings`) moved to `stages.assemble_screen`.
+- `assemble --accession` and `--accession-file`: the runs of `reads.tsv` to
+  assemble; the other pending runs are deferred as under `--max-runs`, so
+  the `passed.txt` of `reads-screen` selects the assembly.
 - `repgenr reads-sketch`: sketch the reads of the runs `reads` selected
   without downloading them. Each run is streamed from NCBI with `fastq-dump
   -Z` and piped into `sourmash sketch dna` (k=21, 31, 51, scaled=1000, with

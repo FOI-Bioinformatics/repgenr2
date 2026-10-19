@@ -267,6 +267,18 @@ def assemble(
     outgroup: Path | None = typer.Option(
         None, "--outgroup", help="A FASTA file to set aside as the outgroup for rooting."
     ),
+    accession: list[str] = typer.Option(
+        [],
+        "--accession",
+        help="Assemble only these runs of reads.tsv (repeatable); the other pending runs are "
+        "deferred, as under --max-runs. A run not in reads.tsv is refused.",
+    ),
+    accession_file: Path | None = typer.Option(
+        None,
+        "--accession-file",
+        help="File of run accessions to assemble, one per line (# comments allowed), such as "
+        "the passed.txt of reads-screen.",
+    ),
     max_runs: int | None = typer.Option(
         None,
         "--max-runs",
@@ -362,6 +374,8 @@ def assemble(
             reads_sketch=reads_sketch,
             extra=_parse_key_values(tool_arg, "--tool-arg"),
             max_runs=max_runs,
+            accessions=list(accession),
+            accession_file=None if accession_file is None else str(accession_file),
             screen_reads=screen_reads,
             screen_min_fraction=screen_min_fraction,
             screen_dup_ani=screen_dup_ani,

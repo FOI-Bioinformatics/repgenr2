@@ -499,6 +499,7 @@ STAGE_INPUTS: dict[str, Any] = {
     "assemble": lambda ctx, p: [
         ctx.workdir / READS_TSV,
         *([Path(p.outgroup)] if p.outgroup else []),
+        *([Path(p.accession_file)] if getattr(p, "accession_file", None) else []),
     ],
     "vmetadata": lambda ctx, p: [],
     "genome": lambda ctx, p: [ctx.workdir / SELECTION_TSV],
@@ -678,6 +679,7 @@ def _reads_screen_deliverables(ctx: WorkdirContext, params: Any) -> list[Path]:
     sketch. A run the tools failed on keeps no decision, so a repeat screens
     it again; a run without a sketch is excused in the table and has none."""
     from ..core.contracts import read_reads
+    from ..stages.assemble_screen import SCREEN_JSON
     from ..stages.reads_screen import (
         PASSED_TXT,
         READS_SCREEN_DIR,
@@ -685,7 +687,7 @@ def _reads_screen_deliverables(ctx: WorkdirContext, params: Any) -> list[Path]:
         resolve_variant,
         select_runs,
     )
-    from ..stages.reads_sketch import is_current, read_index, sketch_file
+    from ..stages.reads_sketch import is_current, read_index
 
     sketches = ctx.workdir / READS_SKETCHES_DIR
     try:
@@ -700,8 +702,8 @@ def _reads_screen_deliverables(ctx: WorkdirContext, params: Any) -> list[Path]:
     _known, max_spots = reads_sketch_variant_spots(variant)
     for row in chosen:
         run = row.run_accession
-        if is_current(index.get(run), sketch_dir, max_spots) and sketch_file(sketch_dir, run):
-            files.append(out_dir / run / "screen.json")
+        if is_current(index.get(run), sketch_dir, max_spots):
+            files.append(out_dir / run / SCREEN_JSON)
     return files
 
 
