@@ -31,6 +31,8 @@ from ..core.contracts import (
     GENOME_STATUS_TSV,
     GENOMES_MAP_TSV,
     OUTGROUP_ACCESSION_TXT,
+    READS_SKETCHES_DIR,
+    READS_SKETCHES_TSV,
     READS_TSV,
     REFINED_TSV,
     SEGMENTS_TSV,
@@ -233,6 +235,20 @@ HELP_SKETCHES_DIR = (
     "other tools ignore it."
 )
 
+HELP_MAX_SPOTS = (
+    "Stream only the first N spots of each run (fastq-dump -X; a paired-end spot gives "
+    "two reads). Default: the whole run. The first spots are not a random sample; for a "
+    "species-level gather on an isolate this is expected to matter little."
+)
+HELP_SKETCH_JOBS = (
+    "Runs streamed at once, each a fastq-dump and a sourmash process (default 4, or "
+    "the usable CPUs when fewer)."
+)
+HELP_SKETCH_OUT = (
+    "Standalone form: sketch the runs named by --accession/--accession-file into DIR "
+    "without a workdir; nothing is recorded."
+)
+
 # Canonical stage order per lineage. Used to show progress (`status`) and by
 # `run --dry-run` to print the chain.
 PIPELINE_BACTERIAL = ("metadata", "genome", "dereplicate", "phylo", "tree2tax")
@@ -272,7 +288,16 @@ PANEL_STEPS = "Nextflow data-channel steps"
 # grouped --help, the rendered command reference, and the panel test.
 COMMAND_PANELS: dict[str, tuple[str, ...]] = {
     PANEL_PIPELINE: ("run", "status"),
-    PANEL_ENTRY: ("metadata", "genome", "vmetadata", "vgenome", "ingest", "reads", "assemble"),
+    PANEL_ENTRY: (
+        "metadata",
+        "genome",
+        "vmetadata",
+        "vgenome",
+        "ingest",
+        "reads",
+        "reads-sketch",
+        "assemble",
+    ),
     PANEL_CORE: ("dereplicate", "derep-refine", "annotate", "snptype", "phylo", "tree2tax"),
     PANEL_INSPECT: ("census", "glance", "cluster-summary", "derep-unpack", "derep-stock", "sketch"),
     PANEL_ENV: ("list-tools", "doctor", "versions"),
@@ -455,6 +480,13 @@ STAGE_INPUTS: dict[str, Any] = {
     "ingest": _ingest_inputs,
     # reads is network-only; an accession list is its one file input.
     "reads": lambda ctx, p: [Path(p.accession_file)] if p.accession_file else [],
+    # reads_sketch adds to its own index, so the index is read back and
+    # digested after the run (_REDIGEST_AFTER_RUN).
+    "reads_sketch": lambda ctx, p: [
+        ctx.workdir / READS_TSV,
+        ctx.workdir / READS_SKETCHES_DIR / READS_SKETCHES_TSV,
+        *([Path(p.accession_file)] if p.accession_file else []),
+    ],
     "assemble": lambda ctx, p: [
         ctx.workdir / READS_TSV,
         *([Path(p.outgroup)] if p.outgroup else []),
@@ -595,10 +627,35 @@ def _dereplicate_deliverables(ctx: WorkdirContext, params: Any) -> list[Path]:
 # without --force. The callables read only the ctx attributes that
 # core.doctor's stand-in context provides, and params may be the recorded
 # params dict as a namespace (doctor), so conditional entries use getattr.
+def _reads_sketch_deliverables(ctx: WorkdirContext, params: Any) -> list[Path]:
+    """The index and the sketch of every selected run.
+
+    A run that failed, or whose sketch was removed, is then a missing
+    deliverable: the repeat runs the stage again, which streams only the
+    runs without a current sketch. A selection the stage would refuse
+    (an accession outside reads.tsv) names the index alone; the precheck
+    reports it.
+    """
+    from ..core.contracts import read_reads
+    from ..stages.reads_sketch import select_runs, sketch_file
+
+    out_dir = ctx.workdir / READS_SKETCHES_DIR
+    files = [out_dir / READS_SKETCHES_TSV]
+    reads = ctx.workdir / READS_TSV
+    if reads.is_file():
+        try:
+            chosen = select_runs(read_reads(reads), params)
+        except (UserInputError, WorkdirError, OSError):
+            return files
+        files += [sketch_file(out_dir, r.run_accession) for r in chosen]
+    return files
+
+
 STAGE_DELIVERABLES: dict[str, Any] = {
     "metadata": lambda ctx, p: [ctx.workdir / SELECTION_TSV, ctx.workdir / MANIFEST_FILENAME],
     "ingest": lambda ctx, p: _genome_set_deliverables(ctx),
     "reads": lambda ctx, p: [ctx.workdir / READS_TSV],
+    "reads_sketch": _reads_sketch_deliverables,
     "assemble": lambda ctx, p: _genome_set_deliverables(ctx),
     "vmetadata": _vmetadata_deliverables,
     # genome reads selection.tsv and the manifest; it writes the genome files.
@@ -723,6 +780,7 @@ QUERY_ONLY_FLAGS: dict[str, tuple[str, ...]] = {
 _REDIGEST_AFTER_RUN: dict[str, Any] = {
     "derep_stock": lambda p: getattr(p, "action", None) == "unpack",
     "derep_refine": lambda p: True,
+    "reads_sketch": lambda p: True,
     "metadata": lambda p: getattr(p, "nodownload", False),
 }
 
@@ -764,8 +822,16 @@ def _phylo_precheck(ctx: WorkdirContext, params: Any) -> None:
     precheck(ctx, params)
 
 
+def _reads_sketch_precheck(ctx: WorkdirContext, params: Any) -> None:
+    from ..stages.reads_sketch import precheck
+
+    precheck(ctx, params)
+
+
 _STAGE_PRECHECKS: dict[str, Any] = {
     "derep_stock": _derep_stock_precheck,
+    # A selection naming a run outside reads.tsv must not dirty a finished record.
+    "reads_sketch": _reads_sketch_precheck,
     "dereplicate": _dereplicate_precheck,
     "ingest": _ingest_precheck,
     # A wrong database path on a rerun must not leave the finished record dirty.

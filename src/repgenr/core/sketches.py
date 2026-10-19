@@ -291,6 +291,11 @@ def _is_partial(name: str) -> bool:
     return name.startswith(".") and _PARTIAL in name and name.endswith(SKETCH_SUFFIX)
 
 
+def partial_path(out: Path) -> Path:
+    """Public form of :func:`_partial`, for writers outside this module."""
+    return _partial(out)
+
+
 def _clear_partials(directory: Path) -> None:
     """Remove temporary sketches an interrupted run left behind."""
     if not directory.is_dir():

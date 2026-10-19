@@ -128,8 +128,9 @@ def known_capabilities() -> dict[str, list[ToolCapabilities]]:
                 continue
             caps.setdefault(name, []).append(registry.get(name).capabilities)
     from ..tree.nj import RAPIDNJ  # lazy: tree.nj imports core
+    from .sratools import SRATOOLS_TOOL
 
-    for extra in (CHECKM2_CAPS, DATASETS_CAPS, _MINIMAP2, RAPIDNJ):
+    for extra in (CHECKM2_CAPS, DATASETS_CAPS, _MINIMAP2, RAPIDNJ, SRATOOLS_TOOL):
         caps.setdefault(extra.name, []).append(extra)
     return caps
 

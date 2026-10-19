@@ -7,6 +7,19 @@ All notable changes to RepGenR2 are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- `repgenr reads-sketch`: sketch the reads of the runs `reads` selected
+  without downloading them. Each run is streamed from NCBI with `fastq-dump
+  -Z` and piped into `sourmash sketch dna` (k=21, 31, 51, scaled=1000, with
+  abundances, the parameters of the reads sketch `assemble` writes);
+  `--max-spots N` stops after the first N spots. `--accession`,
+  `--accession-file` and `--platform` select a subset of `reads.tsv`, and a
+  call adds to the set (runs sketched before at the same cap are kept).
+  Writes `reads_sketches/<run>.sig.zip` and `reads_sketches/reads_sketches.tsv`
+  (one row per run with status, cap, spots, sequences and the reason of a
+  failure) and records a `reads_sketch` stage; `-o DIR` is a standalone form
+  for bare accessions. sra-tools (`fastq-dump` 3.0 or later) joins the core
+  environment, with its BioContainer for `--container`; `run_pipeline` in
+  `core.containers` joins two tools by a pipe, each in its own image.
 - Nextflow: the lineage refinement. With `--derep_refine` and
   `--derep_refine_ani`, or `--derep_refine_file`, a `DEREP_REFINE` task
   follows `DEREP_MERGE`, running the new stateless step `repgenr

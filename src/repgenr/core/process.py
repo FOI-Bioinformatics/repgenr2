@@ -25,6 +25,7 @@ import zlib
 from collections import deque
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from contextlib import contextmanager
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -912,3 +913,165 @@ def _existing_parent(path: Path) -> Path:
         if candidate.exists():
             return candidate
     return Path(".")
+
+
+@dataclass
+class PipelineResult:
+    """The outcome of :func:`run_pipeline`: exit codes and the last stderr lines
+    of the producer and the consumer."""
+
+    returncodes: tuple[int, int]
+    tails: tuple[list[str], list[str]]
+    timed_out: bool = False
+
+    @property
+    def ok(self) -> bool:
+        return self.returncodes == (0, 0) and not self.timed_out
+
+
+def run_pipeline(
+    producer: Sequence[str | os.PathLike[str]],
+    consumer: Sequence[str | os.PathLike[str]],
+    *,
+    logger: logging.Logger,
+    cwd: str | os.PathLike[str] | None = None,
+    envs: tuple[Mapping[str, str] | None, Mapping[str, str] | None] = (None, None),
+    log_prefixes: tuple[str, str] = ("producer", "consumer"),
+    timeout: float | None = None,
+    console_commands: tuple[Sequence[str], Sequence[str]] | None = None,
+) -> PipelineResult:
+    """Run ``producer | consumer`` without a shell and return both exit codes.
+
+    ``envs`` holds the environment additions of each half (a --bin-dir PATH
+    applies to its own tool only).
+
+    The producer's stdout is the consumer's stdin; the stderr of both is
+    line-streamed at DEBUG under its prefix and the last lines of each are
+    returned for parsing and for error messages. Each process leads its own
+    session and process group, is registered as a live tool (a termination
+    signal stops both) and is killed when the other ends abnormally, when the
+    stop request is set, or when ``timeout`` expires. A consumer that exits
+    early leaves the producer with a broken pipe, reported as the producer's
+    exit code; the caller decides what that means.
+
+    Nothing is raised for a non-zero exit: a pipeline over many runs treats a
+    failure as one failed run.
+    """
+    first = [str(part) for part in producer]
+    second = [str(part) for part in consumer]
+    if stop_requested.is_set():
+        raise ToolExecutionError(first, -signal.SIGTERM, output=NOT_STARTED, tool=log_prefixes[0])
+    shown = console_commands or (first, second)
+    log_command(logger, first, f"[{log_prefixes[0]}] ", console_command=shown[0])
+    log_command(logger, second, f"[{log_prefixes[1]}] ", console_command=shown[1])
+    full_envs = tuple({**os.environ, **env} if env else None for env in envs)
+    check_argv_size(first, full_envs[0], tool=log_prefixes[0])
+    check_argv_size(second, full_envs[1], tool=log_prefixes[1])
+    limit = timeout if timeout is not None else _default_timeout()
+    tails: tuple[deque[str], deque[str]] = (
+        deque(maxlen=_DEFAULT_TAIL),
+        deque(maxlen=_DEFAULT_TAIL),
+    )
+    procs: list[subprocess.Popen[bytes]] = []
+    timer: threading.Timer | None = None
+    timed_out = False
+
+    def drain(stream: Any, prefix: str, tail: deque[str]) -> None:
+        # The pipe is read to its end whatever happens to a line: a reader
+        # that stopped would let the pipe fill and the tool block on it.
+        for raw in stream:
+            try:
+                text = raw.decode("utf-8", errors="replace")
+                line = text.rstrip("\r\n").rsplit("\r", 1)[-1]
+                if line:
+                    tail.append(line)
+                    logger.debug("[%s] %s", prefix, line)
+            except Exception:  # noqa: BLE001 - a logging failure must not stall the pipe
+                continue
+
+    head: subprocess.Popen[bytes] | None = None
+    try:
+        head = subprocess.Popen(
+            first,
+            cwd=str(cwd) if cwd is not None else None,
+            env=full_envs[0],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            start_new_session=_OWN_GROUP,
+        )
+        procs.append(head)
+        tail_proc = subprocess.Popen(
+            second,
+            cwd=str(cwd) if cwd is not None else None,
+            env=full_envs[1],
+            stdin=head.stdout,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            start_new_session=_OWN_GROUP,
+        )
+        procs.append(tail_proc)
+        # This is the parent's copy of the pipe's read end; the consumer
+        # holds its own. Closing it here lets the producer see the broken
+        # pipe (EPIPE) once the consumer ends.
+        assert head.stdout is not None
+        head.stdout.close()
+        with _live_lock:
+            _live.update(procs)
+        if stop_requested.is_set():
+            for proc in procs:
+                _signal_group(proc, signal.SIGTERM)
+        if limit is not None:
+
+            def _kill() -> None:
+                nonlocal timed_out
+                timed_out = True
+                for proc in procs:
+                    _signal_group(proc, signal.SIGKILL)
+
+            timer = threading.Timer(limit, _kill)
+            timer.start()
+        readers = [
+            threading.Thread(
+                target=drain, args=(head.stderr, log_prefixes[0], tails[0]), daemon=True
+            ),
+            threading.Thread(
+                target=drain, args=(tail_proc.stderr, log_prefixes[1], tails[1]), daemon=True
+            ),
+            threading.Thread(
+                target=drain, args=(tail_proc.stdout, log_prefixes[1], tails[1]), daemon=True
+            ),
+        ]
+        for reader in readers:
+            reader.start()
+        # The consumer ends when its input ends or when it has seen enough;
+        # a producer still writing then gets a broken pipe and ends too.
+        tail_rc = tail_proc.wait()
+        if tail_rc != 0:
+            # SIGTERM first: a container client forwards it to its tool,
+            # which SIGKILL would not reach. stop_group escalates.
+            stop_group(head)
+        head_rc = head.wait()
+        for reader in readers:
+            reader.join()
+        if stop_requested.is_set() or head_rc != 0 or tail_rc != 0 or timed_out:
+            for proc in procs:
+                _signal_group(proc, signal.SIGKILL)
+    except BaseException:
+        for proc in procs:
+            stop_group(proc)
+        if head is not None and len(procs) == 1:
+            # The consumer never started: the producer's pipes are ours to close.
+            for stream in (head.stdout, head.stderr):
+                if stream is not None:
+                    stream.close()
+        raise
+    finally:
+        with _live_lock:
+            for proc in procs:
+                _live.discard(proc)
+        if timer is not None:
+            timer.cancel()
+    if timed_out:
+        tails[1].append(f"[killed after {limit}s timeout]")
+    return PipelineResult((head_rc, tail_rc), (list(tails[0]), list(tails[1])), timed_out=timed_out)

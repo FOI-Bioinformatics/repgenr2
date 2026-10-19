@@ -8,10 +8,13 @@ import typer
 
 from .base import (
     DEFAULT_THREADS,
+    HELP_MAX_SPOTS,
     HELP_READS_SKETCH,
     HELP_SCREEN_MIN_FRACTION,
     HELP_SCREEN_READS,
     HELP_SKETCH,
+    HELP_SKETCH_JOBS,
+    HELP_SKETCH_OUT,
     HELP_THREADS,
     HELP_WORKDIR,
     HELP_WORKDIR_CREATED,
@@ -23,6 +26,7 @@ from .base import (
     _run,
     app,
     resolve_threads,
+    stage_errors,
 )
 
 _HELP_TAXON = (
@@ -100,6 +104,69 @@ def reads(
         )
 
     _run("reads", workdir, build, create=True)
+
+
+@app.command(name="reads-sketch", rich_help_panel=PANEL_ENTRY)
+def reads_sketch(
+    workdir: Path | None = typer.Option(
+        None,
+        "-wd",
+        "--workdir",
+        help="Workdir whose reads stage selected the runs (reads.tsv); the sketches go to "
+        "reads_sketches/ and the stage is recorded.",
+    ),
+    accession: list[str] = typer.Option(
+        [],
+        "--accession",
+        help="Restrict to these runs of reads.tsv (repeatable); a run not in reads.tsv is "
+        "refused. Without -wd: the runs to sketch.",
+    ),
+    accession_file: Path | None = typer.Option(
+        None, "--accession-file", help="File of run accessions, one per line (# comments allowed)."
+    ),
+    platform: str = typer.Option(
+        "any", "--platform", help="Restrict to runs of one platform: any, illumina, ont or pacbio."
+    ),
+    max_spots: int | None = typer.Option(None, "--max-spots", min=1, help=HELP_MAX_SPOTS),
+    jobs: int | None = typer.Option(None, "--jobs", min=1, help=HELP_SKETCH_JOBS),
+    out: Path | None = typer.Option(None, "-o", "--out", help=HELP_SKETCH_OUT),
+) -> None:
+    """Sketch the reads of selected runs streamed from SRA, without downloading them."""
+    from ..core.logging import configure_logging
+    from ..stages.reads_sketch import ReadsSketchParams, run_standalone, selected_accessions
+    from .base import _RUN_STATE
+
+    if workdir is None and out is None:
+        raise typer.BadParameter("give -wd WORKDIR, or -o DIR for the standalone form")
+    if workdir is not None and out is not None:
+        raise typer.BadParameter("-o is the standalone form; it does not combine with -wd")
+    if workdir is None and platform != "any":
+        raise typer.BadParameter("--platform selects from reads.tsv; it needs -wd")
+
+    def build():
+        return ReadsSketchParams(
+            accessions=list(accession),
+            accession_file=None if accession_file is None else str(accession_file),
+            platform=platform,
+            max_spots=max_spots,
+            jobs=jobs,
+        )
+
+    if workdir is not None:
+        _run("reads_sketch", workdir, build)
+        return
+    assert out is not None
+    logger = configure_logging(None, level=_RUN_STATE["log_level"])
+    with stage_errors(logger):
+        params = build()
+        run_standalone(
+            selected_accessions(params),
+            out.resolve(),
+            max_spots=max_spots,
+            jobs=jobs,
+            force=bool(_RUN_STATE["force"]),
+            logger=logger,
+        )
 
 
 @app.command(rich_help_panel=PANEL_ENTRY)

@@ -470,8 +470,13 @@ def wrap_command(
     cwd: str | os.PathLike[str] | None,
     logger: logging.Logger,
     extra_mounts: Sequence[str | os.PathLike[str]] = (),
+    stdin: bool = False,
 ) -> list[str]:
-    """Build the engine command that runs ``argv`` inside ``image``."""
+    """Build the engine command that runs ``argv`` inside ``image``.
+
+    ``stdin`` keeps the client's standard input open for the tool (the
+    consumer of :func:`run_pipeline`); Docker closes it otherwise.
+    """
     mounts = _default_mounts(config, cwd, argv, extra_mounts)
     workdir = str(Path(os.path.abspath(cwd if cwd is not None else os.getcwd())))
 
@@ -480,6 +485,8 @@ def wrap_command(
         # the SIGTERM the client forwards when repgenr stops a tool ends it
         # (a tool running as process 1 ignores a signal it has no handler for).
         cmd = [config.engine_binary(), "run", "--rm", "--init", "--entrypoint", ""]
+        if stdin:
+            cmd.append("-i")
         # A name lets repgenr stop the container when it is stopped itself
         # (see _stop_container).
         cmd += ["--name", f"repgenr-{os.getpid()}-{uuid.uuid4().hex[:12]}"]
@@ -726,6 +733,92 @@ def run_tool(
         raise
     finally:
         _unregister_container(name)
+
+
+def _host_env(caps: ToolCapabilities, env: Mapping[str, str] | None) -> Mapping[str, str] | None:
+    """``env`` with this tool's --bin-dir first on PATH, when one is set."""
+    from .bindirs import note_used, tool_path
+
+    path = tool_path(caps.name, base=(env or {}).get("PATH"))
+    if path is None:
+        return env
+    note_used(caps.name)
+    return {**(env or {}), "PATH": path}
+
+
+def run_pipeline(
+    producer: tuple[ToolCapabilities, Sequence[str | os.PathLike[str]]],
+    consumer: tuple[ToolCapabilities, Sequence[str | os.PathLike[str]]],
+    *,
+    logger: logging.Logger,
+    cwd: str | os.PathLike[str] | None = None,
+    env: Mapping[str, str] | None = None,
+    extra_mounts: Sequence[str | os.PathLike[str]] = (),
+    timeout: float | None = None,
+) -> process.PipelineResult:
+    """Run ``producer | consumer``, two tools joined by a pipe, and return both
+    exit codes with the last stderr lines of each (nothing is raised for a
+    non-zero exit; see :func:`process.run_pipeline`).
+
+    Each half is ``(capabilities, argv)``. On the host the pipe is the plain
+    one; each half gets its own --bin-dir on PATH. Under a container backend
+    each half runs in its own image with the host pipe between them, the
+    consumer's client keeping stdin open, so the single image per tool rule
+    holds and no combined image is needed. A half without an image runs on
+    the host, as :func:`run_tool` does.
+    """
+    config = _CONFIG
+    halves: list[list[str]] = []
+    shown: list[list[str]] = []
+    names: list[str | None] = []
+    # One environment per half: a --bin-dir applies to its own tool only.
+    envs: list[Mapping[str, str] | None] = []
+    for (caps, command), stdin in ((producer, False), (consumer, True)):
+        argv = [str(part) for part in command]
+        image = resolve_image(caps, config) if config.active else None
+        if image is None:
+            halves.append(argv)
+            envs.append(_host_env(caps, env))
+            names.append(None)
+        else:
+            wrapped = wrap_command(
+                image,
+                argv,
+                config=config,
+                cwd=cwd,
+                logger=logger,
+                extra_mounts=extra_mounts,
+                stdin=stdin,
+            )
+            halves.append(wrapped)
+            envs.append({**_engine_env(config), **(dict(env) if env else {})} or None)
+            names.append(_register_container(wrapped, config))
+        shown.append(argv)
+    try:
+        result = process.run_pipeline(
+            halves[0],
+            halves[1],
+            logger=logger,
+            cwd=cwd,
+            envs=(envs[0], envs[1]),
+            log_prefixes=(producer[0].name, consumer[0].name),
+            timeout=timeout,
+            console_commands=(shown[0], shown[1]),
+        )
+        if not result.ok:
+            # A killed or broken client leaves its container running (the
+            # producer after a consumer failure, both after a timeout or a
+            # stop request); stop them as run_tool does.
+            for wrapped in halves:
+                _stop_container(wrapped, config)
+        return result
+    except (SystemExit, KeyboardInterrupt):
+        for wrapped in halves:
+            _stop_container(wrapped, config)
+        raise
+    finally:
+        for name in names:
+            _unregister_container(name)
 
 
 def run_chain(
