@@ -89,6 +89,8 @@ from .assemble_qc import (
     store_cached_quality,
 )
 from .assemble_screen import (
+    GTDB_LINEAGES_ENV,
+    GTDB_SKETCH_ENV,
     SCREEN_DIR,
     SCREEN_FAILED,
     SCREEN_JSON,
@@ -98,15 +100,15 @@ from .assemble_screen import (
     ScreenRecord,
     ScreenSettings,
     read_screen_json,
+    resolve_settings,
     write_screen_json,
     write_screen_table,
 )
 from .ingest import OUTGROUP_ACCESSION_TXT
+from .reads import read_accession_file
 from .taxon_match import AGREE, GENUS_RENAMED, genus_agreement
 from .taxon_match import gtdb_tokens as _gtdb_tokens
 
-GTDB_SKETCH_ENV = "REPGENR_GTDB_SKETCH"
-GTDB_LINEAGES_ENV = "REPGENR_GTDB_LINEAGES"
 _DONE_MARKER = "assembly.ok"
 _CONTIGS_NAME = "contigs.fasta"
 # The sketch of an assembly, beside its contigs, with the parameters of the
@@ -163,6 +165,10 @@ class AssembleParams:
     # reads.tsv order; the remaining pending runs are excused as deferred.
     # None assembles every run.
     max_runs: int | None = None
+    # Runs of reads.tsv to assemble (--accession, --accession-file); the other
+    # pending runs are excused as deferred. Empty selects every run.
+    accessions: list[str] = field(default_factory=list)
+    accession_file: str | None = None
     # The reads screen (assemble_screen): after the fetch and the reads
     # sketch, before an assembler runs; needs the GTDB sketch and lineages.
     screen_reads: bool = False
@@ -204,6 +210,7 @@ def run(ctx: WorkdirContext, params: AssembleParams) -> int:
     if not rows:
         raise WorkdirError(f"{READS_TSV} lists no runs.")
     _check_outgroup_file(params.outgroup)
+    selected = selected_runs(rows, params)
     require_sourmash_if_requested(params.sketch)
     require_sourmash_if_requested(params.reads_sketch)
     screen = screen_settings(params)
@@ -235,6 +242,8 @@ def run(ctx: WorkdirContext, params: AssembleParams) -> int:
         )
         # Before --max-runs: a run excused from its kept sketch takes no place.
         screen_planned(plan, gate, assemblies, params.threads, logger)
+    if selected is not None:
+        defer_unselected(plan, selected, logger)
     if params.max_runs is not None:
         defer_beyond(plan, params.max_runs, logger)
     if params.polisher == "auto":
@@ -817,6 +826,49 @@ def _is_deferred(excused: ExcusedRun | None) -> bool:
     return excused is not None and excused.reason == DEFERRED
 
 
+def selected_runs(rows: list[ReadRow], params: AssembleParams) -> set[str] | None:
+    """The runs ``--accession`` and ``--accession-file`` name, or None for
+    every run; an accession absent from ``reads.tsv`` is refused by name."""
+    wanted = [*params.accessions, *read_accession_file(params.accession_file)]
+    if params.accession_file and not wanted:
+        raise UserInputError(
+            f"--accession-file {params.accession_file} lists no accessions; nothing to assemble "
+            "(an empty passed.txt of reads-screen means every run was excused)."
+        )
+    if not wanted:
+        return None
+    known = {r.run_accession for r in rows}
+    unknown = [a for a in wanted if a not in known]
+    if unknown:
+        raise UserInputError(
+            f"Not in {READS_TSV}: {', '.join(unknown)}. assemble takes runs the reads stage "
+            "selected."
+        )
+    return set(wanted)
+
+
+def defer_unselected(plan: list[_Outcome], selected: set[str], logger: logging.Logger) -> None:
+    """Excuse as ``deferred`` the pending runs outside the selection.
+
+    Finished runs are kept whether selected or not, as under ``--max-runs``:
+    the selection says which runs to assemble now, not which to discard.
+    """
+    deferred = [
+        o
+        for o in plan
+        if o.excused is None and o.stats is None and o.row.run_accession not in selected
+    ]
+    for o in deferred:
+        o.assembler = None
+        o.polisher = None
+        o.excused = ExcusedRun(o.row.run_accession, "assemble", DEFERRED)
+    if deferred:
+        logger.info(
+            "%d run(s) outside the selection (--accession, --accession-file) are deferred",
+            len(deferred),
+        )
+
+
 def defer_beyond(plan: list[_Outcome], max_runs: int, logger: logging.Logger) -> None:
     """Excuse as ``deferred`` the pending runs beyond ``max_runs``.
 
@@ -1270,33 +1322,17 @@ def screen_settings(params: AssembleParams) -> ScreenSettings | None:
         raise UserInputError(
             "--screen-reads screens the reads sketch; it cannot be combined with --no-reads-sketch."
         )
-    if not 0.0 <= params.screen_min_fraction <= 1.0:
-        raise UserInputError(
-            f"--screen-min-fraction must be within [0, 1] (got {params.screen_min_fraction})."
-        )
-    if not 0.0 < params.screen_dup_ani <= 1.0:
-        raise UserInputError(
-            f"--screen-dup-ani must be within (0, 1] (got {params.screen_dup_ani})."
-        )
-    sketch = params.gtdb_sketch or os.environ.get(GTDB_SKETCH_ENV)
-    lineages = params.gtdb_lineages or os.environ.get(GTDB_LINEAGES_ENV)
-    if not sketch or not lineages:
-        raise UserInputError(
-            "--screen-reads needs the GTDB sketch and the lineages CSV published with it "
-            f"(--gtdb-sketch and --gtdb-lineages, or {GTDB_SKETCH_ENV} and {GTDB_LINEAGES_ENV})."
-        )
-    for flag, value in (("--gtdb-sketch", sketch), ("--gtdb-lineages", lineages)):
-        if not Path(value).expanduser().exists():
-            raise UserInputError(
-                f"{flag} {value} does not exist (from the flag or the environment variable)."
-            )
-    require_sourmash_if_requested(True)
-    return ScreenSettings(
-        min_fraction=params.screen_min_fraction,
-        dup_ani=params.screen_dup_ani,
-        gtdb_sketch=str(Path(sketch).expanduser().resolve()),
-        gtdb_lineages=str(Path(lineages).expanduser().resolve()),
+    settings = resolve_settings(
+        params.screen_min_fraction,
+        params.screen_dup_ani,
+        params.gtdb_sketch,
+        params.gtdb_lineages,
+        command="--screen-reads",
+        min_fraction_flag="--screen-min-fraction",
+        dup_ani_flag="--screen-dup-ani",
     )
+    require_sourmash_if_requested(True)
+    return settings
 
 
 def _clear_screen(run_dir: Path) -> None:
@@ -1566,6 +1602,9 @@ def precheck(ctx: WorkdirContext, params: AssembleParams) -> None:
     """Refuse a wrong database path or a missing QC tool before the harness marks
     a finished record incomplete (registered in the CLI's stage prechecks)."""
     _check_outgroup_file(params.outgroup)
+    reads_path = ctx.workdir / READS_TSV
+    if reads_path.is_file():
+        selected_runs(read_reads(reads_path), params)
     require_sourmash_if_requested(params.sketch)
     require_sourmash_if_requested(params.reads_sketch)
     screen_settings(params)

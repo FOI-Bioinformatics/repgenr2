@@ -598,6 +598,71 @@ docker` each tool runs in its own image with the pipe between them; on
 Apple Silicon the emulated linux/amd64 `fastq-dump` crashed (observed
 2026-10-19), so run the command on the host there.
 
+#### Screening the sketches before any download
+
+`reads-screen` judges the sketched runs against GTDB with the three checks
+of `assemble --screen-reads` (see [Reads screen](#reads-screen)), so runs of
+another taxon, runs whose reads match their species poorly and repeated
+sequencing of one isolate can be left out before their FASTQ files are
+fetched. It reads one variant of `reads_sketches/` and the submitted
+taxonomy and biosample of each run from `reads.tsv`, and needs the GTDB
+sketch and its lineages CSV (`--gtdb-sketch` and `--gtdb-lineages`, or
+`REPGENR_GTDB_SKETCH` and `REPGENR_GTDB_LINEAGES`) and sourmash.
+
+```bash
+repgenr reads-sketch -wd $WD --max-spots 200000
+repgenr reads-screen -wd $WD --max-spots 200000 --gtdb-sketch $DB --gtdb-lineages $LIN
+repgenr reads-screen -wd $WD --max-spots 200000 --min-fraction 0.4 --accession SRR1
+repgenr assemble -wd $WD --accession-file $WD/reads_screen/spots_200000/passed.txt
+```
+
+`--max-spots N` names the variant to screen (`reads_sketches/spots_N/`);
+without it the `all/` variant is used when present, else the only variant
+there, and with several variants the flag is required. `--accession` and
+`--accession-file` restrict the selection to runs of `reads.tsv`; without
+them every run is screened, and a run without a sketch in the variant (not
+sketched, or failed in `reads-sketch`) is listed as `screen_failed: no reads
+sketch`. The checks and their thresholds are those of the assemble screen:
+`taxon_mismatch` (the GTDB genus differs from the submitted one, with the
+`genus_renamed` tolerance), `low_match_fraction` (the top species fraction
+is below `--min-fraction`, default 0.3) and `duplicate_isolate` (the run is
+contained in an earlier run of the same biosample at `--dup-ani` or more,
+default 0.999). Note that a capped sketch holds the first N spots only, so
+the duplicate check compares the starts of two runs rather than the runs;
+with a cap that still covers the genome several times over, the containment
+of a true duplicate stays close to 1, but the estimate is less certain than
+from whole runs. `--jobs` bounds the gathers run at once (default 4, or the
+usable CPUs when fewer; about 0.6 GB each against the GTDB representatives
+sketch).
+
+The decisions go to `reads_screen/<variant>/`: `reads_screen.tsv` has one
+row per run of `reads.tsv` with the top match, its genus, the fraction, the
+duplicate it was contained in, the decision and the reason (the columns of
+`screen_reads.tsv`); `<run>/screen.json` holds a run's decision with the
+settings it was made with, beside the gather and `tax genome` output; and
+`passed.txt` lists the accepted runs in `reads.tsv` order, in the form
+`assemble --accession-file` takes, so the assembly can be limited to them.
+The stage is recorded as `reads_screen` and `status` lists the variants
+screened with their counts. See [output.md](output.md#reads-screen).
+
+A repeat with the same settings gathers nothing again: a decision made with
+the same thresholds and database on the same sketch is kept, and a new
+sketch of a run (a later `reads-sketch --force`) or a changed threshold
+screens the run again from the kept sketch, without streaming anything. A
+run the tools failed on (`screen_failed: gather`) keeps no decision, so the
+repeat screens it again; a selected run without a sketch is listed in the
+table and needs `reads-sketch` first; `--force` screens every selected run
+again. The duplicate check is made again on every call, in `reads.tsv`
+order over every run with a decision made with the same settings, selected
+or not, so several calls give the result of one call over every run: a run
+screened later can excuse a run screened earlier as its duplicate, or stop
+being its duplicate when its own decision changes. A run decided with other
+settings and not selected in the call keeps its row but takes no part in
+the duplicate check and is left out of `passed.txt`, with a warning that
+counts such runs; screen every run with the same settings before relying on
+the file. `assemble --screen-reads` does not read these decisions: its
+sketch is of the whole run, and it screens again from that.
+
 #### Assembly
 
 `assemble` downloads each run's FASTQ files from the locations ENA lists, over
@@ -789,6 +854,14 @@ judged when every run is excused (see
 [output.md](output.md#when-every-sequencing-run-is-excused)), and `--append`
 takes `--max-runs` in the same way. `status` shows the stage as, for example,
 `20 assembled, 35 deferred`.
+
+`assemble --accession SRR... --accession-file FILE` names the runs to
+assemble instead of a count: the other pending runs are deferred in the same
+way, finished runs are kept whether named or not, and an accession not in
+`reads.tsv` is refused, as is a file that lists no accessions (an empty
+`passed.txt` means the screen excused every run). The `passed.txt` of
+`reads-screen` is such a file, so a screened selection can be assembled
+without editing `reads.tsv`.
 
 The alternative is to bound the selection itself: `reads --max-runs N` keeps
 the N largest runs in `reads.tsv`, and a later `reads` call with a larger N

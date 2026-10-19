@@ -34,9 +34,10 @@ import csv
 import gzip
 import json
 import logging
+import os
 import threading
 import zipfile
-from collections.abc import Iterable, Sequence
+from collections.abc import Collection, Iterable, Sequence
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
@@ -53,7 +54,7 @@ from ..classifiers.sourmash import (
 from ..core import process
 from ..core.containers import run_tool
 from ..core.contracts import ReadRow, atomic_replace
-from ..core.errors import RepGenRError, ToolExecutionError
+from ..core.errors import RepGenRError, ToolExecutionError, UserInputError
 from ..core.sourmash import SOURMASH_TOOL
 from .taxon_match import DISAGREE, GENUS_RENAMED, genus_agreement, gtdb_tokens
 
@@ -177,14 +178,21 @@ def read_screen_table(path: Path) -> dict[str, list[str]]:
 
 
 def write_screen_table(
-    path: Path, records: Sequence[ScreenRecord], order: Sequence[str] = ()
+    path: Path,
+    records: Sequence[ScreenRecord],
+    order: Sequence[str] = (),
+    *,
+    keep: Collection[str] | None = None,
 ) -> None:
     """Write screen_reads.tsv: the rows of ``records`` and, for runs not among
     them, the rows of the existing table; in ``order`` (run accessions), then
-    the remaining runs in the order they were found."""
+    the remaining runs in the order they were found. With ``keep``, rows of
+    other runs (runs no longer in reads.tsv) are dropped."""
     rows = read_screen_table(path)
     for r in records:
         rows[r.run_accession] = _row_cells(r)
+    if keep is not None:
+        rows = {run: cells for run, cells in rows.items() if run in keep}
     ranked = {run: i for i, run in enumerate(order)}
     ordered = sorted(rows, key=lambda run: ranked.get(run, len(ranked)))
     with atomic_replace(path, newline="") as fo:
@@ -192,6 +200,54 @@ def write_screen_table(
         writer.writerow(_SCREEN_COLUMNS)
         for run in ordered:
             writer.writerow(rows[run])
+
+
+# --- settings -------------------------------------------------------------------------------
+
+
+GTDB_SKETCH_ENV = "REPGENR_GTDB_SKETCH"
+GTDB_LINEAGES_ENV = "REPGENR_GTDB_LINEAGES"
+
+
+def resolve_settings(
+    min_fraction: float,
+    dup_ani: float,
+    gtdb_sketch: str | None,
+    gtdb_lineages: str | None,
+    *,
+    command: str,
+    min_fraction_flag: str,
+    dup_ani_flag: str,
+) -> ScreenSettings:
+    """The settings of a screen from its flags, with the GTDB paths resolved.
+
+    Refuses (UserInputError) a threshold outside its range, a missing GTDB
+    sketch or lineages CSV (flag or environment variable) and a path that
+    does not exist, before anything is written. ``command`` names the caller
+    in the message. The caller checks sourmash (``preflight``).
+    """
+    if not 0.0 <= min_fraction <= 1.0:
+        raise UserInputError(f"{min_fraction_flag} must be within [0, 1] (got {min_fraction}).")
+    if not 0.0 < dup_ani <= 1.0:
+        raise UserInputError(f"{dup_ani_flag} must be within (0, 1] (got {dup_ani}).")
+    sketch = gtdb_sketch or os.environ.get(GTDB_SKETCH_ENV)
+    lineages = gtdb_lineages or os.environ.get(GTDB_LINEAGES_ENV)
+    if not sketch or not lineages:
+        raise UserInputError(
+            f"{command} needs the GTDB sketch and the lineages CSV published with it "
+            f"(--gtdb-sketch and --gtdb-lineages, or {GTDB_SKETCH_ENV} and {GTDB_LINEAGES_ENV})."
+        )
+    for flag, value in (("--gtdb-sketch", sketch), ("--gtdb-lineages", lineages)):
+        if not Path(value).expanduser().exists():
+            raise UserInputError(
+                f"{flag} {value} does not exist (from the flag or the environment variable)."
+            )
+    return ScreenSettings(
+        min_fraction=min_fraction,
+        dup_ani=dup_ani,
+        gtdb_sketch=str(Path(sketch).expanduser().resolve()),
+        gtdb_lineages=str(Path(lineages).expanduser().resolve()),
+    )
 
 
 # --- reads sketch comparison ------------------------------------------------------------
@@ -308,9 +364,11 @@ class ScreenGate:
         *,
         duplicates: bool = True,
         gather_slots: int = 1,
+        min_fraction_flag: str = "--screen-min-fraction",
     ) -> None:
         self.settings = settings
         self.duplicates = duplicates
+        self.min_fraction_flag = min_fraction_flag
         self._logger = logger
         self._slots = threading.BoundedSemaphore(max(1, gather_slots))
         self._cond = threading.Condition()
@@ -394,7 +452,7 @@ class ScreenGate:
             shown = "unknown" if fraction is None else f"{fraction:.3f}"
             record.reason = (
                 f"{LOW_MATCH_FRACTION}: top species fraction {shown} below "
-                f"--screen-min-fraction {self.settings.min_fraction:g}"
+                f"{self.min_fraction_flag} {self.settings.min_fraction:g}"
             )
         return record
 

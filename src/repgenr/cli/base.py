@@ -43,6 +43,7 @@ from ..core.contracts import (
     list_fasta,
     read_clusters,
     reads_sketch_variant,
+    reads_sketch_variant_spots,
 )
 from ..core.errors import (
     MissingBinaryError,
@@ -298,6 +299,7 @@ COMMAND_PANELS: dict[str, tuple[str, ...]] = {
         "ingest",
         "reads",
         "reads-sketch",
+        "reads-screen",
         "assemble",
     ),
     PANEL_CORE: ("dereplicate", "derep-refine", "annotate", "snptype", "phylo", "tree2tax"),
@@ -489,9 +491,15 @@ STAGE_INPUTS: dict[str, Any] = {
         ctx.workdir / READS_SKETCHES_DIR / reads_sketch_variant(p.max_spots) / READS_SKETCHES_TSV,
         *([Path(p.accession_file)] if p.accession_file else []),
     ],
+    "reads_screen": lambda ctx, p: [
+        ctx.workdir / READS_TSV,
+        *_reads_screen_index(ctx, p),
+        *([Path(p.accession_file)] if p.accession_file else []),
+    ],
     "assemble": lambda ctx, p: [
         ctx.workdir / READS_TSV,
         *([Path(p.outgroup)] if p.outgroup else []),
+        *([Path(p.accession_file)] if getattr(p, "accession_file", None) else []),
     ],
     "vmetadata": lambda ctx, p: [],
     "genome": lambda ctx, p: [ctx.workdir / SELECTION_TSV],
@@ -653,11 +661,58 @@ def _reads_sketch_deliverables(ctx: WorkdirContext, params: Any) -> list[Path]:
     return files
 
 
+def _reads_screen_index(ctx: WorkdirContext, params: Any) -> list[Path]:
+    """The index of the sketch variant reads-screen judges; none when the
+    variant cannot be resolved (the precheck reports that)."""
+    from ..stages.reads_screen import resolve_variant
+
+    sketches = ctx.workdir / READS_SKETCHES_DIR
+    try:
+        variant = resolve_variant(sketches, params.max_spots)
+    except WorkdirError:
+        return []
+    return [sketches / variant / READS_SKETCHES_TSV]
+
+
+def _reads_screen_deliverables(ctx: WorkdirContext, params: Any) -> list[Path]:
+    """The table, passed.txt and the decision of every selected run with a
+    sketch. A run the tools failed on keeps no decision, so a repeat screens
+    it again; a run without a sketch is excused in the table and has none."""
+    from ..core.contracts import read_reads
+    from ..stages.assemble_screen import SCREEN_JSON
+    from ..stages.reads_screen import (
+        PASSED_TXT,
+        READS_SCREEN_DIR,
+        READS_SCREEN_TSV,
+        resolve_variant,
+        select_runs,
+    )
+    from ..stages.reads_sketch import is_current, read_index
+
+    sketches = ctx.workdir / READS_SKETCHES_DIR
+    try:
+        variant = resolve_variant(sketches, params.max_spots)
+        chosen = select_runs(read_reads(ctx.workdir / READS_TSV), params)
+    except (UserInputError, WorkdirError, OSError):
+        return [ctx.workdir / READS_SCREEN_DIR]
+    out_dir = ctx.workdir / READS_SCREEN_DIR / variant
+    files = [out_dir / READS_SCREEN_TSV, out_dir / PASSED_TXT]
+    sketch_dir = sketches / variant
+    index = read_index(sketch_dir / READS_SKETCHES_TSV)
+    _known, max_spots = reads_sketch_variant_spots(variant)
+    for row in chosen:
+        run = row.run_accession
+        if is_current(index.get(run), sketch_dir, max_spots):
+            files.append(out_dir / run / SCREEN_JSON)
+    return files
+
+
 STAGE_DELIVERABLES: dict[str, Any] = {
     "metadata": lambda ctx, p: [ctx.workdir / SELECTION_TSV, ctx.workdir / MANIFEST_FILENAME],
     "ingest": lambda ctx, p: _genome_set_deliverables(ctx),
     "reads": lambda ctx, p: [ctx.workdir / READS_TSV],
     "reads_sketch": _reads_sketch_deliverables,
+    "reads_screen": _reads_screen_deliverables,
     "assemble": lambda ctx, p: _genome_set_deliverables(ctx),
     "vmetadata": _vmetadata_deliverables,
     # genome reads selection.tsv and the manifest; it writes the genome files.
@@ -830,10 +885,18 @@ def _reads_sketch_precheck(ctx: WorkdirContext, params: Any) -> None:
     precheck(ctx, params)
 
 
+def _reads_screen_precheck(ctx: WorkdirContext, params: Any) -> None:
+    from ..stages.reads_screen import precheck
+
+    precheck(ctx, params)
+
+
 _STAGE_PRECHECKS: dict[str, Any] = {
     "derep_stock": _derep_stock_precheck,
     # A selection naming a run outside reads.tsv must not dirty a finished record.
     "reads_sketch": _reads_sketch_precheck,
+    # A wrong GTDB path or selection must not dirty a finished record.
+    "reads_screen": _reads_screen_precheck,
     "dereplicate": _dereplicate_precheck,
     "ingest": _ingest_precheck,
     # A wrong database path on a rerun must not leave the finished record dirty.

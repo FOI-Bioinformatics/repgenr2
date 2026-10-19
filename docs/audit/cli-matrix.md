@@ -3,7 +3,7 @@
 Generated from `tests/audit/cli_matrix.yaml` by `scripts/render_cli_matrix.py`;
 `tests/unit/test_cli_matrix.py` keeps both in step with the command tree.
 
-36 commands, 434 flags (434 with a live test or an n/a reason, 0 pending).
+37 commands, 445 flags (445 with a live test or an n/a reason, 0 pending).
 
 ## Global flags
 
@@ -397,6 +397,8 @@ dispatch: `stage`
 | `--gtdb-sketch` |  | AssembleParams.gtdb_sketch | none | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: needs a reference database; covered offline with fakes in tests/integration/test_assemble_stage.py | docs/usage.md, docs/cli-reference.md, docs/audit/cli-matrix.md |
 | `--gtdb-lineages` |  | AssembleParams.gtdb_lineages | none | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: needs a reference database; covered offline with fakes in tests/integration/test_assemble_stage.py | docs/usage.md, docs/cli-reference.md, docs/audit/cli-matrix.md |
 | `--append` |  | AssembleParams.append | none | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: offline stage tests in tests/integration/test_assemble_stage.py | docs/usage.md, docs/cli-reference.md, docs/audit/cli-matrix.md |
+| `--accession` |  | AssembleParams.accessions | stage | n/a: workdir command; the Nextflow layer bounds the selection with params.reads_args | n/a: offline stage tests with a registered fake assembler in tests/integration/test_assemble_max_runs.py | docs/usage.md, docs/cli-reference.md, docs/audit/cli-matrix.md |
+| `--accession-file` |  | AssembleParams.accession_file | stage | n/a: workdir command; the Nextflow layer bounds the selection with params.reads_args | n/a: offline stage tests with a registered fake assembler in tests/integration/test_assemble_max_runs.py | docs/usage.md, docs/cli-reference.md, docs/audit/cli-matrix.md |
 | `--max-runs` |  | AssembleParams.max_runs | range | n/a: workdir command; the Nextflow layer bounds the selection with params.reads_args --max-runs | n/a: offline stage tests with a registered fake assembler in tests/integration/test_assemble_max_runs.py | docs/usage.md, docs/output.md, docs/cli-reference.md, docs/audit/cli-matrix.md |
 | `--sketch` |  | AssembleParams.sketch | none | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: the shared sketch step is exercised live through ingest (tests/live/test_sketches_live.py) | docs/cli-reference.md, docs/usage.md, docs/audit/cli-matrix.md |
 | `--reads-sketch` |  | AssembleParams.reads_sketch | none | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: offline stage tests with a fake sourmash in tests/integration/test_assemble_reads_sketch.py | docs/cli-reference.md, docs/usage.md, docs/audit/cli-matrix.md |
@@ -436,6 +438,22 @@ dispatch: `stage`
 | `--max-spots` |  | ReadsSketchParams.max_spots | range | n/a: workdir command; the Nextflow layer has no reads-sketch step yet | tests/live/test_reads_sketch_live.py::test_reads_sketch_streams_two_runs | docs/usage.md, docs/output.md, docs/cli-reference.md, docs/audit/cli-matrix.md |
 | `--jobs` |  | ReadsSketchParams.jobs | range | n/a: workdir command; the Nextflow layer has no reads-sketch step yet | n/a: covered offline with fake fastq-dump and sourmash in tests/unit/test_reads_sketch.py | docs/usage.md, docs/cli-reference.md, docs/audit/cli-matrix.md |
 | `--out` | -o | n/a: the standalone form sketches bare accessions into DIR without a workdir; refused with -wd | stage | n/a: workdir command; the Nextflow layer has no reads-sketch step yet | tests/live/test_reads_sketch_live.py::test_reads_sketch_streams_two_runs | docs/usage.md, docs/output.md, docs/cli-reference.md, docs/audit/cli-matrix.md |
+
+## reads-screen
+
+dispatch: `stage`
+
+| flag | aliases | param | validated | nextflow | live | docs |
+|---|---|---|---|---|---|---|
+| `--workdir` | -wd | workdir | stage | n/a: workdir command; the Nextflow layer has no reads-screen step yet | n/a: covered offline with fake gather tables in tests/unit/test_reads_screen.py; needs the GTDB sketch, which the live suite does not hold | docs/usage.md, docs/output.md, docs/cli-reference.md, docs/audit/cli-matrix.md |
+| `--accession` |  | ReadsScreenParams.accessions | stage | n/a: workdir command; the Nextflow layer has no reads-screen step yet | n/a: covered offline with fake gather tables in tests/unit/test_reads_screen.py; needs the GTDB sketch, which the live suite does not hold | docs/usage.md, docs/cli-reference.md, docs/audit/cli-matrix.md |
+| `--accession-file` |  | ReadsScreenParams.accession_file | stage | n/a: workdir command; the Nextflow layer has no reads-screen step yet | n/a: covered offline with fake gather tables in tests/unit/test_reads_screen.py; needs the GTDB sketch, which the live suite does not hold | docs/usage.md, docs/cli-reference.md, docs/audit/cli-matrix.md |
+| `--max-spots` |  | ReadsScreenParams.max_spots | range | n/a: workdir command; the Nextflow layer has no reads-screen step yet | n/a: covered offline with fake gather tables in tests/unit/test_reads_screen.py; needs the GTDB sketch, which the live suite does not hold | docs/usage.md, docs/output.md, docs/cli-reference.md, docs/audit/cli-matrix.md |
+| `--min-fraction` |  | ReadsScreenParams.min_fraction | unit_interval | n/a: workdir command; the Nextflow layer has no reads-screen step yet | n/a: covered offline with fake gather tables in tests/unit/test_reads_screen.py; needs the GTDB sketch, which the live suite does not hold | docs/usage.md, docs/cli-reference.md, docs/audit/cli-matrix.md |
+| `--dup-ani` |  | ReadsScreenParams.dup_ani | unit_interval | n/a: workdir command; the Nextflow layer has no reads-screen step yet | n/a: covered offline with fake gather tables in tests/unit/test_reads_screen.py; needs the GTDB sketch, which the live suite does not hold | docs/usage.md, docs/cli-reference.md, docs/audit/cli-matrix.md |
+| `--gtdb-sketch` |  | ReadsScreenParams.gtdb_sketch | stage | n/a: workdir command; the Nextflow layer has no reads-screen step yet | n/a: covered offline with fake gather tables in tests/unit/test_reads_screen.py; needs the GTDB sketch, which the live suite does not hold | docs/usage.md, docs/cli-reference.md, docs/audit/cli-matrix.md |
+| `--gtdb-lineages` |  | ReadsScreenParams.gtdb_lineages | stage | n/a: workdir command; the Nextflow layer has no reads-screen step yet | n/a: covered offline with fake gather tables in tests/unit/test_reads_screen.py; needs the GTDB sketch, which the live suite does not hold | docs/usage.md, docs/cli-reference.md, docs/audit/cli-matrix.md |
+| `--jobs` |  | ReadsScreenParams.jobs | range | n/a: workdir command; the Nextflow layer has no reads-screen step yet | n/a: covered offline with fake gather tables in tests/unit/test_reads_screen.py; needs the GTDB sketch, which the live suite does not hold | docs/usage.md, docs/cli-reference.md, docs/audit/cli-matrix.md |
 
 ## run
 

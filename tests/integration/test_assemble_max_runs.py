@@ -236,3 +236,52 @@ def test_cli_refuses_max_runs_zero(workdir, tmp_path) -> None:
     _prepare(workdir, tmp_path)
     result = CliRunner().invoke(app, ["assemble", "-wd", str(workdir), "--max-runs", "0"])
     assert result.exit_code != 0
+
+
+# --- --accession / --accession-file ------------------------------------------------
+
+
+def test_a_selection_assembles_the_named_runs_and_defers_the_rest(
+    workdir, tmp_path, fake_assembler
+) -> None:
+    ctx = _prepare(workdir, tmp_path)
+    listing = tmp_path / "passed.txt"
+    listing.write_text("SRR3  # from reads-screen\n", encoding="utf-8")
+    params = AssembleParams(assembler="fakeasm", accessions=["SRR1"], accession_file=str(listing))
+    n = run(ctx, params)
+    assert n == 2
+    assert sorted(_FakeAssembler.calls) == ["SRR1", "SRR3"]
+    assert _selected(workdir) == ["SRR1", "SRR3"]
+    assert _excused(workdir) == {"SRR2": ("assemble", "deferred"), "SRR4": ("assemble", "deferred")}
+    assert ctx.config.stages["assemble"].params["n_deferred"] == 2
+    # Finished runs are kept outside a later selection; the selection adds to them.
+    run(ctx, AssembleParams(assembler="fakeasm", accessions=["SRR2"]))
+    assert sorted(_FakeAssembler.calls) == ["SRR1", "SRR2", "SRR3"]
+    assert _selected(workdir) == ["SRR1", "SRR2", "SRR3"]
+    assert _excused(workdir) == {"SRR4": ("assemble", "deferred")}
+
+
+def test_a_selection_outside_reads_tsv_is_refused(workdir, tmp_path, fake_assembler) -> None:
+    ctx = _prepare(workdir, tmp_path)
+    with pytest.raises(UserInputError, match="Not in reads.tsv: SRR9"):
+        run(ctx, AssembleParams(assembler="fakeasm", accessions=["SRR9"]))
+    assert not (workdir / "assemblies").exists()
+
+
+def test_the_selection_is_part_of_the_resume_fingerprint() -> None:
+    base = AssembleParams(assembler="fakeasm")
+    named = AssembleParams(assembler="fakeasm", accessions=["SRR1"])
+    assert _stage_fingerprint("assemble", base, {}, {}) != _stage_fingerprint(
+        "assemble", named, {}, {}
+    )
+
+
+def test_an_empty_accession_file_is_refused_before_anything_is_fetched(
+    workdir, tmp_path, fake_assembler
+) -> None:
+    ctx = _prepare(workdir, tmp_path)
+    empty = tmp_path / "passed.txt"
+    empty.write_text("", encoding="utf-8")
+    with pytest.raises(UserInputError, match="lists no accessions"):
+        run(ctx, AssembleParams(assembler="fakeasm", accession_file=str(empty)))
+    assert _FakeAssembler.calls == []
