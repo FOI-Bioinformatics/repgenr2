@@ -603,3 +603,37 @@ def test_a_genus_renamed_pass_keeps_its_note_through_a_redone_duplicate_check(
     ctx.force = True
     run(ctx, _params(gtdb, accessions=["SRR1"]))
     assert _table(ctx.workdir, "all")["SRR2"]["reason"] == "genus_renamed"
+
+
+def test_a_pass_with_an_unknown_submitted_genus_gets_no_note(
+    tmp_path: Path, gtdb, gather, ani
+) -> None:
+    ctx = _workdir(
+        tmp_path, [_row("SRR1", "SAMN1", genus="unknown"), _row("SRR2", "SAMN1", genus="unknown")]
+    )
+    _sketch(ctx.workdir, "all", ["SRR1", "SRR2"])
+    gather.hits = {"SRR1": (_LINEAGE, 0.5), "SRR2": (_LINEAGE, 0.5)}
+    ani[("SRR2", "SRR1")] = 1.0
+    run(ctx, _params(gtdb))
+    assert _table(ctx.workdir, "all")["SRR2"]["reason"].startswith("duplicate_isolate")
+    gather.hits["SRR1"] = (_LINEAGE, 0.1)
+    ctx.force = True
+    run(ctx, _params(gtdb, accessions=["SRR1"]))
+    table = _table(ctx.workdir, "all")
+    assert table["SRR2"]["decision"] == "pass" and table["SRR2"]["reason"] == ""
+
+
+def test_a_failed_unselected_run_is_not_called_stale(
+    tmp_path: Path, gtdb, gather, ani, caplog
+) -> None:
+    ctx = _workdir(tmp_path, [_row("SRR1"), _row("SRR2")])
+    _sketch(ctx.workdir, "all", ["SRR1", "SRR2"])
+    gather.hits = {"SRR1": (_LINEAGE, 0.5), "SRR2": (_LINEAGE, 0.5)}
+    gather.fail = {"SRR2"}
+    run(ctx, _params(gtdb))
+    ctx.logger.addHandler(caplog.handler)
+    with caplog.at_level(logging.WARNING):
+        run(ctx, _params(gtdb, accessions=["SRR1"]))
+    assert "decided with other settings" not in caplog.text
+    assert ctx.config.stages["reads_screen"].params["stale"] == 0
+    assert _passed(ctx.workdir, "all") == ["SRR1"]

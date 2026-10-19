@@ -289,10 +289,11 @@ def screen_runs(
             records[run] = _before_duplicates(prior, row)
         elif run in selected:
             todo.append(row)
-        elif prior is not None or (out_dir / run).is_dir():
+        elif prior is not None:
             # Decided under other settings, or on an older sketch, and not
             # selected now: its row stays, it takes no part in the duplicate
-            # check and it is left out of passed.txt.
+            # check and it is left out of passed.txt. (A run the tools failed
+            # on has no decision and is excused in the table as it is.)
             stale.append(run)
     if todo:
         logger.info(
@@ -401,7 +402,9 @@ def _before_duplicates(prior: ScreenRecord, row: ReadRow) -> ScreenRecord:
         record.reason = ""
         record.duplicate_of = ""
         record.ani = None
-        if row.genus and record.top_genus and record.top_genus != row.genus:
+        # As the screen's taxon check: no genus comparison for a submitted
+        # genus of "unknown"; a pass whose genus differs was genus_renamed.
+        if row.genus not in ("", "unknown") and record.top_genus and record.top_genus != row.genus:
             record.reason = GENUS_RENAMED
     record.duplicates_checked = False
     return record
