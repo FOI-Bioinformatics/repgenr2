@@ -656,9 +656,12 @@ again. The duplicate check is made again on every call, in `reads.tsv`
 order over every run with a decision made with the same settings, selected
 or not, so several calls give the result of one call over every run: a run
 screened later can excuse a run screened earlier as its duplicate, or stop
-being its duplicate when its own decision changes. `assemble
---screen-reads` does not read these decisions: its sketch is of the whole
-run, and it screens again from that.
+being its duplicate when its own decision changes. A run decided with other
+settings and not selected in the call keeps its row but takes no part in
+the duplicate check and is left out of `passed.txt`, with a warning that
+counts such runs; screen every run with the same settings before relying on
+the file. `assemble --screen-reads` does not read these decisions: its
+sketch is of the whole run, and it screens again from that.
 
 #### Assembly
 
@@ -855,8 +858,10 @@ takes `--max-runs` in the same way. `status` shows the stage as, for example,
 `assemble --accession SRR... --accession-file FILE` names the runs to
 assemble instead of a count: the other pending runs are deferred in the same
 way, finished runs are kept whether named or not, and an accession not in
-`reads.tsv` is refused. The `passed.txt` of `reads-screen` is such a file, so
-a screened selection can be assembled without editing `reads.tsv`.
+`reads.tsv` is refused, as is a file that lists no accessions (an empty
+`passed.txt` means the screen excused every run). The `passed.txt` of
+`reads-screen` is such a file, so a screened selection can be assembled
+without editing `reads.tsv`.
 
 The alternative is to bound the selection itself: `reads --max-runs N` keeps
 the N largest runs in `reads.tsv`, and a later `reads` call with a larger N

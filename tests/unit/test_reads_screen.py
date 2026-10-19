@@ -554,3 +554,52 @@ def test_the_fraction_reason_names_this_commands_flag(tmp_path: Path, gtdb, gath
     run(ctx, _params(gtdb))
     reason = _table(ctx.workdir, "all")["SRR1"]["reason"]
     assert "below --min-fraction 0.3" in reason and "--screen-min-fraction" not in reason
+
+
+def test_an_empty_accession_file_is_refused(tmp_path: Path) -> None:
+    empty = tmp_path / "passed.txt"
+    empty.write_text("# every run was excused\n", encoding="utf-8")
+    with pytest.raises(UserInputError, match="lists no accessions"):
+        select_runs([_row("SRR1")], ReadsScreenParams(accession_file=str(empty)))
+
+
+def test_runs_decided_with_other_settings_leave_passed_with_a_warning(
+    tmp_path: Path, gtdb, gather, ani, caplog
+) -> None:
+    ctx = _workdir(tmp_path, [_row("SRR1"), _row("SRR2")])
+    _sketch(ctx.workdir, "all", ["SRR1", "SRR2"])
+    gather.hits = {"SRR1": (_LINEAGE, 0.35), "SRR2": (_LINEAGE, 0.5)}
+    run(ctx, _params(gtdb))
+    assert _passed(ctx.workdir, "all") == ["SRR1", "SRR2"]
+    ctx.logger.addHandler(caplog.handler)
+    with caplog.at_level(logging.WARNING):
+        run(ctx, _params(gtdb, accessions=["SRR2"], min_fraction=0.4))
+    assert _passed(ctx.workdir, "all") == ["SRR2"]
+    assert _table(ctx.workdir, "all")["SRR1"]["decision"] == "pass", "its row stays"
+    assert "1 run(s) of the table were decided with other settings" in caplog.text
+    assert "SRR1" in caplog.text
+    assert ctx.config.stages["reads_screen"].params["stale"] == 1
+    run(ctx, _params(gtdb, min_fraction=0.4))
+    assert _passed(ctx.workdir, "all") == ["SRR2"]
+    assert _table(ctx.workdir, "all")["SRR1"]["decision"] == "excused"
+
+
+def test_a_genus_renamed_pass_keeps_its_note_through_a_redone_duplicate_check(
+    tmp_path: Path, gtdb, gather, ani
+) -> None:
+    renamed = _LINEAGE.replace("g__Francisella;", "g__Allofrancisella;").replace(
+        "s__Francisella tularensis", "s__Allofrancisella tularensis"
+    )
+    ctx = _workdir(tmp_path, [_row("SRR1", "SAMN1"), _row("SRR2", "SAMN1")])
+    _sketch(ctx.workdir, "all", ["SRR1", "SRR2"])
+    gather.hits = {"SRR1": (renamed, 0.5), "SRR2": (renamed, 0.5)}
+    ani[("SRR2", "SRR1")] = 1.0
+    run(ctx, _params(gtdb))
+    table = _table(ctx.workdir, "all")
+    assert table["SRR1"]["reason"] == "genus_renamed"
+    assert table["SRR2"]["reason"].startswith("duplicate_isolate")
+    # SRR1 drops out; SRR2's duplicate excuse is undone and its note comes back.
+    gather.hits["SRR1"] = (renamed, 0.1)
+    ctx.force = True
+    run(ctx, _params(gtdb, accessions=["SRR1"]))
+    assert _table(ctx.workdir, "all")["SRR2"]["reason"] == "genus_renamed"

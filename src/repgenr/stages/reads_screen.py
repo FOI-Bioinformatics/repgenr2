@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import csv
 import logging
+from collections.abc import Collection
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -57,6 +58,7 @@ from .assemble_screen import (
 )
 from .reads import read_accession_file
 from .reads_sketch import DEFAULT_JOBS_CAP, is_current, read_index, sketch_file
+from .taxon_match import GENUS_RENAMED
 
 READS_SCREEN_DIR = "reads_screen"
 READS_SCREEN_TSV = "reads_screen.tsv"
@@ -91,6 +93,10 @@ def select_runs(rows: list[ReadRow], params: ReadsScreenParams) -> list[ReadRow]
     one; an accession absent from the table is refused by name."""
     by_run = {r.run_accession: r for r in rows}
     wanted = selected_accessions(params)
+    if params.accession_file and not wanted:
+        raise UserInputError(
+            f"--accession-file {params.accession_file} lists no accessions; nothing selected."
+        )
     unknown = [a for a in wanted if a not in by_run]
     if unknown:
         raise UserInputError(
@@ -263,6 +269,7 @@ def screen_runs(
     # for the selected runs, the kept decision for the others.
     records: dict[str, ScreenRecord] = {}
     unsketched: dict[str, ScreenRecord] = {}
+    stale: list[str] = []
     todo: list[ReadRow] = []
     for row in all_rows:
         run = row.run_accession
@@ -279,9 +286,14 @@ def screen_runs(
             continue
         prior = None if force and run in selected else read_screen_json(out_dir / run)
         if prior is not None and _reusable(prior, settings, sketch, out_dir / run):
-            records[run] = _before_duplicates(prior)
+            records[run] = _before_duplicates(prior, row)
         elif run in selected:
             todo.append(row)
+        elif prior is not None or (out_dir / run).is_dir():
+            # Decided under other settings, or on an older sketch, and not
+            # selected now: its row stays, it takes no part in the duplicate
+            # check and it is left out of passed.txt.
+            stale.append(run)
     if todo:
         logger.info(
             "Screening %d run(s) of %s against %s, %d at a time (min fraction %g, duplicate "
@@ -330,12 +342,21 @@ def screen_runs(
         all_runs,
         keep=all_runs,
     )
-    passed = write_passed(out_dir, all_runs)
+    passed = write_passed(out_dir, all_runs, exclude=stale)
+    if stale:
+        logger.warning(
+            "%d run(s) of the table were decided with other settings or on an older sketch "
+            "and are left out of %s: %s; screen them with this call's settings",
+            len(stale),
+            PASSED_TXT,
+            ", ".join(stale[:5]) + (", ..." if len(stale) > 5 else ""),
+        )
     mine = [records[run] for run in selected if run in records]
     counts = {
         "screened": len(todo),
         "reused": reused,
         "unsketched": len(unsketched),
+        "stale": len(stale),
         "passed": sum(1 for r in mine if r.passed),
         "excused": sum(1 for r in mine if not r.passed and not _is_failed(r)),
         "failed": sum(1 for r in mine if _is_failed(r)),
@@ -369,15 +390,19 @@ def _reusable(prior: ScreenRecord, settings: ScreenSettings, sketch: Path, run_d
         return False
 
 
-def _before_duplicates(prior: ScreenRecord) -> ScreenRecord:
+def _before_duplicates(prior: ScreenRecord, row: ReadRow) -> ScreenRecord:
     """The taxon and fraction outcome of a kept decision, its duplicate
-    excuse undone, so the duplicate check can be made again."""
+    excuse undone, so the duplicate check can be made again. A pass whose
+    GTDB genus differs from the submitted one keeps its ``genus_renamed``
+    note, which the duplicate excuse had replaced."""
     record = ScreenRecord(**prior.to_json())
     if record.reason.startswith(DUPLICATE_ISOLATE):
         record.decision = PASS
         record.reason = ""
         record.duplicate_of = ""
         record.ani = None
+        if row.genus and record.top_genus and record.top_genus != row.genus:
+            record.reason = GENUS_RENAMED
     record.duplicates_checked = False
     return record
 
@@ -390,10 +415,13 @@ def read_decisions(path: Path) -> dict[str, dict[str, str]]:
         return {rec["run_accession"]: rec for rec in csv.DictReader(fo, delimiter="\t")}
 
 
-def write_passed(out_dir: Path, order: list[str]) -> list[str]:
-    """``passed.txt``: the runs of ``order`` (reads.tsv) that passed."""
+def write_passed(out_dir: Path, order: list[str], *, exclude: Collection[str] = ()) -> list[str]:
+    """``passed.txt``: the runs of ``order`` (reads.tsv) that passed, except
+    ``exclude`` (runs decided with other settings)."""
     rows = read_decisions(out_dir / READS_SCREEN_TSV)
-    passed = [run for run in order if rows.get(run, {}).get("decision") == PASS]
+    passed = [
+        run for run in order if run not in exclude and rows.get(run, {}).get("decision") == PASS
+    ]
     with atomic_replace(out_dir / PASSED_TXT) as fo:
         fo.write("".join(f"{run}\n" for run in passed))
     return passed

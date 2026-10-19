@@ -830,6 +830,11 @@ def selected_runs(rows: list[ReadRow], params: AssembleParams) -> set[str] | Non
     """The runs ``--accession`` and ``--accession-file`` name, or None for
     every run; an accession absent from ``reads.tsv`` is refused by name."""
     wanted = [*params.accessions, *read_accession_file(params.accession_file)]
+    if params.accession_file and not wanted:
+        raise UserInputError(
+            f"--accession-file {params.accession_file} lists no accessions; nothing to assemble "
+            "(an empty passed.txt of reads-screen means every run was excused)."
+        )
     if not wanted:
         return None
     known = {r.run_accession for r in rows}

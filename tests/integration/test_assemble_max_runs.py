@@ -274,3 +274,14 @@ def test_the_selection_is_part_of_the_resume_fingerprint() -> None:
     assert _stage_fingerprint("assemble", base, {}, {}) != _stage_fingerprint(
         "assemble", named, {}, {}
     )
+
+
+def test_an_empty_accession_file_is_refused_before_anything_is_fetched(
+    workdir, tmp_path, fake_assembler
+) -> None:
+    ctx = _prepare(workdir, tmp_path)
+    empty = tmp_path / "passed.txt"
+    empty.write_text("", encoding="utf-8")
+    with pytest.raises(UserInputError, match="lists no accessions"):
+        run(ctx, AssembleParams(assembler="fakeasm", accession_file=str(empty)))
+    assert _FakeAssembler.calls == []
