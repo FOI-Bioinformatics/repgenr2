@@ -140,6 +140,8 @@ def reads_sketch(
         raise typer.BadParameter("give -wd WORKDIR, or -o DIR for the standalone form")
     if workdir is not None and out is not None:
         raise typer.BadParameter("-o is the standalone form; it does not combine with -wd")
+    if workdir is None and platform != "any":
+        raise typer.BadParameter("--platform selects from reads.tsv; it needs -wd")
 
     def build():
         return ReadsSketchParams(

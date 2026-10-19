@@ -771,13 +771,14 @@ def run_pipeline(
     halves: list[list[str]] = []
     shown: list[list[str]] = []
     names: list[str | None] = []
-    merged_env: Mapping[str, str] | None = env
+    # One environment per half: a --bin-dir applies to its own tool only.
+    envs: list[Mapping[str, str] | None] = []
     for (caps, command), stdin in ((producer, False), (consumer, True)):
         argv = [str(part) for part in command]
         image = resolve_image(caps, config) if config.active else None
         if image is None:
             halves.append(argv)
-            merged_env = _host_env(caps, merged_env)
+            envs.append(_host_env(caps, env))
             names.append(None)
         else:
             wrapped = wrap_command(
@@ -790,7 +791,7 @@ def run_pipeline(
                 stdin=stdin,
             )
             halves.append(wrapped)
-            merged_env = {**_engine_env(config), **(dict(merged_env) if merged_env else {})}
+            envs.append({**_engine_env(config), **(dict(env) if env else {})} or None)
             names.append(_register_container(wrapped, config))
         shown.append(argv)
     try:
@@ -798,12 +799,16 @@ def run_pipeline(
             halves[0],
             halves[1],
             logger=logger,
-            env=merged_env or None,
+            cwd=cwd,
+            envs=(envs[0], envs[1]),
             log_prefixes=(producer[0].name, consumer[0].name),
             timeout=timeout,
             console_commands=(shown[0], shown[1]),
         )
-        if not result.ok and process.stop_requested.is_set():
+        if not result.ok:
+            # A killed or broken client leaves its container running (the
+            # producer after a consumer failure, both after a timeout or a
+            # stop request); stop them as run_tool does.
             for wrapped in halves:
                 _stop_container(wrapped, config)
         return result

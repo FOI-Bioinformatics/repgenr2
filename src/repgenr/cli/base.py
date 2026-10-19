@@ -237,8 +237,8 @@ HELP_SKETCHES_DIR = (
 
 HELP_MAX_SPOTS = (
     "Stream only the first N spots of each run (fastq-dump -X; a paired-end spot gives "
-    "two reads). Default: the whole run. The first spots are not a random sample, which "
-    "does not matter to a k-mer sketch."
+    "two reads). Default: the whole run. The first spots are not a random sample; for a "
+    "species-level gather on an isolate this is expected to matter little."
 )
 HELP_SKETCH_JOBS = (
     "Runs streamed at once, each a fastq-dump and a sourmash process (default 4, or "
@@ -627,11 +627,35 @@ def _dereplicate_deliverables(ctx: WorkdirContext, params: Any) -> list[Path]:
 # without --force. The callables read only the ctx attributes that
 # core.doctor's stand-in context provides, and params may be the recorded
 # params dict as a namespace (doctor), so conditional entries use getattr.
+def _reads_sketch_deliverables(ctx: WorkdirContext, params: Any) -> list[Path]:
+    """The index and the sketch of every selected run.
+
+    A run that failed, or whose sketch was removed, is then a missing
+    deliverable: the repeat runs the stage again, which streams only the
+    runs without a current sketch. A selection the stage would refuse
+    (an accession outside reads.tsv) names the index alone; the precheck
+    reports it.
+    """
+    from ..core.contracts import read_reads
+    from ..stages.reads_sketch import select_runs, sketch_file
+
+    out_dir = ctx.workdir / READS_SKETCHES_DIR
+    files = [out_dir / READS_SKETCHES_TSV]
+    reads = ctx.workdir / READS_TSV
+    if reads.is_file():
+        try:
+            chosen = select_runs(read_reads(reads), params)
+        except (UserInputError, WorkdirError, OSError):
+            return files
+        files += [sketch_file(out_dir, r.run_accession) for r in chosen]
+    return files
+
+
 STAGE_DELIVERABLES: dict[str, Any] = {
     "metadata": lambda ctx, p: [ctx.workdir / SELECTION_TSV, ctx.workdir / MANIFEST_FILENAME],
     "ingest": lambda ctx, p: _genome_set_deliverables(ctx),
     "reads": lambda ctx, p: [ctx.workdir / READS_TSV],
-    "reads_sketch": lambda ctx, p: [ctx.workdir / READS_SKETCHES_DIR / READS_SKETCHES_TSV],
+    "reads_sketch": _reads_sketch_deliverables,
     "assemble": lambda ctx, p: _genome_set_deliverables(ctx),
     "vmetadata": _vmetadata_deliverables,
     # genome reads selection.tsv and the manifest; it writes the genome files.

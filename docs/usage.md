@@ -564,21 +564,31 @@ the cap, the spots and sequences the tools reported and the reason of a
 failure; see [output.md](output.md#reads-sketch). The stage is recorded as
 `reads_sketch`, so `status` and `doctor` see it. A failed run (an accession
 NCBI does not hold, a network error) is recorded and the others continue;
-the command fails only when every selected run failed.
+since a selected run without a sketch is a missing deliverable, a repeat of
+the same call streams the failed runs again and skips the rest. The command
+fails (exit 3, as `assemble` with no accepted run) only when every selected
+run failed, and then records nothing.
 
 `--jobs` streams that many runs at once (default 4, or the usable CPUs when
 fewer); each is a `fastq-dump` and a `sourmash` process, bound by the
 network more than by the CPU. The standalone form `-o DIR` with bare
-`--accession` runs sketches into `DIR` without a workdir and records nothing.
+`--accession` runs (SRR, ERR or DRR accessions) sketches into `DIR` without
+a workdir and records nothing; `--platform` needs `reads.tsv` and is refused
+there.
 
 The first N spots of a run are not a random sample: an Illumina file starts
-with its first tiles and an ONT file with the first reads of the run. For
-the k-mer content of a sketch at scaled=1000 this does not matter; 100000
-to 1000000 spots are enough for a species-level `gather`. The command needs
+with its first tiles, whose quality profile differs, and an ONT file with
+the first reads of the run. For a species-level `gather` on an isolate this
+is expected to matter little; a low-abundance organism in a mixed sample may
+be missed in a short prefix. A few hundred thousand spots are a reasonable
+starting point, not a tested threshold. The command needs
 `fastq-dump` (sra-tools 3.0 or later, in the core environment) and reaches
 NCBI, not the ENA mirror `assemble` downloads from; a run that only ENA
 holds fails with its reason in the index. Measured on a laptop, 5000 spots
-of a MiSeq run streamed and sketched in about 12 s.
+of a MiSeq run streamed and sketched in about 12 s. Under `--container
+docker` each tool runs in its own image with the pipe between them; on
+Apple Silicon the emulated linux/amd64 `fastq-dump` crashed (observed
+2026-10-19), so run the command on the host there.
 
 #### Assembly
 

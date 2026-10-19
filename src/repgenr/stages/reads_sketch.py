@@ -18,6 +18,8 @@ from __future__ import annotations
 
 import logging
 import re
+import shutil
+import tempfile
 import time
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
@@ -40,13 +42,14 @@ from ..core.errors import ToolExecutionError, UserInputError, WorkdirError
 from ..core.executors import parallel_each
 from ..core.plugins import preflight
 from ..core.resources import usable_cpus
-from ..core.sketches import READS_SKETCH_PARAMS, SKETCH_SUFFIX, clear_partials
-from ..core.sketches import _partial as partial_sketch
+from ..core.sketches import READS_SKETCH_PARAMS, SKETCH_SUFFIX, clear_partials, partial_path
 from ..core.sourmash import SOURMASH_TOOL
 from ..core.sratools import SRATOOLS_TOOL, fastq_dump_command
 from .reads import _ENA_PLATFORM, PLATFORMS, read_accession_file
 
 DEFAULT_JOBS_CAP = 4
+# Hidden per-run working directories under reads_sketches/ (see sketch_one).
+_HOME_PREFIX = ".home."
 
 
 @dataclass
@@ -111,6 +114,12 @@ def run(ctx: WorkdirContext, params: ReadsSketchParams) -> int:
     precheck(ctx, params)
     rows = read_reads(ctx.workdir / READS_TSV)
     chosen = select_runs(rows, params)
+    if not chosen:
+        logger.warning(
+            "No run of %s matches the selection (platform %s); nothing to sketch",
+            READS_TSV,
+            params.platform,
+        )
     out_dir = ctx.workdir / READS_SKETCHES_DIR
     index = read_index(out_dir / READS_SKETCHES_TSV)
     sketched, failed, versions = sketch_runs(
@@ -123,6 +132,13 @@ def run(ctx: WorkdirContext, params: ReadsSketchParams) -> int:
         logger=logger,
         all_runs=[r.run_accession for r in rows],
     )
+    if chosen and sketched == 0 and failed == len(chosen):
+        # Raised before the record is written, as assemble does when no run
+        # was accepted: the stage stays incomplete and a repeat runs again.
+        raise WorkdirError(
+            f"Every one of the {failed} selected run(s) failed to stream; "
+            f"see {READS_SKETCHES_DIR}/{READS_SKETCHES_TSV} and the log."
+        )
     ctx.config.record_stage(
         "reads_sketch",
         tool="sourmash",
@@ -137,16 +153,11 @@ def run(ctx: WorkdirContext, params: ReadsSketchParams) -> int:
         completed=datetime.now(UTC).isoformat(),
     )
     ctx.save_config()
-    if chosen and sketched == 0 and failed == len(chosen):
-        raise ToolExecutionError(
-            ["reads-sketch"],
-            1,
-            output="",
-            tool="reads-sketch",
-            message=(
-                f"Every one of the {failed} selected run(s) failed to stream; "
-                f"see {READS_SKETCHES_DIR}/{READS_SKETCHES_TSV} and the log."
-            ),
+    if failed:
+        logger.warning(
+            "%d run(s) failed; a repeat of the same call streams them again, since a run "
+            "without a sketch is a missing deliverable",
+            failed,
         )
     return sketched
 
@@ -163,6 +174,11 @@ def run_standalone(
     """``-o DIR`` without a workdir: sketch bare accessions, record nothing."""
     if not accessions:
         raise UserInputError("Without -wd, name the runs with --accession or --accession-file.")
+    odd = [a for a in accessions if not _RUN_ACCESSION.match(a)]
+    if odd:
+        raise UserInputError(
+            f"Not a run accession (SRR, ERR or DRR followed by digits): {', '.join(odd)}"
+        )
     rows = [
         ReadRow(
             run_accession=a,
@@ -191,14 +207,12 @@ def run_standalone(
         source="the request",
     )
     if sketched == 0 and failed == len(rows):
-        raise ToolExecutionError(
-            ["reads-sketch"],
-            1,
-            output="",
-            tool="reads-sketch",
-            message=f"Every one of the {failed} run(s) failed to stream; see {out_dir}.",
-        )
+        raise WorkdirError(f"Every one of the {failed} run(s) failed to stream; see {out_dir}.")
     return sketched
+
+
+# The run accessions of SRA, ENA and DDBJ; the name is also the sketch file name.
+_RUN_ACCESSION = re.compile(r"^[SED]RR[0-9]+$")
 
 
 # --- the work ----------------------------------------------------------------
@@ -248,6 +262,9 @@ def sketch_runs(
     versions = {**preflight(SRATOOLS_TOOL), **preflight(SOURMASH_TOOL)}
     out_dir.mkdir(parents=True, exist_ok=True)
     clear_partials(out_dir)
+    for entry in out_dir.iterdir():
+        if entry.name.startswith(_HOME_PREFIX) and entry.is_dir():
+            shutil.rmtree(entry, ignore_errors=True)  # left by a hard exit
     todo = [
         r for r in runs if force or not is_current(index.get(r.run_accession), out_dir, max_spots)
     ]
@@ -367,23 +384,27 @@ def sketch_one(
     leaves no partial sketch and a sketch from an earlier call is kept.
     """
     target = sketch_file(out_dir, run)
-    tmp = partial_sketch(target)
+    tmp = partial_path(target)
     started = time.monotonic()
-    try:
-        result = run_pipeline(
-            (SRATOOLS_TOOL, fastq_dump_command(run, max_spots)),
-            (SOURMASH_TOOL, sourmash_stdin_command(run, tmp)),
-            logger=logger,
-            cwd=out_dir,
-        )
-    except ToolExecutionError as exc:
-        tmp.unlink(missing_ok=True)
-        if process.stop_requested.is_set():
+    # The working directory of the two tools is a disposable hidden directory:
+    # under a container backend it is also HOME, where fastq-dump writes its
+    # .ncbi settings and cache, which must not land beside the sketches.
+    with tempfile.TemporaryDirectory(dir=out_dir, prefix=_HOME_PREFIX) as home:
+        try:
+            result = run_pipeline(
+                (SRATOOLS_TOOL, fastq_dump_command(run, max_spots)),
+                (SOURMASH_TOOL, sourmash_stdin_command(run, tmp)),
+                logger=logger,
+                cwd=home,
+            )
+        except ToolExecutionError as exc:
+            tmp.unlink(missing_ok=True)
+            if process.stop_requested.is_set():
+                raise
+            return ReadsSketchRow(run, "failed", max_spots=max_spots, reason=str(exc))
+        except BaseException:
+            tmp.unlink(missing_ok=True)
             raise
-        return ReadsSketchRow(run, "failed", max_spots=max_spots, reason=str(exc))
-    except BaseException:
-        tmp.unlink(missing_ok=True)
-        raise
     seconds = time.monotonic() - started
     dump_tail, sketch_tail = result.tails
     if process.stop_requested.is_set():
@@ -437,17 +458,20 @@ def failure_reason(
     """One line naming which tool failed and its last message."""
     dump_rc, sketch_rc = returncodes
     # A producer that failed on its own (an unknown accession, a network
-    # error) leaves the consumer with nothing to sketch, so its failure is the
-    # cause; a producer ended by a signal (SIGPIPE, or killed once the
-    # consumer failed) is the consumer's doing.
-    if dump_rc > 0 and dump_rc != _SIGPIPE_EXIT:
+    # error) says so on stderr and leaves the consumer with nothing to
+    # sketch, so its failure is the cause. A producer that exited 1 without
+    # a word, or ended by a signal, lost its reader: fastq-dump exits 1 with
+    # an empty stderr when its pipe breaks, or is stopped once the consumer
+    # failed, and which happens first is a race. That is the consumer's doing.
+    if dump_rc != 0 and any(_DUMP_ERROR.search(line) for line in dump_tail):
         return f"fastq-dump exited {dump_rc}: {last_message(dump_tail)}"
     if sketch_rc != 0:
         return f"sourmash exited {sketch_rc}: {last_message(sketch_tail)}"
     if dump_rc != 0:
-        return f"fastq-dump ended by signal ({dump_rc}): {last_message(dump_tail)}"
+        return f"fastq-dump exited {dump_rc}: {last_message(dump_tail)}"
     return "no sketch was written"
 
 
-# A shell reports a process ended by SIGPIPE as 128 + 13.
-_SIGPIPE_EXIT = 141
+# fastq-dump's own error lines: "fastq-dump.3.4.1 err: ..." and its closing
+# "fastq-dump quit with error code N".
+_DUMP_ERROR = re.compile(r"\berr: |quit with error code")

@@ -25,7 +25,7 @@ from repgenr.core.contracts import (
     read_reads_sketches,
     write_reads,
 )
-from repgenr.core.errors import ToolExecutionError, UserInputError, WorkdirError
+from repgenr.core.errors import UserInputError, WorkdirError
 from repgenr.core.sketches import READS_SKETCH_PARAMS
 from repgenr.core.sratools import fastq_dump_command
 from repgenr.stages.reads_sketch import (
@@ -42,7 +42,7 @@ from repgenr.stages.reads_sketch import (
 _runner = CliRunner()
 
 # A fake fastq-dump: four records per spot requested (two mates), the stderr
-# lines of the real tool, and a failure for an accession starting with BAD.
+# lines of the real tool, and a failure for an accession starting with SRR0.
 # Every call appends its argv to calls.jsonl beside the script.
 _FASTQ_DUMP = r"""#!/bin/sh
 here=$(dirname "$0")
@@ -56,7 +56,7 @@ while [ $# -gt 0 ]; do
     *) acc=$1; shift;;
   esac
 done
-case "$acc" in BAD*)
+case "$acc" in SRR0*)
   echo "fastq-dump.3.4.1 err: item not found while constructing within virtual database" \
     "module - the accession '$acc' could not be found." >&2
   echo "fastq-dump quit with error code 3" >&2
@@ -74,16 +74,19 @@ echo "Written $n spots for $acc" >&2
 """
 
 # A fake sourmash: counts the records on stdin, writes the -o file, and
-# prints the real tool's closing line.
+# prints the real tool's closing line. A --name starting with ERR0 makes
+# it fail after reading a few lines, while fastq-dump is still writing.
 _SOURMASH = r"""#!/bin/sh
 if [ "$1" = "--version" ]; then echo "sourmash 4.9.4"; exit 0; fi
-out=""
+out=""; name=""
 while [ $# -gt 0 ]; do
   case "$1" in
     -o) out=$2; shift 2;;
+    --name) name=$2; shift 2;;
     *) shift;;
   esac
 done
+case "$name" in ERR0*) head -n 8 > /dev/null; echo "error: cannot sketch $name" >&2; exit 2;; esac
 lines=$(wc -l < /dev/stdin | tr -d ' ')
 n=$((lines / 4))
 if [ "$n" -eq 0 ]; then echo "error: no sequences" >&2; exit 1; fi
@@ -197,6 +200,9 @@ def test_parsers_read_the_tools_closing_lines() -> None:
     assert failure_reason((3, 1), ["err: gone"], ["error: no sequences"]) == (
         "fastq-dump exited 3: err: gone"
     )
+    # fastq-dump exits 1 with an empty stderr when its reader goes away.
+    assert failure_reason((1, 1), [], ["error: bad"]) == "sourmash exited 1: error: bad"
+    assert failure_reason((1, 0), [], []) == "fastq-dump exited 1: no output"
     assert failure_reason((0, 0), [], []) == "no sketch was written"
 
 
@@ -215,27 +221,36 @@ def test_run_pipeline_joins_two_processes_and_reports_both_exits() -> None:
         ["sh", "-c", "yes"], ["sh", "-c", "head -c 10 > /dev/null; exit 4"], logger=logger
     )
     assert result.returncodes[1] == 4 and result.returncodes[0] != 0
+    assert not result.timed_out
+    # Each half has its own environment.
+    result = process.run_pipeline(
+        ["sh", "-c", "echo $WHO >&2"],
+        ["sh", "-c", "echo $WHO >&2"],
+        logger=logger,
+        envs=({"WHO": "first"}, {"WHO": "second"}),
+    )
+    assert result.tails == (["first"], ["second"])
 
 
 # --- the workdir form ---------------------------------------------------------------
 
 
 def test_run_sketches_every_run_and_indexes_failures(tmp_path: Path, fake_tools: Path) -> None:
-    ctx = _workdir(tmp_path, [_row("SRR1"), _row("BAD2"), _row("SRR3")])
+    ctx = _workdir(tmp_path, [_row("SRR1"), _row("SRR02"), _row("SRR3")])
     sketched = run(ctx, ReadsSketchParams(max_spots=20, jobs=2))
     assert sketched == 2
     out = ctx.workdir / READS_SKETCHES_DIR
     rows = {r.run_accession: r for r in read_reads_sketches(out / READS_SKETCHES_TSV)}
-    assert [r for r in rows] == ["SRR1", "BAD2", "SRR3"]  # the order of reads.tsv
+    assert [r for r in rows] == ["SRR1", "SRR02", "SRR3"]  # the order of reads.tsv
     ok = rows["SRR1"]
     assert ok.status == "ok" and ok.max_spots == 20 and ok.spots_read == 20
     assert ok.sequences == 40 and ok.sketch_params == READS_SKETCH_PARAMS
     assert ok.sketch_file == "SRR1.sig.zip"
     assert (out / "SRR1.sig.zip").read_text().startswith("fake sketch of 40")
     assert ok.seconds is not None and ok.seconds >= 0
-    bad = rows["BAD2"]
+    bad = rows["SRR02"]
     assert bad.status == "failed" and bad.reason.startswith("fastq-dump exited 3:")
-    assert "could not be found" in bad.reason and not (out / "BAD2.sig.zip").exists()
+    assert "could not be found" in bad.reason and not (out / "SRR02.sig.zip").exists()
     assert not [p for p in out.iterdir() if p.name.startswith(".")], "no partial sketch left"
     record = ctx.config.stages["reads_sketch"]
     assert record.completed and record.tool == "sourmash"
@@ -292,15 +307,28 @@ def test_a_subset_adds_to_the_set_and_the_rest_stay_pending(
     assert ctx.config.stages["reads_sketch"].params["present"] == 2
 
 
-def test_every_run_failing_is_an_error_after_the_index_is_written(
+def test_every_run_failing_is_an_error_and_records_nothing(
     tmp_path: Path, fake_tools: Path
 ) -> None:
-    ctx = _workdir(tmp_path, [_row("BAD1"), _row("BAD2")])
-    with pytest.raises(ToolExecutionError, match="Every one of the 2 selected run"):
+    ctx = _workdir(tmp_path, [_row("SRR01"), _row("SRR02")])
+    with pytest.raises(WorkdirError, match="Every one of the 2 selected run"):
         run(ctx, ReadsSketchParams())
     rows = read_reads_sketches(ctx.workdir / READS_SKETCHES_DIR / READS_SKETCHES_TSV)
     assert [r.status for r in rows] == ["failed", "failed"]
-    assert ctx.config.stages["reads_sketch"].params["failed"] == 2
+    assert "reads_sketch" not in ctx.config.stages, "no completed record of a failed stage"
+
+
+def test_a_sourmash_failure_mid_stream_is_blamed_on_sourmash(
+    tmp_path: Path, fake_tools: Path
+) -> None:
+    ctx = _workdir(tmp_path, [_row("ERR01"), _row("SRR2")])
+    assert run(ctx, ReadsSketchParams()) == 1
+    out = ctx.workdir / READS_SKETCHES_DIR
+    rows = {r.run_accession: r for r in read_reads_sketches(out / READS_SKETCHES_TSV)}
+    assert rows["ERR01"].status == "failed"
+    assert rows["ERR01"].reason == "sourmash exited 2: error: cannot sketch ERR01"
+    assert not (out / "ERR01.sig.zip").exists()
+    assert not [p for p in out.iterdir() if p.name.startswith(".")], "no partial sketch left"
 
 
 def test_run_refuses_a_selection_outside_reads_tsv_before_any_tool(
@@ -321,14 +349,23 @@ def test_standalone_sketches_bare_accessions_into_a_directory(
     out = tmp_path / "sk"
     logger = logging.getLogger("test")
     n = run_standalone(
-        ["SRR1", "SRR1", "BAD2"], out, max_spots=5, jobs=1, force=False, logger=logger
+        ["SRR1", "SRR1", "SRR02"], out, max_spots=5, jobs=1, force=False, logger=logger
     )
     assert n == 1
     rows = {r.run_accession: r for r in read_reads_sketches(out / READS_SKETCHES_TSV)}
-    assert set(rows) == {"SRR1", "BAD2"} and rows["SRR1"].status == "ok"
+    assert set(rows) == {"SRR1", "SRR02"} and rows["SRR1"].status == "ok"
     assert (out / "SRR1.sig.zip").exists()
     with pytest.raises(UserInputError, match="name the runs"):
         run_standalone([], out, max_spots=None, jobs=None, force=False, logger=logger)
+    with pytest.raises(UserInputError, match="Not a run accession.*\\.\\./x"):
+        run_standalone(["../x"], out, max_spots=None, jobs=None, force=False, logger=logger)
+
+
+def test_standalone_refuses_platform(tmp_path: Path) -> None:
+    result = _runner.invoke(
+        app, ["reads-sketch", "-o", str(tmp_path / "o"), "--accession", "SRR1", "--platform", "ont"]
+    )
+    assert result.exit_code != 0 and "needs -wd" in _plain(result.output)
 
 
 # --- CLI wiring and the harness ------------------------------------------------------
@@ -397,3 +434,40 @@ def test_harness_skips_a_repeat_and_reruns_on_a_new_selection(
     assert status.exit_code == 0, status.output
     names = {s["name"]: s["state"] for s in json.loads(status.output)["stages"]}
     assert names["reads_sketch"] == "done"
+
+
+def test_harness_streams_a_failed_run_again_on_a_repeat(tmp_path: Path, fake_tools: Path) -> None:
+    """A selected run without a sketch is a missing deliverable: the repeat
+    runs the stage, which skips the current sketch and streams the rest."""
+    ctx = _workdir(tmp_path, [_row("SRR1"), _row("SRR02")])
+    ctx.close()
+    wd = str(ctx.workdir)
+    first = _runner.invoke(app, ["reads-sketch", "-wd", wd])
+    assert first.exit_code == 0, first.output
+    assert "1 run(s) failed; a repeat" in first.output
+    assert len(_calls(fake_tools)) == 2
+    again = _runner.invoke(app, ["reads-sketch", "-wd", wd])
+    assert again.exit_code == 0, again.output
+    assert "already completed" not in again.output
+    calls = _calls(fake_tools)
+    assert len(calls) == 3 and calls[-1].endswith("SRR02"), "only the failed run again"
+    # A sketch removed by hand is streamed again the same way.
+    (Path(wd) / READS_SKETCHES_DIR / "SRR1.sig.zip").unlink()
+    third = _runner.invoke(app, ["reads-sketch", "-wd", wd, "--accession", "SRR1"])
+    assert third.exit_code == 0, third.output
+    assert len(_calls(fake_tools)) == 4 and _calls(fake_tools)[-1].endswith("SRR1")
+
+
+def test_harness_leaves_no_completed_record_when_every_run_fails(
+    tmp_path: Path, fake_tools: Path
+) -> None:
+    ctx = _workdir(tmp_path, [_row("SRR01")])
+    ctx.close()
+    wd = str(ctx.workdir)
+    result = _runner.invoke(app, ["reads-sketch", "-wd", wd])
+    assert result.exit_code == 3, result.output
+    record = Config.load(Path(wd)).stages.get("reads_sketch")
+    assert record is None or not record.completed
+    status = _runner.invoke(app, ["status", "-wd", wd, "--json"])
+    names = {s["name"]: s["state"] for s in json.loads(status.output)["stages"]}
+    assert names.get("reads_sketch", "pending") != "done"

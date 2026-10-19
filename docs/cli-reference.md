@@ -261,7 +261,7 @@ Sketch the reads of selected runs streamed from SRA, without downloading them.
 | `--accession` |  | Restrict to these runs of reads.tsv (repeatable); a run not in reads.tsv is refused. Without -wd: the runs to sketch. |
 | `--accession-file` |  | File of run accessions, one per line (# comments allowed). |
 | `--platform` | `any` | Restrict to runs of one platform: any, illumina, ont or pacbio. |
-| `--max-spots` |  | Stream only the first N spots of each run (fastq-dump -X; a paired-end spot gives two reads). Default: the whole run. The first spots are not a random sample, which does not matter to a k-mer sketch. |
+| `--max-spots` |  | Stream only the first N spots of each run (fastq-dump -X; a paired-end spot gives two reads). Default: the whole run. The first spots are not a random sample; for a species-level gather on an isolate this is expected to matter little. |
 | `--jobs` |  | Runs streamed at once, each a fastq-dump and a sourmash process (default 4, or the usable CPUs when fewer). |
 | `-o`, `--out` |  | Standalone form: sketch the runs named by --accession/--accession-file into DIR without a workdir; nothing is recorded. |
 
