@@ -842,6 +842,30 @@ def read_reads(path: Path) -> list[ReadRow]:
 READS_SKETCHES_DIR = "reads_sketches"
 READS_SKETCHES_TSV = "reads_sketches.tsv"
 READS_SKETCH_STATUSES = ("ok", "failed", "pending")
+# One subdirectory per variant: "all" for the whole run, "spots_N" for the
+# first N spots, so sketches at several depths live side by side.
+READS_SKETCH_ALL = "all"
+_READS_SKETCH_SPOTS = "spots_"
+
+
+def reads_sketch_variant(max_spots: int | None) -> str:
+    """The subdirectory name of the sketches made with this cap."""
+    return READS_SKETCH_ALL if max_spots is None else f"{_READS_SKETCH_SPOTS}{max_spots}"
+
+
+_READS_SKETCH_VARIANT_RE = re.compile(r"spots_([1-9][0-9]*)")
+
+
+def reads_sketch_variant_spots(name: str) -> tuple[bool, int | None]:
+    """Whether ``name`` is a variant directory, and the cap it stands for:
+    ``(True, None)`` for ``all``, ``(True, N)`` for ``spots_N`` as
+    :func:`reads_sketch_variant` writes it, ``(False, None)`` otherwise."""
+    if name == READS_SKETCH_ALL:
+        return True, None
+    match = _READS_SKETCH_VARIANT_RE.fullmatch(name)
+    if match:
+        return True, int(match.group(1))
+    return False, None
 
 
 @dataclass(frozen=True)

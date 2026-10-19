@@ -2988,7 +2988,7 @@ commands:
         - docs/audit/cli-matrix.md
         nextflow: 'n/a: workdir command; the Nextflow layer has no reads-sketch step yet'
         live: tests/live/test_reads_sketch_live.py::test_reads_sketch_streams_two_runs
-        observable: reads_sketches/ holds one .sig.zip per sketched run and reads_sketches.tsv
+        observable: reads_sketches/<variant>/ holds one .sig.zip per sketched run and reads_sketches.tsv
       --accession:
         param: ReadsSketchParams.accessions
         value: SRR25474756
@@ -3032,7 +3032,7 @@ commands:
         - docs/audit/cli-matrix.md
         nextflow: 'n/a: workdir command; the Nextflow layer has no reads-sketch step yet'
         live: tests/live/test_reads_sketch_live.py::test_reads_sketch_streams_two_runs
-        observable: fastq-dump is called with -X N; reads_sketches.tsv records max_spots
+        observable: fastq-dump is called with -X N; the sketches go to reads_sketches/spots_N/
       --jobs:
         param: ReadsSketchParams.jobs
         value: '2'
@@ -3056,7 +3056,7 @@ commands:
         - docs/audit/cli-matrix.md
         nextflow: 'n/a: workdir command; the Nextflow layer has no reads-sketch step yet'
         live: tests/live/test_reads_sketch_live.py::test_reads_sketch_streams_two_runs
-        observable: DIR holds the sketches and reads_sketches.tsv; no workdir record
+        observable: DIR/<variant>/ holds the sketches and reads_sketches.tsv; no workdir record
   run:
     dispatch: stage
     base_args:

@@ -42,6 +42,7 @@ from ..core.contracts import (
     TREE_NWK,
     list_fasta,
     read_clusters,
+    reads_sketch_variant,
 )
 from ..core.errors import (
     MissingBinaryError,
@@ -237,16 +238,17 @@ HELP_SKETCHES_DIR = (
 
 HELP_MAX_SPOTS = (
     "Stream only the first N spots of each run (fastq-dump -X; a paired-end spot gives "
-    "two reads). Default: the whole run. The first spots are not a random sample; for a "
-    "species-level gather on an isolate this is expected to matter little."
+    "two reads). Default: the whole run. Each cap is its own variant directory, "
+    "spots_N/ beside all/. The first spots are not a random sample; for a species-level "
+    "gather on an isolate this is expected to matter little."
 )
 HELP_SKETCH_JOBS = (
     "Runs streamed at once, each a fastq-dump and a sourmash process (default 4, or "
     "the usable CPUs when fewer)."
 )
 HELP_SKETCH_OUT = (
-    "Standalone form: sketch the runs named by --accession/--accession-file into DIR "
-    "without a workdir; nothing is recorded."
+    "Standalone form: sketch the runs named by --accession/--accession-file into "
+    "DIR/<variant>/ without a workdir; nothing is recorded."
 )
 
 # Canonical stage order per lineage. Used to show progress (`status`) and by
@@ -484,7 +486,7 @@ STAGE_INPUTS: dict[str, Any] = {
     # digested after the run (_REDIGEST_AFTER_RUN).
     "reads_sketch": lambda ctx, p: [
         ctx.workdir / READS_TSV,
-        ctx.workdir / READS_SKETCHES_DIR / READS_SKETCHES_TSV,
+        ctx.workdir / READS_SKETCHES_DIR / reads_sketch_variant(p.max_spots) / READS_SKETCHES_TSV,
         *([Path(p.accession_file)] if p.accession_file else []),
     ],
     "assemble": lambda ctx, p: [
@@ -628,7 +630,7 @@ def _dereplicate_deliverables(ctx: WorkdirContext, params: Any) -> list[Path]:
 # core.doctor's stand-in context provides, and params may be the recorded
 # params dict as a namespace (doctor), so conditional entries use getattr.
 def _reads_sketch_deliverables(ctx: WorkdirContext, params: Any) -> list[Path]:
-    """The index and the sketch of every selected run.
+    """The index and the sketch of every selected run, in the variant of the cap.
 
     A run that failed, or whose sketch was removed, is then a missing
     deliverable: the repeat runs the stage again, which streams only the
@@ -639,7 +641,7 @@ def _reads_sketch_deliverables(ctx: WorkdirContext, params: Any) -> list[Path]:
     from ..core.contracts import read_reads
     from ..stages.reads_sketch import select_runs, sketch_file
 
-    out_dir = ctx.workdir / READS_SKETCHES_DIR
+    out_dir = ctx.workdir / READS_SKETCHES_DIR / reads_sketch_variant(params.max_spots)
     files = [out_dir / READS_SKETCHES_TSV]
     reads = ctx.workdir / READS_TSV
     if reads.is_file():
@@ -973,8 +975,10 @@ def _require_unit_interval(value: float | None, label: str) -> None:
 # finished without sketches gets them from `repgenr sketch`.
 # strict_sources (ingest --strict-sources) only refuses a run; the genomes
 # staged are the same, so a repeat with it skips like one without.
+# "jobs": how many runs assemble or reads-sketch work on at once; the results
+# are the same.
 _NON_RESULT_PARAMS = frozenset(
-    {"threads", "num_processes", "allow_incomplete", "sketch", "strict_sources"}
+    {"threads", "num_processes", "jobs", "allow_incomplete", "sketch", "strict_sources"}
 )
 
 

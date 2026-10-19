@@ -113,7 +113,7 @@ def reads_sketch(
         "-wd",
         "--workdir",
         help="Workdir whose reads stage selected the runs (reads.tsv); the sketches go to "
-        "reads_sketches/ and the stage is recorded.",
+        "reads_sketches/<variant>/ (all/ or spots_N/) and the stage is recorded.",
     ),
     accession: list[str] = typer.Option(
         [],

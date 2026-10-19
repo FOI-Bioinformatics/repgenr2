@@ -3,12 +3,14 @@
 Follows ``reads``: the runs of ``reads.tsv``, all of them or a selection, are
 streamed from NCBI with ``fastq-dump -Z`` and piped into one ``sourmash
 sketch dna`` call each, so no FASTQ file is written and a run can be cut
-after its first spots (``--max-spots``). Each run leaves
-``reads_sketches/<run>.sig.zip``, a sketch in the form the assemble stage
-writes for a run's reads (k=21, 31 and 51 at scaled=1000, with abundance),
-and ``reads_sketches/reads_sketches.tsv`` lists every run of ``reads.tsv``
-with its sketch status. A call adds to the set: runs sketched before with
-the same cap are kept.
+after its first spots (``--max-spots``). Each cap is a variant directory,
+``reads_sketches/all/`` for the whole run and ``reads_sketches/spots_N/`` for
+a cap, so sketches at several depths coexist. Each run leaves
+``<variant>/<run>.sig.zip``, a sketch in the form the assemble stage writes
+for a run's reads (k=21, 31 and 51 at scaled=1000, with abundance), and
+``<variant>/reads_sketches.tsv`` lists every run of ``reads.tsv`` with its
+sketch status. A call adds to its variant: runs sketched before with the
+same cap are kept.
 
 The same work without a workdir (``-o DIR`` with bare accessions) is
 :func:`run_standalone`; nothing is recorded there.
@@ -36,6 +38,8 @@ from ..core.contracts import (
     ReadsSketchRow,
     read_reads,
     read_reads_sketches,
+    reads_sketch_variant,
+    reads_sketch_variant_spots,
     write_reads_sketches,
 )
 from ..core.errors import ToolExecutionError, UserInputError, WorkdirError
@@ -48,7 +52,7 @@ from ..core.sratools import SRATOOLS_TOOL, fastq_dump_command
 from .reads import _ENA_PLATFORM, PLATFORMS, read_accession_file
 
 DEFAULT_JOBS_CAP = 4
-# Hidden per-run working directories under reads_sketches/ (see sketch_one).
+# Hidden per-run working directories inside a variant directory (see sketch_one).
 _HOME_PREFIX = ".home."
 
 
@@ -108,8 +112,8 @@ def precheck(ctx: WorkdirContext, params: ReadsSketchParams) -> None:
 
 
 def run(ctx: WorkdirContext, params: ReadsSketchParams) -> int:
-    """Sketch the selected runs into ``reads_sketches/``; return the number
-    of runs sketched in this call."""
+    """Sketch the selected runs into ``reads_sketches/<variant>/``; return the
+    number of runs sketched in this call."""
     logger = ctx.logger
     precheck(ctx, params)
     rows = read_reads(ctx.workdir / READS_TSV)
@@ -120,7 +124,7 @@ def run(ctx: WorkdirContext, params: ReadsSketchParams) -> int:
             READS_TSV,
             params.platform,
         )
-    out_dir = ctx.workdir / READS_SKETCHES_DIR
+    out_dir = ctx.workdir / READS_SKETCHES_DIR / reads_sketch_variant(params.max_spots)
     index = read_index(out_dir / READS_SKETCHES_TSV)
     sketched, failed, versions = sketch_runs(
         chosen,
@@ -137,22 +141,25 @@ def run(ctx: WorkdirContext, params: ReadsSketchParams) -> int:
         # was accepted: the stage stays incomplete and a repeat runs again.
         raise WorkdirError(
             f"Every one of the {failed} selected run(s) failed to stream; "
-            f"see {READS_SKETCHES_DIR}/{READS_SKETCHES_TSV} and the log."
+            f"see {out_dir.relative_to(ctx.workdir)}/{READS_SKETCHES_TSV} and the log."
         )
     ctx.config.record_stage(
         "reads_sketch",
         tool="sourmash",
         params={
             **asdict(params),
+            "variant": out_dir.name,
             "selected": len(chosen),
             "sketched": sketched,
             "failed": failed,
             "present": sum(1 for r in index.values() if r.status == "ok"),
+            "variants": {name: ok for name, _spots, ok, _n in variants(out_dir.parent)},
         },
         tool_versions=versions,
         completed=datetime.now(UTC).isoformat(),
     )
     ctx.save_config()
+    logger.info("Variants under %s: %s", READS_SKETCHES_DIR, describe_variants(out_dir.parent))
     if failed:
         logger.warning(
             "%d run(s) failed; a repeat of the same call streams them again, since a run "
@@ -194,6 +201,7 @@ def run_standalone(
         )
         for a in dict.fromkeys(accessions)
     ]
+    out_dir = out_dir / reads_sketch_variant(max_spots)
     index = read_index(out_dir / READS_SKETCHES_TSV)
     sketched, failed, _versions = sketch_runs(
         rows,
@@ -208,7 +216,30 @@ def run_standalone(
     )
     if sketched == 0 and failed == len(rows):
         raise WorkdirError(f"Every one of the {failed} run(s) failed to stream; see {out_dir}.")
+    logger.info("Variants under %s: %s", out_dir.parent, describe_variants(out_dir.parent))
     return sketched
+
+
+def variants(root: Path) -> list[tuple[str, int | None, int, int]]:
+    """The variant directories under ``root``: (name, cap, runs with a
+    sketch, rows in the index), ``all`` first and then by rising cap."""
+    if not root.is_dir():
+        return []
+    found = []
+    for entry in root.iterdir():
+        known, spots = reads_sketch_variant_spots(entry.name)
+        if not known or not (entry / READS_SKETCHES_TSV).is_file():
+            continue
+        rows = read_reads_sketches(entry / READS_SKETCHES_TSV)
+        ok = sum(1 for r in rows if r.status == "ok" and (entry / r.sketch_file).is_file())
+        found.append((entry.name, spots, ok, len(rows)))
+    return sorted(found, key=lambda v: (v[1] is not None, v[1] or 0))
+
+
+def describe_variants(root: Path) -> str:
+    """``all (3 of 5 runs sketched), spots_100000 (5 of 5 runs sketched)``, or ``none``."""
+    parts = [f"{name} ({ok} of {n} runs sketched)" for name, _spots, ok, n in variants(root)]
+    return ", ".join(parts) if parts else "none"
 
 
 # The run accessions of SRA, ENA and DDBJ; the name is also the sketch file name.
@@ -261,6 +292,12 @@ def sketch_runs(
     """
     versions = {**preflight(SRATOOLS_TOOL), **preflight(SOURMASH_TOOL)}
     out_dir.mkdir(parents=True, exist_ok=True)
+    if (out_dir.parent / READS_SKETCHES_TSV).is_file():
+        logger.warning(
+            "%s holds sketches of the earlier flat layout (an index beside the variant "
+            "directories); they are not read. Remove them or move them under all/.",
+            out_dir.parent,
+        )
     clear_partials(out_dir)
     for entry in out_dir.iterdir():
         if entry.name.startswith(_HOME_PREFIX) and entry.is_dir():
