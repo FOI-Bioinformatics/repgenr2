@@ -837,11 +837,12 @@ def _client_env(
     if config.backend != DOCKER and tool_env:
         merged.update(tool_env)
         if config.backend == SINGULARITY:
-            # Also as the engine's own injection variables, which survive a
-            # --cleanenv set through the environment.
+            # Also as the engine's own injection variable, which survives a
+            # --cleanenv set through the environment (one prefix, the
+            # engine's own, so it does not warn about a duplicate).
+            prefix = "APPTAINERENV_" if "apptainer" in config.engine_binary() else "SINGULARITYENV_"
             for name, value in tool_env.items():
-                merged[f"APPTAINERENV_{name}"] = value
-                merged[f"SINGULARITYENV_{name}"] = value
+                merged[f"{prefix}{name}"] = value
     return merged or None
 
 

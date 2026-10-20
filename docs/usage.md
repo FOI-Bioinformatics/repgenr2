@@ -587,8 +587,9 @@ has a time limit of 300 s plus one second per 200 spots (about 22 min at
 connection that stalls frees its slot and is tried again; without a cap
 only the global limit applies, and a run killed by it is tried again the
 same way (up to three times the limit for one run). A run whose stream
-holds no biological read (`fastq-dump` reports zero spots without an
-error) is marked `empty` in the index with no sketch, is not a missing
+holds no biological read (`fastq-dump` reports its spot count without an
+error and sourmash finds no sequence: no spots, or technical reads only)
+is marked `empty` in the index with no sketch, is not a missing
 deliverable, is not streamed again at that cap (`--force` streams it) and
 is excused by `reads-screen` as a run without a sketch. One call writes a
 variant at a time: a second `reads-sketch` on the same variant directory

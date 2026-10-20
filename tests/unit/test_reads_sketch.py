@@ -643,6 +643,16 @@ def test_a_zero_spot_stream_with_an_error_line_is_a_failure(tmp_path: Path, monk
     )
     row = reads_sketch.sketch_one("SRR1", tmp_path, None, logging.getLogger("t"))
     assert row.status == "failed" and row.spots_read is None
+    # Technical reads only: spots were read, sourmash saw no sequence.
+    monkeypatch.setattr(
+        reads_sketch,
+        "run_pipeline",
+        lambda producer, consumer, **kw: process.PipelineResult(
+            (0, 0), (["Read 7 spots for SRR1"], ["no sequences found in '-'?!"])
+        ),
+    )
+    row = reads_sketch.sketch_one("SRR1", tmp_path, None, logging.getLogger("t"))
+    assert row.status == "empty" and row.spots_read == 7
 
 
 def test_the_time_limit_reaches_the_pipeline(tmp_path: Path, monkeypatch) -> None:

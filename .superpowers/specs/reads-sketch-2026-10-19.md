@@ -121,8 +121,9 @@ fastq-dump -Z --split-spot --skip-technical [-X N] ACC \
   when lower; without one only the global limit applies. Worst case per
   run at 200000 spots: three attempts of 1300 s plus the pauses, about
   68 min, before its slot is freed for good.
-- A stream of zero spots without an error line (`Read 0 spots`; sourmash
-  then exits 0 and writes no file) is the status `empty`: settled at that
+- A stream with a spot count, no error line, and no sequence for sourmash
+  (`no sequences found`, exit 0, no file: no spots, or technical reads
+  only) is the status `empty`: settled at that
   cap (`is_settled`), no deliverable, not streamed again without
   `--force`; `is_current` still means a readable sketch, so `reads-screen`
   excuses the run as unsketched.

@@ -882,8 +882,11 @@ def test_run_tool_tool_env_reaches_the_tool_in_every_backend(monkeypatch, backen
         # survive a --cleanenv set through the environment.
         assert captured["env"]["OMP_NUM_THREADS"] == "5"
         if backend == "singularity":
-            assert captured["env"]["APPTAINERENV_OMP_NUM_THREADS"] == "5"
-            assert captured["env"]["SINGULARITYENV_OMP_NUM_THREADS"] == "5"
+            prefixed = {k for k in captured["env"] if k.endswith("ENV_OMP_NUM_THREADS")}
+            assert len(prefixed) == 1 and prefixed <= {
+                "APPTAINERENV_OMP_NUM_THREADS",
+                "SINGULARITYENV_OMP_NUM_THREADS",
+            }
         else:
             assert "APPTAINERENV_OMP_NUM_THREADS" not in captured["env"]
 

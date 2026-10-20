@@ -518,6 +518,8 @@ def write_index(path: Path, index: dict[str, ReadsSketchRow], all_runs: list[str
 
 
 _SPOTS_RE = re.compile(r"^(?:Read|Written) (\d+) spots")
+# sourmash's note when stdin held no sequence at all (it then exits 0).
+_NO_SEQUENCES_RE = re.compile(r"no sequences found")
 _SEQUENCES_RE = re.compile(r"calculated \d+ signatures? for (\d+) sequences")
 
 
@@ -528,6 +530,11 @@ def spots_read(lines: list[str]) -> int | None:
         if m:
             return int(m.group(1))
     return None
+
+
+def streamed_nothing(lines: list[str]) -> bool:
+    """Whether sourmash reported an input without any sequence."""
+    return any(_NO_SEQUENCES_RE.search(line) for line in lines)
 
 
 def sequences_sketched(lines: list[str]) -> int | None:
@@ -666,18 +673,20 @@ def _attempt(
     if (
         result.ok
         and not tmp.is_file()
-        and spots == 0
+        and spots is not None
+        and streamed_nothing(sketch_tail)
         and not any(_DUMP_ERROR.search(line) for line in dump_tail)
     ):
-        # fastq-dump reported zero spots without an error (a run of technical
-        # reads only, or no spots) and sourmash, given nothing, exits 0
-        # without a file. A stream that ended without the count, or with an
-        # error line, is a failure instead.
+        # fastq-dump reported its spot count without an error and sourmash
+        # saw no sequence (it then exits 0 without a file): a run of no
+        # spots, or of technical reads only, which --skip-technical drops. A
+        # stream that ended without the count, or with an error line, is a
+        # failure instead.
         return ReadsSketchRow(
             run,
             "empty",
             max_spots=max_spots,
-            spots_read=0,
+            spots_read=spots,
             seconds=seconds,
             reason="the stream held no biological reads (technical reads only, or no spots)",
         ), False
