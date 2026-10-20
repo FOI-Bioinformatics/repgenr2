@@ -266,6 +266,7 @@ Sketch the reads of selected runs streamed from SRA, without downloading them.
 | `-o`, `--out` |  | Standalone form: sketch the runs named by --accession/--accession-file into DIR/<variant>/ without a workdir; nothing is recorded. |
 | `--reads-tsv` |  | Standalone form: a reads.tsv (the reads stage's table) naming the runs, with their taxonomy and biosample; --accession and --accession-file then pick a subset of it. |
 | `--versions-out` |  | Write resolved tool versions (YAML fragment) here. |
+| `--allow-all-failed` | off | Standalone form: a call where every run failed to stream is a warning, not an error (the call is one chunk of a batch, as in the Nextflow READS_SKETCH task). |
 
 ### reads-screen
 

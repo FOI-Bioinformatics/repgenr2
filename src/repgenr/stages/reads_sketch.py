@@ -211,10 +211,14 @@ def run_standalone(
     logger: logging.Logger,
     reads_tsv: Path | None = None,
     versions_out: Path | None = None,
+    allow_all_failed: bool = False,
 ) -> int:
     """``-o DIR`` without a workdir: sketch bare accessions, or the runs of a
     ``reads.tsv`` (every run, or the named subset), and record nothing.
-    ``versions_out`` takes the tool versions as a YAML fragment (Nextflow)."""
+    ``versions_out`` takes the tool versions as a YAML fragment (Nextflow).
+    With ``allow_all_failed`` a call where every run failed is not an error:
+    the call is one chunk of a larger batch (the Nextflow task) and the
+    batch is judged where the chunks are joined."""
     if reads_tsv is not None:
         if not reads_tsv.is_file():
             raise UserInputError(f"--reads-tsv {reads_tsv} is not a file.")
@@ -269,7 +273,10 @@ def run_standalone(
     if versions_out is not None:
         write_versions_fragment(versions_out, versions)
     if rows and sketched == 0 and failed == len(rows):
-        raise WorkdirError(f"Every one of the {failed} run(s) failed to stream; see {out_dir}.")
+        message = f"Every one of the {failed} run(s) failed to stream; see {out_dir}."
+        if not allow_all_failed:
+            raise WorkdirError(message)
+        logger.warning("%s (--allow-all-failed: this chunk is not the batch)", message)
     logger.info("Variants under %s: %s", out_dir.parent, describe_variants(out_dir.parent))
     return sketched
 

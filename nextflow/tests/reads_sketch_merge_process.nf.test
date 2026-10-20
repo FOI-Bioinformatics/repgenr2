@@ -1,0 +1,76 @@
+nextflow_process {
+
+    name "READS_SKETCH_MERGE (stub)"
+    script "../modules/local/dataflow/reads_sketch_merge.nf"
+    tag "stub"
+    process "READS_SKETCH_MERGE"
+    options "-stub"
+    config "./reads_debug.config"
+
+    test("joins the chunk directories into one index in reads.tsv order") {
+        setup {
+            // Two chunks of one variant: the second holds the runs in the
+            // reverse order of reads.tsv, and the third run is in no chunk.
+            def chunks = "${launchDir}/chunks"
+            file("${chunks}/a/spots_5000").mkdirs()
+            file("${chunks}/b/spots_5000").mkdirs()
+            def header = 'run_accession\tstatus\tmax_spots\tspots_read\tsequences\tsketch_file\tsketch_params\tseconds\treason\n'
+            file("${chunks}/a/spots_5000/reads_sketches.tsv").text = header +
+                'SRR000002\tok\t5000\t10\t20\tSRR000002.sig.zip\tk=21\t1.0\t\n'
+            file("${chunks}/a/spots_5000/SRR000002.sig.zip").text = 'two'
+            file("${chunks}/b/spots_5000/reads_sketches.tsv").text = header +
+                'SRR000001\tfailed\t5000\t\t\t\t\t2.0\tfastq-dump exited 3: not found\n'
+        }
+        when {
+            process {
+                """
+                input[0] = tuple(
+                    [id: 'test', mode: 'reads'],
+                    file("${projectDir}/nextflow/tests/data/reads.tsv"),
+                    [file("${launchDir}/chunks/a"), file("${launchDir}/chunks/b")]
+                )
+                """
+            }
+        }
+        then {
+            assert process.success
+            with(process.out.sketches.get(0)) {
+                assert get(0).id == 'test'
+                def dir = file(get(1))
+                assert dir.name == 'sketches'
+                assert file("${dir}/spots_5000/SRR000002.sig.zip").text == 'two'
+                def lines = file("${dir}/spots_5000/reads_sketches.tsv").text.split('\n')
+                assert lines.size() == 4
+                assert lines[0].startsWith('run_accession\tstatus')
+                assert lines[1].startsWith('SRR000001\tfailed\t5000')
+                assert lines[2].startsWith('SRR000002\tok\t5000')
+                assert lines[3] == 'SRR000003\tpending\t\t\t\t\t\t\t'
+            }
+        }
+    }
+
+    test("a batch where no run streamed fails the merge with its reason") {
+        setup {
+            def chunks = "${launchDir}/chunks"
+            file("${chunks}/a/all").mkdirs()
+            file("${chunks}/a/all/reads_sketches.tsv").text =
+                'run_accession\tstatus\tmax_spots\tspots_read\tsequences\tsketch_file\tsketch_params\tseconds\treason\n' +
+                'SRR000001\tfailed\t\t\t\t\t\t2.0\tfastq-dump exited 3: not found\n'
+        }
+        when {
+            process {
+                """
+                input[0] = tuple(
+                    [id: 'test', mode: 'reads'],
+                    file("${projectDir}/nextflow/tests/data/reads.tsv"),
+                    [file("${launchDir}/chunks/a")]
+                )
+                """
+            }
+        }
+        then {
+            assert process.failed
+            assert process.errorReport.contains('every run of the batch failed to stream')
+        }
+    }
+}

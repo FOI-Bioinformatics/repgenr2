@@ -3,9 +3,11 @@
 //     -> [GENOME_QC] -> READS_GATHER
 //
 // With params.reads_sketch the runs are sketched from the archive stream
-// (no download) and the sketches published; with params.reads_screen the
-// sketches are judged against the GTDB sketch (taxon, match fraction,
-// duplicates) and only the runs of passed.txt become assembly tasks.
+// (no download), one READS_SKETCH task per chunk of params.reads_sketch_chunk
+// runs so a retry streams one chunk again, joined by READS_SKETCH_MERGE and
+// published; with params.reads_screen the sketches are judged against the
+// GTDB sketch (taxon, match fraction, duplicates) and only the runs of
+// passed.txt become assembly tasks.
 // READS_SELECT emits reads.tsv; each of its rows becomes one READS_ASSEMBLE task
 // (the meta nests the run meta under `run` and carries the accession and the
 // platform, which sets the task's memory). The per-run directories are grouped
@@ -17,6 +19,7 @@
 
 include { READS_SELECT   } from '../../modules/local/dataflow/reads_select'
 include { READS_SKETCH   } from '../../modules/local/dataflow/reads_sketch'
+include { READS_SKETCH_MERGE } from '../../modules/local/dataflow/reads_sketch_merge'
 include { READS_SCREEN   } from '../../modules/local/dataflow/reads_screen'
 include { READS_ASSEMBLE } from '../../modules/local/dataflow/reads_assemble'
 include { GENOME_QC      } from '../../modules/local/dataflow/genome_qc'
@@ -39,12 +42,42 @@ workflow ACQUIRE_READS {
     if (params.reads_screen && !(params.gtdb_sketch && params.gtdb_lineages)) {
         error "--reads_screen needs --gtdb_sketch and --gtdb_lineages (the GTDB sketch and its lineages CSV)"
     }
+    def ch_sketches = null
     if (params.reads_sketch || params.reads_screen) {
-        READS_SKETCH(READS_SELECT.out.reads)
+        // One task per chunk of runs, keyed by a nested meta; a batch
+        // without a run is one empty chunk, so the merge still emits.
+        def chunk_size = Math.max(1, (params.reads_sketch_chunk ?: 25) as int)
+        def ch_chunks = READS_SELECT.out.reads.flatMap { meta, tsv ->
+            def runs = tsv.splitCsv(header: true, sep: '\t').collect { row -> row.run_accession }.unique()
+            // The accessions go into a shell line of the task unquoted.
+            def odd = runs.findAll { run -> !(run ==~ /[SED]RR[0-9]+/) }
+            if (odd) {
+                error "reads.tsv of ${meta.id} holds a value that is not a run accession: ${odd.join(', ')}"
+            }
+            def chunks = runs ? runs.collate(chunk_size) : [[]]
+            (0..<chunks.size()).collect { i ->
+                tuple(
+                    [id: "${meta.id}.${i + 1}", mode: meta.mode, run: meta, chunk: i + 1, chunks: chunks.size()],
+                    tsv,
+                    chunks[i]
+                )
+            }
+        }
+        READS_SKETCH(ch_chunks)
         ch_versions = ch_versions.mix(READS_SKETCH.out.versions)
+        // The merge of a batch starts when its own chunks are done (the group
+        // key carries the count), with the directories in chunk order.
+        def ch_chunk_dirs = READS_SKETCH.out.sketches
+            .map { meta, dir -> tuple(groupKey(meta.run, meta.chunks), [meta.chunk, dir]) }
+            .groupTuple()
+            .map { key, pairs ->
+                tuple(key.getGroupTarget(), pairs.sort { pair -> pair[0] }.collect { pair -> pair[1] })
+            }
+        READS_SKETCH_MERGE(READS_SELECT.out.reads.join(ch_chunk_dirs, by: 0))
+        ch_sketches = READS_SKETCH_MERGE.out.sketches
     }
     if (params.reads_screen) {
-        READS_SCREEN(READS_SELECT.out.reads.join(READS_SKETCH.out.sketches, by: 0))
+        READS_SCREEN(READS_SELECT.out.reads.join(ch_sketches, by: 0))
         ch_versions = ch_versions.mix(READS_SCREEN.out.versions)
         ch_keep = READS_SCREEN.out.passed.map { meta, passed ->
             def runs = passed.readLines().collect { line -> line.trim() }.findAll { line -> line }

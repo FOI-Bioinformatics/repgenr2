@@ -42,6 +42,7 @@ nextflow_pipeline {
                 reads_args = '-tg francisella --platform illumina --max-runs 5'
                 reads_screen = true
                 reads_sketch_spots = 5000
+                reads_sketch_chunk = 2
                 gtdb_sketch = '/db/gtdb.sig.zip'
                 gtdb_lineages = '/db/lineages.csv'
                 derep_process_size = 1
@@ -51,8 +52,13 @@ nextflow_pipeline {
         then {
             assert workflow.success
             def names = workflow.trace.succeeded().collect { t -> t.name }
-            assert names.any { n -> n.contains('READS_SKETCH (francisella)') }
+            // Three runs in chunks of two: two sketch tasks, one merge.
+            assert names.count { n -> n.contains('READS_SKETCH (francisella.') } == 2
+            assert names.any { n -> n.contains('READS_SKETCH_MERGE (francisella)') }
             assert names.any { n -> n.contains('READS_SCREEN (francisella)') }
+            def index = path("$outputDir/reads/reads_sketches/spots_5000/reads_sketches.tsv").text.split('\n')
+            assert index.size() == 4
+            assert index[1].startsWith('SRR000001\tok') && index[3].startsWith('SRR000003\tok')
             // The stub screen excuses the second run of reads.tsv as a duplicate.
             assert names.count { n -> n.contains('READS_ASSEMBLE (francisella.SRR') } == 2
             assert !names.any { n -> n.contains('READS_ASSEMBLE (francisella.SRR000002)') }
@@ -115,7 +121,8 @@ nextflow_pipeline {
         then {
             assert workflow.success
             def names = workflow.trace.succeeded().collect { t -> t.name }
-            assert names.any { n -> n.contains('READS_SKETCH (francisella)') }
+            assert names.count { n -> n.contains('READS_SKETCH (francisella.') } == 1
+            assert names.any { n -> n.contains('READS_SKETCH_MERGE (francisella)') }
             assert !names.any { n -> n.contains('READS_SCREEN') }
             assert names.count { n -> n.contains('READS_ASSEMBLE (francisella.SRR') } == 3
             assert path("$outputDir/reads/reads_sketches/all/reads_sketches.tsv").exists()

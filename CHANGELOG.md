@@ -7,6 +7,18 @@ All notable changes to RepGenR2 are documented here. The format follows
 ## [Unreleased]
 
 ### Changed
+- Nextflow: `READS_SKETCH` runs one task per chunk of `--reads_sketch_chunk`
+  runs of `reads.tsv` (default 25) instead of one task per batch, so a time
+  limit or a retry costs one chunk, and the new `READS_SKETCH_MERGE` joins
+  the chunks into the published `reads/reads_sketches/<variant>/` with one
+  index in `reads.tsv` order and fails the batch when no run streamed.
+  `reads-sketch --allow-all-failed` (standalone form) makes a chunk where
+  every run failed a warning instead of an error.
+
+### Fixed
+- Nextflow `READS_SKETCH` (since #40): the cleanup line's escapes rendered
+  as a doubled backslash in the command file, a bash syntax error after
+  the sketches were made; every real task would have failed.
 - `reads-sketch`: a transient failure on the archive side (a dropped
   connection, a stalled transfer, a pipeline past its time limit) is tried
   again within the call, up to three attempts with pauses of about 30 s and
