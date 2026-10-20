@@ -3030,7 +3030,7 @@ commands:
         - docs/usage.md
         - docs/cli-reference.md
         - docs/audit/cli-matrix.md
-        nextflow: 'n/a: READS_SKETCH sketches every run of reads.tsv; the selection is bounded with params.reads_args'
+        nextflow: 'module: modules/local/dataflow/reads_sketch.nf (READS_SKETCH passes its chunk of params.reads_sketch_chunk runs through --accession-file)'
         live: 'n/a: covered offline with fake fastq-dump and sourmash in tests/unit/test_reads_sketch.py'
       --platform:
         param: ReadsSketchParams.platform

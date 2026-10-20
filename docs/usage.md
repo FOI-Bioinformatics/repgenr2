@@ -2744,10 +2744,17 @@ assembly step are set through `--assemble_args` (see
 
 `--reads_sketch` adds a sketch task between the selection and the assemblies,
 and `--reads_screen` a screen task after it (the screen implies the sketch).
-`READS_SKETCH` (`reads-sketch --reads-tsv reads.tsv -o sketches`,
-`process_low`) streams every run of `reads.tsv` from the archive into a
-sourmash sketch, the first `--reads_sketch_spots` spots of each when set,
-and publishes them under `reads/reads_sketches/<variant>/`. `READS_SCREEN`
+`READS_SKETCH` (`reads-sketch --reads-tsv reads.tsv --accession-file
+chunk.txt -o sketches`, `process_low`) streams the runs of `reads.tsv` from
+the archive into sourmash sketches, the first `--reads_sketch_spots` spots
+of each when set. `reads.tsv` is cut into chunks of `--reads_sketch_chunk`
+runs (default 25), one task per chunk, so a chunk that hits its time limit
+or is retried streams its own runs again and the others keep their work; on
+a scheduler a chunk is one queued job, so a smaller chunk gives more
+parallel streams at the cost of more jobs. `READS_SKETCH_MERGE` joins the
+chunks into one `sketches/` with one index per variant in `reads.tsv` order
+(a run no chunk reached is `pending`) and publishes it under
+`reads/reads_sketches/<variant>/`. `READS_SCREEN`
 (`reads-screen --reads-tsv reads.tsv --sketches-dir sketches -o screen`,
 `process_medium`) judges the sketches with the three checks of the assemble
 screen against `--gtdb_sketch` and `--gtdb_lineages`, with

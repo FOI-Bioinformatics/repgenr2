@@ -228,9 +228,14 @@ the tools failed on).
 
 ## Nextflow
 
-`READS_SKETCH` and `READS_SCREEN` in `modules/local/dataflow/`, one task
-each per batch, wired into `ACQUIRE_READS` between `READS_SELECT` and the
-per-run `READS_ASSEMBLE` scatter. `params.reads_sketch` runs the sketch
+`READS_SKETCH`, `READS_SKETCH_MERGE` and `READS_SCREEN` in
+`modules/local/dataflow/`, wired into `ACQUIRE_READS` between `READS_SELECT`
+and the per-run `READS_ASSEMBLE` scatter. The sketch runs one task per
+chunk of `params.reads_sketch_chunk` runs (default 25; the task takes
+`reads.tsv` and the chunk's accessions through `--accession-file`), and the
+merge joins the chunk directories into one `sketches/` with one index per
+variant in `reads.tsv` order (shell and awk, no tool). The screen is one
+task per batch. `params.reads_sketch` runs the sketch
 task (`params.reads_sketch_spots` is the cap) and publishes
 `reads/reads_sketches/<variant>/`; `params.reads_screen` implies it, runs
 the screen with `params.gtdb_sketch`, `params.gtdb_lineages` and

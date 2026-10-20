@@ -156,6 +156,13 @@
                     "description": "Stop the stream of each run after its first N spots (reads-sketch --max-spots); the sketches go to the spots_N variant. Unset sketches the whole run.",
                     "fa_icon": "fas fa-cut"
                 },
+                "reads_sketch_chunk": {
+                    "type": "integer",
+                    "default": 25,
+                    "minimum": 1,
+                    "description": "Runs per READS_SKETCH task: reads.tsv is cut into chunks of this many runs, one task each, so a retry streams one chunk again; READS_SKETCH_MERGE joins them.",
+                    "fa_icon": "fas fa-th-large"
+                },
                 "reads_screen": {
                     "type": "boolean",
                     "default": false,
