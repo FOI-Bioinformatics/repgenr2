@@ -2,7 +2,10 @@
 
 Status: implemented. `reads-sketch` in PR #35, the variant layout in #36,
 `reads-screen` with `assemble --accession-file` in #37, the Nextflow
-`READS_SKETCH` and `READS_SCREEN` processes in #38 (all merged 2026-10-19).
+`READS_SKETCH` and `READS_SCREEN` processes in #38 (all merged 2026-10-19);
+the sra-tools image in #39, the audit follow-ups (retries, time limit,
+`empty` runs, the variant lock, image pre-pull, the `tool_env` route) in
+#40 and the chunked Nextflow sketch task in #41 (merged 2026-10-20).
 This file records the design as shipped; the user documentation is in
 `docs/usage.md` (sections "Sketching runs without downloading them",
 "Screening the sketches before any download", "Reads in Nextflow") and
@@ -60,6 +63,7 @@ repgenr assemble -wd WD --accession-file WD/reads_screen/spots_200000/passed.txt
 | `-o, --out DIR` | Standalone form: sketch into `DIR/<variant>/` without a workdir; nothing is recorded. Takes bare `--accession` runs or `--reads-tsv`. |
 | `--reads-tsv FILE` | Standalone form: the runs of a `reads.tsv` (the Nextflow task's input). |
 | `--versions-out FILE` | Standalone form: the tool versions as a YAML fragment (Nextflow). |
+| `--allow-all-failed` | Standalone form: a call where every run failed is a warning, not an error (the call is one chunk of a batch; the Nextflow task). |
 
 Without a selection every run of `reads.tsv` is sketched. A call adds to
 its variant: runs sketched before with the same cap are kept, so a subset
@@ -171,8 +175,9 @@ With `-o DIR` the same layout goes to `DIR/<variant>/`.
 
 `reads_sketches.tsv`, one row per run of `reads.tsv` in its order, rewritten
 after every finished run: `run_accession`, `status` (`ok`, `failed`,
-`pending`), `max_spots`, `spots_read`, `sequences`, `sketch_file`,
-`sketch_params`, `seconds`, `reason`.
+`empty`, `pending`), `max_spots`, `spots_read`, `sequences`, `sketch_file`,
+`sketch_params`, `seconds` (of the last attempt), `reason`. `.lock` beside
+it is held for the call.
 
 `reads_screen.tsv` has the columns of `screen_reads.tsv`: `run_accession`,
 `top_match`, `top_genus`, `fraction`, `duplicate_of`, `decision` (`pass`,
@@ -237,15 +242,44 @@ merge joins the chunk directories into one `sketches/` with one index per
 variant in `reads.tsv` order (shell and awk, no tool). The screen is one
 task per batch. `params.reads_sketch` runs the sketch
 task (`params.reads_sketch_spots` is the cap) and publishes
-`reads/reads_sketches/<variant>/`; `params.reads_screen` implies it, runs
+`reads/reads_sketches/<variant>/`, the merged directory (the chunk tasks
+publish nothing); `params.reads_screen` implies it, runs
 the screen with `params.gtdb_sketch`, `params.gtdb_lineages` and
 `params.reads_screen_args`, publishes `reads/reads_screen/<variant>/`, and
 only the runs of `passed.txt` become assembly tasks. A screen that passes no
 run stops the pipeline; `reads_screen` without the GTDB parameters is
 refused before any task (the pipeline does not read the `REPGENR_GTDB_*`
 environment variables). Both tasks run the standalone command forms. Stub
-nf-tests cover both processes and the reads data flow with and without the
-screen.
+nf-tests cover the three processes and the reads data flow with and without
+the screen.
+
+Chunk details (#41): the subworkflow reads `reads.tsv`, refuses a value
+that is not an `[SED]RR[0-9]+` accession (the list goes into a shell line
+of the task unquoted), deduplicates the runs and cuts them with `collate`;
+a batch without a run is one empty chunk, so the merge still emits and the
+screen's "passed no run" error is reached. Each chunk meta nests the batch
+meta under `run` with `chunk` and `chunks`; the merge is keyed on
+`groupKey(meta.run, meta.chunks)`, unwrapped with `getGroupTarget()`
+before the join, with the directories staged in chunk order
+(`stageAs: 'chunk?/sketches'`). The task runs `--allow-all-failed`, so a
+chunk where every run failed is a warning; the merge exits 3 when no run
+of `reads.tsv` is `ok` or `empty`. Runs that fail inside a chunk are in
+the index and the task succeeds, so `-resume` does not retry them; the
+screen excuses them. Every chunk takes the whole `reads.tsv`, so a change
+to it runs every chunk again. Lesson: in a Groovy triple-quoted script a
+doubled backslash renders as one in the command file and a quadrupled form
+breaks bash; stub tests never run the script block, so a rendered command
+file is the check (a unit test guards the line).
+
+## Open after the 2026-10-20 audit
+
+- An arm64 sourmash image for Apple Silicon (the BioContainer is amd64-only
+  and runs emulated, 39 s against 7 s native for 200000 spots); a Wave
+  build of bioconda sourmash for linux/arm64, or the host sourmash through
+  the per-half `--bin-dir`.
+- The `--jobs` default of 4, to be measured at 8 and 12 on a Linux node
+  (8 against 4 streams gained 15 percent on this Mac).
+- A retry under `-resume` of runs that failed inside a chunk.
 
 ## Resolved open points
 
