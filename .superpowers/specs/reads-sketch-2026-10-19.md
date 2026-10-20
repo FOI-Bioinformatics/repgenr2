@@ -113,11 +113,33 @@ fastq-dump -Z --split-spot --skip-technical [-X N] ACC \
   holds `err: ` or `quit with error code`; otherwise sourmash when it exited
   non-zero (it exiting first makes `fastq-dump` fail on the closed pipe
   with an empty stderr).
+- Retries (2026-10-20 audit): a failure attributed to `fastq-dump` whose
+  message is not permanent (not found, withdrawn, protected, no data), or a
+  pipeline past its time limit, is tried again, three attempts with pauses
+  of about 30 s and 120 s (a quarter of jitter). With a cap the per-run
+  limit is 300 s plus `max_spots / 200` s; without one only
+  `REPGENR_SUBPROCESS_TIMEOUT` applies.
+- A stream without a biological read (sourmash exits 0 and writes no file,
+  `no sequences found`; or `Read 0 spots`) is the status `empty`: current
+  at that cap, no deliverable, not streamed again.
+- One call per variant directory: `<variant>/.lock` is held with `flock`
+  for the call; a second call is refused with a message.
+- Both images are pulled once before the pool (`containers.ensure_image`);
+  a Docker exit 125 with the engine's own error line stops the call as one
+  error (`containers.engine_failure_line`).
+- The sourmash half runs with `RAYON_NUM_THREADS=1` through
+  `run_pipeline(tool_envs=...)`; `tool_env` is the route by which a
+  variable reaches the tool itself in every backend (Docker `-e`).
+- The per-run working directory is `.home.<run>.<random>`, its cleanup
+  best effort.
 
 Measured 2026-10-19 on this Mac: 5000 spots of a MiSeq run streamed and
 sketched in 12 to 14 s. Under `--container docker` each tool runs in its own
-image with the host pipe between them; on Apple Silicon the emulated
-linux/amd64 `fastq-dump` crashed, so the command runs on the host there.
+image with the host pipe between them. Audit 2026-10-20 (20 runs at 200000
+spots, Docker, 4 jobs): about 10 s of fixed cost per run at NCBI, about
+10 s of stream, sourmash 39 s emulated (the BioContainer is amd64-only) or
+14 s on the host with the default thread pool and 7 s with one thread; 8
+streams against 4 gained 15 percent; one probe stalled for 160 s.
 
 ### Output
 

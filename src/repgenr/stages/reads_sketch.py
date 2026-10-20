@@ -18,17 +18,22 @@ The same work without a workdir (``-o DIR`` with bare accessions) is
 
 from __future__ import annotations
 
+import fcntl
 import logging
+import os
+import random
 import re
 import shutil
 import tempfile
 import time
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 
 from ..core import process
-from ..core.containers import run_pipeline
+from ..core.containers import engine_failure_line, ensure_image, run_pipeline
 from ..core.context import WorkdirContext
 from ..core.contracts import (
     READS_SKETCHES_DIR,
@@ -47,7 +52,7 @@ from ..core.executors import parallel_each
 from ..core.plugins import preflight
 from ..core.resources import usable_cpus
 from ..core.sketches import READS_SKETCH_PARAMS, SKETCH_SUFFIX, clear_partials, partial_path
-from ..core.sourmash import SOURMASH_TOOL
+from ..core.sourmash import SKETCH_TOOL_ENV, SOURMASH_TOOL
 from ..core.sratools import SRATOOLS_TOOL, fastq_dump_command
 from ..core.versions import write_versions_fragment
 from .reads import _ENA_PLATFORM, PLATFORMS, read_accession_file
@@ -55,6 +60,20 @@ from .reads import _ENA_PLATFORM, PLATFORMS, read_accession_file
 DEFAULT_JOBS_CAP = 4
 # Hidden per-run working directories inside a variant directory (see sketch_one).
 _HOME_PREFIX = ".home."
+# The lock file of a variant directory: one call writes a variant at a time.
+LOCK_NAME = ".lock"
+# Attempts per run and the pauses before the second and third (seconds, with
+# a quarter of jitter so retries of a batch do not land together). Only a
+# failure on the archive side is tried again; see retry_wanted.
+ATTEMPTS = 3
+RETRY_DELAYS = (30.0, 120.0)
+# Per-run time limit with a cap: an allowance for the resolution of the run
+# at NCBI (about 10 s measured) and a stream rate well below the slowest
+# seen (200000 spots in about 100 s); a stalled connection then frees its
+# job slot and is tried again. Without a cap the whole run streams and only
+# REPGENR_SUBPROCESS_TIMEOUT applies.
+TIMEOUT_BASE = 300.0
+TIMEOUT_SPOTS_PER_SECOND = 200.0
 
 
 @dataclass
@@ -67,9 +86,16 @@ class ReadsSketchParams:
 
 
 def default_jobs() -> int:
-    """Runs streamed at once: each is two single-threaded processes bound by
-    the network more than by the CPU."""
+    """Runs streamed at once: each is one stream from the archive and one
+    single-threaded sourmash process, so a job costs about one CPU."""
     return max(1, min(DEFAULT_JOBS_CAP, usable_cpus()))
+
+
+def run_timeout(max_spots: int | None) -> float | None:
+    """The time limit of one run's pipeline; None without a cap."""
+    if max_spots is None:
+        return None
+    return TIMEOUT_BASE + max_spots / TIMEOUT_SPOTS_PER_SECOND
 
 
 def selected_accessions(params: ReadsSketchParams) -> list[str]:
@@ -153,7 +179,7 @@ def run(ctx: WorkdirContext, params: ReadsSketchParams) -> int:
             "selected": len(chosen),
             "sketched": sketched,
             "failed": failed,
-            "present": sum(1 for r in index.values() if r.status == "ok"),
+            "present": sketched_of(index, [r.run_accession for r in rows]),
             "variants": {name: ok for name, _spots, ok, _n in variants(out_dir.parent)},
         },
         tool_versions=versions,
@@ -285,14 +311,43 @@ def sketch_file(out_dir: Path, run: str) -> Path:
 
 def is_current(row: ReadsSketchRow | None, out_dir: Path, max_spots: int | None) -> bool:
     """Whether a run's sketch exists, was made with this cap and these
-    parameters, and so need not be streamed again."""
+    parameters, and so need not be streamed again. A run that streamed no
+    reads at this cap (``empty``) is current too: streaming it again gives
+    the same nothing."""
+    if row is None or row.max_spots != max_spots:
+        return False
+    if row.status == "empty":
+        return True
     return (
-        row is not None
-        and row.status == "ok"
-        and row.max_spots == max_spots
+        row.status == "ok"
         and row.sketch_params == READS_SKETCH_PARAMS
         and sketch_file(out_dir, row.run_accession).is_file()
     )
+
+
+def sketched_of(index: dict[str, ReadsSketchRow], runs: list[str]) -> int:
+    """How many of ``runs`` have a sketch in ``index``."""
+    return sum(1 for run in runs if (row := index.get(run)) is not None and row.status == "ok")
+
+
+@contextmanager
+def variant_lock(out_dir: Path) -> Iterator[None]:
+    """Hold the variant for one call: a second call on the same directory
+    would clear this one's partial sketches and working directories and
+    overwrite its index, so it is refused instead."""
+    path = out_dir / LOCK_NAME
+    fd = os.open(path, os.O_RDWR | os.O_CREAT, 0o644)
+    try:
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            raise WorkdirError(
+                f"Another reads-sketch is writing {out_dir} (it holds {path.name}); wait "
+                "for it to finish, or stop it, and run again."
+            ) from None
+        yield
+    finally:
+        os.close(fd)
 
 
 def sketch_runs(
@@ -321,6 +376,34 @@ def sketch_runs(
             "directories); they are not read. Remove them or move them under all/.",
             out_dir.parent,
         )
+    with variant_lock(out_dir):
+        return _sketch_runs(
+            runs,
+            out_dir,
+            index,
+            max_spots=max_spots,
+            jobs=jobs,
+            force=force,
+            logger=logger,
+            all_runs=all_runs,
+            source=source,
+            versions=versions,
+        )
+
+
+def _sketch_runs(
+    runs: list[ReadRow],
+    out_dir: Path,
+    index: dict[str, ReadsSketchRow],
+    *,
+    max_spots: int | None,
+    jobs: int,
+    force: bool,
+    logger: logging.Logger,
+    all_runs: list[str],
+    source: str,
+    versions: dict[str, str],
+) -> tuple[int, int, dict[str, str]]:
     clear_partials(out_dir)
     for entry in out_dir.iterdir():
         if entry.name.startswith(_HOME_PREFIX) and entry.is_dir():
@@ -340,6 +423,10 @@ def sketch_runs(
     if not todo:
         write_index(out_dir / READS_SKETCHES_TSV, index, all_runs)
         return 0, 0, versions
+    # Both images once, before the pool: the first runs would otherwise each
+    # pull inside their measured time, and a pull failure is one error.
+    ensure_image(SRATOOLS_TOOL, logger)
+    ensure_image(SOURMASH_TOOL, logger)
     logger.info(
         "Streaming and sketching %d run(s)%s, %d at a time (%s)",
         len(todo),
@@ -347,7 +434,7 @@ def sketch_runs(
         min(jobs, len(todo)),
         READS_SKETCH_PARAMS,
     )
-    counts = {"ok": 0, "failed": 0}
+    counts = {"ok": 0, "failed": 0, "empty": 0}
 
     def one(row: ReadRow) -> ReadsSketchRow:
         return sketch_one(row.run_accession, out_dir, max_spots, logger)
@@ -365,6 +452,8 @@ def sketch_runs(
                 row.spots_read if row.spots_read is not None else "?",
                 row.seconds or 0.0,
             )
+        elif row.status == "empty":
+            logger.warning("%s: no sketch, %s", row.run_accession, row.reason)
         else:
             logger.warning("%s: not sketched (%s)", row.run_accession, row.reason)
 
@@ -377,10 +466,11 @@ def sketch_runs(
         describe=lambda r: r.run_accession,
     )
     logger.info(
-        "Sketched %d run(s), %d failed; %d of %d run(s) of %s now have a sketch",
+        "Sketched %d run(s), %d failed%s; %d of %d run(s) of %s now have a sketch",
         counts["ok"],
         counts["failed"],
-        sum(1 for r in index.values() if r.status == "ok"),
+        f", {counts['empty']} streamed no reads" if counts["empty"] else "",
+        sketched_of(index, all_runs),
         len(all_runs),
         source,
     )
@@ -397,6 +487,8 @@ def write_index(path: Path, index: dict[str, ReadsSketchRow], all_runs: list[str
 
 
 _SPOTS_RE = re.compile(r"^(?:Read|Written) (\d+) spots")
+# sourmash's note when stdin held no sequence at all (it then exits 0).
+_NO_SEQUENCES_RE = re.compile(r"no sequences found")
 _SEQUENCES_RE = re.compile(r"calculated \d+ signatures? for (\d+) sequences")
 
 
@@ -407,6 +499,11 @@ def spots_read(lines: list[str]) -> int | None:
         if m:
             return int(m.group(1))
     return None
+
+
+def streamed_nothing(lines: list[str]) -> bool:
+    """Whether sourmash reported an input without any sequence."""
+    return any(_NO_SEQUENCES_RE.search(line) for line in lines)
 
 
 def sequences_sketched(lines: list[str]) -> int | None:
@@ -437,7 +534,51 @@ def sourmash_stdin_command(name: str, out: Path) -> list[str]:
 def sketch_one(
     run: str, out_dir: Path, max_spots: int | None, logger: logging.Logger
 ) -> ReadsSketchRow:
-    """Stream one run through sourmash; the row records the outcome.
+    """Stream one run through sourmash, up to ``ATTEMPTS`` times; the row
+    records the outcome of the last attempt.
+
+    A failure on the archive side that is not permanent (see
+    :func:`retry_wanted`) is tried again after a pause; a failure of sourmash,
+    an unknown or protected accession, and a run that streams no reads are
+    not.
+    """
+    for attempt in range(1, ATTEMPTS + 1):
+        row = _attempt(run, out_dir, max_spots, logger)
+        if row.status != "failed" or attempt == ATTEMPTS or not retry_wanted(row.reason):
+            return row
+        pause = RETRY_DELAYS[min(attempt, len(RETRY_DELAYS)) - 1] * random.uniform(0.75, 1.25)  # noqa: S311
+        logger.warning(
+            "%s: %s; attempt %d of %d in %.0f s", run, row.reason, attempt + 1, ATTEMPTS, pause
+        )
+        if process.stop_requested.wait(pause):
+            raise ToolExecutionError(
+                ["reads-sketch", run], -1, output=process.NOT_STARTED, tool="reads-sketch"
+            )
+    raise RuntimeError("unreachable")
+
+
+# Failures of fastq-dump a retry cannot fix: the run is unknown, withdrawn or
+# protected (dbGaP), or has no data.
+_PERMANENT = re.compile(
+    r"could not be found|not found|no such|access denied|permission|protected|"
+    r"not authorized|no data|invalid accession|withdrawn|suppressed",
+    re.IGNORECASE,
+)
+
+
+def retry_wanted(reason: str) -> bool:
+    """Whether a failed attempt's reason is the archive side's and transient:
+    a fastq-dump failure or a timed-out pipeline, not one the message calls
+    permanent."""
+    if "[killed after" in reason:
+        return True
+    return reason.startswith("fastq-dump exited") and not _PERMANENT.search(reason)
+
+
+def _attempt(
+    run: str, out_dir: Path, max_spots: int | None, logger: logging.Logger
+) -> ReadsSketchRow:
+    """One pass of the pipeline over a run.
 
     The sketch goes to a hidden temporary file beside the target and is
     renamed into place only when both tools exited cleanly, so a failure
@@ -448,14 +589,19 @@ def sketch_one(
     started = time.monotonic()
     # The working directory of the two tools is a disposable hidden directory:
     # under a container backend it is also HOME, where fastq-dump writes its
-    # .ncbi settings and cache, which must not land beside the sketches.
-    with tempfile.TemporaryDirectory(dir=out_dir, prefix=_HOME_PREFIX) as home:
+    # .ncbi settings and cache, which must not land beside the sketches. Its
+    # cleanup is best effort: the next call removes what is left.
+    with tempfile.TemporaryDirectory(
+        dir=out_dir, prefix=f"{_HOME_PREFIX}{run}.", ignore_cleanup_errors=True
+    ) as home:
         try:
             result = run_pipeline(
                 (SRATOOLS_TOOL, fastq_dump_command(run, max_spots)),
                 (SOURMASH_TOOL, sourmash_stdin_command(run, tmp)),
                 logger=logger,
                 cwd=home,
+                timeout=run_timeout(max_spots),
+                tool_envs=(None, SKETCH_TOOL_ENV),
             )
         except ToolExecutionError as exc:
             tmp.unlink(missing_ok=True)
@@ -472,13 +618,40 @@ def sketch_one(
         raise ToolExecutionError(
             ["reads-sketch", run], -1, output=process.NOT_STARTED, tool="reads-sketch"
         )
+    engine = engine_failure_line(result.returncodes[0], dump_tail) or engine_failure_line(
+        result.returncodes[1], sketch_tail
+    )
+    if engine:
+        # The engine could not start a tool (no image, daemon down): not this
+        # run's failure, and the batch stops on it instead of recording it
+        # against every run.
+        tmp.unlink(missing_ok=True)
+        raise ToolExecutionError(
+            ["reads-sketch", run],
+            result.returncodes[0] or result.returncodes[1],
+            output=engine,
+            tool="reads-sketch",
+            message=f"The container engine could not start a tool for {run}: {engine}",
+        )
+    spots = spots_read(dump_tail)
+    if result.ok and not tmp.is_file() and (spots == 0 or streamed_nothing(sketch_tail)):
+        # fastq-dump wrote no biological read (a run of technical reads only,
+        # or no spots) and sourmash, given nothing, exits 0 without a file.
+        return ReadsSketchRow(
+            run,
+            "empty",
+            max_spots=max_spots,
+            spots_read=spots if spots is not None else 0,
+            seconds=seconds,
+            reason="the stream held no biological reads (technical reads only, or no spots)",
+        )
     if not result.ok or not tmp.is_file():
         tmp.unlink(missing_ok=True)
         return ReadsSketchRow(
             run,
             "failed",
             max_spots=max_spots,
-            spots_read=spots_read(dump_tail),
+            spots_read=spots,
             seconds=seconds,
             reason=failure_reason(result.returncodes, dump_tail, sketch_tail),
         )

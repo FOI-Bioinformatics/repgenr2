@@ -873,7 +873,9 @@ class ReadsSketchRow:
     """One run of ``reads.tsv`` in the reads-sketch index.
 
     ``status`` is ``ok`` (sketch written), ``failed`` (the pipeline failed;
-    ``reason`` says why) or ``pending`` (never selected). ``max_spots`` is the
+    ``reason`` says why), ``empty`` (the stream held no biological read, so
+    there is no sketch and nothing to retry) or ``pending`` (never
+    selected). ``max_spots`` is the
     cap the sketch was made with, empty for the whole run; ``spots_read`` and
     ``sequences`` are what the tools reported.
     """

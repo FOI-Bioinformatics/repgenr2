@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-import os
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -62,13 +61,15 @@ class FasttreeBuilder(TreeBuilder):
             # dropped on the floor.
             cmd += ["-boot", str(params.bootstrap)]
         # FastTreeMP takes its thread count from OpenMP, not from a flag.
-        env = {**os.environ, "OMP_NUM_THREADS": str(params.threads)}
+        # tool_env reaches the tool in a container too; env would reach
+        # only the docker client.
+        tool_env = {"OMP_NUM_THREADS": str(params.threads)}
         run_tool(
             self.capabilities,
             [*cmd, msa],
             logger=logger,
             log_prefix="fasttree",
             stdout_path=tree,
-            env=env,
+            tool_env=tool_env,
         )
         return tree

@@ -27,7 +27,7 @@ def _run(tmp_path: Path, monkeypatch, params: TreeParams) -> tuple[list[str], di
 
     def fake(caps, cmd, **k):
         calls.append([str(c) for c in cmd])
-        seen["env"] = dict(k.get("env") or {})
+        seen["env"] = dict(k.get("tool_env") or {})
         seen["stdout_path"] = k["stdout_path"]
         Path(k["stdout_path"]).write_text("(a,b);\n", encoding="utf-8")
 

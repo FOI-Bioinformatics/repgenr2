@@ -564,8 +564,8 @@ cap fills a new directory without touching the others; `--force` streams the
 selected runs of the current variant again. The sketches go to
 `reads_sketches/<variant>/<run>.sig.zip` and the index
 `reads_sketches/<variant>/reads_sketches.tsv` lists every run of `reads.tsv`
-with its status (`ok`, `failed` or `pending`), the cap, the spots and
-sequences the tools reported and the reason of a failure; see
+with its status (`ok`, `failed`, `empty` or `pending`), the cap, the spots
+and sequences the tools reported and the reason of a failure; see
 [output.md](output.md#reads-sketch). The stage is recorded as `reads_sketch`
 (the record names the variant of the last call and the runs each variant
 holds), and `status` lists the variants present. A failed run (an accession
@@ -577,9 +577,29 @@ repeat until the selection is narrowed with `--accession`. The command
 fails (exit 3, as `assemble` with no accepted run) only when every selected
 run failed, and then records nothing.
 
+A failure on the archive side that is not permanent (a dropped connection,
+a stalled transfer, a pipeline that ran past its time limit) is tried again
+within the call, up to three attempts with pauses of about 30 s and 120 s;
+an accession NCBI does not hold or will not serve (withdrawn, protected),
+and a failure of sourmash, are not. With `--max-spots` each run's pipeline
+has a time limit of 300 s plus one second per 200 spots (about 22 min at
+200000), so a connection that stalls frees its slot and is tried again;
+without a cap only `REPGENR_SUBPROCESS_TIMEOUT` applies. A run whose
+stream holds no biological read (technical reads only, or no spots) is
+marked `empty` in the index with no sketch, is not a missing deliverable
+and is not streamed again at that cap. One call writes a variant at a time:
+a second `reads-sketch` on the same variant directory is refused while the
+first holds its `.lock` file, since each call clears the partial files of
+the directory and rewrites its index. Under a container backend both images
+are pulled once before the first run, and an engine that cannot start a
+tool (no image, daemon down) stops the call with one error instead of
+failing every run.
+
 `--jobs` streams that many runs at once (default 4, or the usable CPUs when
-fewer); each is a `fastq-dump` and a `sourmash` process, bound by the
-network more than by the CPU. The standalone form `-o DIR` with bare
+fewer); each is a `fastq-dump` stream and one single-threaded `sourmash`
+process (`RAYON_NUM_THREADS=1`: measured on macOS, the default thread pool
+of a three-k sketch took twice the time and far more CPU for an identical
+signature), so a job costs about one CPU. The standalone form `-o DIR` with bare
 `--accession` runs (SRR, ERR or DRR accessions), or with `--reads-tsv` the
 runs of a `reads.tsv`, sketches into `DIR` without a workdir and records
 nothing; `--platform` needs `-wd` and is refused there, and `--versions-out`

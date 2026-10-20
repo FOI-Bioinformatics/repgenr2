@@ -23,6 +23,13 @@ SOURMASH_IMAGE = "quay.io/biocontainers/sourmash:4.9.4--hdfd78af_0"
 SOURMASH_CONDA: tuple[str, ...] = ("bioconda::sourmash",)
 SOURMASH_BINARY = BinarySpec("sourmash", version_args=("--version",), min_version="4.0")
 
+# ``sourmash sketch`` over several k-mer sizes starts a Rayon thread pool.
+# Measured on macOS (sourmash 4.9.4, 400000 reads, three k): 14 s and 82 s
+# of system time with the default pool against 7 s with one thread, the
+# signatures identical; the pool also competes with the other sketches of a
+# batch and with an assembler running beside it. The sketch is one thread.
+SKETCH_TOOL_ENV = {"RAYON_NUM_THREADS": "1"}
+
 # The base specification. ``name`` is also the key of --bin-dir and of the
 # per-tool container settings, so every caller shares it.
 SOURMASH_TOOL = ToolCapabilities(

@@ -50,7 +50,7 @@ from .inputs import file_digest
 from .manifest import SketchRecord
 from .plugins import preflight, tool_available
 from .resources import usable_cpus
-from .sourmash import SOURMASH_TOOL
+from .sourmash import SKETCH_TOOL_ENV, SOURMASH_TOOL
 
 if TYPE_CHECKING:
     from .context import WorkdirContext
@@ -354,6 +354,7 @@ def sketch_reads(files: Sequence[Path], name: str, out: Path, logger: logging.Lo
             log_prefix=f"sourmash {name}",
             # The reads may sit in a scratch directory outside the workdir.
             extra_mounts=sorted({str(Path(f).resolve().parent) for f in files}),
+            tool_env=SKETCH_TOOL_ENV,
         )
         if not tmp.is_file():
             raise WorkdirError(f"sourmash wrote no reads sketch for {name}")
@@ -407,6 +408,7 @@ def _sketch_one(
             # A linked genome (ingest) lives elsewhere; its directory must be
             # visible inside a container too.
             extra_mounts=[str(target.path.resolve().parent)],
+            tool_env=SKETCH_TOOL_ENV,
         )
         if not tmp.is_file():
             raise WorkdirError(f"sourmash wrote no sketch for {target.path.name}")

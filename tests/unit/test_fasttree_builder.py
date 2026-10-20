@@ -12,8 +12,8 @@ from repgenr.treebuilders.base import TreeParams
 def test_threads_reach_fasttree_as_omp_env(monkeypatch, tmp_path: Path) -> None:
     seen: dict = {}
 
-    def run_tool(caps, command, *, logger, env=None, stdout_path=None, **kwargs):
-        seen["env"] = dict(env or {})
+    def run_tool(caps, command, *, logger, tool_env=None, stdout_path=None, **kwargs):
+        seen["env"] = dict(tool_env or {})
         Path(stdout_path).write_text("(a,b);", encoding="utf-8")
         return 0
 

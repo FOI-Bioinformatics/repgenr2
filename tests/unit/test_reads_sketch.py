@@ -27,10 +27,12 @@ from repgenr.core.contracts import (
     reads_sketch_variant_spots,
     write_reads,
 )
-from repgenr.core.errors import UserInputError, WorkdirError
+from repgenr.core.errors import ToolExecutionError, UserInputError, WorkdirError
 from repgenr.core.sketches import READS_SKETCH_PARAMS
 from repgenr.core.sratools import fastq_dump_command
+from repgenr.stages import reads_sketch
 from repgenr.stages.reads_sketch import (
+    LOCK_NAME,
     ReadsSketchParams,
     failure_reason,
     precheck,
@@ -64,6 +66,17 @@ case "$acc" in SRR0*)
   echo "fastq-dump quit with error code 3" >&2
   exit 3;;
 esac
+# SRR8*: a transient failure on the first call, the stream on the next.
+case "$acc" in SRR8*)
+  if [ ! -e "$here/retried_$acc" ]; then
+    : > "$here/retried_$acc"
+    echo "fastq-dump.3.4.1 err: timeout exhausted while reading file within network" >&2
+    echo "fastq-dump quit with error code 3" >&2
+    exit 3
+  fi;;
+esac
+# SRR9*: a run whose stream holds no biological read.
+case "$acc" in SRR9*) n=0;; esac
 if [ "$n" -gt 50 ]; then n=50; fi
 i=0
 while [ $i -lt $n ]; do
@@ -91,7 +104,7 @@ done
 case "$name" in ERR0*) head -n 8 > /dev/null; echo "error: cannot sketch $name" >&2; exit 2;; esac
 lines=$(wc -l < /dev/stdin | tr -d ' ')
 n=$((lines / 4))
-if [ "$n" -eq 0 ]; then echo "error: no sequences" >&2; exit 1; fi
+if [ "$n" -eq 0 ]; then echo "no sequences found in '-'?!" >&2; exit 0; fi
 printf 'fake sketch of %s sequences\n' "$n" > "$out"
 echo "calculated 1 signature for $n sequences taken from 1 files" >&2
 """
@@ -253,7 +266,9 @@ def test_run_sketches_every_run_and_indexes_failures(tmp_path: Path, fake_tools:
     bad = rows["SRR02"]
     assert bad.status == "failed" and bad.reason.startswith("fastq-dump exited 3:")
     assert "could not be found" in bad.reason and not (out / "SRR02.sig.zip").exists()
-    assert not [p for p in out.iterdir() if p.name.startswith(".")], "no partial sketch left"
+    assert [p.name for p in out.iterdir() if p.name.startswith(".")] == [LOCK_NAME], (
+        "no partial sketch left"
+    )
     record = ctx.config.stages["reads_sketch"]
     assert record.completed and record.tool == "sourmash"
     assert record.params["max_spots"] == 20 and record.params["selected"] == 3
@@ -355,7 +370,9 @@ def test_a_sourmash_failure_mid_stream_is_blamed_on_sourmash(
     assert rows["ERR01"].status == "failed"
     assert rows["ERR01"].reason == "sourmash exited 2: error: cannot sketch ERR01"
     assert not (out / "ERR01.sig.zip").exists()
-    assert not [p for p in out.iterdir() if p.name.startswith(".")], "no partial sketch left"
+    assert [p.name for p in out.iterdir() if p.name.startswith(".")] == [LOCK_NAME], (
+        "no partial sketch left"
+    )
 
 
 def test_run_refuses_a_selection_outside_reads_tsv_before_any_tool(
@@ -534,3 +551,151 @@ def test_standalone_sketches_the_runs_of_a_reads_tsv(tmp_path: Path, fake_tools:
         app, ["reads-sketch", "-wd", str(tmp_path / "wd"), "--reads-tsv", str(reads)]
     )
     assert mixed.exit_code != 0 and "standalone form" in mixed.output.replace("\n", " ")
+
+
+# --- retries, time limits, empty streams, the lock, engine failures ----------------
+
+
+@pytest.fixture
+def no_pauses(monkeypatch):
+    monkeypatch.setattr(reads_sketch, "RETRY_DELAYS", (0.0, 0.0))
+
+
+def test_a_transient_archive_failure_is_tried_again(
+    tmp_path: Path, fake_tools: Path, no_pauses, caplog
+) -> None:
+    ctx = _workdir(tmp_path, [_row("SRR8001"), _row("SRR02")])
+    with caplog.at_level(logging.WARNING):
+        sketched = run(ctx, ReadsSketchParams(max_spots=10))
+    assert sketched == 1
+    calls = _calls(fake_tools)
+    # SRR8001 twice (the failure, then the stream); SRR02 once: its failure is
+    # permanent (the accession does not exist).
+    assert sum(c.endswith("SRR8001") for c in calls) == 2
+    assert sum(c.endswith("SRR02") for c in calls) == 1
+    assert "attempt 2 of 3" in caplog.text
+    out = ctx.workdir / READS_SKETCHES_DIR / "spots_10"
+    rows = {r.run_accession: r for r in read_reads_sketches(out / READS_SKETCHES_TSV)}
+    assert rows["SRR8001"].status == "ok" and rows["SRR02"].status == "failed"
+
+
+def test_retry_wanted_only_for_the_archive_side() -> None:
+    assert reads_sketch.retry_wanted("fastq-dump exited 3: err: timeout exhausted while reading")
+    assert reads_sketch.retry_wanted("sourmash exited -9: [killed after 1300.0s timeout]")
+    assert not reads_sketch.retry_wanted(
+        "fastq-dump exited 3: err: the accession 'SRR0' could not be found."
+    )
+    assert not reads_sketch.retry_wanted("fastq-dump exited 3: err: access denied (protected)")
+    assert not reads_sketch.retry_wanted("sourmash exited 2: error: cannot sketch")
+    assert not reads_sketch.retry_wanted("no sketch was written")
+
+
+def test_run_timeout_scales_with_the_cap() -> None:
+    assert reads_sketch.run_timeout(None) is None
+    assert reads_sketch.run_timeout(200000) == 300.0 + 1000.0
+    assert reads_sketch.run_timeout(1) > 300.0
+
+
+def test_the_time_limit_reaches_the_pipeline(tmp_path: Path, monkeypatch) -> None:
+    seen: dict = {}
+
+    def fake_pipeline(producer, consumer, **kw):
+        seen.update(kw)
+        return process.PipelineResult((0, 0), (["Read 0 spots for X"], ["no sequences found"]))
+
+    monkeypatch.setattr(reads_sketch, "run_pipeline", fake_pipeline)
+    reads_sketch.sketch_one("SRR1", tmp_path, 50000, logging.getLogger("t"))
+    assert seen["timeout"] == reads_sketch.run_timeout(50000)
+    assert seen["tool_envs"] == (None, {"RAYON_NUM_THREADS": "1"})
+
+
+def test_a_run_that_streams_nothing_is_empty_and_not_streamed_again(
+    tmp_path: Path, fake_tools: Path, caplog
+) -> None:
+    ctx = _workdir(tmp_path, [_row("SRR1"), _row("SRR9001")])
+    ctx.close()
+    wd = str(ctx.workdir)
+    first = _runner.invoke(app, ["reads-sketch", "-wd", wd, "--max-spots", "10"])
+    assert first.exit_code == 0, first.output
+    out = ctx.workdir / READS_SKETCHES_DIR / "spots_10"
+    rows = {r.run_accession: r for r in read_reads_sketches(out / READS_SKETCHES_TSV)}
+    empty = rows["SRR9001"]
+    assert empty.status == "empty" and empty.spots_read == 0
+    assert "no biological reads" in empty.reason and empty.sketch_file == ""
+    assert "1 streamed no reads" in first.output and "0 failed" in first.output
+    record = Config.load(Path(wd)).stages["reads_sketch"]
+    assert record.completed and record.params["failed"] == 0
+    # A repeat has nothing to do: the empty run is not a missing deliverable.
+    again = _runner.invoke(app, ["reads-sketch", "-wd", wd, "--max-spots", "10"])
+    assert again.exit_code == 0, again.output
+    assert "already completed" in again.output
+    assert sum(c.endswith("SRR9001") for c in _calls(fake_tools)) == 1
+    # A different cap streams it again.
+    third = _runner.invoke(app, ["reads-sketch", "-wd", wd, "--max-spots", "20"])
+    assert third.exit_code == 0, third.output
+    assert sum(c.endswith("SRR9001") for c in _calls(fake_tools)) == 2
+
+
+def test_a_second_call_on_a_variant_is_refused_while_the_first_holds_it(
+    tmp_path: Path, fake_tools: Path
+) -> None:
+    ctx = _workdir(tmp_path, [_row("SRR1")])
+    out = ctx.workdir / READS_SKETCHES_DIR / "all"
+    out.mkdir(parents=True)
+    with (
+        reads_sketch.variant_lock(out),
+        pytest.raises(WorkdirError, match="Another reads-sketch is writing"),
+    ):
+        run(ctx, ReadsSketchParams())
+    assert not _calls(fake_tools)
+    # Released: the call goes through.
+    assert run(ctx, ReadsSketchParams()) == 1
+
+
+def test_an_engine_failure_stops_the_batch_instead_of_failing_every_run(
+    tmp_path: Path, monkeypatch
+) -> None:
+    from repgenr.core import containers
+
+    monkeypatch.setattr(containers, "_CONFIG", containers.ContainerConfig(backend="docker"))
+    monkeypatch.setattr(reads_sketch, "preflight", lambda caps: {caps.name: "img"})
+    monkeypatch.setattr(reads_sketch, "ensure_image", lambda caps, logger: "img")
+    calls: list[str] = []
+
+    def fake_pipeline(producer, consumer, **kw):
+        calls.append(producer[1][-1])
+        return process.PipelineResult(
+            (125, 0), (["docker: Error response from daemon: manifest unknown"], []), False
+        )
+
+    monkeypatch.setattr(reads_sketch, "run_pipeline", fake_pipeline)
+    ctx = _workdir(tmp_path, [_row("SRR1"), _row("SRR2"), _row("SRR3")])
+    with pytest.raises(ToolExecutionError, match="container engine could not start a tool"):
+        run(ctx, ReadsSketchParams(jobs=1))
+    assert calls == ["SRR1"], "the batch stopped at the first run"
+    assert "reads_sketch" not in ctx.config.stages
+
+
+def test_counts_cover_the_runs_of_reads_tsv_only(tmp_path: Path, fake_tools: Path, caplog) -> None:
+    # A row of a run no longer in reads.tsv is kept in the index but is not
+    # counted among the runs of reads.tsv.
+    ctx = _workdir(tmp_path, [_row("SRR1")])
+    out = ctx.workdir / READS_SKETCHES_DIR / "all"
+    out.mkdir(parents=True)
+    from repgenr.core.contracts import ReadsSketchRow, write_reads_sketches
+
+    write_reads_sketches(
+        out / READS_SKETCHES_TSV,
+        [
+            ReadsSketchRow(
+                "SRR7", "ok", sketch_file="SRR7.sig.zip", sketch_params=READS_SKETCH_PARAMS
+            )
+        ],
+    )
+    (out / "SRR7.sig.zip").write_text("x")
+    with caplog.at_level(logging.INFO):
+        run(ctx, ReadsSketchParams())
+    assert ctx.config.stages["reads_sketch"].params["present"] == 1
+    assert "1 of 1 run(s) of reads.tsv now have a sketch" in caplog.text
+    names = [r.run_accession for r in read_reads_sketches(out / READS_SKETCHES_TSV)]
+    assert names == ["SRR1", "SRR7"]
