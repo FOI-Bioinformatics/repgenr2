@@ -324,7 +324,7 @@ def test_run_applies_the_three_checks_and_writes_table_decisions_and_passed(
     assert counts == {"passed": 1, "excused": 4, "failed": 0, "unsketched": 3}
     assert record.params["settings"]["gtdb_sketch"] == str(Path(gtdb[0]).resolve())
     assert describe_screens(ctx.workdir / READS_SCREEN_DIR) == (
-        "spots_5000 (1 passed, 4 excused of 7 runs)"
+        "spots_5000 (1 passed, 4 excused of 8 runs)"
     )
 
 
