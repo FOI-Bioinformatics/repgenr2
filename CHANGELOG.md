@@ -6,7 +6,34 @@ All notable changes to RepGenR2 are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+- `reads-sketch`: a transient failure on the archive side (a dropped
+  connection, a stalled transfer, a pipeline past its time limit) is tried
+  again within the call, up to three attempts with pauses of about 30 s and
+  120 s; an accession NCBI does not hold or serve, and a sourmash failure,
+  are not. With `--max-spots` each run's pipeline has a time limit of 300 s
+  plus one second per 200 spots, or `REPGENR_SUBPROCESS_TIMEOUT` when
+  lower. A run whose stream holds no biological read is marked `empty` in
+  the index (no sketch, not a missing deliverable, not streamed again at
+  that cap; `reads-screen` excuses it as unsketched). A second call on the
+  same variant directory is refused while the first holds its `.lock`
+  (a warning instead on a file system without locks). Under a container
+  backend both images are pulled once before the first run, and under
+  Docker an engine that cannot start a tool stops the call with one error
+  instead of failing every run. The record's `present` count and the closing line
+  count the runs of `reads.tsv` only. The sourmash half of each run is one
+  thread (`RAYON_NUM_THREADS=1`; the default pool of a three-k sketch took
+  twice the time and far more CPU on macOS for an identical signature); the
+  same applies to the genome sketches and the reads sketch of `assemble`.
+- `run_tool`, `run_chain` and `run_pipeline` take `tool_env=`, variables the
+  tool itself must see in every backend (Docker `-e`; under Singularity the
+  client's environment and the engine's own `APPTAINERENV_`/`SINGULARITYENV_`
+  variables; the host runs the tool in it).
+
 ### Fixed
+- `OMP_NUM_THREADS` of the FastTree and VeryFastTree builders never reached
+  a containerized tool: `env=` went to the `docker run` client. Both use
+  `tool_env` now.
 - `reads-sketch` under `--container docker` on Apple Silicon: sra-tools now
   runs from NCBI's multi-architecture image `ncbi/sra-tools:3.4.1` instead
   of the amd64-only BioContainer, whose emulated `fastq-dump` segfaulted on

@@ -407,6 +407,12 @@ active container backend (docker, singularity or Wave) using the adapter's
   the container backend.
 * Pass a result written to stdout through `stdout_path=`; the file is
   published atomically, and only on success.
+* Variables the tool itself must see (a thread count such as
+  `OMP_NUM_THREADS` or `RAYON_NUM_THREADS`) go in `tool_env=`, which reaches
+  the tool in every backend: Docker gets them as `-e`, Singularity passes
+  the client's environment on, the host runs the tool in it. `env=` is the
+  environment of the process repgenr starts, which under Docker is the
+  `docker run` client, not the tool.
 * When one unit of work is several commands in a row, such as a per-genome
   mapping and calling chain, `run_chain(self.capabilities, [(prefix, argv),
   ...], logger=logger)` runs them in order. On the host that is a loop over

@@ -646,12 +646,13 @@ def _reads_sketch_deliverables(ctx: WorkdirContext, params: Any) -> list[Path]:
 
     A run that failed, or whose sketch was removed, is then a missing
     deliverable: the repeat runs the stage again, which streams only the
-    runs without a current sketch. A selection the stage would refuse
-    (an accession outside reads.tsv) names the index alone; the precheck
-    reports it.
+    runs without a current sketch. A run the index marks ``empty`` at this
+    cap (it streamed no biological read) has no sketch to deliver. A
+    selection the stage would refuse (an accession outside reads.tsv) names
+    the index alone; the precheck reports it.
     """
     from ..core.contracts import read_reads
-    from ..stages.reads_sketch import select_runs, sketch_file
+    from ..stages.reads_sketch import read_index, select_runs, sketch_file
 
     out_dir = ctx.workdir / READS_SKETCHES_DIR / reads_sketch_variant(params.max_spots)
     files = [out_dir / READS_SKETCHES_TSV]
@@ -659,9 +660,17 @@ def _reads_sketch_deliverables(ctx: WorkdirContext, params: Any) -> list[Path]:
     if reads.is_file():
         try:
             chosen = select_runs(read_reads(reads), params)
+            index = read_index(out_dir / READS_SKETCHES_TSV)
         except (UserInputError, WorkdirError, OSError):
             return files
-        files += [sketch_file(out_dir, r.run_accession) for r in chosen]
+        empty = {
+            run
+            for run, row in index.items()
+            if row.status == "empty" and row.max_spots == params.max_spots
+        }
+        files += [
+            sketch_file(out_dir, r.run_accession) for r in chosen if r.run_accession not in empty
+        ]
     return files
 
 

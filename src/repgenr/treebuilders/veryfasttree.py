@@ -12,7 +12,6 @@ Command surface checked against VeryFastTree 4.0.5 (bioconda).
 from __future__ import annotations
 
 import logging
-import os
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -61,13 +60,15 @@ class VeryFastTreeBuilder(TreeBuilder):
             cmd.append("-double-precision")
         if params.bootstrap > 0:
             cmd += ["-boot", str(params.bootstrap)]
-        env = {**os.environ, "OMP_NUM_THREADS": str(params.threads)}
+        # tool_env reaches the tool in a container too; env would reach
+        # only the docker client.
+        tool_env = {"OMP_NUM_THREADS": str(params.threads)}
         run_tool(
             self.capabilities,
             [*cmd, msa],
             logger=logger,
             log_prefix="veryfasttree",
             stdout_path=tree,
-            env=env,
+            tool_env=tool_env,
         )
         return tree

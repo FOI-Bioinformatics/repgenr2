@@ -168,7 +168,9 @@ def _workdir(tmp_path: Path, rows: list[ReadRow]) -> WorkdirContext:
     return ctx
 
 
-def _sketch(workdir: Path, variant: str, runs: list[str], *, failed: list[str] = ()) -> Path:
+def _sketch(
+    workdir: Path, variant: str, runs: list[str], *, failed: list[str] = (), empty: list[str] = ()
+) -> Path:
     """A reads-sketch variant: a fake sketch per run (its accession as text) and the index."""
     out = workdir / READS_SKETCHES_DIR / variant
     out.mkdir(parents=True, exist_ok=True)
@@ -181,6 +183,8 @@ def _sketch(workdir: Path, variant: str, runs: list[str], *, failed: list[str] =
         )
     for acc in failed:
         rows.append(ReadsSketchRow(acc, "failed", spots, reason="fastq-dump exited 3: not found"))
+    for acc in empty:
+        rows.append(ReadsSketchRow(acc, "empty", spots, 0, reason="the stream held no reads"))
     write_reads_sketches(out / READS_SKETCHES_TSV, rows)
     return out
 
@@ -270,9 +274,16 @@ def test_run_applies_the_three_checks_and_writes_table_decisions_and_passed(
         _row("SRR5"),  # no GTDB match
         _row("SRR6"),  # sketch failed in reads-sketch
         _row("SRR7"),  # never selected by reads-sketch
+        _row("SRR8"),  # streamed no reads: no sketch to read
     ]
     ctx = _workdir(tmp_path, rows)
-    _sketch(ctx.workdir, "spots_5000", ["SRR1", "SRR2", "SRR3", "SRR4", "SRR5"], failed=["SRR6"])
+    _sketch(
+        ctx.workdir,
+        "spots_5000",
+        ["SRR1", "SRR2", "SRR3", "SRR4", "SRR5"],
+        failed=["SRR6"],
+        empty=["SRR8"],
+    )
     gather.hits = {
         "SRR1": (_LINEAGE, 0.5),
         "SRR2": (_LINEAGE, 0.5),
@@ -283,7 +294,7 @@ def test_run_applies_the_three_checks_and_writes_table_decisions_and_passed(
     ani[("SRR2", "SRR1")] = 0.9995
     assert run(ctx, _params(gtdb)) == 1
     table = _table(ctx.workdir, "spots_5000")
-    assert list(table) == [f"SRR{i}" for i in range(1, 8)], "every run of reads.tsv, in order"
+    assert list(table) == [f"SRR{i}" for i in range(1, 9)], "every run of reads.tsv, in order"
     assert table["SRR1"]["decision"] == "pass" and table["SRR1"]["top_genus"] == "Francisella"
     assert table["SRR2"]["reason"].startswith("duplicate_isolate: contained in SRR1")
     assert table["SRR3"]["reason"].startswith("taxon_mismatch: submitted genus Francisella")
@@ -293,6 +304,7 @@ def test_run_applies_the_three_checks_and_writes_table_decisions_and_passed(
         table["SRR6"]["reason"] == "screen_failed: no reads sketch (fastq-dump exited 3: not found)"
     )
     assert table["SRR7"]["reason"] == "screen_failed: no reads sketch (not sketched)"
+    assert table["SRR8"]["reason"] == "screen_failed: no reads sketch (the stream held no reads)"
     assert _passed(ctx.workdir, "spots_5000") == ["SRR1"]
     assert sorted(gather.gathers) == ["SRR1", "SRR2", "SRR3", "SRR4", "SRR5"]
     out = ctx.workdir / READS_SCREEN_DIR / "spots_5000"
@@ -300,18 +312,19 @@ def test_run_applies_the_three_checks_and_writes_table_decisions_and_passed(
         out / "SRR3" / "screen" / "gather.csv"
     ).is_file()
     assert not (out / "SRR6").exists() and not (out / "SRR7").exists()
+    assert not (out / "SRR8").exists(), "no gather over a missing sketch"
     record = ctx.config.stages["reads_screen"]
     assert record.tool == "sourmash" and record.params["variant"] == "spots_5000"
     assert (record.params["selected"], record.params["screened"], record.params["reused"]) == (
-        7,
+        8,
         5,
         0,
     )
     counts = {k: record.params[k] for k in ("passed", "excused", "failed", "unsketched")}
-    assert counts == {"passed": 1, "excused": 4, "failed": 0, "unsketched": 2}
+    assert counts == {"passed": 1, "excused": 4, "failed": 0, "unsketched": 3}
     assert record.params["settings"]["gtdb_sketch"] == str(Path(gtdb[0]).resolve())
     assert describe_screens(ctx.workdir / READS_SCREEN_DIR) == (
-        "spots_5000 (1 passed, 4 excused of 7 runs)"
+        "spots_5000 (1 passed, 4 excused of 8 runs)"
     )
 
 

@@ -841,7 +841,7 @@ def read_reads(path: Path) -> list[ReadRow]:
 # Reads sketches streamed from the archive without a download, beside reads.tsv.
 READS_SKETCHES_DIR = "reads_sketches"
 READS_SKETCHES_TSV = "reads_sketches.tsv"
-READS_SKETCH_STATUSES = ("ok", "failed", "pending")
+READS_SKETCH_STATUSES = ("ok", "failed", "empty", "pending")
 # One subdirectory per variant: "all" for the whole run, "spots_N" for the
 # first N spots, so sketches at several depths live side by side.
 READS_SKETCH_ALL = "all"
@@ -873,7 +873,9 @@ class ReadsSketchRow:
     """One run of ``reads.tsv`` in the reads-sketch index.
 
     ``status`` is ``ok`` (sketch written), ``failed`` (the pipeline failed;
-    ``reason`` says why) or ``pending`` (never selected). ``max_spots`` is the
+    ``reason`` says why), ``empty`` (the stream held no biological read, so
+    there is no sketch and nothing to retry) or ``pending`` (never
+    selected). ``max_spots`` is the
     cap the sketch was made with, empty for the whole run; ``spots_read`` and
     ``sequences`` are what the tools reported.
     """

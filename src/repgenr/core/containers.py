@@ -471,11 +471,15 @@ def wrap_command(
     logger: logging.Logger,
     extra_mounts: Sequence[str | os.PathLike[str]] = (),
     stdin: bool = False,
+    tool_env: Mapping[str, str] | None = None,
 ) -> list[str]:
     """Build the engine command that runs ``argv`` inside ``image``.
 
     ``stdin`` keeps the client's standard input open for the tool (the
     consumer of :func:`run_pipeline`); Docker closes it otherwise.
+    ``tool_env`` holds variables the tool itself must see (a thread count
+    such as ``OMP_NUM_THREADS``): Docker gets them as ``-e``; Singularity
+    passes the client's environment on, so the runners put them there.
     """
     mounts = _default_mounts(config, cwd, argv, extra_mounts)
     workdir = str(Path(os.path.abspath(cwd if cwd is not None else os.getcwd())))
@@ -502,6 +506,8 @@ def wrap_command(
         # tools that touch HOME (e.g. Toil/Cactus creating its config dir) work.
         cmd += ["-e", f"HOME={workdir}"]
         for name, value in _forwarded_data_env().items():
+            cmd += ["-e", f"{name}={value}"]
+        for name, value in (tool_env or {}).items():
             cmd += ["-e", f"{name}={value}"]
         if config.platform:
             cmd += ["--platform", config.platform]
@@ -653,6 +659,67 @@ def _engine_failure(
     )
 
 
+def engine_failure_line(returncode: int, lines: Sequence[str]) -> str | None:
+    """The engine's own error when a Docker client exited 125 without
+    starting its tool (image not found, daemon down), else None.
+
+    For callers that read exit codes instead of catching
+    :class:`ToolExecutionError` (:func:`run_pipeline`): such a failure is not
+    the tool's and not one run's, so a batch stops on it instead of
+    recording it against every run.
+    """
+    if _CONFIG.backend != DOCKER or returncode != _DOCKER_ENGINE_FAILURE:
+        return None
+    hits = [line.strip() for line in lines if _ENGINE_ERROR.search(line.strip())]
+    return hits[-1] if hits else None
+
+
+def ensure_image(caps: ToolCapabilities, logger: logging.Logger) -> str | None:
+    """Pull the image of ``caps`` once, before a batch runs it many times.
+
+    Returns the image reference, or None when no backend is active or the
+    tool has no image (it then runs on the host). Under Docker an absent
+    image is pulled with ``docker pull``; under Singularity the pull into
+    the cache directory happens here instead of at the first run. A batch of
+    concurrent runs otherwise each pulls the image inside its own measured
+    time, and a pull failure is reported once, by name, instead of once per
+    run.
+    """
+    config = _CONFIG
+    if not config.active:
+        return None
+    image = resolve_image(caps, config)
+    if image is None:
+        return None
+    if config.backend == SINGULARITY:
+        _singularity_source(image, config, logger)
+        return image
+    if config.backend == DOCKER and image_present(image, config) is False:
+        logger.info("Pulling %s for %s", image, caps.name)
+        cmd = [config.engine_binary(), "pull"]
+        if config.platform:
+            # The platform of wrap_command, so the variant pulled is the one run.
+            cmd += ["--platform", config.platform]
+        cmd.append(image)
+        try:
+            process.run(
+                cmd,
+                logger=logger,
+                env=_engine_env(config),
+                log_prefix=config.engine_binary(),
+                console_command=cmd,
+            )
+        except ToolExecutionError as exc:
+            raise ToolExecutionError(
+                exc.command,
+                exc.returncode,
+                output=exc.output,
+                tool=caps.name,
+                message=f"{config.engine_binary()} could not pull image {image} for {caps.name}",
+            ) from exc
+    return image
+
+
 def run_tool(
     caps: ToolCapabilities,
     command: Sequence[str | os.PathLike[str]],
@@ -665,11 +732,18 @@ def run_tool(
     log_prefix: str | None = None,
     extra_mounts: Sequence[str | os.PathLike[str]] = (),
     timeout: float | None = None,
+    tool_env: Mapping[str, str] | None = None,
 ) -> int:
-    """Run an adapter's tool command, containerized when a backend is active."""
+    """Run an adapter's tool command, containerized when a backend is active.
+
+    ``env`` is the client's environment (a --bin-dir PATH, the engine's cache
+    variables); ``tool_env`` reaches the tool itself in every backend, which
+    ``env`` does not under Docker (it goes to the ``docker run`` client).
+    """
     config = _CONFIG
     image = resolve_image(caps, config) if config.active else None
     if image is None:
+        env = _with_tool_env(env, tool_env)
         if config.active:
             hint = (
                 "pass --wave to mint one from its conda spec"
@@ -703,9 +777,15 @@ def run_tool(
 
     argv = [str(part) for part in command]
     wrapped = wrap_command(
-        image, argv, config=config, cwd=cwd, logger=logger, extra_mounts=extra_mounts
+        image,
+        argv,
+        config=config,
+        cwd=cwd,
+        logger=logger,
+        extra_mounts=extra_mounts,
+        tool_env=tool_env,
     )
-    merged_env = {**_engine_env(config), **(dict(env) if env else {})} or None
+    merged_env = _client_env(config, env, tool_env)
     name = _register_container(wrapped, config)
     try:
         returncode = process.run(
@@ -735,10 +815,47 @@ def run_tool(
         _unregister_container(name)
 
 
-def _host_env(caps: ToolCapabilities, env: Mapping[str, str] | None) -> Mapping[str, str] | None:
-    """``env`` with this tool's --bin-dir first on PATH, when one is set."""
+def _with_tool_env(
+    env: Mapping[str, str] | None, tool_env: Mapping[str, str] | None
+) -> Mapping[str, str] | None:
+    """``env`` with the tool's own variables added (a host or Singularity run,
+    where the process environment is the tool's)."""
+    if not tool_env:
+        return env
+    return {**(env or {}), **tool_env}
+
+
+def _client_env(
+    config: ContainerConfig,
+    env: Mapping[str, str] | None,
+    tool_env: Mapping[str, str] | None,
+) -> Mapping[str, str] | None:
+    """The environment of the engine client: the engine's cache variables and
+    ``env``; under Singularity also ``tool_env``, which the container inherits
+    (Docker gets it as ``-e`` from :func:`wrap_command` instead)."""
+    merged = {**_engine_env(config), **(dict(env) if env else {})}
+    if config.backend != DOCKER and tool_env:
+        merged.update(tool_env)
+        if config.backend == SINGULARITY:
+            # Also as the engine's own injection variable, which survives a
+            # --cleanenv set through the environment (one prefix, the
+            # engine's own, so it does not warn about a duplicate).
+            prefix = "APPTAINERENV_" if "apptainer" in config.engine_binary() else "SINGULARITYENV_"
+            for name, value in tool_env.items():
+                merged[f"{prefix}{name}"] = value
+    return merged or None
+
+
+def _host_env(
+    caps: ToolCapabilities,
+    env: Mapping[str, str] | None,
+    tool_env: Mapping[str, str] | None = None,
+) -> Mapping[str, str] | None:
+    """``env`` with this tool's --bin-dir first on PATH, when one is set, and
+    its ``tool_env``."""
     from .bindirs import note_used, tool_path
 
+    env = _with_tool_env(env, tool_env)
     path = tool_path(caps.name, base=(env or {}).get("PATH"))
     if path is None:
         return env
@@ -755,6 +872,7 @@ def run_pipeline(
     env: Mapping[str, str] | None = None,
     extra_mounts: Sequence[str | os.PathLike[str]] = (),
     timeout: float | None = None,
+    tool_envs: tuple[Mapping[str, str] | None, Mapping[str, str] | None] = (None, None),
 ) -> process.PipelineResult:
     """Run ``producer | consumer``, two tools joined by a pipe, and return both
     exit codes with the last stderr lines of each (nothing is raised for a
@@ -765,7 +883,8 @@ def run_pipeline(
     each half runs in its own image with the host pipe between them, the
     consumer's client keeping stdin open, so the single image per tool rule
     holds and no combined image is needed. A half without an image runs on
-    the host, as :func:`run_tool` does.
+    the host, as :func:`run_tool` does. ``tool_envs`` holds the variables
+    each tool itself must see, as ``tool_env`` of :func:`run_tool`.
     """
     config = _CONFIG
     halves: list[list[str]] = []
@@ -773,12 +892,15 @@ def run_pipeline(
     names: list[str | None] = []
     # One environment per half: a --bin-dir applies to its own tool only.
     envs: list[Mapping[str, str] | None] = []
-    for (caps, command), stdin in ((producer, False), (consumer, True)):
+    for (caps, command), stdin, tool_env in (
+        (producer, False, tool_envs[0]),
+        (consumer, True, tool_envs[1]),
+    ):
         argv = [str(part) for part in command]
         image = resolve_image(caps, config) if config.active else None
         if image is None:
             halves.append(argv)
-            envs.append(_host_env(caps, env))
+            envs.append(_host_env(caps, env, tool_env))
             names.append(None)
         else:
             wrapped = wrap_command(
@@ -789,9 +911,10 @@ def run_pipeline(
                 logger=logger,
                 extra_mounts=extra_mounts,
                 stdin=stdin,
+                tool_env=tool_env,
             )
             halves.append(wrapped)
-            envs.append({**_engine_env(config), **(dict(env) if env else {})} or None)
+            envs.append(_client_env(config, env, tool_env))
             names.append(_register_container(wrapped, config))
         shown.append(argv)
     try:
@@ -830,6 +953,7 @@ def run_chain(
     env: Mapping[str, str] | None = None,
     extra_mounts: Sequence[str | os.PathLike[str]] = (),
     timeout: float | None = None,
+    tool_env: Mapping[str, str] | None = None,
 ) -> None:
     """Run a sequence of commands that form one unit of work.
 
@@ -855,6 +979,7 @@ def run_chain(
                 log_prefix=prefix,
                 extra_mounts=extra_mounts,
                 timeout=timeout,
+                tool_env=tool_env,
             )
         return
 
@@ -872,8 +997,9 @@ def run_chain(
         cwd=cwd,
         logger=logger,
         extra_mounts=[*extra_mounts, *paths],
+        tool_env=tool_env,
     )
-    merged_env = {**_engine_env(config), **(dict(env) if env else {})} or None
+    merged_env = _client_env(config, env, tool_env)
     name = _register_container(wrapped, config)
     try:
         process.run(

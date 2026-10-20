@@ -838,3 +838,153 @@ def test_a_timed_out_client_stops_its_container(monkeypatch, chain: bool) -> Non
     assert ei.value.timeout == 5
     assert len(calls) == 1
     assert calls[0][:4] == ["docker", "stop", "-t", "0"] and calls[0][-1].startswith("repgenr-")
+
+
+# --- tool_env: variables the tool itself must see ------------------------------
+
+
+def test_tool_env_reaches_the_docker_container_as_e() -> None:
+    cmd = wrap_command(
+        "img:1",
+        ["FastTreeMP", "x"],
+        config=ContainerConfig(backend="docker"),
+        cwd="/wd",
+        logger=_LOG,
+        tool_env={"OMP_NUM_THREADS": "5"},
+    )
+    assert cmd[cmd.index("OMP_NUM_THREADS=5") - 1] == "-e"
+
+
+@pytest.mark.parametrize("backend", ["none", "docker", "singularity"])
+def test_run_tool_tool_env_reaches_the_tool_in_every_backend(monkeypatch, backend) -> None:
+    # env reaches the engine client only; OMP_NUM_THREADS set that way never
+    # reached a containerized FastTree.
+    configure_container(backend)
+    monkeypatch.setattr(containers, "_singularity_source", lambda image, config, logger: image)
+    captured: dict = {}
+
+    def fake_run(command, **kw):
+        captured["cmd"] = list(command)
+        captured["env"] = dict(kw.get("env") or {})
+        return 0
+
+    monkeypatch.setattr(containers.process, "run", fake_run)
+    caps = ToolCapabilities(name="fasttree", container="img:1")
+    containers.run_tool(
+        caps, ["FastTreeMP", "x"], logger=_LOG, cwd="/wd", tool_env={"OMP_NUM_THREADS": "5"}
+    )
+    if backend == "docker":
+        assert "OMP_NUM_THREADS=5" in captured["cmd"]
+        assert "OMP_NUM_THREADS" not in captured["env"]
+    else:
+        # The host runs the tool itself; Singularity passes the client's
+        # environment into the container, and its own injection variables
+        # survive a --cleanenv set through the environment.
+        assert captured["env"]["OMP_NUM_THREADS"] == "5"
+        if backend == "singularity":
+            prefixed = {k for k in captured["env"] if k.endswith("ENV_OMP_NUM_THREADS")}
+            assert len(prefixed) == 1 and prefixed <= {
+                "APPTAINERENV_OMP_NUM_THREADS",
+                "SINGULARITYENV_OMP_NUM_THREADS",
+            }
+        else:
+            assert "APPTAINERENV_OMP_NUM_THREADS" not in captured["env"]
+
+
+def test_run_pipeline_tool_envs_apply_per_half(monkeypatch) -> None:
+    configure_container("docker")
+    captured: dict = {}
+
+    def fake_pipeline(producer, consumer, **kw):
+        captured["halves"] = (list(producer), list(consumer))
+        return containers.process.PipelineResult((0, 0), ([], []))
+
+    monkeypatch.setattr(containers.process, "run_pipeline", fake_pipeline)
+    dump = ToolCapabilities(name="sra-tools", container="sra:1")
+    sketch = ToolCapabilities(name="sourmash", container="sm:1")
+    containers.run_pipeline(
+        (dump, ["fastq-dump", "-Z", "X"]),
+        (sketch, ["sourmash", "sketch", "-"]),
+        logger=_LOG,
+        cwd="/wd",
+        tool_envs=(None, {"RAYON_NUM_THREADS": "1"}),
+    )
+    first, second = captured["halves"]
+    assert "RAYON_NUM_THREADS=1" not in first
+    assert second[second.index("RAYON_NUM_THREADS=1") - 1] == "-e"
+
+
+def test_run_chain_forwards_tool_env(monkeypatch) -> None:
+    configure_container("docker")
+    captured: dict = {}
+
+    def fake_run(command, **kw):
+        captured["cmd"] = list(command)
+        return 0
+
+    monkeypatch.setattr(containers.process, "run", fake_run)
+    caps = ToolCapabilities(name="t", container="img:1")
+    containers.run_chain(
+        caps, [("a", ["echo", "a"]), ("b", ["echo", "b"])], logger=_LOG, tool_env={"K": "v"}
+    )
+    assert "K=v" in captured["cmd"]
+
+
+# --- engine failures seen through exit codes, and the pre-pull -----------------
+
+
+def test_engine_failure_line_names_the_daemons_error_under_docker(monkeypatch) -> None:
+    monkeypatch.setattr(containers, "_CONFIG", ContainerConfig(backend="docker"))
+    lines = ["Unable to find image 'x:1' locally", "docker: Error response from daemon: no"]
+    assert containers.engine_failure_line(125, lines) == "docker: Error response from daemon: no"
+    assert containers.engine_failure_line(125, ["fastq-dump err: x"]) is None, "a tool's 125"
+    assert containers.engine_failure_line(1, lines) is None
+    monkeypatch.setattr(containers, "_CONFIG", ContainerConfig(backend="none"))
+    assert containers.engine_failure_line(125, lines) is None
+
+
+def test_ensure_image_pulls_an_absent_docker_image_once(monkeypatch) -> None:
+    configure_container("docker")
+    calls: list[list[str]] = []
+    monkeypatch.setattr(containers, "image_present", lambda image, config=None: False)
+    monkeypatch.setattr(
+        containers.process, "run", lambda command, **kw: calls.append(list(command)) or 0
+    )
+    caps = ToolCapabilities(name="sourmash", container="sm:1")
+    assert containers.ensure_image(caps, _LOG) == "sm:1"
+    assert calls == [["docker", "pull", "sm:1"]]
+    monkeypatch.setattr(containers, "image_present", lambda image, config=None: True)
+    assert containers.ensure_image(caps, _LOG) == "sm:1"
+    assert len(calls) == 1, "a present image is not pulled"
+
+
+def test_ensure_image_pulls_the_platform_that_will_run(monkeypatch) -> None:
+    configure_container("docker", platform="linux/amd64")
+    calls: list[list[str]] = []
+    monkeypatch.setattr(containers, "image_present", lambda image, config=None: False)
+    monkeypatch.setattr(
+        containers.process, "run", lambda command, **kw: calls.append(list(command)) or 0
+    )
+    containers.ensure_image(ToolCapabilities(name="sra-tools", container="sra:1"), _LOG)
+    assert calls == [["docker", "pull", "--platform", "linux/amd64", "sra:1"]]
+
+
+def test_ensure_image_does_nothing_without_a_backend(monkeypatch) -> None:
+    configure_container("none")
+    monkeypatch.setattr(
+        containers.process, "run", lambda command, **kw: pytest.fail("no engine call")
+    )
+    assert containers.ensure_image(ToolCapabilities(name="x", container="x:1"), _LOG) is None
+
+
+def test_ensure_image_names_a_failed_pull(monkeypatch) -> None:
+    configure_container("docker")
+    monkeypatch.setattr(containers, "image_present", lambda image, config=None: False)
+
+    def failing(command, **kw):
+        raise containers.ToolExecutionError(list(command), 1, output="pull access denied")
+
+    monkeypatch.setattr(containers.process, "run", failing)
+    with pytest.raises(containers.ToolExecutionError) as ei:
+        containers.ensure_image(ToolCapabilities(name="sourmash", container="sm:1"), _LOG)
+    assert "could not pull image sm:1 for sourmash" in str(ei.value)

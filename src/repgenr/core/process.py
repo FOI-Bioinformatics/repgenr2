@@ -251,6 +251,12 @@ def _foreground_of_terminal() -> bool:
         return False
 
 
+def default_timeout() -> float | None:
+    """The global subprocess time limit, for a caller that sets a limit of
+    its own and must not exceed the operator's."""
+    return _default_timeout()
+
+
 def _default_timeout() -> float | None:
     """Global subprocess timeout (seconds) from ``REPGENR_SUBPROCESS_TIMEOUT``.
 
