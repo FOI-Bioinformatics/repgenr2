@@ -29,8 +29,10 @@ process READS_SKETCH {
     script:
     def args = task.ext.args ?: ''
     def opts = task.ext.repgenr_opts ?: ''
+    // An empty list means every run of reads.tsv: the subworkflow sends one
+    // only when reads.tsv has no run, so the task then sketches nothing.
     def selection = accessions ? "--accession-file chunk.txt" : ''
-    def chunk = accessions ? "printf '%s\\n' ${accessions.join(' ')} > chunk.txt" : ': > chunk.txt'
+    def chunk = accessions ? "printf '%s\\n' ${accessions.join(' ')} > chunk.txt" : ''
     """
     # Forward tool exit codes (OOM kill -> 137) so errorStrategy can retry.
     export REPGENR_PROPAGATE_TOOL_EXIT=1
@@ -42,11 +44,13 @@ process READS_SKETCH {
         ${selection} \\
         -o sketches \\
         --jobs ${Math.max(4, task.cpus)} \\
+        --allow-all-failed \\
         ${args} \\
         --versions-out tool_versions.yml
 
     # The lock file and any working directory of the call are not output.
-    find sketches -mindepth 2 -maxdepth 2 \\\\( -name .lock -o -name '.home.*' \\\\) -exec rm -rf {} +
+    # (\\( renders as \( in the command file; a doubled form breaks bash.)
+    find sketches -mindepth 2 -maxdepth 2 \\( -name .lock -o -name '.home.*' \\) -exec rm -rf {} +
 
     repgenr_versions_fragment "${task.process}" tool_versions.yml
     """

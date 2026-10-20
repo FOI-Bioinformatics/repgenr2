@@ -608,9 +608,11 @@ of a three-k sketch took twice the time and far more CPU for an identical
 signature), so a job costs about one CPU. The standalone form `-o DIR` with bare
 `--accession` runs (SRR, ERR or DRR accessions), or with `--reads-tsv` the
 runs of a `reads.tsv`, sketches into `DIR` without a workdir and records
-nothing; `--platform` needs `-wd` and is refused there, and `--versions-out`
-writes the tool versions as a YAML fragment (the Nextflow `READS_SKETCH`
-task uses this form).
+nothing; `--platform` needs `-wd` and is refused there, `--versions-out`
+writes the tool versions as a YAML fragment, and `--allow-all-failed` turns
+the error of a call where every run failed into a warning, for a call that
+is one chunk of a larger batch (the Nextflow `READS_SKETCH` task uses this
+form with both).
 
 The first N spots of a run are not a random sample: an Illumina file starts
 with its first tiles, whose quality profile differs, and an ONT file with
@@ -2754,7 +2756,10 @@ a scheduler a chunk is one queued job, so a smaller chunk gives more
 parallel streams at the cost of more jobs. `READS_SKETCH_MERGE` joins the
 chunks into one `sketches/` with one index per variant in `reads.tsv` order
 (a run no chunk reached is `pending`) and publishes it under
-`reads/reads_sketches/<variant>/`. `READS_SCREEN`
+`reads/reads_sketches/<variant>/`. A chunk where every run failed is a
+warning (the task runs `--allow-all-failed`); the merge fails the batch,
+exit 3, when no run of `reads.tsv` streamed at all. Every chunk task takes
+the whole `reads.tsv`, so a change to it runs every chunk again. `READS_SCREEN`
 (`reads-screen --reads-tsv reads.tsv --sketches-dir sketches -o screen`,
 `process_medium`) judges the sketches with the three checks of the assemble
 screen against `--gtdb_sketch` and `--gtdb_lineages`, with

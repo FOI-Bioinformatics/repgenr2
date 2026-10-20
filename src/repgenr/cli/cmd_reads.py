@@ -134,6 +134,12 @@ def reads_sketch(
     out: Path | None = typer.Option(None, "-o", "--out", help=HELP_SKETCH_OUT),
     reads_tsv: Path | None = typer.Option(None, "--reads-tsv", help=HELP_READS_TSV_STANDALONE),
     versions_out: Path | None = typer.Option(None, "--versions-out", help=HELP_VERSIONS_OUT),
+    allow_all_failed: bool = typer.Option(
+        False,
+        "--allow-all-failed",
+        help="Standalone form: a call where every run failed to stream is a warning, not an "
+        "error (the call is one chunk of a batch, as in the Nextflow READS_SKETCH task).",
+    ),
 ) -> None:
     """Sketch the reads of selected runs streamed from SRA, without downloading them."""
     from ..core.logging import configure_logging
@@ -146,6 +152,8 @@ def reads_sketch(
         raise typer.BadParameter("-o is the standalone form; it does not combine with -wd")
     if workdir is not None and (reads_tsv is not None or versions_out is not None):
         raise typer.BadParameter("--reads-tsv and --versions-out belong to the standalone form")
+    if workdir is not None and allow_all_failed:
+        raise typer.BadParameter("--allow-all-failed belongs to the standalone form")
     if workdir is None and platform != "any":
         raise typer.BadParameter("--platform selects from reads.tsv; it needs -wd")
 
@@ -174,6 +182,7 @@ def reads_sketch(
             logger=logger,
             reads_tsv=None if reads_tsv is None else reads_tsv.resolve(),
             versions_out=versions_out,
+            allow_all_failed=allow_all_failed,
         )
 
 

@@ -48,17 +48,31 @@ workflow ACQUIRE_READS {
         // without a run is one empty chunk, so the merge still emits.
         def chunk_size = Math.max(1, (params.reads_sketch_chunk ?: 25) as int)
         def ch_chunks = READS_SELECT.out.reads.flatMap { meta, tsv ->
-            def runs = tsv.splitCsv(header: true, sep: '\t').collect { row -> row.run_accession }
+            def runs = tsv.splitCsv(header: true, sep: '\t').collect { row -> row.run_accession }.unique()
+            // The accessions go into a shell line of the task unquoted.
+            def odd = runs.findAll { run -> !(run ==~ /[SED]RR[0-9]+/) }
+            if (odd) {
+                error "reads.tsv of ${meta.id} holds a value that is not a run accession: ${odd.join(', ')}"
+            }
             def chunks = runs ? runs.collate(chunk_size) : [[]]
             (0..<chunks.size()).collect { i ->
-                tuple([id: "${meta.id}.${i + 1}", mode: meta.mode, run: meta, chunk: i + 1], tsv, chunks[i])
+                tuple(
+                    [id: "${meta.id}.${i + 1}", mode: meta.mode, run: meta, chunk: i + 1, chunks: chunks.size()],
+                    tsv,
+                    chunks[i]
+                )
             }
         }
         READS_SKETCH(ch_chunks)
         ch_versions = ch_versions.mix(READS_SKETCH.out.versions)
+        // The merge of a batch starts when its own chunks are done (the group
+        // key carries the count), with the directories in chunk order.
         def ch_chunk_dirs = READS_SKETCH.out.sketches
-            .map { meta, dir -> tuple(meta.run, dir) }
+            .map { meta, dir -> tuple(groupKey(meta.run, meta.chunks), [meta.chunk, dir]) }
             .groupTuple()
+            .map { key, pairs ->
+                tuple(key.getGroupTarget(), pairs.sort { pair -> pair[0] }.collect { pair -> pair[1] })
+            }
         READS_SKETCH_MERGE(READS_SELECT.out.reads.join(ch_chunk_dirs, by: 0))
         ch_sketches = READS_SKETCH_MERGE.out.sketches
     }

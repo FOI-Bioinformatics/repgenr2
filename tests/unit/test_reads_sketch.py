@@ -796,3 +796,41 @@ def test_counts_cover_the_runs_of_reads_tsv_only(tmp_path: Path, fake_tools: Pat
     assert "1 of 1 run(s) of reads.tsv now have a sketch" in caplog.text
     names = [r.run_accession for r in read_reads_sketches(out / READS_SKETCHES_TSV)]
     assert names == ["SRR1", "SRR7"]
+
+
+def test_allow_all_failed_makes_an_all_failed_chunk_a_warning(
+    tmp_path: Path, fake_tools: Path, caplog
+) -> None:
+    out = tmp_path / "sk"
+    with pytest.raises(WorkdirError, match="Every one of the 1 run"):
+        run_standalone(
+            ["SRR01"], out, max_spots=None, jobs=None, force=False, logger=logging.getLogger("t")
+        )
+    with caplog.at_level(logging.WARNING):
+        n = run_standalone(
+            ["SRR01"],
+            out,
+            max_spots=None,
+            jobs=None,
+            force=False,
+            logger=logging.getLogger("t"),
+            allow_all_failed=True,
+        )
+    assert n == 0 and "this chunk is not the batch" in caplog.text
+    rows = read_reads_sketches(out / "all" / READS_SKETCHES_TSV)
+    assert [r.status for r in rows] == ["failed"]
+
+
+def test_allow_all_failed_is_refused_with_a_workdir(tmp_path: Path) -> None:
+    result = _runner.invoke(app, ["reads-sketch", "-wd", str(tmp_path), "--allow-all-failed"])
+    assert result.exit_code != 0 and "belongs to the standalone form" in result.output
+
+
+def test_the_nextflow_task_escapes_its_cleanup_line_once() -> None:
+    # \\\\( in the module renders as \\( in the command file, a bash syntax
+    # error after the sketches were made (PR #41 review); \\( renders as \(.
+    module = Path(__file__).resolve().parents[2] / "nextflow/modules/local/dataflow/reads_sketch.nf"
+    line = next(
+        ln for ln in module.read_text(encoding="utf-8").splitlines() if "find sketches" in ln
+    )
+    assert "\\\\(" in line and "\\\\\\\\(" not in line

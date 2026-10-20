@@ -48,4 +48,29 @@ nextflow_process {
             }
         }
     }
+
+    test("a batch where no run streamed fails the merge with its reason") {
+        setup {
+            def chunks = "${launchDir}/chunks"
+            file("${chunks}/a/all").mkdirs()
+            file("${chunks}/a/all/reads_sketches.tsv").text =
+                'run_accession\tstatus\tmax_spots\tspots_read\tsequences\tsketch_file\tsketch_params\tseconds\treason\n' +
+                'SRR000001\tfailed\t\t\t\t\t\t2.0\tfastq-dump exited 3: not found\n'
+        }
+        when {
+            process {
+                """
+                input[0] = tuple(
+                    [id: 'test', mode: 'reads'],
+                    file("${projectDir}/nextflow/tests/data/reads.tsv"),
+                    [file("${launchDir}/chunks/a")]
+                )
+                """
+            }
+        }
+        then {
+            assert process.failed
+            assert process.errorReport.contains('every run of the batch failed to stream')
+        }
+    }
 }

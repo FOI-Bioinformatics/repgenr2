@@ -3,7 +3,7 @@
 Generated from `tests/audit/cli_matrix.yaml` by `scripts/render_cli_matrix.py`;
 `tests/unit/test_cli_matrix.py` keeps both in step with the command tree.
 
-37 commands, 451 flags (451 with a live test or an n/a reason, 0 pending).
+37 commands, 452 flags (452 with a live test or an n/a reason, 0 pending).
 
 ## Global flags
 
@@ -440,6 +440,7 @@ dispatch: `stage`
 | `--out` | -o | n/a: the standalone form sketches bare accessions into DIR without a workdir; refused with -wd | stage | module: modules/local/dataflow/reads_sketch.nf (READS_SKETCH runs the standalone form on reads.tsv) | tests/live/test_reads_sketch_live.py::test_reads_sketch_streams_two_runs | docs/usage.md, docs/output.md, docs/cli-reference.md, docs/audit/cli-matrix.md |
 | `--reads-tsv` |  | n/a: the standalone form takes the runs of a reads.tsv instead of bare accessions; refused with -wd | stage | module: modules/local/dataflow/reads_sketch.nf (READS_SKETCH runs the standalone form on reads.tsv) | n/a: covered offline with fake fastq-dump and sourmash in tests/unit/test_reads_sketch.py | docs/usage.md, docs/cli-reference.md, docs/audit/cli-matrix.md |
 | `--versions-out` |  | n/a: the standalone form writes the tool versions here (Nextflow); refused with -wd | stage | module: modules/local/dataflow/reads_sketch.nf (READS_SKETCH runs the standalone form on reads.tsv) | n/a: covered offline with fake fastq-dump and sourmash in tests/unit/test_reads_sketch.py | docs/usage.md, docs/cli-reference.md, docs/audit/cli-matrix.md |
+| `--allow-all-failed` |  | n/a: the standalone form only; a call where every run failed is a warning, not an error (one chunk of a batch); refused with -wd | stage | module: modules/local/dataflow/reads_sketch.nf (READS_SKETCH sketches one chunk; READS_SKETCH_MERGE fails the batch when no run streamed) | n/a: covered offline with fake fastq-dump and sourmash in tests/unit/test_reads_sketch.py | docs/usage.md, docs/cli-reference.md, docs/audit/cli-matrix.md |
 
 ## reads-screen
 
