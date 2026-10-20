@@ -33,6 +33,8 @@ process READS_SKETCH {
     // only when reads.tsv has no run, so the task then sketches nothing.
     def selection = accessions ? "--accession-file chunk.txt" : ''
     def chunk = accessions ? "printf '%s\\n' ${accessions.join(' ')} > chunk.txt" : ''
+    // In the find line below, a doubled backslash in this string renders as
+    // one in the command file; a quadrupled form rendered two and broke bash.
     """
     # Forward tool exit codes (OOM kill -> 137) so errorStrategy can retry.
     export REPGENR_PROPAGATE_TOOL_EXIT=1
@@ -49,7 +51,6 @@ process READS_SKETCH {
         --versions-out tool_versions.yml
 
     # The lock file and any working directory of the call are not output.
-    # (\\( renders as \( in the command file; a doubled form breaks bash.)
     find sketches -mindepth 2 -maxdepth 2 \\( -name .lock -o -name '.home.*' \\) -exec rm -rf {} +
 
     repgenr_versions_fragment "${task.process}" tool_versions.yml
