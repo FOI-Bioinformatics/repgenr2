@@ -696,13 +696,18 @@ def ensure_image(caps: ToolCapabilities, logger: logging.Logger) -> str | None:
         return image
     if config.backend == DOCKER and image_present(image, config) is False:
         logger.info("Pulling %s for %s", image, caps.name)
+        cmd = [config.engine_binary(), "pull"]
+        if config.platform:
+            # The platform of wrap_command, so the variant pulled is the one run.
+            cmd += ["--platform", config.platform]
+        cmd.append(image)
         try:
             process.run(
-                [config.engine_binary(), "pull", image],
+                cmd,
                 logger=logger,
                 env=_engine_env(config),
                 log_prefix=config.engine_binary(),
-                console_command=[config.engine_binary(), "pull", image],
+                console_command=cmd,
             )
         except ToolExecutionError as exc:
             raise ToolExecutionError(
@@ -831,6 +836,12 @@ def _client_env(
     merged = {**_engine_env(config), **(dict(env) if env else {})}
     if config.backend != DOCKER and tool_env:
         merged.update(tool_env)
+        if config.backend == SINGULARITY:
+            # Also as the engine's own injection variables, which survive a
+            # --cleanenv set through the environment.
+            for name, value in tool_env.items():
+                merged[f"APPTAINERENV_{name}"] = value
+                merged[f"SINGULARITYENV_{name}"] = value
     return merged or None
 
 

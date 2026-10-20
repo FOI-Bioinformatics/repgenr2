@@ -36,6 +36,9 @@ process READS_SKETCH {
         ${args} \\
         --versions-out tool_versions.yml
 
+    # The lock file and any working directory of the call are not output.
+    find sketches -mindepth 2 -maxdepth 2 \( -name .lock -o -name '.home.*' \) -exec rm -rf {} +
+
     repgenr_versions_fragment "${task.process}" tool_versions.yml
     """
 

@@ -18,6 +18,7 @@ The same work without a workdir (``-o DIR`` with bare accessions) is
 
 from __future__ import annotations
 
+import errno
 import fcntl
 import logging
 import os
@@ -92,10 +93,14 @@ def default_jobs() -> int:
 
 
 def run_timeout(max_spots: int | None) -> float | None:
-    """The time limit of one run's pipeline; None without a cap."""
+    """The time limit of one run's pipeline: with a cap the smaller of the
+    per-run allowance and ``REPGENR_SUBPROCESS_TIMEOUT``; without a cap the
+    global limit alone (None when unset)."""
+    limit = process.default_timeout()
     if max_spots is None:
-        return None
-    return TIMEOUT_BASE + max_spots / TIMEOUT_SPOTS_PER_SECOND
+        return limit
+    own = TIMEOUT_BASE + max_spots / TIMEOUT_SPOTS_PER_SECOND
+    return own if limit is None else min(own, limit)
 
 
 def selected_accessions(params: ReadsSketchParams) -> list[str]:
@@ -311,18 +316,24 @@ def sketch_file(out_dir: Path, run: str) -> Path:
 
 def is_current(row: ReadsSketchRow | None, out_dir: Path, max_spots: int | None) -> bool:
     """Whether a run's sketch exists, was made with this cap and these
-    parameters, and so need not be streamed again. A run that streamed no
-    reads at this cap (``empty``) is current too: streaming it again gives
-    the same nothing."""
-    if row is None or row.max_spots != max_spots:
-        return False
-    if row.status == "empty":
-        return True
+    parameters, and so can be read (reads-screen) and need not be streamed
+    again."""
     return (
-        row.status == "ok"
+        row is not None
+        and row.status == "ok"
+        and row.max_spots == max_spots
         and row.sketch_params == READS_SKETCH_PARAMS
         and sketch_file(out_dir, row.run_accession).is_file()
     )
+
+
+def is_settled(row: ReadsSketchRow | None, out_dir: Path, max_spots: int | None) -> bool:
+    """Whether a run need not be streamed again at this cap: its sketch is
+    current, or the stream held no reads (``empty``), which a repeat would
+    only find again. An ``empty`` run has no sketch to read."""
+    if row is not None and row.status == "empty" and row.max_spots == max_spots:
+        return True
+    return is_current(row, out_dir, max_spots)
 
 
 def sketched_of(index: dict[str, ReadsSketchRow], runs: list[str]) -> int:
@@ -330,11 +341,18 @@ def sketched_of(index: dict[str, ReadsSketchRow], runs: list[str]) -> int:
     return sum(1 for run in runs if (row := index.get(run)) is not None and row.status == "ok")
 
 
+# flock errors of a file system that does not lock (Lustre without the
+# flock option, NFS mounted nolock, some parallel file systems).
+_NO_LOCKING = (errno.ENOSYS, errno.ENOLCK, errno.EOPNOTSUPP, errno.EINVAL)
+
+
 @contextmanager
-def variant_lock(out_dir: Path) -> Iterator[None]:
+def variant_lock(out_dir: Path, logger: logging.Logger) -> Iterator[None]:
     """Hold the variant for one call: a second call on the same directory
     would clear this one's partial sketches and working directories and
-    overwrite its index, so it is refused instead."""
+    overwrite its index, so it is refused instead. On a file system without
+    locks the call goes on with a warning; on a network file system the
+    lock may hold on one host only."""
     path = out_dir / LOCK_NAME
     fd = os.open(path, os.O_RDWR | os.O_CREAT, 0o644)
     try:
@@ -345,6 +363,15 @@ def variant_lock(out_dir: Path) -> Iterator[None]:
                 f"Another reads-sketch is writing {out_dir} (it holds {path.name}); wait "
                 "for it to finish, or stop it, and run again."
             ) from None
+        except OSError as exc:
+            if exc.errno not in _NO_LOCKING:
+                raise
+            logger.warning(
+                "%s cannot be locked on this file system (%s); a second reads-sketch on "
+                "this variant at the same time would overwrite its index",
+                out_dir,
+                exc.strerror,
+            )
         yield
     finally:
         os.close(fd)
@@ -376,7 +403,11 @@ def sketch_runs(
             "directories); they are not read. Remove them or move them under all/.",
             out_dir.parent,
         )
-    with variant_lock(out_dir):
+    with variant_lock(out_dir, logger):
+        # The index is read again under the lock: a call that waited for the
+        # lock would otherwise write back the rows it read before.
+        index.clear()
+        index.update(read_index(out_dir / READS_SKETCHES_TSV))
         return _sketch_runs(
             runs,
             out_dir,
@@ -409,7 +440,7 @@ def _sketch_runs(
         if entry.name.startswith(_HOME_PREFIX) and entry.is_dir():
             shutil.rmtree(entry, ignore_errors=True)  # left by a hard exit
     todo = [
-        r for r in runs if force or not is_current(index.get(r.run_accession), out_dir, max_spots)
+        r for r in runs if force or not is_settled(index.get(r.run_accession), out_dir, max_spots)
     ]
     skipped = len(runs) - len(todo)
     if skipped:
@@ -487,8 +518,6 @@ def write_index(path: Path, index: dict[str, ReadsSketchRow], all_runs: list[str
 
 
 _SPOTS_RE = re.compile(r"^(?:Read|Written) (\d+) spots")
-# sourmash's note when stdin held no sequence at all (it then exits 0).
-_NO_SEQUENCES_RE = re.compile(r"no sequences found")
 _SEQUENCES_RE = re.compile(r"calculated \d+ signatures? for (\d+) sequences")
 
 
@@ -499,11 +528,6 @@ def spots_read(lines: list[str]) -> int | None:
         if m:
             return int(m.group(1))
     return None
-
-
-def streamed_nothing(lines: list[str]) -> bool:
-    """Whether sourmash reported an input without any sequence."""
-    return any(_NO_SEQUENCES_RE.search(line) for line in lines)
 
 
 def sequences_sketched(lines: list[str]) -> int | None:
@@ -543,8 +567,12 @@ def sketch_one(
     not.
     """
     for attempt in range(1, ATTEMPTS + 1):
-        row = _attempt(run, out_dir, max_spots, logger)
-        if row.status != "failed" or attempt == ATTEMPTS or not retry_wanted(row.reason):
+        row, timed_out = _attempt(run, out_dir, max_spots, logger)
+        if (
+            row.status != "failed"
+            or attempt == ATTEMPTS
+            or not retry_wanted(row.reason, timed_out=timed_out)
+        ):
             return row
         pause = RETRY_DELAYS[min(attempt, len(RETRY_DELAYS)) - 1] * random.uniform(0.75, 1.25)  # noqa: S311
         logger.warning(
@@ -566,19 +594,20 @@ _PERMANENT = re.compile(
 )
 
 
-def retry_wanted(reason: str) -> bool:
-    """Whether a failed attempt's reason is the archive side's and transient:
-    a fastq-dump failure or a timed-out pipeline, not one the message calls
+def retry_wanted(reason: str, *, timed_out: bool = False) -> bool:
+    """Whether a failed attempt is the archive side's and transient: a
+    timed-out pipeline, or a fastq-dump failure the message does not call
     permanent."""
-    if "[killed after" in reason:
+    if timed_out:
         return True
     return reason.startswith("fastq-dump exited") and not _PERMANENT.search(reason)
 
 
 def _attempt(
     run: str, out_dir: Path, max_spots: int | None, logger: logging.Logger
-) -> ReadsSketchRow:
-    """One pass of the pipeline over a run.
+) -> tuple[ReadsSketchRow, bool]:
+    """One pass of the pipeline over a run: the row and whether the pipeline
+    was killed on its time limit.
 
     The sketch goes to a hidden temporary file beside the target and is
     renamed into place only when both tools exited cleanly, so a failure
@@ -607,7 +636,7 @@ def _attempt(
             tmp.unlink(missing_ok=True)
             if process.stop_requested.is_set():
                 raise
-            return ReadsSketchRow(run, "failed", max_spots=max_spots, reason=str(exc))
+            return ReadsSketchRow(run, "failed", max_spots=max_spots, reason=str(exc)), False
         except BaseException:
             tmp.unlink(missing_ok=True)
             raise
@@ -634,17 +663,24 @@ def _attempt(
             message=f"The container engine could not start a tool for {run}: {engine}",
         )
     spots = spots_read(dump_tail)
-    if result.ok and not tmp.is_file() and (spots == 0 or streamed_nothing(sketch_tail)):
-        # fastq-dump wrote no biological read (a run of technical reads only,
-        # or no spots) and sourmash, given nothing, exits 0 without a file.
+    if (
+        result.ok
+        and not tmp.is_file()
+        and spots == 0
+        and not any(_DUMP_ERROR.search(line) for line in dump_tail)
+    ):
+        # fastq-dump reported zero spots without an error (a run of technical
+        # reads only, or no spots) and sourmash, given nothing, exits 0
+        # without a file. A stream that ended without the count, or with an
+        # error line, is a failure instead.
         return ReadsSketchRow(
             run,
             "empty",
             max_spots=max_spots,
-            spots_read=spots if spots is not None else 0,
+            spots_read=0,
             seconds=seconds,
             reason="the stream held no biological reads (technical reads only, or no spots)",
-        )
+        ), False
     if not result.ok or not tmp.is_file():
         tmp.unlink(missing_ok=True)
         return ReadsSketchRow(
@@ -654,18 +690,18 @@ def _attempt(
             spots_read=spots,
             seconds=seconds,
             reason=failure_reason(result.returncodes, dump_tail, sketch_tail),
-        )
+        ), result.timed_out
     tmp.replace(target)
     return ReadsSketchRow(
         run,
         "ok",
         max_spots=max_spots,
-        spots_read=spots_read(dump_tail),
+        spots_read=spots,
         sequences=sequences_sketched(sketch_tail),
         sketch_file=target.name,  # relative to the index beside it
         sketch_params=READS_SKETCH_PARAMS,
         seconds=seconds,
-    )
+    ), False
 
 
 _GENERIC_EXIT = re.compile(r"quit with error code|exited with|^\s*$")

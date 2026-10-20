@@ -581,7 +581,8 @@ def test_a_transient_archive_failure_is_tried_again(
 
 def test_retry_wanted_only_for_the_archive_side() -> None:
     assert reads_sketch.retry_wanted("fastq-dump exited 3: err: timeout exhausted while reading")
-    assert reads_sketch.retry_wanted("sourmash exited -9: [killed after 1300.0s timeout]")
+    assert reads_sketch.retry_wanted("sourmash exited -9: error: x", timed_out=True)
+    assert not reads_sketch.retry_wanted("sourmash exited -9: [killed after 1300.0s timeout]")
     assert not reads_sketch.retry_wanted(
         "fastq-dump exited 3: err: the accession 'SRR0' could not be found."
     )
@@ -590,10 +591,58 @@ def test_retry_wanted_only_for_the_archive_side() -> None:
     assert not reads_sketch.retry_wanted("no sketch was written")
 
 
-def test_run_timeout_scales_with_the_cap() -> None:
+def test_run_timeout_scales_with_the_cap_under_the_global_limit(monkeypatch) -> None:
+    monkeypatch.delenv("REPGENR_SUBPROCESS_TIMEOUT", raising=False)
     assert reads_sketch.run_timeout(None) is None
     assert reads_sketch.run_timeout(200000) == 300.0 + 1000.0
     assert reads_sketch.run_timeout(1) > 300.0
+    monkeypatch.setenv("REPGENR_SUBPROCESS_TIMEOUT", "600")
+    assert reads_sketch.run_timeout(200000) == 600.0, "the operator's lower limit wins"
+    assert reads_sketch.run_timeout(None) == 600.0
+
+
+def test_a_timed_out_pipeline_is_tried_again(tmp_path: Path, monkeypatch, no_pauses) -> None:
+    calls: list[int] = []
+
+    def fake_pipeline(producer, consumer, **kw):
+        calls.append(1)
+        if len(calls) == 1:
+            return process.PipelineResult(
+                (-9, -9), (["error: something"], ["[killed after 5s timeout]"]), timed_out=True
+            )
+        out = Path(consumer[1][consumer[1].index("-o") + 1])
+        out.write_text("sketch", encoding="utf-8")
+        return process.PipelineResult(
+            (0, 0), (["Read 5 spots for SRR1"], ["calculated 1 signature for 10 sequences"])
+        )
+
+    monkeypatch.setattr(reads_sketch, "run_pipeline", fake_pipeline)
+    row = reads_sketch.sketch_one("SRR1", tmp_path, 50000, logging.getLogger("t"))
+    assert row.status == "ok" and len(calls) == 2
+
+
+def test_a_zero_spot_stream_with_an_error_line_is_a_failure(tmp_path: Path, monkeypatch) -> None:
+    # fastq-dump exiting 0 after an error, or without its count, is not an
+    # empty run: that would never be retried.
+    def fake_pipeline(producer, consumer, **kw):
+        return process.PipelineResult(
+            (0, 0),
+            (["fastq-dump.3.4.1 err: lost", "Read 0 spots for SRR1"], ["no sequences found"]),
+        )
+
+    monkeypatch.setattr(reads_sketch, "run_pipeline", fake_pipeline)
+    row = reads_sketch.sketch_one("SRR1", tmp_path, None, logging.getLogger("t"))
+    assert row.status == "failed" and row.spots_read == 0
+
+    monkeypatch.setattr(
+        reads_sketch,
+        "run_pipeline",
+        lambda producer, consumer, **kw: process.PipelineResult(
+            (0, 0), ([], ["no sequences found"])
+        ),
+    )
+    row = reads_sketch.sketch_one("SRR1", tmp_path, None, logging.getLogger("t"))
+    assert row.status == "failed" and row.spots_read is None
 
 
 def test_the_time_limit_reaches_the_pipeline(tmp_path: Path, monkeypatch) -> None:
@@ -643,13 +692,51 @@ def test_a_second_call_on_a_variant_is_refused_while_the_first_holds_it(
     out = ctx.workdir / READS_SKETCHES_DIR / "all"
     out.mkdir(parents=True)
     with (
-        reads_sketch.variant_lock(out),
+        reads_sketch.variant_lock(out, logging.getLogger("t")),
         pytest.raises(WorkdirError, match="Another reads-sketch is writing"),
     ):
         run(ctx, ReadsSketchParams())
     assert not _calls(fake_tools)
     # Released: the call goes through.
     assert run(ctx, ReadsSketchParams()) == 1
+
+
+def test_a_file_system_without_locks_warns_and_goes_on(
+    tmp_path: Path, fake_tools: Path, monkeypatch, caplog
+) -> None:
+    import errno
+
+    def no_flock(fd, op):
+        raise OSError(errno.ENOSYS, "Function not implemented")
+
+    monkeypatch.setattr(reads_sketch.fcntl, "flock", no_flock)
+    ctx = _workdir(tmp_path, [_row("SRR1")])
+    with caplog.at_level(logging.WARNING):
+        assert run(ctx, ReadsSketchParams()) == 1
+    assert "cannot be locked on this file system" in caplog.text
+
+
+def test_the_index_is_read_under_the_lock(tmp_path: Path, fake_tools: Path) -> None:
+    # A call that waited for the lock must not write back the rows it read
+    # before: the index it was handed is refilled from the file.
+    ctx = _workdir(tmp_path, [_row("SRR1"), _row("SRR2")])
+    out = ctx.workdir / READS_SKETCHES_DIR / "all"
+    assert run(ctx, ReadsSketchParams(accessions=["SRR1"])) == 1
+    stale = reads_sketch.read_index(out / READS_SKETCHES_TSV)
+    assert run(ctx, ReadsSketchParams(accessions=["SRR2"])) == 1
+    sketched, _failed, _v = reads_sketch.sketch_runs(
+        [_row("SRR2")],
+        out,
+        stale,
+        max_spots=None,
+        jobs=1,
+        force=False,
+        logger=logging.getLogger("t"),
+        all_runs=["SRR1", "SRR2"],
+    )
+    assert sketched == 0, "the fresh row of SRR2 was seen under the lock"
+    rows = {r.run_accession: r.status for r in read_reads_sketches(out / READS_SKETCHES_TSV)}
+    assert rows == {"SRR1": "ok", "SRR2": "ok"}
 
 
 def test_an_engine_failure_stops_the_batch_instead_of_failing_every_run(

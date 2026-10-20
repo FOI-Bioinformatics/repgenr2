@@ -878,8 +878,14 @@ def test_run_tool_tool_env_reaches_the_tool_in_every_backend(monkeypatch, backen
         assert "OMP_NUM_THREADS" not in captured["env"]
     else:
         # The host runs the tool itself; Singularity passes the client's
-        # environment into the container.
+        # environment into the container, and its own injection variables
+        # survive a --cleanenv set through the environment.
         assert captured["env"]["OMP_NUM_THREADS"] == "5"
+        if backend == "singularity":
+            assert captured["env"]["APPTAINERENV_OMP_NUM_THREADS"] == "5"
+            assert captured["env"]["SINGULARITYENV_OMP_NUM_THREADS"] == "5"
+        else:
+            assert "APPTAINERENV_OMP_NUM_THREADS" not in captured["env"]
 
 
 def test_run_pipeline_tool_envs_apply_per_half(monkeypatch) -> None:
@@ -947,6 +953,17 @@ def test_ensure_image_pulls_an_absent_docker_image_once(monkeypatch) -> None:
     monkeypatch.setattr(containers, "image_present", lambda image, config=None: True)
     assert containers.ensure_image(caps, _LOG) == "sm:1"
     assert len(calls) == 1, "a present image is not pulled"
+
+
+def test_ensure_image_pulls_the_platform_that_will_run(monkeypatch) -> None:
+    configure_container("docker", platform="linux/amd64")
+    calls: list[list[str]] = []
+    monkeypatch.setattr(containers, "image_present", lambda image, config=None: False)
+    monkeypatch.setattr(
+        containers.process, "run", lambda command, **kw: calls.append(list(command)) or 0
+    )
+    containers.ensure_image(ToolCapabilities(name="sra-tools", container="sra:1"), _LOG)
+    assert calls == [["docker", "pull", "--platform", "linux/amd64", "sra:1"]]
 
 
 def test_ensure_image_does_nothing_without_a_backend(monkeypatch) -> None:

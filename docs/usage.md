@@ -583,17 +583,22 @@ within the call, up to three attempts with pauses of about 30 s and 120 s;
 an accession NCBI does not hold or will not serve (withdrawn, protected),
 and a failure of sourmash, are not. With `--max-spots` each run's pipeline
 has a time limit of 300 s plus one second per 200 spots (about 22 min at
-200000), so a connection that stalls frees its slot and is tried again;
-without a cap only `REPGENR_SUBPROCESS_TIMEOUT` applies. A run whose
-stream holds no biological read (technical reads only, or no spots) is
-marked `empty` in the index with no sketch, is not a missing deliverable
-and is not streamed again at that cap. One call writes a variant at a time:
-a second `reads-sketch` on the same variant directory is refused while the
-first holds its `.lock` file, since each call clears the partial files of
-the directory and rewrites its index. Under a container backend both images
-are pulled once before the first run, and an engine that cannot start a
-tool (no image, daemon down) stops the call with one error instead of
-failing every run.
+200000), or `REPGENR_SUBPROCESS_TIMEOUT` when that is lower, so a
+connection that stalls frees its slot and is tried again; without a cap
+only the global limit applies, and a run killed by it is tried again the
+same way (up to three times the limit for one run). A run whose stream
+holds no biological read (`fastq-dump` reports zero spots without an
+error) is marked `empty` in the index with no sketch, is not a missing
+deliverable, is not streamed again at that cap (`--force` streams it) and
+is excused by `reads-screen` as a run without a sketch. One call writes a
+variant at a time: a second `reads-sketch` on the same variant directory
+is refused while the first holds its `.lock` file, since each call clears
+the partial files of the directory and rewrites its index; on a file
+system without locks the call goes on with a warning, and on a network
+file system the lock may hold on one host only. Under a container backend
+both images are pulled once before the first run, and under Docker an
+engine that cannot start a tool (no image, daemon down) stops the call
+with one error instead of failing every run.
 
 `--jobs` streams that many runs at once (default 4, or the usable CPUs when
 fewer); each is a `fastq-dump` stream and one single-threaded `sourmash`

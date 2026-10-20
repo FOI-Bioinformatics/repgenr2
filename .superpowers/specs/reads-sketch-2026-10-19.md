@@ -117,13 +117,18 @@ fastq-dump -Z --split-spot --skip-technical [-X N] ACC \
   message is not permanent (not found, withdrawn, protected, no data), or a
   pipeline past its time limit, is tried again, three attempts with pauses
   of about 30 s and 120 s (a quarter of jitter). With a cap the per-run
-  limit is 300 s plus `max_spots / 200` s; without one only
-  `REPGENR_SUBPROCESS_TIMEOUT` applies.
-- A stream without a biological read (sourmash exits 0 and writes no file,
-  `no sequences found`; or `Read 0 spots`) is the status `empty`: current
-  at that cap, no deliverable, not streamed again.
+  limit is 300 s plus `max_spots / 200` s, or `REPGENR_SUBPROCESS_TIMEOUT`
+  when lower; without one only the global limit applies. Worst case per
+  run at 200000 spots: three attempts of 1300 s plus the pauses, about
+  68 min, before its slot is freed for good.
+- A stream of zero spots without an error line (`Read 0 spots`; sourmash
+  then exits 0 and writes no file) is the status `empty`: settled at that
+  cap (`is_settled`), no deliverable, not streamed again without
+  `--force`; `is_current` still means a readable sketch, so `reads-screen`
+  excuses the run as unsketched.
 - One call per variant directory: `<variant>/.lock` is held with `flock`
-  for the call; a second call is refused with a message.
+  for the call and the index is read under it; a second call is refused
+  with a message; a file system without locks gives a warning.
 - Both images are pulled once before the pool (`containers.ensure_image`);
   a Docker exit 125 with the engine's own error line stops the call as one
   error (`containers.engine_failure_line`).

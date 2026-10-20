@@ -841,7 +841,7 @@ def read_reads(path: Path) -> list[ReadRow]:
 # Reads sketches streamed from the archive without a download, beside reads.tsv.
 READS_SKETCHES_DIR = "reads_sketches"
 READS_SKETCHES_TSV = "reads_sketches.tsv"
-READS_SKETCH_STATUSES = ("ok", "failed", "pending")
+READS_SKETCH_STATUSES = ("ok", "failed", "empty", "pending")
 # One subdirectory per variant: "all" for the whole run, "spots_N" for the
 # first N spots, so sketches at several depths live side by side.
 READS_SKETCH_ALL = "all"
