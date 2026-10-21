@@ -153,6 +153,15 @@ class TreeBuilder(ABC):
         """
         return True
 
+    def writes_supports(self, extra: Mapping[str, object]) -> bool:
+        """Whether the tree carries support values without a bootstrap.
+
+        ``supports_without_bootstrap`` by default; a builder whose supports
+        depend on a setting (IQ-TREE's ``alrt=``) reads it from ``extra``,
+        the builder's merged extras.
+        """
+        return self.supports_without_bootstrap
+
     def sketch_request(self, extra: Mapping[str, object]) -> tuple[int, int] | None:
         """The (ksize, scaled) of the sourmash sketches this builder compares at.
 

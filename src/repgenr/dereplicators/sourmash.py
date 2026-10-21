@@ -54,6 +54,7 @@ from ..core.contracts import record_name
 from ..core.errors import MissingBinaryError, ToolExecutionError, WorkdirError
 from ..core.plugins import ToolCapabilities, parse_extra_int
 from ..core.process import write_fofn
+from ..core.sourmash import jaccard_to_ani_matrix as _jaccard_to_ani_matrix
 from ..core.sourmash import sourmash_capabilities
 from .base import (
     STATUS_CONTAINED,
@@ -758,17 +759,6 @@ def _branchwater_available(caps: ToolCapabilities, logger: logging.Logger) -> bo
         result = False
     _BRANCHWATER_CACHE[key] = result
     return result
-
-
-def _jaccard_to_ani_matrix(sim: npt.NDArray[np.float64], ksize: int) -> npt.NDArray[np.float64]:
-    """Elementwise ANI estimate from a Jaccard similarity matrix.
-
-    Jaccard's containment equivalent is 2j/(1+j); the ANI estimate is its
-    k-th root (the quantity ``sourmash compare --ani`` reports, within 1e-4
-    on real genomes). Zero stays zero.
-    """
-    containment = 2 * sim / (1 + sim)
-    return np.where(sim > 0, containment ** (1.0 / ksize), 0.0)
 
 
 def _parse_pairwise_csv(

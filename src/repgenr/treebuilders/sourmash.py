@@ -1,5 +1,15 @@
 """sourmash tree builder (alignment-free; k-mer distance + neighbor-joining).
 
+The distance is ``1 - ANI`` by default (``metric=ani``), on the scale of
+skani and mashtree, or ``1 - Jaccard`` with ``metric=jaccard``. The ANI is
+the k-mer model estimate from the Jaccard index of ``sourmash compare``
+(:func:`repgenr.core.sourmash.jaccard_to_ani_matrix`, shared with the
+dereplicator), as ``sourmash compare --ani`` would report it. ``--ani``
+itself is not used: sourmash 4.9.4 reports an ANI of 0 for sketches of
+small genomes, identical ones included (10 kb and 30 kb genomes at k=31,
+scaled=1000), which would place identical genomes at the largest distance.
+A pair without a shared hash has ANI 0 and distance 1.0.
+
 With ``TreeParams.sketches`` the genomes that have a workdir sketch are not
 sketched again: ``sourmash compare -k`` selects the signature at the
 requested k-mer size from each ``.sig.zip``. The joining step runs rapidNJ
@@ -17,21 +27,26 @@ from pathlib import Path
 
 from ..core.containers import run_tool
 from ..core.contracts import atomic_replace, record_name
-from ..core.errors import WorkdirError
+from ..core.errors import UserInputError, WorkdirError
 from ..core.plugins import parse_extra_int, preflight, tool_available
 from ..core.process import write_fofn
-from ..core.sourmash import sourmash_capabilities
+from ..core.sourmash import jaccard_to_ani_matrix, sourmash_capabilities
 from ..tree.nj import NJ_AUTO, NJ_RAPIDNJ, RAPIDNJ, choose_backend, nj_tree
 from .base import InputKind, TreeBuilder, TreeParams, as_genome_list
+
+METRIC_ANI = "ani"
+METRIC_JACCARD = "jaccard"
+METRICS = (METRIC_ANI, METRIC_JACCARD)
 
 
 class SourmashBuilder(TreeBuilder):
     capabilities = sourmash_capabilities(
         reads_gzip=True,
-        accepted_extras=frozenset({"ksize", "scaled", "nj"}),
+        # metric=ani|jaccard: the distance is 1 - ANI (default) or 1 - Jaccard.
+        accepted_extras=frozenset({"ksize", "scaled", "nj", "metric"}),
         # A distance-based NJ tree has no bootstrap step.
         ignored_params=frozenset({"bootstrap"}),
-        default_params={"ksize": 31, "scaled": 1000, "nj": NJ_AUTO},
+        default_params={"ksize": 31, "scaled": 1000, "nj": NJ_AUTO, "metric": METRIC_ANI},
         recommended_max_genomes=2000,
     )
     input_kind = InputKind.GENOMES
@@ -59,6 +74,7 @@ class SourmashBuilder(TreeBuilder):
         logger: logging.Logger,
     ) -> Path:
         genomes = as_genome_list(msa_or_genomes)
+        metric = _metric(params.extra, self.capabilities.default_params["metric"])
         # Settle the joining step first: a bad nj value, or more leaves than
         # the Python code can join without rapidnj, must not cost a sketch
         # and a dense compare before failing.
@@ -109,8 +125,30 @@ class SourmashBuilder(TreeBuilder):
         # the same genomes give the same tree whatever order the matrix came in.
         order = sorted(range(len(labels)), key=lambda i: (named[i], i))
         clean_labels = [named[i] for i in order]
-        # distance = 1 - similarity
+        if metric == METRIC_ANI:
+            import numpy as np
+
+            similarity = jaccard_to_ani_matrix(np.asarray(similarity, dtype=float), ksize).tolist()
         dist = [[1.0 - similarity[i][j] for j in order] for i in order]
+        disjoint = sum(
+            1 for a in range(len(dist)) for b in range(a + 1, len(dist)) if dist[a][b] >= 1.0
+        )
+        if disjoint:
+            logger.warning(
+                "sourmash: %d of %d pairs share no hash at k=%d, scaled=%d; their distance "
+                "is set to 1.0, so their placement in the tree is not informed by the data. "
+                "A lower scaled= or ksize=, or a tree builder for divergent sets, is the "
+                "remedy.",
+                disjoint,
+                len(dist) * (len(dist) - 1) // 2,
+                ksize,
+                scaled,
+            )
+        logger.info(
+            "sourmash: distance is 1 - %s (metric=%s)",
+            "ANI" if metric == METRIC_ANI else "Jaccard",
+            metric,
+        )
         newick = nj_tree(
             clean_labels, dist, out_dir, logger, backend=backend, threads=params.threads
         )
@@ -161,6 +199,15 @@ class SourmashBuilder(TreeBuilder):
         if not sigs:
             raise WorkdirError("sourmash produced no signatures")
         return sigs
+
+
+def _metric(extra: Mapping[str, object], default: str) -> str:
+    value = str(extra.get("metric", default)).strip().lower()
+    if value not in METRICS:
+        raise UserInputError(
+            f"sourmash metric= must be one of {', '.join(METRICS)}, got {extra.get('metric')!r}"
+        )
+    return value
 
 
 def _read_csv(path: Path) -> tuple[list[str], list[list[float]]]:

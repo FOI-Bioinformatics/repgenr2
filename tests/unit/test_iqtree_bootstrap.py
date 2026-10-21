@@ -199,3 +199,88 @@ def test_asc_on_a_protein_alignment_is_refused(tmp_path: Path, monkeypatch, extr
             _msa(tmp_path), tmp_path / "out", TreeParams(alphabet="protein", extra=extra), _LOG
         )
     assert calls == []
+
+
+def _fake_run(calls: list[list[str]]):
+    def fake(caps, cmd, **k):
+        cmd = [str(c) for c in cmd]
+        calls.append(cmd)
+        Path(cmd[cmd.index("-s") + 1] + ".treefile").write_text("(a,b);\n", encoding="utf-8")
+
+    return fake
+
+
+def test_alrt_passes_sh_alrt_replicates_alone_and_with_bootstrap(
+    tmp_path: Path, monkeypatch
+) -> None:
+    calls: list[list[str]] = []
+    monkeypatch.setattr(mod, "run_tool", _fake_run(calls))
+    mod.IqtreeBuilder().build(
+        _msa(tmp_path), tmp_path / "o1", TreeParams(extra={"alrt": "1000"}), _LOG
+    )
+    mod.IqtreeBuilder().build(
+        _msa(tmp_path), tmp_path / "o2", TreeParams(bootstrap=1000, extra={"alrt": 2000}), _LOG
+    )
+    first, both = calls
+    assert first[first.index("-alrt") + 1] == "1000" and "-B" not in first
+    assert both[both.index("-alrt") + 1] == "2000" and both[both.index("-B") + 1] == "1000"
+    assert "alrt" in mod.IqtreeBuilder.capabilities.accepted_extras
+
+
+def test_alrt_below_1000_or_not_a_number_is_refused_before_running(
+    tmp_path: Path, monkeypatch
+) -> None:
+    calls: list[list[str]] = []
+    monkeypatch.setattr(mod, "run_tool", _fake_run(calls))
+    for bad in ("999", "0", "many", "1000.5"):
+        with pytest.raises(UserInputError, match="alrt"):
+            mod.IqtreeBuilder().build(
+                _msa(tmp_path), tmp_path / "out", TreeParams(extra={"alrt": bad}), _LOG
+            )
+    assert calls == []
+
+
+def test_alrt_counts_as_supports_without_bootstrap() -> None:
+    builder = mod.IqtreeBuilder()
+    assert not builder.writes_supports({})
+    assert builder.writes_supports({"alrt": "1000"})
+
+
+def test_many_sequences_without_a_model_note_modelfinder(
+    tmp_path: Path, monkeypatch, caplog
+) -> None:
+    calls: list[list[str]] = []
+    monkeypatch.setattr(mod, "run_tool", _fake_run(calls))
+    msa = tmp_path / "big.fasta"
+    msa.write_text("".join(f">s{i}\nACG{'T' if i % 2 else 'A'}\n" for i in range(201)))
+    with caplog.at_level(logging.INFO, logger=_LOG.name):
+        mod.IqtreeBuilder().build(msa, tmp_path / "o1", TreeParams(), _LOG)
+    lines = [r.getMessage() for r in caplog.records if "ModelFinder" in r.getMessage()]
+    assert len(lines) == 1 and "201 sequences" in lines[0] and "model=GTR+G" in lines[0]
+
+    caplog.clear()
+    with caplog.at_level(logging.INFO, logger=_LOG.name):
+        mod.IqtreeBuilder().build(msa, tmp_path / "o2", TreeParams(extra={"model": "GTR+G"}), _LOG)
+    assert "ModelFinder" not in caplog.text
+    (_, with_model) = calls
+    assert with_model[with_model.index("-m") + 1] == "GTR+G"
+
+
+def test_asc_without_a_model_notes_modelfinder_above_200_sequences(
+    tmp_path: Path, monkeypatch, caplog
+) -> None:
+    calls: list[list[str]] = []
+    monkeypatch.setattr(mod, "run_tool", _fake_run(calls))
+    big = tmp_path / "big.fasta"
+    big.write_text("".join(f">s{i}\nACG{'T' if i % 2 else 'A'}\n" for i in range(201)))
+    small = tmp_path / "small.fasta"
+    small.write_text(">a\nACGT\n>b\nACGA\n")
+    with caplog.at_level(logging.INFO, logger=_LOG.name):
+        mod.IqtreeBuilder().build(big, tmp_path / "o1", TreeParams(extra={"asc": "lewis"}), _LOG)
+    (line,) = [r.getMessage() for r in caplog.records if "ModelFinder" in r.getMessage()]
+    assert "201 sequences" in line
+    assert calls[0][calls[0].index("-m") + 1] == "MFP+ASC"
+    caplog.clear()
+    with caplog.at_level(logging.INFO, logger=_LOG.name):
+        mod.IqtreeBuilder().build(small, tmp_path / "o2", TreeParams(extra={"asc": "lewis"}), _LOG)
+    assert "ModelFinder" not in caplog.text

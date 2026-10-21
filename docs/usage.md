@@ -1989,6 +1989,14 @@ every genome maps to one reference and Gubbins accepts the alignment (under
 genus (ANI about 80 to 95 %), where a single reference no longer serves every
 genome and Panaroo's default clustering identity leaves an empty core.
 
+Support values on an IQ-TREE tree come from `-B N`, N ultrafast bootstrap
+replicates (at least 1000). `--aligner-arg alrt=N` adds the SH-aLRT test
+with N replicates (`-alrt`, also at least 1000), which gives supports
+without `-B`; with both, IQ-TREE writes the two values in each node label.
+Without either the tree carries no supports, and `phylo` says so. Without
+`--aligner-arg model=` IQ-TREE runs ModelFinder before the tree search; above
+200 genomes the log notes that `model=GTR+G` skips that pass.
+
 #### Asking for a route: `phylo-advise`
 
 `repgenr phylo-advise -wd $WD` reads the working directory and prints which
@@ -2607,7 +2615,12 @@ filtered=false` keeps them).
 The parameter to reach for first is the clustering identity. Panaroo groups
 genes in a first pass at `--aligner-arg threshold=` identity, 0.98 by
 default, so on a divergent set most orthologues of a gene end up in separate
-clusters and never reach the core. Lowering it is what recovers them:
+clusters and never reach the core. When `threshold` is not set and the
+canonical genome names (`Family_Genus_species_Accession`) span more than one
+species, the builder uses 0.95 instead and logs the species count and the
+identity chosen; a set of one species, or names that are not canonical, keep
+0.98. The value used is passed to Panaroo on every run and recorded in the
+stage record. Lowering it is what recovers them:
 measured on three Wolbachia genomes of one supergroup, the genes present in
 all three went from 52 at 0.98 to 226 at 0.95, 638 at 0.90 and 796 at 0.80
 (see [verification.md](verification.md)). `family_threshold`, the later
@@ -2815,14 +2828,17 @@ FlexTaxD node. All thresholds are off by default.
 **Branch length and support.** Either criterion suffices.
 
 - `--collapse-length L` merges a node whose branch is shorter than L, in the
-  tree's own units (mash distance for mashtree, one minus the Jaccard
-  similarity of the k-mer sketches for the sourmash builder, one minus ANI as
-  a fraction for skani, the SNP count with `metric=snps` or the fraction of
+  tree's own units (mash distance for mashtree, one minus ANI as a fraction
+  for the sourmash builder, or one minus the Jaccard similarity of the k-mer
+  sketches with its `metric=jaccard`, one minus ANI as a fraction for skani, the SNP count with `metric=snps` or the fraction of
   mismatching k-mers with `metric=mismatch` for the ska2 builder,
   substitutions per site for the ML builders).
 - `--collapse-support S` merges a node whose support is below the fraction S.
-  IQ-TREE and RAxML-NG write percentages and are normalised automatically,
-  FastTree and aster write fractions, and mashtree, the sourmash builder, skani and
+  IQ-TREE (with `-B`, or with `--aligner-arg alrt=N` for SH-aLRT supports)
+  and RAxML-NG write percentages and are normalised automatically. With both
+  `-B` and `alrt=` IQ-TREE writes each label as `SH-aLRT/UFBoot` (for
+  example `87.3/98`); the last field, the ultrafast bootstrap, is the one
+  read, so S applies to the same value as with `-B` alone. FastTree and aster write fractions, and mashtree, the sourmash builder, skani and
   the ska2 builder write no supports, in which case the option warns and
   does nothing.
 
@@ -2835,9 +2851,13 @@ TreeCluster). D is in the tree's own units:
 
 - mash distance for mashtree (about 0.05 at 95 % ANI for closely related
   genomes);
-- one minus the Jaccard similarity at the chosen k for the sourmash builder
-  (about 0.88 at 95 % ANI with k = 31, so a mash-scale value is far too strict
-  there);
+- one minus ANI as a fraction for the sourmash builder (0.05 at 95 % ANI),
+  the ANI being the k-mer model estimate from the Jaccard index, as
+  `sourmash compare --ani` would report it (`--ani` itself is not used: it
+  reports 0 for sketches of small genomes, identical ones included); with
+  `metric=jaccard`, one minus the Jaccard
+  similarity at the chosen k (about 0.88 at 95 % ANI with k = 31, so a
+  mash-scale value is far too strict there);
 - one minus ANI as a fraction for skani (0.05 at 95 % ANI);
 - for the ska2 builder, the SNP count with `metric=snps` (the default) or the
   fraction of mismatching split k-mers with `metric=mismatch`;

@@ -7,6 +7,26 @@ All notable changes to RepGenR2 are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- `iqtree` tree builder: `--aligner-arg alrt=N` (N at least 1000) passes
+  `-alrt N`, SH-aLRT supports without `-B`; with `-B` as well both values
+  are written. `phylo` no longer reports a tree without supports when
+  `alrt=` is set, and its message for that case names `alrt=`. Above 200
+  sequences without `model=` (also under `asc=lewis`, which runs
+  ModelFinder with `MFP+ASC`), the log notes that `model=GTR+G` skips
+  ModelFinder. Tree builders gain `writes_supports(extra)`.
+- `sourmash` tree builder: `--aligner-arg metric=ani|jaccard` (default
+  `ani`). With `ani` the distance is `1 - ANI`, on the scale of skani and
+  mashtree. The ANI is the k-mer model estimate from the Jaccard index,
+  `(2j / (1 + j))^(1/k)`, as `sourmash compare --ani` would report it,
+  computed by the converter the dereplicator already used (now
+  `core.sourmash.jaccard_to_ani_matrix`, re-exported in the dereplicator).
+  `--ani` itself is not used: it reports 0 for sketches of small genomes,
+  identical ones included. `jaccard` keeps the former `1 - Jaccard`.
+- `phylo` stage record: `treebuilder_settings`, the tree builder's
+  settings in effect for every key it declares a default for, so a tree
+  made under a changed default (the sourmash builder's `metric`) is told
+  apart from an older one; `extra` still holds only what the user set. Pairs that
+  share no hash get distance 1.0 and are counted in one log line.
 - Core-gene route: `--gene-trim none|clipkit` (default `none`) on `phylo`,
   `phylo-build` and `run` trims each per-gene alignment with ClipKIT
   (smart-gap mode) before the genes are measured, ranked and concatenated,
@@ -97,6 +117,12 @@ All notable changes to RepGenR2 are documented here. The format follows
   existing core-gene alignment is rebuilt once.
 
 ### Changed
+- `panaroo` core-gene builder: when `threshold=` is not set and the
+  canonical record names of the genomes (`Family_Genus_species_Accession`)
+  span more than one species, the clustering identity `-c` is 0.95 instead
+  of Panaroo's 0.98, with one log line; the value used is recorded as
+  before. `species_spread`, `genus_spread` and `canonical_taxon` moved to
+  `core.contracts`; `maskers.gubbins` re-exports them.
 - Core-gene route: all four builders now return one alignment per gene, so
   the stage's gene selection applies to each. panaroo hands over its
   `aligned_gene_sequences/` files for the genes its alignment header lists,
@@ -117,6 +143,16 @@ All notable changes to RepGenR2 are documented here. The format follows
   every run failed a warning instead of an error.
 
 ### Fixed
+- `tree2tax --collapse-support`: a node label of the form `SH-aLRT/UFBoot`,
+  which IQ-TREE writes with both `-alrt` and `-B`, is read by its last field
+  (the ultrafast bootstrap); it was read as no support, so nothing collapsed.
+- `phylo`: the reference recorded in the stage record is read from the
+  directory the current alignment source writes to, so an `align/reference.txt`
+  left by an earlier aligner run is no longer recorded as the reference of a
+  core-gene tree; the core-gene route and reference-free typers record none.
+- `phylo`: `--reference` is part of the alignment reuse key only for sources
+  that use a reference (the aligner and mapping SNP typers), so changing it
+  no longer rebuilds a core-gene or ska2 alignment.
 - Nextflow `READS_SKETCH` (since #40): the cleanup line's escapes rendered
   as a doubled backslash in the command file, a bash syntax error after
   the sketches were made; every real task would have failed.
