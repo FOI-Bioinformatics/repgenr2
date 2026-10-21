@@ -162,7 +162,9 @@ def test_every_preflight_floor_is_in_an_env_file() -> None:
         for spec in caps.required_binaries:
             if spec.min_version is None or spec.name in CONTAINER_ONLY:
                 continue
-            package = _package_for(spec.name, caps)
+            # A binary named after no package maps to the adapter's own (wastral
+            # from aster).
+            package = _package_for(spec.name, caps, set(by_package))
             assert package in by_package, f"{caps.name}: {package} is in no envs/*.yml file"
             assert by_package[package] == (">=", spec.min_version), (
                 f"{caps.name}: {package} floor {by_package[package]} differs from "
@@ -181,6 +183,8 @@ def test_package_mapping_follows_the_conda_spec() -> None:
     assert _package_for("ska", ToolCapabilities(name="ska2", conda=("bioconda::ska2",))) == "ska2"
     mauve = ToolCapabilities(name="m", conda=("bioconda::mauvealigner", "boost-cpp=1.74"))
     assert _package_for("progressiveMauve", mauve, {"mauvealigner"}) == "mauvealigner"
+    aster = ToolCapabilities(name="aster", conda=("bioconda::aster",))
+    assert _package_for("wastral", aster, {"aster", "iqtree"}) == "aster"
 
 
 def test_every_required_binary_comes_from_an_env_file() -> None:
