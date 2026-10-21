@@ -43,6 +43,45 @@ def phylo_uses_coregene(args) {
     return preset in ['genus', 'family']
 }
 
+// True when the phylo arguments select the markers core-gene builder: the
+// core-gene route with the last --coregene being markers or, without an
+// explicit --coregene, a preset whose builder is markers. Only then is
+// params.markers_db staged into the phylo task; phylo-build refuses
+// --markers-db on any other route.
+def phylo_uses_markers(args) {
+    if (!phylo_uses_coregene(args)) {
+        return false
+    }
+    def tokens = (args ?: '').toString().tokenize().collect { t -> t.replaceAll(/^["']|["']$/, '') }
+    def builder = null
+    def preset = null
+    tokens.eachWithIndex { t, i ->
+        if (t.startsWith('--coregene=')) {
+            builder = t.substring('--coregene='.length()).replaceAll(/^["']|["']$/, '')
+        }
+        else if (t == '--coregene' && i + 1 < tokens.size()) {
+            builder = tokens[i + 1]
+        }
+        else if (t.startsWith('--preset=')) {
+            preset = t.substring('--preset='.length()).replaceAll(/^["']|["']$/, '')
+        }
+        else if (t == '--preset' && i + 1 < tokens.size()) {
+            preset = tokens[i + 1]
+        }
+    }
+    if (builder != null) {
+        return builder == 'markers'
+    }
+    // The presets whose --coregene is markers in RECOMMENDATIONS
+    // (src/repgenr/stages/advise.py; tests/unit/test_cli_presets.py checks
+    // that the two agree).
+    return preset in markers_presets()
+}
+
+def markers_presets() {
+    return ['family']
+}
+
 // True when the phylo arguments keep the outgroup in the tree.
 def phylo_keeps_outgroup(args) {
     return !(args ?: '').toString().tokenize().contains('--no-outgroup')

@@ -10,6 +10,7 @@ include { ACQUIRE_READS       } from './acquire_reads'
 include { DEREPLICATE_SCATTER } from './dereplicate_scatter'
 include { ANNOTATE_SCATTER    } from './annotate_scatter'
 include { phylo_uses_coregene } from './annotate_scatter'
+include { phylo_uses_markers  } from './annotate_scatter'
 include { PHYLO               } from '../../modules/local/dataflow/phylo'
 include { PHYLO_MSA           } from '../../modules/local/dataflow/phylo_msa'
 include { PHYLO_TREE          } from '../../modules/local/dataflow/phylo_tree'
@@ -48,8 +49,13 @@ workflow READS_DATAFLOW {
         ch_build_in = ch_phylo_in.join(ANNOTATE_SCATTER.out.annotations, by: 0, failOnMismatch: true)
     }
 
-    // The marker database of --coregene markers, staged into the alignment task.
-    def markers_db = params.markers_db ? file(params.markers_db, checkIfExists: true) : []
+    // The marker database, staged into the alignment task only for the
+    // markers builder: phylo-build refuses --markers-db on any other route,
+    // so a site-wide params.markers_db must not reach those runs.
+    def markers_db = []
+    if (params.markers_db && phylo_uses_markers(params.phylo_args)) {
+        markers_db = file(params.markers_db, checkIfExists: true)
+    }
 
     def ch_tree = null
     if (params.phylo_split_msa) {

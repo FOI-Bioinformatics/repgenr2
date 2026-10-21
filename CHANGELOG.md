@@ -193,6 +193,11 @@ All notable changes to RepGenR2 are documented here. The format follows
   existing core-gene alignment is rebuilt once.
 
 ### Changed
+- `--preset family` (and the `family` advice of `phylo-advise`) now builds
+  from GTDB's marker proteins with `--coregene markers` instead of
+  PPanGGOLiN core genes with `--coregene-alphabet protein`; it needs the
+  marker database (`--markers-db` or `REPGENR_MARKERS_DB`). For the earlier
+  behaviour, write out the genus flags with `--coregene-alphabet protein`.
 - `phylo-advise` recommends `--aligner-arg ksize=21` for a sourmash tree when
   the set spans more than one genus by name, has a minimum ANI below 95 % or
   has pairs of unknown ANI, and the quick row's summary says so; the sourmash

@@ -177,6 +177,32 @@ class MarkersBuilder(CoreGeneBuilder):
                 f"{requested}; add it with `repgenr markers-db download --output {db} --set "
                 f"{'all' if requested == 'auto' else requested}` (the families present are kept)."
             )
+        if min_given is not None:
+            # Checked before any search: a set smaller than min_markers can
+            # never pass the guard. auto leaves such a set out, with a warning.
+            sizes = {s: len(load_marker_list(s)) for s in available}
+            searchable = [s for s in available if sizes[s] >= min_given]
+            if requested != "auto" and requested not in searchable:
+                raise UserInputError(
+                    f"min_markers is {min_given}, but the {requested} set has "
+                    f"{sizes[requested]} markers."
+                )
+            if not searchable:
+                raise UserInputError(
+                    f"min_markers is {min_given}, more than any marker set holds "
+                    f"({', '.join(f'{s}: {sizes[s]}' for s in available)})."
+                )
+            for s in available:
+                if s not in searchable and requested == "auto":
+                    logger.warning(
+                        "min_markers is %d, more than the %d markers of %s; auto does not "
+                        "consider %s.",
+                        min_given,
+                        sizes[s],
+                        s,
+                        s,
+                    )
+            available = searchable
         faas, _ = annotation_sidecars(gffs, "markers")
         names = [g.stem for g in gffs]
         genome_faas = dict(zip(names, faas, strict=True))
@@ -641,6 +667,8 @@ def match_columns(path: Path) -> dict[str, str]:
     with open(path, encoding="utf-8", errors="replace") as fh:
         for line in fh:
             if line.startswith("#=GC RF"):
+                # Pfam format is one block (not interleaved), so there is a
+                # single RF line and it replaces rather than extends.
                 rf = line.split()[-1]
                 continue
             if not line.strip() or line.startswith("#") or line.startswith("//"):

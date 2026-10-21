@@ -615,7 +615,11 @@ def _markers_db_fingerprint(payload: dict) -> dict:
     the markers builder reads, or removed when that builder does not run.
     An unresolvable database hashes as such; the precheck refuses it."""
     out = {k: v for k, v in payload.items() if k != "markers_db"}
-    if payload.get("msa_source") != "coregene" or payload.get("coregene") != MARKERS_BUILDER:
+    if not _markers_route(
+        str(payload.get("msa_source")),
+        str(payload.get("coregene")),
+        str(payload.get("treebuilder")),
+    ):
         return out
     from ..core.errors import RepGenRError
     from ..coregenes.markers_db import check_markers_db
@@ -1707,12 +1711,16 @@ def _runs_markers(params: PhyloParams) -> bool:
     """Whether the markers core-gene builder will run: --msa-source coregene
     with --coregene markers and a tree builder that reads an alignment (or
     auto, which may pick one)."""
-    if params.msa_source != "coregene" or params.coregene != MARKERS_BUILDER:
+    return _markers_route(params.msa_source, params.coregene, params.treebuilder)
+
+
+def _markers_route(msa_source: str, coregene: str, treebuilder: str) -> bool:
+    if msa_source != "coregene" or coregene != MARKERS_BUILDER:
         return False
-    if params.treebuilder == "auto":
+    if treebuilder == "auto":
         return True
     try:
-        return treebuilder_registry.get(params.treebuilder).input_kind == InputKind.MSA_FASTA
+        return treebuilder_registry.get(treebuilder).input_kind == InputKind.MSA_FASTA
     except Exception:  # noqa: BLE001 - an unknown builder is refused by the stage
         return False
 

@@ -172,4 +172,33 @@ nextflow_pipeline {
             assert workflow.stdout.any { line -> line.contains('ext.args: --msa-source coregene --coregene markers') }
         }
     }
+
+    test("params.markers_db is not staged for another core-gene builder") {
+        when {
+            params {
+                outdir = "$outputDir"
+                phylo_args = '--msa-source coregene --coregene ppanggolin --treebuilder iqtree'
+                markers_db = "${projectDir}/nextflow/tests/data/sketches"
+            }
+        }
+        then {
+            assert workflow.success
+            assert workflow.stdout.any { line -> line.contains('markers_db: none') }
+            assert !workflow.stdout.any { line -> line.contains('markers_db: staged') }
+        }
+    }
+
+    test("params.markers_db is staged for --preset family") {
+        when {
+            params {
+                outdir = "$outputDir"
+                phylo_args = '--preset family'
+                markers_db = "${projectDir}/nextflow/tests/data/sketches"
+            }
+        }
+        then {
+            assert workflow.success
+            assert workflow.stdout.any { line -> line.contains('markers_db: staged') }
+        }
+    }
 }

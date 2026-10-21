@@ -298,6 +298,26 @@ def test_doctor_checks_the_recorded_markers_db(tmp_path: Path) -> None:
     assert "no longer resolves" in findings[0].message
 
 
+def test_doctor_reads_a_per_set_record(tmp_path: Path) -> None:
+    """A stage records the version of the set it used (bac120:<digest>); doctor
+    compares that set only, so ar53 added later is not reported."""
+    db = tmp_path / "db"
+    _download(db, ["bac120"], FakeFetcher())
+    version = mdb.markers_db_version(db, sets=("bac120",))
+    assert version.startswith("bac120:")
+    wd = _workdir_with_db_record(tmp_path, db, version)
+    findings = [f for f in diagnose(wd) if "marker database" in f.message]
+    assert [f.level for f in findings] == ["ok"]
+    _download(db, ["ar53"], FakeFetcher())
+    findings = [f for f in diagnose(wd) if "marker database" in f.message]
+    assert [f.level for f in findings] == ["ok"]
+    tsv = db / "markers.tsv"
+    tsv.write_text(tsv.read_text().replace("PF00380.", "PF00380.9"))
+    findings = [f for f in diagnose(wd) if "marker database" in f.message]
+    assert [f.level for f in findings] == ["warn"]
+    assert "not the recorded" in findings[0].message
+
+
 # --- leftovers and per-set version --------------------------------------------------
 
 

@@ -20,6 +20,7 @@ include { ACQUIRE             } from './acquire'
 include { DEREPLICATE_SCATTER } from './dereplicate_scatter'
 include { ANNOTATE_SCATTER    } from './annotate_scatter'
 include { phylo_uses_coregene } from './annotate_scatter'
+include { phylo_uses_markers  } from './annotate_scatter'
 include { SKETCH              } from '../../modules/local/dataflow/sketch'
 include { PHYLO               } from '../../modules/local/dataflow/phylo'
 include { PHYLO_MSA           } from '../../modules/local/dataflow/phylo_msa'
@@ -65,8 +66,13 @@ workflow BACTERIAL_DATAFLOW {
         ch_build_in = ch_phylo_in.join(ANNOTATE_SCATTER.out.annotations, by: 0, failOnMismatch: true)
     }
 
-    // The marker database of --coregene markers, staged into the alignment task.
-    def markers_db = params.markers_db ? file(params.markers_db, checkIfExists: true) : []
+    // The marker database, staged into the alignment task only for the
+    // markers builder: phylo-build refuses --markers-db on any other route,
+    // so a site-wide params.markers_db must not reach those runs.
+    def markers_db = []
+    if (params.markers_db && phylo_uses_markers(params.phylo_args)) {
+        markers_db = file(params.markers_db, checkIfExists: true)
+    }
 
     // With params.phylo_split_msa the alignment and the tree are separate
     // tasks, so changing the tree builder re-runs only the tree.

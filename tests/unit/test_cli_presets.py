@@ -333,3 +333,23 @@ def test_nextflow_knows_the_core_gene_presets() -> None:
     assert listed is not None
     names = {n.strip().strip("'\"") for n in listed.group(1).split(",")}
     assert names == {n for n, e in advise.RECOMMENDATIONS.items() if e["route"] == "coregene"}
+
+
+def test_nextflow_knows_the_markers_presets() -> None:
+    """annotate_scatter.nf stages params.markers_db only for these presets."""
+    source = (
+        Path(__file__).resolve().parents[2]
+        / "nextflow"
+        / "subworkflows"
+        / "local"
+        / "annotate_scatter.nf"
+    ).read_text(encoding="utf-8")
+    listed = re.search(r"def markers_presets\(\) \{\s*return \[([^\]]*)\]", source)
+    assert listed is not None
+    names = {n.strip().strip("'\"") for n in listed.group(1).split(",")}
+    expected = {
+        n
+        for n, e in advise.RECOMMENDATIONS.items()
+        if dict(advise.flag_items(e["flags"])).get("--coregene") == "markers"
+    }
+    assert names == expected == {"family"}

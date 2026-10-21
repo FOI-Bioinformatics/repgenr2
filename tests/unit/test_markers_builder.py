@@ -684,12 +684,12 @@ def test_fingerprint_hashes_the_database_version_not_the_path(tmp_path: Path, mo
     def fp(p: PhyloParams) -> str:
         return _stage_fingerprint("phylo", p, {}, {})
 
-    assert fp(_phylo(db)) == fp(_phylo(moved))
+    assert fp(_phylo(db, treebuilder="iqtree")) == fp(_phylo(moved, treebuilder="iqtree"))
     monkeypatch.setenv("REPGENR_MARKERS_DB", str(moved))
-    assert fp(_phylo(None)) == fp(_phylo(db))
+    assert fp(_phylo(None, treebuilder="iqtree")) == fp(_phylo(db, treebuilder="iqtree"))
     index = moved / "markers.tsv"
     index.write_text(index.read_text("utf-8").replace("PF00380.1", "PF00380.2"), "utf-8")
-    assert fp(_phylo(moved)) != fp(_phylo(db))
+    assert fp(_phylo(moved, treebuilder="iqtree")) != fp(_phylo(db, treebuilder="iqtree"))
     # Another route does not see the path at all.
     assert fp(PhyloParams()) == fp(PhyloParams(markers_db=str(db)))
 
@@ -747,3 +747,41 @@ def test_cli_refusals(tmp_path: Path, monkeypatch) -> None:
         out = CliRunner().invoke(app, [*cmd, "--marker-set", "bac120"])
         assert out.exit_code == 2, out.output
         assert "--marker-set applies only" in _text(out)
+
+
+def test_auto_leaves_out_a_set_smaller_than_min_markers(
+    tmp_path: Path, monkeypatch, chains, caplog
+) -> None:
+    g = Genomes(tmp_path)
+    for _ in range(3):
+        g.add(BAC)
+    caplog.set_level(logging.WARNING)
+    r = _run(tmp_path, monkeypatch, g, chains, extra={"min_markers": 60})
+    assert r.settings["marker_set"] == "bac120" and r.settings["min_markers"] == 60
+    assert "more than the 53 markers of ar53; auto does not consider ar53" in caplog.text
+    # Refused before any search when no set is large enough.
+    chains.clear()
+    with pytest.raises(UserInputError, match="more than any marker set holds"):
+        _run(tmp_path, monkeypatch, g, chains, extra={"min_markers": 121})
+    with pytest.raises(UserInputError, match="the ar53 set has 53 markers"):
+        _run(tmp_path, monkeypatch, g, chains, extra={"marker_set": "ar53", "min_markers": 54})
+    assert chains == []
+
+
+def test_fingerprint_ignores_the_database_without_a_core_gene_pass(
+    tmp_path: Path, monkeypatch
+) -> None:
+    from repgenr.cli.base import _stage_fingerprint
+
+    monkeypatch.delenv("REPGENR_MARKERS_DB", raising=False)
+    db = make_db(tmp_path / "a")
+    genomes_tree = _phylo(db, treebuilder="skani")
+
+    def fp(p: PhyloParams) -> str:
+        return _stage_fingerprint("phylo", p, {}, {})
+
+    before = fp(genomes_tree)
+    index = db / "markers.tsv"
+    index.write_text(index.read_text("utf-8").replace("PF00380.1", "PF00380.2"), "utf-8")
+    assert fp(genomes_tree) == before
+    assert fp(_phylo(None, treebuilder="skani")) == before
