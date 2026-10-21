@@ -288,3 +288,72 @@ def test_doctor_checks_the_recorded_markers_db(tmp_path: Path) -> None:
     findings = [f for f in diagnose(wd) if "marker database" in f.message]
     assert [f.level for f in findings] == ["warn"]
     assert "no longer resolves" in findings[0].message
+
+
+# --- leftovers and per-set version --------------------------------------------------
+
+
+def test_download_removes_partial_leftovers(tmp_path: Path) -> None:
+    out = tmp_path / "db"
+    stale = tmp_path / ".db.partial-99999"
+    (stale / "hmms").mkdir(parents=True)
+    (stale / "hmms" / "ar53.hmm").write_text("half")
+    _download(out, ["ar53"], FakeFetcher())
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["db"]
+    assert mdb.check_markers_db(out) == out
+
+
+def test_download_restores_a_database_moved_aside(tmp_path: Path) -> None:
+    out = tmp_path / "db"
+    _download(out, ["ar53"], FakeFetcher())
+    before = mdb.markers_db_version(out)
+    # A run stopped between its two renames: the earlier database moved aside,
+    # the new one never renamed into place.
+    out.rename(tmp_path / ".db.old-12345")
+    (tmp_path / ".db.partial-12345").mkdir()
+    again = FakeFetcher()
+    _download(out, ["ar53"], again)
+    assert again.calls == []  # the restored database already held every family
+    assert mdb.markers_db_version(out) == before
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["db"]
+
+
+def test_old_leftover_is_removed_when_the_database_is_in_place(tmp_path: Path) -> None:
+    out = tmp_path / "db"
+    _download(out, ["ar53"], FakeFetcher())
+    (tmp_path / ".db.old-777").mkdir()
+    _download(out, ["ar53"], FakeFetcher())
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["db"]
+
+
+def test_per_set_version_ignores_other_sets(tmp_path: Path) -> None:
+    out = tmp_path / "db"
+    _download(out, ["bac120"], FakeFetcher())
+    bac_only = mdb.markers_db_version(out, ["bac120"])
+    whole_before = mdb.markers_db_version(out)
+    assert bac_only.startswith("bac120:")
+    _download(out, ["ar53"], FakeFetcher())
+    assert mdb.markers_db_version(out, ["bac120"]) == bac_only
+    assert mdb.markers_db_version(out) != whole_before
+    assert mdb.markers_db_version(out).startswith("bac120+ar53:")
+    assert mdb.markers_db_version(out, ["ar53"]).startswith("ar53:")
+    tsv = out / "markers.tsv"
+    tsv.write_text(tsv.read_text().replace("TIGR00006.7", "TIGR00006.8"))
+    assert mdb.markers_db_version(out, ["bac120"]) != bac_only
+
+
+def test_per_set_version_refuses_a_missing_set(tmp_path: Path) -> None:
+    out = tmp_path / "db"
+    _download(out, ["ar53"], FakeFetcher())
+    with pytest.raises(UserInputError, match="--set bac120"):
+        mdb.markers_db_version(out, ["bac120"])
+
+
+def test_cli_info_refuses_download_only_flags(tmp_path: Path) -> None:
+    out = tmp_path / "db"
+    _download(out, ["ar53"], FakeFetcher())
+    for extra in (["--set", "ar53"], ["-t", "2"], ["--threads", "2"]):
+        result = _runner.invoke(app, ["markers-db", "info", str(out), *extra])
+        assert result.exit_code == 2, (extra, result.output)
+        assert "download only" in result.output
+    assert _runner.invoke(app, ["markers-db", "info", str(out)]).exit_code == 0

@@ -2817,8 +2817,11 @@ example `PF00380.26` against GTDB-Tk's `PF00380.20`); `markers.tsv` records
 each family's version and the cutoff it is searched with, the gathering
 cutoff (GA) for Pfam and the noise cutoff (NC) for TIGRFAM, as GTDB-Tk does.
 The database is written beside `--output` and renamed into place, so an
-interrupted download leaves no partial database, and a second download into
-the same directory fetches only the families it lacks. `repgenr doctor`
+interrupted download leaves no partial database; a download stopped while it
+swaps a new database for an earlier one leaves the earlier one beside
+`--output`, and the next download puts it back and removes such leftovers
+before it starts. A second download into the same directory fetches only the
+families it lacks. `repgenr doctor`
 reports when a database that a stage recorded has moved or changed version.
 
 ### Rooting the tree

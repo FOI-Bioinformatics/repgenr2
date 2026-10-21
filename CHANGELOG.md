@@ -16,7 +16,10 @@ All notable changes to RepGenR2 are documented here. The format follows
   name, version, length) and `version.json`, about 25 MB in all. Pfam
   families are marked for the GA cutoff and TIGRFAM families for NC, as
   GTDB-Tk searches them. The database is written beside its destination and
-  renamed into place; a rerun fetches only the families it lacks.
+  renamed into place, and a rerun first removes or restores the staging
+  directories an interrupted run left there; a rerun fetches only the
+  families it lacks. `markers_db_version(db, sets)` digests only the rows of
+  the given sets, so adding ar53 leaves the bac120 version unchanged.
   `repgenr markers-db info DIR` prints its summary, `REPGENR_MARKERS_DB`
   names it, and `doctor` reports a recorded marker database that has moved
   or changed version. It is used by the markers core-gene builder.

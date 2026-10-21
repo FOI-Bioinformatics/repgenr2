@@ -19,7 +19,10 @@ A database directory holds::
     version.json     {"v": 1, "sets", "gtdbtk_lists", "fetched", "interpro_api", "n_models"}
 
 The directory is written in full beside its destination and renamed into
-place, so an interrupted download leaves no partial database.
+place, so an interrupted download leaves no partial database. A download
+stopped between moving an earlier database aside and renaming the new one
+into place leaves the earlier one beside the destination; the next download
+renames it back before it starts.
 """
 
 from __future__ import annotations
@@ -220,19 +223,38 @@ def check_markers_db(db: Path | None) -> Path:
     return db
 
 
-def markers_db_version(db: Path) -> str:
+def markers_db_version(db: Path, sets: Sequence[str] | None = None) -> str:
     """``<sets>:<digest>`` for the fingerprint: the sets and a digest of markers.tsv.
 
     The index names every family's model version, so a database with any
     newer model gives a different value; a fresh download of the same
-    models gives the same one.
+    models gives the same one. With ``sets``, the digest covers only those
+    sets' rows (sorted), so adding another set to the database leaves the
+    value unchanged; a builder should pass the marker set it searches with.
+    Without ``sets``, the digest covers the whole file.
     """
     data = read_version(db)
+    path = db / MARKERS_TSV
     try:
-        digest = hashlib.sha256((db / MARKERS_TSV).read_bytes()).hexdigest()[:12]
+        raw = path.read_bytes()
     except OSError as exc:
-        raise WorkdirError(f"{db / MARKERS_TSV} is unreadable: {exc}") from exc
-    return f"{'+'.join(data.get('sets', []))}:{digest}"
+        raise WorkdirError(f"{path} is unreadable: {exc}") from exc
+    if sets is None:
+        return f"{'+'.join(data.get('sets', []))}:{hashlib.sha256(raw).hexdigest()[:12]}"
+    wanted = list(dict.fromkeys(sets))
+    missing = [s for s in wanted if s not in data.get("sets", [])]
+    if missing:
+        raise UserInputError(
+            f"The marker database {db} holds no {', '.join(missing)} set; {DOWNLOAD_HINT} "
+            f"with --set {missing[0]}."
+        )
+    rows = sorted(
+        line
+        for line in raw.decode("utf-8").splitlines()[1:]
+        if line and line.split("\t", 1)[0] in wanted
+    )
+    digest = hashlib.sha256(("\n".join(rows) + "\n").encode("utf-8")).hexdigest()[:12]
+    return f"{'+'.join(wanted)}:{digest}"
 
 
 def _existing_models(out: Path) -> tuple[list[str], dict[str, MarkerModel]]:
@@ -320,6 +342,37 @@ def _write_db(staging: Path, sets: Sequence[str], models: dict[str, MarkerModel]
     (staging / VERSION_JSON).write_text(json.dumps(record, indent=2) + "\n", encoding="utf-8")
 
 
+def _clean_leftovers(out: Path, logger: logging.Logger) -> None:
+    """Remove the staging directories of earlier, interrupted downloads into ``out``.
+
+    A ``.<name>.partial-<pid>`` directory is an unfinished database and is
+    removed. A ``.<name>.old-<pid>`` directory is an earlier database moved
+    aside for the swap: when ``out`` is missing (the run stopped between the
+    two renames) the newest one is renamed back first, and the rest removed.
+    """
+    parent = out.parent
+    if not parent.is_dir():
+        return
+    for partial in parent.glob(f".{out.name}.partial-*"):
+        if partial.is_dir():
+            logger.info("Removing %s, left by an interrupted download", partial)
+            shutil.rmtree(partial, ignore_errors=True)
+    olds = sorted(
+        (p for p in parent.glob(f".{out.name}.old-*") if p.is_dir()),
+        key=lambda p: p.stat().st_mtime,
+        reverse=True,
+    )
+    if olds and not out.exists():
+        logger.warning(
+            "%s is missing and %s holds the earlier database; restoring it", out, olds[0]
+        )
+        olds[0].rename(out)
+        olds = olds[1:]
+    for old in olds:
+        logger.info("Removing %s, left by an earlier download", old)
+        shutil.rmtree(old, ignore_errors=True)
+
+
 def _swap_into_place(staging: Path, out: Path) -> None:
     """Rename ``staging`` to ``out``, replacing an earlier database there."""
     if not out.exists():
@@ -351,7 +404,14 @@ def download(
     Families already present in a database at ``out`` are kept and not
     fetched again; its other sets stay in the rewritten database. The new
     database is written beside ``out`` and renamed into place, so a failure
-    leaves the earlier state (or no directory). Any family still missing
+    leaves the earlier state (or no directory). Each of the ``retries``
+    attempts goes through the shared session of :mod:`repgenr.core.http`,
+    which itself retries 429 and 5xx answers up to 5 times with backoff, so a
+    family that keeps failing can cost about 18 requests and over a minute of
+    waiting before it is reported. Staging directories that an
+    interrupted run left beside ``out`` are cleaned up first (see
+    :func:`_clean_leftovers`). Two downloads into the same directory at the
+    same time are not supported. Any family still missing
     after ``retries`` attempts is named in a WorkdirError.
     """
     from ..core.executors import parallel_map
@@ -360,6 +420,7 @@ def download(
     for name in requested:
         load_marker_list(name)  # refuses an unknown set
     out = Path(out).expanduser().absolute()
+    _clean_leftovers(out, logger)
     have_sets, models = _existing_models(out)
     all_sets = [s for s in MARKER_SETS if s in have_sets or s in requested]
     needed = list(dict.fromkeys(acc for s in all_sets for acc in load_marker_list(s)))

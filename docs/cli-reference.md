@@ -659,7 +659,8 @@ ar53: 53, 168 distinct families, about 25 MB) one at a time from the InterPro
 API and writes one HMM file per set, an index (markers.tsv) and
 version.json. The model versions are InterPro's current ones and can be
 newer than those GTDB-Tk pins. The database is written beside --output
-and renamed into place, so an interrupted download leaves none. It is used by
+and renamed into place, so an interrupted download leaves none (the next
+download removes or restores what one left beside it). It is used by
 the markers core-gene builder; set REPGENR_MARKERS_DB to its path.
 info prints the sets, model counts and versions of a database.
 Exits 2 on a wrong argument or a missing database, 3 when a model cannot
