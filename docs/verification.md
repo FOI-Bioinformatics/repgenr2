@@ -633,7 +633,10 @@ satellite environments given through `--repgenr_opts '--bin-dir ...'`.
   error. With `LG+G,` in place of `AA,`, IQ-TREE run directly on the same
   alignment and 398 partitions finished in 977 seconds, with a tree that
   differs from the baseline by one split (RF 2). `--preset family` takes this path and was not
-  run.
+  run. Fixed in the following change: the partition file now holds NEXUS
+  charsets only and the model is passed as `-m` (`LG+G` for protein by
+  default); the rerun of run 4 with 100 partitions and `-B 1000` finished
+  in 469 seconds, one split from the baseline (RF 2).
 - **Protein without partitions** (run 4c, LG+G): 139275 amino-acid
   columns and the topology of the baseline (RF 0). The total branch length
   is 0.590 substitutions per site against 0.869 for DNA (0.68); over the
@@ -659,9 +662,13 @@ satellite environments given through `--repgenr_opts '--bin-dir ...'`.
   run. This is the configuration of `--preset genus`; its tree is shorter
   than the GTR+G trees (0.663 against 0.869 for the baseline). With
   `model=` given (runs 2 and 3) the command-line model applies to every
-  partition (`GTR+F+G4` in the report).
+  partition (`GTR+F+G4` in the report). Fixed in the same change: with
+  partitions and no `model=`, `-m GTR+G` (`LG+G` for protein) is now
+  passed for every partition and the log names that model, and
+  `model=MFP` requests ModelFinder per partition; the DNA case was not
+  rerun live.
 
-Not run: `--preset family` (it fails as run 4 does), RAxML-NG with
+Not run: `--preset family` (it failed as run 4 did before the fix), RAxML-NG with
 partitions, the other core-gene builders, the Nextflow route, and a
 comparison of support values.
 

@@ -31,7 +31,9 @@ class IqtreeBuilder(TreeBuilder):
         conda=("bioconda::iqtree",),
         # model=: the substitution model passed as -m (for example GTR+G).
         # Without it IQ-TREE runs ModelFinder, a model-selection pass before
-        # the tree search. asc=lewis: the +ASC correction instead of the
+        # the tree search; with partitions GTR+G (LG+G for protein) is applied
+        # to every partition instead, and model=MFP selects one per partition.
+        # asc=lewis: the +ASC correction instead of the
         # constant-site counts (-fconst) the typing pass provides. alrt=N:
         # N SH-aLRT replicates (-alrt), supports without the ultrafast
         # bootstrap; with -B as well the tree carries both.
@@ -45,6 +47,9 @@ class IqtreeBuilder(TreeBuilder):
     supports_without_bootstrap = False
     # -p: one partition per gene, edge-linked with proportional branch lengths.
     supports_partitions = True
+    # The model of every partition when --partitioned is given without model=.
+    PARTITION_MODEL_DNA = "GTR+G"
+    PARTITION_MODEL_PROTEIN = "LG+G"
 
     # IQ-TREE's ultrafast bootstrap (-B) rejects fewer than 1000 replicates.
     MIN_BOOTSTRAP = 1000
@@ -150,6 +155,24 @@ class IqtreeBuilder(TreeBuilder):
                 self._note_modelfinder(work_msa, logger, quiet_below=True)
         elif model:
             cmd += ["-m", model]
+            if params.partitions is not None:
+                logger.info("iqtree: model %s applied to every partition", model)
+        elif params.partitions is not None:
+            # The partition file holds charsets only, so -m sets the model of
+            # every partition. A fixed default keeps hundreds of partitions
+            # from each running ModelFinder; model=MFP requests that instead.
+            default = (
+                self.PARTITION_MODEL_PROTEIN
+                if params.alphabet == "protein"
+                else self.PARTITION_MODEL_DNA
+            )
+            cmd += ["-m", default]
+            logger.info(
+                "iqtree: no model given, so %s is applied to every partition; "
+                "model=MFP (--aligner-arg) selects a model for each partition, "
+                "which is slow with many partitions",
+                default,
+            )
         else:
             self._note_modelfinder(work_msa, logger, quiet_below=False)
         if not asc and constant is not None:
@@ -200,14 +223,20 @@ def _count_records(path: Path) -> int:
 
 
 def _write_partition_file(params: TreeParams, out_dir: Path) -> Path:
-    """Write ``out_dir/partitions.txt`` in the RAxML-style form IQ-TREE reads."""
+    """Write ``out_dir/partitions.txt`` as a NEXUS sets block of charsets.
+
+    The file names no model: IQ-TREE reads the first field of a RAxML-style
+    line as a model (``DNA`` as GTR, ``AA`` as a model file), so the model of
+    every partition is given with ``-m`` instead.
+    """
     assert params.partitions is not None
-    kind = "AA" if params.alphabet == "protein" else "DNA"
     names = partition_names([gene for gene, _, _ in params.partitions])
-    lines = [
-        f"{kind}, {name} = {start}-{end}"
+    lines = ["#nexus", "begin sets;"]
+    lines += [
+        f"    charset {name} = {start}-{end};"
         for name, (_, start, end) in zip(names, params.partitions, strict=True)
     ]
+    lines.append("end;")
     path = out_dir / "partitions.txt"
     with atomic_path(path) as tmp:
         tmp.write_text("\n".join(lines) + "\n", encoding="utf-8")

@@ -1995,7 +1995,9 @@ with N replicates (`-alrt`, also at least 1000), which gives supports
 without `-B`; with both, IQ-TREE writes the two values in each node label.
 Without either the tree carries no supports, and `phylo` says so. Without
 `--aligner-arg model=` IQ-TREE runs ModelFinder before the tree search; above
-200 genomes the log notes that `model=GTR+G` skips that pass.
+200 genomes the log notes that `model=GTR+G` skips that pass. With
+`--partitioned` a fixed model is applied instead (see
+[Partitioned models](#partitioned-models)).
 
 #### Asking for a route: `phylo-advise`
 
@@ -2535,10 +2537,13 @@ different rates and under different substitution patterns, so this can
 describe a concatenation better than a single model; it also adds
 parameters and run time.
 
-- `iqtree` writes `tree/partitions.txt` (`DNA, <gene> = <start>-<end>` per
-  gene, `AA` for a protein alignment) and is run with `-p` (proportional
-  branch lengths). Without
-  `--aligner-arg model=` ModelFinder selects a model for each partition.
+- `iqtree` writes `tree/partitions.txt`, a NEXUS `sets` block with one
+  `charset <gene> = <start>-<end>;` per gene and no model, and is run with
+  `-p` (proportional branch lengths). The model of every partition is the
+  one passed as `-m`: the `--aligner-arg model=` given, or `GTR+G` (`LG+G`
+  for a protein alignment) without it, in which case ModelFinder does not
+  run. `--aligner-arg model=MFP` selects a model for each partition with
+  ModelFinder, which is slow with hundreds of partitions.
 - `raxmlng` writes `tree/partitions.txt` with the model on every line
   (`GTR+G, <gene> = <start>-<end>`, `LG+G` for a protein alignment, or the
   `--aligner-arg model=` given) and is

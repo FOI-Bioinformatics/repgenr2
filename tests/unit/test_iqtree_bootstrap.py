@@ -149,16 +149,52 @@ def test_partitions_are_written_and_passed_as_p(tmp_path: Path, monkeypatch) -> 
     assert cmd.index("-p") == cmd.index("-s") + 2
     # Outputs keep the unpartitioned names.
     assert cmd[cmd.index("-pre") + 1] == cmd[cmd.index("-s") + 1]
+    # NEXUS charsets only: IQ-TREE reads the first field of a RAxML-style
+    # line as a model, so no model is named in the file.
     assert part_file.read_text(encoding="utf-8") == (
-        "DNA, gyrA = 1-2\nDNA, rec_A_1 = 3-4\nDNA, rec_A_1_2 = 5-6\nDNA, part = 7-8\n"
+        "#nexus\n"
+        "begin sets;\n"
+        "    charset gyrA = 1-2;\n"
+        "    charset rec_A_1 = 3-4;\n"
+        "    charset rec_A_1_2 = 5-6;\n"
+        "    charset part = 7-8;\n"
+        "end;\n"
     )
 
 
-def test_protein_partitions_are_named_aa(tmp_path: Path, monkeypatch) -> None:
+def test_protein_partition_file_names_no_model(tmp_path: Path, monkeypatch) -> None:
     cmd = _run_capturing(
         tmp_path, monkeypatch, TreeParams(partitions=(("g", 1, 4),), alphabet="protein")
     )
-    assert Path(cmd[cmd.index("-p") + 1]).read_text(encoding="utf-8") == "AA, g = 1-4\n"
+    text = Path(cmd[cmd.index("-p") + 1]).read_text(encoding="utf-8")
+    assert text == "#nexus\nbegin sets;\n    charset g = 1-4;\nend;\n"
+    assert "AA" not in text
+
+
+@pytest.mark.parametrize(
+    ("alphabet", "model"), [("dna", "GTR+G"), ("protein", "LG+G")], ids=["dna", "protein"]
+)
+def test_partitions_without_model_get_a_fixed_model(
+    tmp_path: Path, monkeypatch, caplog, alphabet, model
+) -> None:
+    caplog.set_level(logging.INFO, logger="test")
+    cmd = _run_capturing(tmp_path, monkeypatch, TreeParams(partitions=_PARTS, alphabet=alphabet))
+    assert cmd[cmd.index("-m") + 1] == model
+    assert cmd.count("-m") == 1
+    assert f"{model} is applied to every partition" in caplog.text
+    assert "ModelFinder" not in caplog.text
+
+
+@pytest.mark.parametrize("model", ["MFP", "WAG+G", "GTR+F+R4"])
+def test_partitions_pass_the_given_model(tmp_path: Path, monkeypatch, caplog, model) -> None:
+    caplog.set_level(logging.INFO, logger="test")
+    cmd = _run_capturing(
+        tmp_path, monkeypatch, TreeParams(partitions=_PARTS, extra={"model": model})
+    )
+    assert cmd[cmd.index("-m") + 1] == model
+    assert cmd.count("-m") == 1
+    assert f"model {model} applied to every partition" in caplog.text
+    assert "ModelFinder" not in caplog.text
 
 
 def test_without_partitions_no_partition_file(tmp_path: Path, monkeypatch) -> None:
