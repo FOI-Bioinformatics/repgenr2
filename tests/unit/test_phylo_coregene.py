@@ -1023,6 +1023,8 @@ def test_reference_is_in_the_msa_key_only_where_the_source_uses_one(tmp_path: Pa
     ):
         assert key(**source, reference="a") != key(**source, reference="b")
         assert key(**source) != key(**source, reference="a")
+
+
 # --gene-trim: per-gene trimming with ClipKIT on the core-gene route.
 
 

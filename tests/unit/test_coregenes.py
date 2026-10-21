@@ -882,6 +882,8 @@ def test_species_spread_moved_to_contracts_and_is_re_exported() -> None:
     assert gubbins.species_spread is contracts.species_spread
     assert gubbins.genus_spread is contracts.genus_spread
     assert gubbins.canonical_taxon is contracts.canonical_taxon
+
+
 # --- per-gene trimming (--gene-trim clipkit) ----------------------------------
 
 
