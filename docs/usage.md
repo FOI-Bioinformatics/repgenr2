@@ -2835,8 +2835,10 @@ FlexTaxD node. All thresholds are off by default.
   substitutions per site for the ML builders).
 - `--collapse-support S` merges a node whose support is below the fraction S.
   IQ-TREE (with `-B`, or with `--aligner-arg alrt=N` for SH-aLRT supports)
-  and RAxML-NG write percentages and are normalised automatically,
-  FastTree and aster write fractions, and mashtree, the sourmash builder, skani and
+  and RAxML-NG write percentages and are normalised automatically. With both
+  `-B` and `alrt=` IQ-TREE writes each label as `SH-aLRT/UFBoot` (for
+  example `87.3/98`); the last field, the ultrafast bootstrap, is the one
+  read, so S applies to the same value as with `-B` alone. FastTree and aster write fractions, and mashtree, the sourmash builder, skani and
   the ska2 builder write no supports, in which case the option warns and
   does nothing.
 

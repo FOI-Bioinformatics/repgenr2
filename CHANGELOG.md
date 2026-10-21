@@ -11,7 +11,8 @@ All notable changes to RepGenR2 are documented here. The format follows
   `-alrt N`, SH-aLRT supports without `-B`; with `-B` as well both values
   are written. `phylo` no longer reports a tree without supports when
   `alrt=` is set, and its message for that case names `alrt=`. Above 200
-  sequences without `model=`, the log notes that `model=GTR+G` skips
+  sequences without `model=` (also under `asc=lewis`, which runs
+  ModelFinder with `MFP+ASC`), the log notes that `model=GTR+G` skips
   ModelFinder. Tree builders gain `writes_supports(extra)`.
 - `sourmash` tree builder: `--aligner-arg metric=ani|jaccard` (default
   `ani`). With `ani` the distance is `1 - ANI`, on the scale of skani and
@@ -20,7 +21,11 @@ All notable changes to RepGenR2 are documented here. The format follows
   computed by the converter the dereplicator already used (now
   `core.sourmash.jaccard_to_ani_matrix`, re-exported in the dereplicator).
   `--ani` itself is not used: it reports 0 for sketches of small genomes,
-  identical ones included. `jaccard` keeps the former `1 - Jaccard`. Pairs that
+  identical ones included. `jaccard` keeps the former `1 - Jaccard`.
+- `phylo` stage record: `treebuilder_settings`, the tree builder's
+  settings in effect for every key it declares a default for, so a tree
+  made under a changed default (the sourmash builder's `metric`) is told
+  apart from an older one; `extra` still holds only what the user set. Pairs that
   share no hash get distance 1.0 and are counted in one log line.
 - Core-gene route: `--gene-trim none|clipkit` (default `none`) on `phylo`,
   `phylo-build` and `run` trims each per-gene alignment with ClipKIT
@@ -138,6 +143,9 @@ All notable changes to RepGenR2 are documented here. The format follows
   every run failed a warning instead of an error.
 
 ### Fixed
+- `tree2tax --collapse-support`: a node label of the form `SH-aLRT/UFBoot`,
+  which IQ-TREE writes with both `-alrt` and `-B`, is read by its last field
+  (the ultrafast bootstrap); it was read as no support, so nothing collapsed.
 - `phylo`: the reference recorded in the stage record is read from the
   directory the current alignment source writes to, so an `align/reference.txt`
   left by an earlier aligner run is no longer recorded as the reference of a

@@ -1515,7 +1515,8 @@ def run(ctx: WorkdirContext, params: PhyloParams) -> Path:
         reference_provider=workdir_provider(ctx, logger, params.threads, "reference", write=False),
     )
 
-    is_msa = treebuilder_registry.create(outcome.treebuilder).input_kind == InputKind.MSA_FASTA
+    built_by = treebuilder_registry.create(outcome.treebuilder)
+    is_msa = built_by.input_kind == InputKind.MSA_FASTA
     tree_inputs = [record_name(g) for g in genomes]
     if outgroup_file is not None:
         tree_inputs.append(record_name(outgroup_file))
@@ -1576,6 +1577,13 @@ def run(ctx: WorkdirContext, params: PhyloParams) -> Path:
             "reference": params.reference if is_msa else None,
             "mask": (params.extra.get("mask") or None) if is_msa else None,
             "extra": {k: str(v) for k, v in sorted(_adapter_extra(params.extra).items())},
+            # The tree builder's settings in effect, its defaults included, so
+            # a changed default (the sourmash builder's metric, say) shows in
+            # the record even when the user set nothing.
+            "treebuilder_settings": {
+                k: str(_adapter_extra(params.extra).get(k, v))
+                for k, v in sorted(built_by.capabilities.default_params.items())
+            },
         },
         tool_versions=outcome.versions,
         completed=datetime.now(UTC).isoformat(),

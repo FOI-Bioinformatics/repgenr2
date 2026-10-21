@@ -569,6 +569,36 @@ def test_provenance_records_reference_mask_and_extras(workdir: Path, fake_phylo_
     assert params["extra"] == {"kmer": "15"}
 
 
+class _DefaultsGenomesTreeBuilder(_GenomesTreeBuilder):
+    """A genome builder with declared defaults, as the sourmash builder's metric."""
+
+    capabilities = ToolCapabilities(
+        name="faketree_defaults",
+        accepted_extras=frozenset({"metric", "ksize"}),
+        default_params={"metric": "ani", "ksize": 31},
+    )
+
+
+def test_record_carries_the_builders_settings_in_effect(
+    workdir: Path, fake_phylo_tools, register_tool
+) -> None:
+    """A builder default shows in the record even when the user set nothing,
+    so a tree from a changed default is told apart from an older one."""
+    register_tool(tb_registry, "faketree_defaults", _DefaultsGenomesTreeBuilder)
+    _make_reps(workdir)
+    ctx = WorkdirContext(workdir, create=True)
+    run(ctx, PhyloParams(treebuilder="faketree_defaults", no_outgroup=True))
+    params = ctx.config.stages["phylo"].params
+    assert params["extra"] == {}
+    assert params["treebuilder_settings"] == {"ksize": "31", "metric": "ani"}
+    run(
+        ctx,
+        PhyloParams(treebuilder="faketree_defaults", no_outgroup=True, extra={"metric": "jaccard"}),
+    )
+    params = ctx.config.stages["phylo"].params
+    assert params["treebuilder_settings"] == {"ksize": "31", "metric": "jaccard"}
+
+
 def test_rebuild_with_another_builder_drops_the_previous_builders_files(
     workdir: Path, fake_phylo_tools, register_tool
 ) -> None:

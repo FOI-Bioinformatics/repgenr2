@@ -62,6 +62,19 @@ def test_percent_scale_supports_are_normalised(caplog) -> None:
     assert any("percent" in r.message for r in caplog.records)
 
 
+def test_iqtree_alrt_and_ufboot_labels_read_the_ufboot_field() -> None:
+    """IQ-TREE with -alrt and -B writes 'SH-aLRT/UFBoot'; the last field is read."""
+    assert mod._parse_support("87.3/98") == 98.0
+    assert mod._parse_support("98") == 98.0
+    assert mod._parse_support("0.42") == 0.42
+    assert mod._parse_support("n/a") is None
+    # SH-aLRT is high on the (c,d) split, UFBoot low: the UFBoot value decides.
+    tree = _tree("(out:0.5,(a:0.1,((c:0.1,d:0.1)95.1/42:0.05,e:0.1)99/98:0.2)100/100:0.5);")
+    stats = mod._collapse_weak_nodes(tree, support=0.7, length=None, logger=_LOG)
+    assert stats.collapsed == 1 and stats.by_support == 1
+    assert _leaf_sets(tree) == {frozenset("cde"), frozenset("acde")}
+
+
 def test_root_children_and_leaves_never_collapse() -> None:
     # Every internal branch is tiny, including the ingroup clade's edge at the root.
     tree = _tree("(out:0.00001,((a:0.1,b:0.1):0.00001,(c:0.1,d:0.1):0.00001):0.00001);")

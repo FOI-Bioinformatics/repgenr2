@@ -264,3 +264,23 @@ def test_many_sequences_without_a_model_note_modelfinder(
     assert "ModelFinder" not in caplog.text
     (_, with_model) = calls
     assert with_model[with_model.index("-m") + 1] == "GTR+G"
+
+
+def test_asc_without_a_model_notes_modelfinder_above_200_sequences(
+    tmp_path: Path, monkeypatch, caplog
+) -> None:
+    calls: list[list[str]] = []
+    monkeypatch.setattr(mod, "run_tool", _fake_run(calls))
+    big = tmp_path / "big.fasta"
+    big.write_text("".join(f">s{i}\nACG{'T' if i % 2 else 'A'}\n" for i in range(201)))
+    small = tmp_path / "small.fasta"
+    small.write_text(">a\nACGT\n>b\nACGA\n")
+    with caplog.at_level(logging.INFO, logger=_LOG.name):
+        mod.IqtreeBuilder().build(big, tmp_path / "o1", TreeParams(extra={"asc": "lewis"}), _LOG)
+    (line,) = [r.getMessage() for r in caplog.records if "ModelFinder" in r.getMessage()]
+    assert "201 sequences" in line
+    assert calls[0][calls[0].index("-m") + 1] == "MFP+ASC"
+    caplog.clear()
+    with caplog.at_level(logging.INFO, logger=_LOG.name):
+        mod.IqtreeBuilder().build(small, tmp_path / "o2", TreeParams(extra={"asc": "lewis"}), _LOG)
+    assert "ModelFinder" not in caplog.text

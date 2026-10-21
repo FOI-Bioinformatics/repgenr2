@@ -64,6 +64,14 @@ def test_default_distance_is_one_minus_ani(tmp_path: Path, monkeypatch, caplog) 
     assert "1 - ANI" in caplog.text
 
 
+def test_the_conversion_follows_the_builder_ksize(tmp_path: Path, monkeypatch) -> None:
+    """At k=21 the same Jaccard is a lower ANI than at k=31."""
+    _calls, seen = _run(tmp_path, monkeypatch, {"ksize": 21})
+    expected = 1 - (2 * 0.796 / 1.796) ** (1 / 21)
+    assert seen["dist"][0][1] == pytest.approx(expected, abs=1e-12)
+    assert seen["dist"][0][1] > 1 - 0.9961 + 1e-3  # not the k=31 value
+
+
 def test_metric_jaccard_keeps_one_minus_jaccard(tmp_path: Path, monkeypatch) -> None:
     _calls, seen = _run(tmp_path, monkeypatch, {"metric": "jaccard"})
     assert abs(seen["dist"][0][1] - (1 - 0.796)) < 1e-9

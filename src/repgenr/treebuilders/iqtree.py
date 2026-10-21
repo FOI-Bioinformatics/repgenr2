@@ -57,6 +57,23 @@ class IqtreeBuilder(TreeBuilder):
     def writes_supports(self, extra: Mapping[str, object]) -> bool:
         return "alrt" in extra
 
+    def _note_modelfinder(self, msa: Path, logger: logging.Logger, *, quiet_below: bool) -> None:
+        """Say that ModelFinder runs, with the sequence count above
+        MODELFINDER_NOTE_LEAVES; below it only when ``quiet_below`` is False."""
+        leaves = _count_records(msa)
+        if leaves > self.MODELFINDER_NOTE_LEAVES:
+            logger.info(
+                "iqtree: no model given, so IQ-TREE runs ModelFinder on %d sequences "
+                "before the tree search, which at this size takes a noticeable share of "
+                "the run; model=GTR+G (--aligner-arg) skips the selection",
+                leaves,
+            )
+        elif not quiet_below:
+            logger.info(
+                "iqtree: no model given, so IQ-TREE runs ModelFinder before the tree "
+                "search; model=GTR+G (--aligner-arg) skips the selection"
+            )
+
     def build(
         self,
         msa_or_genomes: Path | Sequence[Path],
@@ -129,22 +146,12 @@ class IqtreeBuilder(TreeBuilder):
             # +ASC needs a model term; MFP keeps ModelFinder when none is given.
             cmd += ["-m", f"{model or 'MFP'}+ASC"]
             logger.info("iqtree: ascertainment-bias correction +ASC (asc=lewis)")
+            if not model:
+                self._note_modelfinder(work_msa, logger, quiet_below=True)
         elif model:
             cmd += ["-m", model]
         else:
-            leaves = _count_records(work_msa)
-            if leaves > self.MODELFINDER_NOTE_LEAVES:
-                logger.info(
-                    "iqtree: no model given, so IQ-TREE runs ModelFinder on %d sequences "
-                    "before the tree search, which at this size takes a noticeable share of "
-                    "the run; model=GTR+G (--aligner-arg) skips the selection",
-                    leaves,
-                )
-            else:
-                logger.info(
-                    "iqtree: no model given, so IQ-TREE runs ModelFinder before the tree "
-                    "search; model=GTR+G (--aligner-arg) skips the selection"
-                )
+            self._note_modelfinder(work_msa, logger, quiet_below=False)
         if not asc and constant is not None:
             cmd += ["-fconst", format_counts(constant, ",")]
             logger.info("iqtree: constant sites added as -fconst %s", format_counts(constant, ","))
