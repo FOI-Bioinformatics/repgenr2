@@ -145,3 +145,11 @@ def test_partitions_with_asc_are_refused(monkeypatch, tmp_path, params) -> None:
         mod.RaxmlNgBuilder().build(msa, tmp_path / "out", params, logging.getLogger())
     assert calls == []
     assert mod.RaxmlNgBuilder.supports_partitions
+
+
+def test_a_protein_alignment_defaults_to_lg(monkeypatch, tmp_path) -> None:
+    model, _ = _model_of(monkeypatch, tmp_path, TreeParams(alphabet="protein"))
+    assert model == "LG+G"
+    (tmp_path / "dna").mkdir()
+    model, _ = _model_of(monkeypatch, tmp_path / "dna", TreeParams())
+    assert model == "GTR+G"

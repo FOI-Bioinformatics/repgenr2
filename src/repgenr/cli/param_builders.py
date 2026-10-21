@@ -549,6 +549,7 @@ def phylo_params(
             for key, flag in (
                 ("core_threshold", "--core-threshold"),
                 ("clean_mode", "--clean-mode"),
+                ("coregene_alphabet", "--coregene-alphabet"),
                 *GENE_SELECTION_FLAGS,
                 ("partitioned", "--partitioned"),
             )
@@ -560,6 +561,16 @@ def phylo_params(
         from ..coregenes.base import CLEAN_MODES
 
         _require_choice(str(extra["clean_mode"]), set(CLEAN_MODES), "--clean-mode")
+    if extra is not _UNSET and extra.get("coregene_alphabet") is not None:
+        from ..coregenes.select import ALPHABETS
+        from ..stages.coregene import check_alphabet
+
+        _require_choice(str(extra["coregene_alphabet"]), set(ALPHABETS), "--coregene-alphabet")
+        # Refused here, before any stage runs, rather than when phylo starts.
+        check_alphabet(
+            coregene if coregene is not _UNSET else PhyloParams.coregene,
+            str(extra["coregene_alphabet"]),
+        )
     # The phylo stage reads extra["mask"] only on the snptype path; a mask
     # requested with the aligner source would be dropped without a trace.
     mask = extra.get("mask") if extra is not _UNSET else None

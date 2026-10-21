@@ -29,6 +29,7 @@ from .base import (
     HELP_CORE_FRACTION,
     HELP_CORE_THRESHOLD,
     HELP_COREGENE,
+    HELP_COREGENE_ALPHABET,
     HELP_DEREP_TOOL_ARG,
     HELP_GENE_RANK,
     HELP_INCLUDE_DEREPLICATED,
@@ -269,6 +270,9 @@ def phylo_build_cmd(
         None, "--core-threshold", min=0.0, max=1.0, help=HELP_CORE_THRESHOLD
     ),
     clean_mode: str | None = typer.Option(None, "--clean-mode", help=HELP_CLEAN_MODE),
+    coregene_alphabet: str | None = typer.Option(
+        None, "--coregene-alphabet", help=HELP_COREGENE_ALPHABET
+    ),
     max_core_genes: int | None = typer.Option(
         None, "--max-core-genes", min=0, help=HELP_MAX_CORE_GENES
     ),
@@ -344,6 +348,7 @@ def phylo_build_cmd(
             {
                 "--core-threshold": core_threshold,
                 "--clean-mode": clean_mode,
+                "--coregene-alphabet": coregene_alphabet,
                 "--max-core-genes": max_core_genes,
                 "--gene-rank": gene_rank,
                 "--min-gene-length": min_gene_length,
@@ -362,6 +367,14 @@ def phylo_build_cmd(
             from ..coregenes.base import CLEAN_MODES
 
             _require_choice(clean_mode, set(CLEAN_MODES), "--clean-mode")
+        if coregene_alphabet is not None:
+            from ..coregenes.select import ALPHABETS
+
+            _require_choice(coregene_alphabet, set(ALPHABETS), "--coregene-alphabet")
+            if msa is None:
+                from ..stages.coregene import check_alphabet
+
+                check_alphabet(coregene, coregene_alphabet)
         require_mask(mask)
         if mask != "none" and msa_source != "snptype":
             raise UserInputError("--mask applies only with --msa-source snptype.")
@@ -391,6 +404,11 @@ def phylo_build_cmd(
                 **({"core_fraction": core_fraction} if core_fraction is not None else {}),
                 **({"core_threshold": core_threshold} if core_threshold is not None else {}),
                 **({"clean_mode": clean_mode} if clean_mode is not None else {}),
+                **(
+                    {"coregene_alphabet": coregene_alphabet}
+                    if coregene_alphabet is not None
+                    else {}
+                ),
                 **gene_selection_extra(
                     max_core_genes=max_core_genes,
                     gene_rank=gene_rank,

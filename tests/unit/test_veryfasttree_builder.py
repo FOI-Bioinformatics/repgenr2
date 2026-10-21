@@ -108,3 +108,25 @@ def test_auto_keeps_alignment_free_builders_past_the_aligner_limit(monkeypatch) 
     assert _resolve_treebuilder(auto, 300, log) == "iqtree"
     assert _resolve_treebuilder(snp, 8000, log) == "veryfasttree"
     assert _resolve_treebuilder(snp, 4000, log) == "fasttree"
+
+
+def test_a_protein_alignment_takes_lg_not_nt_gtr(tmp_path: Path, monkeypatch) -> None:
+    cmd, _ = _run(tmp_path, monkeypatch, TreeParams(alphabet="protein"))
+    assert "-lg" in cmd and "-nt" not in cmd and "-gtr" not in cmd
+    cmd, _ = _run(tmp_path, monkeypatch, TreeParams())
+    assert "-nt" in cmd and "-gtr" in cmd and "-lg" not in cmd
+
+
+def test_fasttree_takes_lg_on_a_protein_alignment(tmp_path: Path, monkeypatch) -> None:
+    calls: list[list[str]] = []
+
+    def fake(caps, cmd, **k):
+        calls.append([str(c) for c in cmd])
+        Path(k["stdout_path"]).write_text("(a,b);\n", encoding="utf-8")
+
+    monkeypatch.setattr(ft, "run_tool", fake)
+    ft.FasttreeBuilder().build(_msa(tmp_path), tmp_path / "o", TreeParams(alphabet="protein"), _LOG)
+    ft.FasttreeBuilder().build(_msa(tmp_path), tmp_path / "p", TreeParams(), _LOG)
+    protein, dna = calls
+    assert protein[1:2] == ["-lg"] and "-nt" not in protein and "-gtr" not in protein
+    assert dna[1:3] == ["-nt", "-gtr"] and "-lg" not in dna

@@ -16,6 +16,8 @@ Command surface checked against PPanGGOLiN 2.3.2 (bioconda). Three calls:
    alignments it keeps under ``msa_<partition>_dna/`` (records named by
    genome) are what the adapter hands over; the stage ranks, caps and
    concatenates them itself, and the concatenation stays in the result.
+   With the protein alphabet the call takes ``--source protein`` and the
+   alignments are read from ``msa_<partition>_protein/``.
 
 The partition defaults to ``softcore`` at ``--core-threshold``, so the gene
 set means the same as with Panaroo. ``partition=persistent`` selects
@@ -158,7 +160,10 @@ class PPanGGOLiNBuilder(CoreGeneBuilder):
         tables_dir = out_dir / "tables"
         msa_dir = out_dir / "msa"
         alignments = sorted(msa_dir.glob("*_genome_alignment.aln"))
-        families = [p for d in msa_dir.glob("msa_*_dna") for p in d.glob("*.aln") if p.is_file()]
+        source = _msa_source(params.alphabet)
+        families = [
+            p for d in msa_dir.glob(f"msa_*_{source}") for p in d.glob("*.aln") if p.is_file()
+        ]
         core_genes = len(families)
         if not alignments or core_genes == 0 or not _has_columns(alignments[0]):
             raise WorkdirError(
@@ -245,7 +250,7 @@ class PPanGGOLiNBuilder(CoreGeneBuilder):
         msa_dir = out_dir / "msa"
         msa: list[str | Path] = [
             "ppanggolin", "msa", "-p", h5, "-o", msa_dir, "--partition", partition,
-            "--source", "dna", "--phylo", "--tmpdir", tmp_dir, *common,
+            "--source", _msa_source(params.alphabet), "--phylo", "--tmpdir", tmp_dir, *common,
         ]  # fmt: skip
         if partition == "softcore":
             msa += ["--soft_core", soft_core]
@@ -302,6 +307,11 @@ def _partition_tmpdir(preferred: Path, logger: logging.Logger) -> Iterator[Path]
         yield link
     finally:
         shutil.rmtree(holder, ignore_errors=True)
+
+
+def _msa_source(alphabet: str) -> str:
+    """The ``ppanggolin msa --source`` value, which also names its output directory."""
+    return "protein" if alphabet == "protein" else "dna"
 
 
 def _unit(raw: object, flag: str) -> float:

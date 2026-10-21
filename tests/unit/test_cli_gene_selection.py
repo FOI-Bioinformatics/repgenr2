@@ -1,5 +1,5 @@
-"""The gene-selection options and --partitioned of the core-gene route on phylo,
-phylo-build and run."""
+"""The gene-selection options, --partitioned and --coregene-alphabet of the core-gene
+route on phylo, phylo-build and run."""
 
 from __future__ import annotations
 
@@ -172,3 +172,57 @@ def test_phylo_build_coregene_passes_partitioned(monkeypatch, tmp_path) -> None:
     result = _runner.invoke(app, argv)
     assert result.exit_code == 0, _text(result)
     assert seen[0].phylo.extra["partitioned"] is True
+
+
+# --coregene-alphabet: dna or protein core-gene alignments.
+
+
+@pytest.mark.parametrize("command", sorted(COMMANDS))
+def test_alphabet_is_refused_outside_the_coregene_source(built, tmp_path, command) -> None:
+    argv = [*COMMANDS[command](tmp_path), "--coregene-alphabet", "protein"]
+    result = _runner.invoke(app, argv)
+    assert result.exit_code != 0
+    text = _text(result)
+    assert "--coregene-alphabet" in text and "only with --msa-source coregene" in text
+
+
+@pytest.mark.parametrize("command", sorted(COMMANDS))
+def test_an_unknown_alphabet_is_refused(built, tmp_path, command) -> None:
+    argv = [*COMMANDS[command](tmp_path), "--msa-source", "coregene"]
+    result = _runner.invoke(app, [*argv, "--coregene-alphabet", "rna"])
+    assert result.exit_code != 0
+    assert "--coregene-alphabet" in _text(result) and "protein" in _text(result)
+
+
+@pytest.mark.parametrize("command", ["phylo", "run"])
+def test_alphabet_reaches_the_phylo_extra(built, tmp_path, command) -> None:
+    argv = [*COMMANDS[command](tmp_path), "--msa-source", "coregene", "--coregene", "ppanggolin"]
+    result = _runner.invoke(app, [*argv, "--coregene-alphabet", "protein"])
+    assert result.exit_code == 0, _text(result)
+    assert _phylo(built).extra["coregene_alphabet"] == "protein"
+
+
+@pytest.mark.parametrize("command", ["phylo", "run"])
+def test_unset_alphabet_adds_nothing(built, tmp_path, command) -> None:
+    result = _runner.invoke(app, [*COMMANDS[command](tmp_path), "--msa-source", "coregene"])
+    assert result.exit_code == 0, _text(result)
+    assert "coregene_alphabet" not in _phylo(built).extra
+
+
+def test_phylo_build_passes_the_alphabet(monkeypatch, tmp_path) -> None:
+    seen: list[Any] = []
+    monkeypatch.setattr(phylo_stage, "phylo_build", lambda params, *a, **k: seen.append(params))
+    argv = [*_build_args(tmp_path), "--msa-source", "coregene", "--coregene", "scarap"]
+    result = _runner.invoke(app, [*argv, "--coregene-alphabet", "protein"])
+    assert result.exit_code == 0, _text(result)
+    assert seen[0].phylo.extra["coregene_alphabet"] == "protein"
+
+
+@pytest.mark.parametrize("command", sorted(COMMANDS))
+def test_panaroo_with_protein_is_refused_before_any_stage(built, tmp_path, command) -> None:
+    # Panaroo is the default builder; it aligns nucleotides only.
+    argv = [*COMMANDS[command](tmp_path), "--msa-source", "coregene"]
+    result = _runner.invoke(app, [*argv, "--coregene-alphabet", "protein"])
+    assert result.exit_code != 0
+    assert "nucleotides only" in _text(result) and "ppanggolin" in _text(result)
+    assert not [o for o in built if isinstance(o, PhyloParams)]

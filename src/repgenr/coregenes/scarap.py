@@ -16,8 +16,9 @@ and the adapter's own alignment step:
 2. The adapter keeps, from ``genes.tsv``, the orthogroups single-copy in at
    least ``F`` of all the genomes, not only the seeds (SCARAP's own
    ``concat`` rule), aligns the proteins of each with mafft and
-   back-translates them to codons from the ``.ffn`` files (``codon.py``).
-   It hands over one DNA alignment per orthogroup, which the stage ranks,
+   back-translates them to codons from the ``.ffn`` files (``codon.py``);
+   with the protein alphabet it stops after mafft.
+   It hands over one alignment per orthogroup, which the stage ranks,
    caps and concatenates. ``scarap concat`` is not used: it deletes its
    per-orthogroup alignments once it has written the supermatrix. A genome
    missing a gene, or holding several copies, is absent from it.
@@ -155,6 +156,7 @@ class ScarapBuilder(CoreGeneBuilder):
             params.threads,
             logger,
             "scarap",
+            alphabet=params.alphabet,
         )
         if len(orthogroups) < _SMALL_CORE:
             logger.warning(

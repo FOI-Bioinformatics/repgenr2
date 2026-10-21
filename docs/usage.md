@@ -2434,10 +2434,12 @@ describe a concatenation better than a single model; it also adds
 parameters and run time.
 
 - `iqtree` writes `tree/partitions.txt` (`DNA, <gene> = <start>-<end>` per
-  gene) and is run with `-p` (proportional branch lengths). Without
+  gene, `AA` for a protein alignment) and is run with `-p` (proportional
+  branch lengths). Without
   `--aligner-arg model=` ModelFinder selects a model for each partition.
 - `raxmlng` writes `tree/partitions.txt` with the model on every line
-  (`GTR+G, <gene> = <start>-<end>`, or the `--aligner-arg model=` given) and is
+  (`GTR+G, <gene> = <start>-<end>`, `LG+G` for a protein alignment, or the
+  `--aligner-arg model=` given) and is
   run with `--model partitions.txt`; branch lengths are scaled per partition,
   RAxML-NG's default.
 - `aster` does not fit a partition model: it builds one tree per partition
@@ -2505,6 +2507,50 @@ trees, and `phylo --root` roots the species tree afterwards.
 ```bash
 repgenr phylo -wd $WD --msa-source coregene --max-core-genes 500 \
     --gene-rank informative --treebuilder aster --partitioned
+```
+
+#### Protein alignments
+
+By default the core-gene alignment is nucleotide: each gene is aligned as
+codons. Across a genus or a family the third codon positions saturate, and
+a nucleotide model then describes the deeper branches poorly.
+`--coregene-alphabet protein` (on `phylo`, `phylo-build` and `run`; `dna` is
+the default) aligns the core genes as amino acids instead. Codon models are
+not offered.
+
+Which builders support it:
+
+- `ppanggolin` runs `ppanggolin msa --source protein` and hands over the
+  family alignments under `msa_<partition>_protein/`.
+- `scarap` and `orthofinder` align the proteins of each orthogroup with
+  mafft, as they do for nucleotides, and hand over those alignments without
+  back-translating them to codons.
+- `panaroo` aligns nucleotides only, so a protein alphabet with
+  `--coregene panaroo` (the default builder) is refused when the command
+  starts, before any stage runs.
+
+The gene selection reads `X` as missing data in a protein alignment (`N` in
+a nucleotide one) when it counts variable and informative sites.
+
+The tree builder is told the alphabet and uses an amino-acid model:
+
+| Tree builder | Nucleotide | Protein |
+|---|---|---|
+| `iqtree` | `-st DNA` | `-st AA`; ModelFinder chooses among protein models unless `--aligner-arg model=` is given |
+| `raxmlng` | `GTR+G` | `LG+G`, on every partition line with `--partitioned` |
+| `fasttree`, `veryfasttree` | `-nt -gtr` | `-lg` |
+
+The alphabet is recorded in `partitions.json` (field `alphabet`) and in
+`core_gene_stats.json`. When `partitions.json` describes the alignment, the
+tree builder takes the alphabet from it, so `phylo-build --msa FILE` (the
+tree half of the Nextflow split) needs no `--coregene-alphabet` of its own;
+without the sidecar it follows `--coregene-alphabet`. The alphabet is part
+of the reuse key of the core-gene alignment, so changing it rebuilds the
+alignment; the phylo stage record holds `coregene_alphabet`.
+
+```bash
+repgenr phylo -wd $WD --msa-source coregene --coregene ppanggolin \
+    --coregene-alphabet protein --treebuilder iqtree -B 1000
 ```
 
 #### Panaroo and its clustering identity

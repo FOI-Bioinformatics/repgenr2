@@ -158,6 +158,11 @@ HELP_CLEAN_MODE = (
     "With --msa-source coregene: Panaroo's cleaning of annotation errors, strict (default), "
     "moderate or sensitive."
 )
+HELP_COREGENE_ALPHABET = (
+    "With --msa-source coregene: dna (default) or protein; protein suits genus and family "
+    "overviews, where third codon positions saturate (ppanggolin, scarap and orthofinder; "
+    "refused with panaroo)."
+)
 HELP_MAX_CORE_GENES = (
     "With --msa-source coregene: keep at most this many core genes in the alignment, "
     "chosen by --gene-rank (a count; 0 keeps every core gene; unset is 0)."

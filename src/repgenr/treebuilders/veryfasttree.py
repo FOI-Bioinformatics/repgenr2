@@ -1,7 +1,8 @@
 """VeryFastTree tree builder (FastTree-2 reimplemented for many cores).
 
-Same command family as FastTree: ``-nt -gtr`` on a nucleotide alignment,
-the tree on stdout, SH-like local supports from ``-boot N`` resamples. It
+Same command family as FastTree: ``-nt -gtr`` on a nucleotide alignment
+(``-lg`` on a protein one), the tree on stdout, SH-like local supports from
+``-boot N`` resamples. It
 adds ``-threads N`` (FastTreeMP reads OMP_NUM_THREADS only) and
 ``-double-precision``; its authors report trees of a million sequences
 (Pineiro et al. 2020, Bioinformatics 36:4658, doi:10.1093/bioinformatics/btaa582;
@@ -53,7 +54,9 @@ class VeryFastTreeBuilder(TreeBuilder):
                 "this variable-site alignment are inflated; iqtree or raxmlng use the "
                 "constant-site counts"
             )
-        cmd: list = ["VeryFastTree", "-nt", "-gtr", "-threads", str(params.threads)]
+        # As FastTree: -lg on a protein core-gene alignment.
+        model = ["-lg"] if params.alphabet == "protein" else ["-nt", "-gtr"]
+        cmd: list = ["VeryFastTree", *model, "-threads", str(params.threads)]
         if parse_extra_bool(params.extra, "gamma", False):
             cmd.append("-gamma")
         if parse_extra_bool(params.extra, "double_precision", False):

@@ -183,3 +183,8 @@ def test_partitions_with_asc_are_refused(tmp_path: Path, monkeypatch, params) ->
         mod.IqtreeBuilder().build(_msa(tmp_path), tmp_path / "out", params, _LOG)
     assert calls == []
     assert mod.IqtreeBuilder.supports_partitions
+
+
+def test_a_protein_alignment_is_stated_as_aa(tmp_path: Path, monkeypatch) -> None:
+    cmd = _run_capturing(tmp_path, monkeypatch, TreeParams(alphabet="protein"))
+    assert cmd[cmd.index("-st") + 1] == "AA"

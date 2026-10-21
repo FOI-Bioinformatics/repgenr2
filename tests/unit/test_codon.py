@@ -127,3 +127,37 @@ def test_refusals(tmp_path: Path, monkeypatch) -> None:
             [("OG1", {"G1": "k_G1", "G2": "k_G2"})], faas, ffns, tmp_path / "c", _CAPS, 1, _LOG,
             "scarap",
         )  # fmt: skip
+
+
+def test_protein_alphabet_stops_after_mafft(tmp_path: Path, monkeypatch) -> None:
+    chains: list[list[list[str]]] = []
+    monkeypatch.setattr(codon, "run_chain", _fake_chain(chains, gap=True))
+    faas, ffns = _sidecars(tmp_path)
+    # The gene files are not read: a frame-shifted gene would not matter.
+    ffns["G3"].write_text(">k_G3\nATGAA\n>b_G3\nGC\n", encoding="utf-8")
+    selected = [
+        ("OG1", {"G1": "k_G1", "G2": "k_G2", "G3": "k_G3"}),
+        ("OG2", {"G2": "b_G2"}),
+    ]
+    out, mismatched = codon.align_orthogroups(
+        selected, faas, ffns, tmp_path / "o", _CAPS, 2, _LOG, "orthofinder", alphabet="protein"
+    )
+    assert mismatched == 0
+    assert [(ga.gene, ga.path) for ga in out] == [
+        ("OG1", tmp_path / "o" / "alignments" / "OG1.aln"),
+        ("OG2", tmp_path / "o" / "alignments" / "OG2.aln"),
+    ]
+    # The mafft protein alignment, records named by genome.
+    assert _records(out[0].path) == {g: "MKLM-" for g in ("G1", "G2", "G3")}
+    # A single member is its own alignment, not sent to mafft.
+    assert _records(out[1].path) == {"G2": "AC"}
+    assert not (tmp_path / "o" / "genes").exists() or not any((tmp_path / "o" / "genes").iterdir())
+    assert sum(len(chain) for chain in chains) == 1
+
+
+def test_an_unknown_alphabet_is_a_programming_error(tmp_path: Path) -> None:
+    faas, ffns = _sidecars(tmp_path)
+    with pytest.raises(ValueError, match="alphabet"):
+        codon.align_orthogroups(
+            [], faas, ffns, tmp_path / "o", _CAPS, 1, _LOG, "orthofinder", alphabet="rna"
+        )

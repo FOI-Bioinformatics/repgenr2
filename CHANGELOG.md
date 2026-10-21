@@ -7,6 +7,21 @@ All notable changes to RepGenR2 are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- Core-gene route: `--coregene-alphabet dna|protein` (default `dna`) on
+  `phylo`, `phylo-build` and `run` gives a protein core-gene alignment, for
+  genus and family overviews where third codon positions saturate.
+  `ppanggolin` runs `msa --source protein`; `scarap` and `orthofinder` hand
+  over the mafft protein alignments without back-translation; `panaroo`
+  aligns nucleotides only and is refused when the command starts. The tree builders follow the
+  alphabet: `iqtree -st AA`, `raxmlng` `LG+G` by default (also on each
+  partition line), `fasttree` and `veryfasttree` `-lg` in place of
+  `-nt -gtr`. The alphabet is written to `partitions.json` and
+  `core_gene_stats.json`, the tree half reads it from the sidecar when one
+  describes the alignment, it is part of the alignment reuse key, and the
+  phylo stage record gains `coregene_alphabet`. Refused outside
+  `--msa-source coregene`. `CoreGeneParams` gains `alphabet` and
+  `codon.align_orthogroups` an `alphabet` argument. Codon models are not
+  offered.
 - Tree builder `aster`: a species tree summarised from per-gene trees with
   ASTER (`wastral` by default, `astral4` or `astral-pro3` through
   `--aligner-arg program=`). It needs `--msa-source coregene --partitioned`,

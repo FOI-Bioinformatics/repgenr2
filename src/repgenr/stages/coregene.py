@@ -14,6 +14,13 @@ ranked and capped by a :class:`~repgenr.coregenes.select.GeneSelection`
 and concatenated here; ``core_genes.tsv`` lists every gene with its
 metrics and ``partitions.json`` the columns of each kept gene. A builder
 that returns only its own concatenation has it published as it is.
+
+``CoreGeneParams.alphabet`` chooses codon (``dna``) or amino-acid
+(``protein``) gene alignments. It is recorded in ``partitions.json`` and
+``core_gene_stats.json`` so the tree builder is given the matching model;
+a builder that declares it does not read the alphabet is refused a protein
+alignment rather than warned, because the tree would be fitted with a
+model for the wrong character type.
 """
 
 from __future__ import annotations
@@ -40,6 +47,7 @@ from ..core.process import remove_tree
 from ..coregenes.base import CoreGeneParams, CoreGeneResult, GeneAlignment
 from ..coregenes.base import registry as coregene_registry
 from ..coregenes.select import (
+    ALPHABETS,
     GeneMetrics,
     GeneRow,
     GeneSelection,
@@ -99,6 +107,35 @@ def annotated_set(annotations_dir: Path, names: Sequence[str]) -> AnnotatedSet:
     return AnnotatedSet(gffs=gffs, annotator=annotators.pop(), digest=index_digest(records, names))
 
 
+def check_alphabet(tool: str, alphabet: str) -> None:
+    """Refuse an unknown alphabet, or a non-dna one for a builder that lists
+    ``alphabet`` in its ignored_params.
+
+    A refusal rather than a warning: the tree model follows the alphabet, so
+    an alignment of the other character type would be fitted with the wrong
+    model. Called by the stage and, earlier, by the CLI.
+    """
+    if alphabet not in ALPHABETS:
+        raise UserInputError(
+            f"Unknown core-gene alphabet '{alphabet}'. Choose from: {', '.join(ALPHABETS)}."
+        )
+    if alphabet == "dna" or tool not in coregene_registry.names():
+        return
+    if "alphabet" not in coregene_registry.get(tool).capabilities.ignored_params:
+        return
+    able = [
+        n
+        for n in coregene_registry.names()
+        if "alphabet" not in coregene_registry.get(n).capabilities.ignored_params
+    ]
+    raise UserInputError(
+        f"The core-gene builder '{tool}' aligns genes as nucleotides only, so "
+        f"--coregene-alphabet {alphabet} cannot apply; choose "
+        f"{', '.join(able) or 'another builder'} for a protein alignment, or leave the "
+        "alphabet at dna."
+    )
+
+
 def coregene_core(
     gffs: Sequence[Path],
     msa_dir: Path,
@@ -125,6 +162,7 @@ def coregene_core(
             f"{', '.join(coregene_registry.names())}."
         )
     builder = coregene_registry.create(tool)
+    check_alphabet(tool, params.alphabet)
     warn = scale_warning(coregene_registry, tool, len(gffs))
     if warn:
         limit, alts = warn
@@ -161,7 +199,13 @@ def coregene_core(
     chosen: _Chosen | None = None
     if result.gene_alignments is not None:
         chosen = _choose_genes(
-            result.gene_alignments, expected_names, selection, scratch, tool, logger
+            result.gene_alignments,
+            expected_names,
+            selection,
+            scratch,
+            tool,
+            logger,
+            params.alphabet,
         )
         source = chosen.concatenation
     else:
@@ -221,10 +265,12 @@ def coregene_core(
     core_genes = len(chosen.kept) if chosen is not None else result.core_genes
     if chosen is not None:
         write_gene_table(msa_dir / CORE_GENES_TSV, chosen.rows())
-        write_partitions(alignment, chosen.partitions, "dna")
+        write_partitions(alignment, chosen.partitions, params.alphabet)
     stats = {
         "alignment": alignment.name,
         "source": tool,
+        # dna (codons) or protein (amino acids); sets the tree model.
+        "alphabet": params.alphabet,
         "core_genes": core_genes,
         # Genes the builder aligned before the selection; None when it hands
         # over only its own concatenation.
@@ -324,8 +370,12 @@ def _choose_genes(
     scratch: Path,
     tool: str,
     logger: logging.Logger,
+    alphabet: str = "dna",
 ) -> _Chosen:
-    """Measure, rank and concatenate the per-gene alignments of a builder."""
+    """Measure, rank and concatenate the per-gene alignments of a builder.
+
+    ``alphabet`` sets the missing-data symbol the metrics skip (N for dna,
+    X for protein)."""
     seen: set[str] = set()
     for ga in gene_alignments:
         if ga.gene in seen:
@@ -333,9 +383,9 @@ def _choose_genes(
                 f"The core-gene builder '{tool}' returned gene '{ga.gene}' more than once."
             )
         seen.add(ga.gene)
-    genes = {ga.gene: load_gene(ga.path) for ga in gene_alignments}
+    genes = {ga.gene: load_gene(ga.path, alphabet) for ga in gene_alignments}
     _refuse_unknown({name for seqs in genes.values() for name in seqs}, set(genomes))
-    metrics = {g: gene_metrics(seqs, len(genomes)) for g, seqs in genes.items()}
+    metrics = {g: gene_metrics(seqs, len(genomes), alphabet) for g, seqs in genes.items()}
     kept = rank_genes(metrics, selection)
     if not kept:
         if not metrics:

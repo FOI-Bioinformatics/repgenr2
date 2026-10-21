@@ -35,6 +35,10 @@ class CoreGeneParams:
     # Take the alignment with badly aligned genes removed (the builder's
     # recommended tree input), else the unfiltered one.
     filtered: bool = True
+    # The character type of the per-gene alignments: "dna" (codons) or
+    # "protein" (amino acids). A builder that cannot hand over protein
+    # alignments lists "alphabet" in ignored_params and the stage refuses it.
+    alphabet: str = "dna"
     extra: dict = field(default_factory=dict)
 
 
@@ -44,8 +48,9 @@ class GeneAlignment:
 
     # Family or orthogroup id, unique within one result.
     gene: str
-    # Aligned FASTA; records are named by genome record name. A genome that
-    # lacks the gene is absent (no gap-only record is required).
+    # Aligned FASTA, nucleotide or protein as CoreGeneParams.alphabet asks;
+    # records are named by genome record name. A genome that lacks the gene
+    # is absent (no gap-only record is required).
     path: Path
 
 

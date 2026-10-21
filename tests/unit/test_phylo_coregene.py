@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 from pathlib import Path
 
@@ -857,3 +858,106 @@ def test_aster_wastral_with_midpoint_root_is_refused_before_any_work(
         )
     assert chains == []
     assert _TwoGeneCoreGene.calls == []
+# --coregene-alphabet: protein core-gene alignments and the tree model.
+
+
+def test_the_alphabet_is_part_of_the_msa_key(tmp_path: Path) -> None:
+    genomes = [tmp_path / "a.fasta", tmp_path / "b.fasta"]
+    for g in genomes:
+        g.write_text(">x\nACGT\n", encoding="utf-8")
+
+    def key(**extra) -> str:
+        return phylo_mod._msa_key(
+            genomes, None, PhyloParams(msa_source="coregene", extra=extra), None, "d"
+        )
+
+    assert key() == key(coregene_alphabet="dna")
+    assert key() != key(coregene_alphabet="protein")
+
+
+def test_the_sidecar_alphabet_reaches_the_tree_params(tmp_path: Path, part_tools) -> None:
+    gdir = _genomes_dir(tmp_path)
+    protein = _params(
+        coregene="fakecg_genes",
+        treebuilder="faketree_part",
+        extra={"coregene_alphabet": "protein"},
+    )
+    msa = phylo_build(
+        PhyloBuildParams(
+            genomes_dir=gdir,
+            out_dir=tmp_path / "msa",
+            phylo=protein,
+            annotator="fakeannot",
+            msa_only=True,
+        ),
+        _LOG,
+    )
+    sidecar = json.loads((msa.parent / "partitions.json").read_text(encoding="utf-8"))
+    assert sidecar["alphabet"] == "protein"
+    # The tree half (as Nextflow runs it) is not told the alphabet: the
+    # sidecar beside the alignment decides it.
+    phylo_build(
+        PhyloBuildParams(
+            genomes_dir=gdir,
+            out_dir=tmp_path / "tree",
+            phylo=_params(coregene="fakecg_genes", treebuilder="faketree_part"),
+            msa=msa,
+        ),
+        _LOG,
+    )
+    assert _PartTree.parts == [(None, "protein")]
+
+
+def test_without_a_sidecar_the_alphabet_comes_from_the_params(tmp_path: Path, part_tools) -> None:
+    # The fake builder returns its own concatenation: no partitions.json.
+    _step(tmp_path, treebuilder="faketree_part", extra={"coregene_alphabet": "protein"})
+    assert _PartTree.parts == [(None, "protein")]
+
+
+def test_record_carries_the_alphabet(workdir: Path, part_tools) -> None:
+    _reps(workdir)
+    ctx = WorkdirContext(workdir, create=True, logger=_LOG)
+    annotate_run(ctx, AnnotateStageParams(tool="fakeannot"))
+    phylo_run(ctx, _params(coregene="fakecg_genes", treebuilder="faketree_part"))
+    assert ctx.config.stages["phylo"].params["coregene_alphabet"] == "dna"
+    calls = len(_TwoGeneCoreGene.calls)
+    phylo_run(
+        ctx,
+        _params(
+            coregene="fakecg_genes",
+            treebuilder="faketree_part",
+            extra={"coregene_alphabet": "protein"},
+        ),
+    )
+    assert ctx.config.stages["phylo"].params["coregene_alphabet"] == "protein"
+    # The alignment is rebuilt for the other alphabet.
+    assert len(_TwoGeneCoreGene.calls) == calls + 1
+    stats = json.loads((ctx.phylo_msa_dir / CORE_GENE_STATS).read_text(encoding="utf-8"))
+    assert stats["alphabet"] == "protein"
+
+
+def test_the_alphabet_is_refused_outside_coregene_and_validated(tools) -> None:
+    from repgenr.cli.param_builders import phylo_params
+
+    with pytest.raises(UserInputError, match="--coregene-alphabet applies only"):
+        phylo_params(msa_source="aligner", extra={"coregene_alphabet": "protein"})
+    with pytest.raises(UserInputError, match="--coregene-alphabet"):
+        phylo_params(msa_source="coregene", coregene="fakecg", extra={"coregene_alphabet": "rna"})
+    params = phylo_params(
+        msa_source="coregene", coregene="fakecg", extra={"coregene_alphabet": "protein"}
+    )
+    assert params.extra["coregene_alphabet"] == "protein"
+    with pytest.raises(UserInputError, match="--coregene-alphabet"):
+        phylo_mod._coregene_alphabet({"coregene_alphabet": "rna"})
+
+
+def test_fingerprint_drops_the_alphabet_when_no_coregene_pass_runs() -> None:
+    for source in ("aligner", "snptype"):
+        payload = {"msa_source": source, "extra": {"coregene_alphabet": "protein"}}
+        assert phylo_mod.fingerprint_params(payload)["extra"] == {}
+    payload = {
+        "msa_source": "coregene",
+        "coregene": "ppanggolin",
+        "extra": {"coregene_alphabet": "protein"},
+    }
+    assert phylo_mod.fingerprint_params(payload)["extra"] == {"coregene_alphabet": "protein"}

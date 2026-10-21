@@ -104,11 +104,12 @@ class IqtreeBuilder(TreeBuilder):
             "-s",
             work_msa,
             *partition_args,
-            # Every alignment this pipeline produces is nucleotide. Left to
-            # guess, IQ-TREE refuses a recombination-masked alignment, where
-            # a fifth of the characters can be N ("Unknown sequence type").
+            # The character type is given, not guessed: left to guess,
+            # IQ-TREE refuses a recombination-masked alignment, where a fifth
+            # of the characters can be N ("Unknown sequence type"). Every
+            # alignment is nucleotide except a protein core-gene alignment.
             "-st",
-            "DNA",
+            "AA" if params.alphabet == "protein" else "DNA",
             "-redo",  # overwrite checkpoints from a previous run at this path
         ]
         if asc == "lewis":
