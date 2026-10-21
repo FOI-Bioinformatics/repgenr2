@@ -166,6 +166,19 @@ With an alignment, the tree builder by leaf count:
 - 1000 to 5000: `fasttree`.
 - Above 5000: `veryfasttree`.
 
+A species tree summarised from gene trees (`--treebuilder aster` with
+`--msa-source coregene --partitioned`) is an alternative to a concatenated
+tree for genus and family overviews built from hundreds of core genes. At
+that span the gene trees disagree with each other, and a concatenated
+maximum-likelihood tree can give high support to a topology that many genes
+contradict; a summary method such as ASTER takes the discordance into
+account. Each gene tree is estimated from one gene only, so short or nearly
+invariant genes give poorly resolved gene trees; `--min-gene-length` or
+`--gene-rank informative` with `--max-core-genes` keeps the more informative
+genes. It does not apply to SNP alignments, which have no genes, or to
+clonal sets, where most gene trees are unresolved. Its run time and its
+agreement with the concatenated trees have not been measured here.
+
 ## By number of genomes
 
 | Genomes | What was measured | What `auto` picks |
@@ -531,6 +544,7 @@ they need installed: bakta needs its database and prokka needs none (see
 | `sourmash` | Genomes | Declared 2000. The joining step runs rapidNJ when installed (`nj=auto`), else a cubic Python step refused above 5000. | Poor on clonal sets. No supports. | Unrooted. |
 | `skani` | Genomes | Declared 10000, not measured here. ANI from sparse chaining of k-mer sketches, reliable to about 80% identity; pairs below the screen (`screen=80`) get distance 1 and are counted in the log. `preset=fast|medium|slow|small-genomes`, `min_af`, `nj` as extras. Also provides the distance matrix of the viral outgroup selection, with the `small-genomes` preset by default there; when no candidate is within skani's reach no matrix is written and the run proceeds without an outgroup. | Expected to resolve closer pairs than mash distance and more distant ones than Jaccard (skani, Shaw and Yu 2023), not measured here; no supports, and a clonal set resolves only as well as ANI does. | Unrooted. |
 | `ska2` | Genomes | Declared 5000, as the typer. `ska distance` SNP counts (`metric=snps`) or k-mer mismatch fractions (`metric=mismatch`) over the split k-mers each pair shares, joined with rapidNJ when installed. | Good on clonal and outbreak sets, where it is reference-free; undercounts distances once pairs share few k-mers, so it warns on a set spanning several species. No supports. | Unrooted. |
+| `aster` | MSA with gene partitions | Declared 5000, not measured here. Needs `--msa-source coregene --partitioned`: one gene tree per partition (`iqtree --fast`, or `--aligner-arg gene_tree_builder=fasttree`), then a species tree with ASTER (`program=wastral`, the default, `astral4` or `astral-pro3`). Never chosen by `auto`. `rounds=`, `min_gene_length=` and `model=` (the gene-tree model) are extras. | A summary of the gene trees that allows for discordance among them; node labels are local posterior probabilities in [0, 1], so no bootstrap is needed. `wastral` branch lengths are in coalescent units with no terminal lengths, so `--root midpoint` is refused; `astral4` writes substitutions per site. | Unrooted. |
 
 ### Automatic choice of tree builder
 
@@ -641,6 +655,7 @@ lists what each adapter declares, not what was measured.
 | treebuilder | skani | 10000 |
 | treebuilder | ska2 | 5000 |
 | treebuilder | sourmash | 2000 |
+| treebuilder | aster | 5000 |
 | assembler | flye | unbounded |
 | assembler | shovill | unbounded |
 | assembler | skesa | unbounded |
@@ -664,7 +679,7 @@ How the declared limits relate to the measurements on this page:
 | aligner `progressivemauve` (500) | Measured at 20 and 50 genomes only. |
 | aligner `sibeliaz` (2000) | Not supported by a run: SibeliaZ did not finish within an hour at 20 genomes. |
 | other aligners, SNP typers | Not run at scale. |
-| `veryfasttree`, `skani`, the core-gene builders | Not measured here. |
+| `veryfasttree`, `skani`, `aster`, the core-gene builders | Not measured here. |
 
 These limits count genomes only. They do not model genome size, memory or
 thread count. Aligners and SNP typers declare limits that the scale warnings
@@ -683,7 +698,7 @@ to its tool alone with `--bin-dir TOOL=DIR` (see
 
 | Environment | Tools |
 |---|---|
-| `repgenr` (`envs/core.yml`) | skder, galah, sourmash, drep, sibeliaz, simple, ska2, skani, iqtree, fasttree, veryfasttree, raxmlng, rapidnj, skesa, shovill, flye, medaka, racon, and `datasets` for the downloads |
+| `repgenr` (`envs/core.yml`) | skder, galah, sourmash, drep, sibeliaz, simple, ska2, skani, iqtree, fasttree, veryfasttree, raxmlng, aster, rapidnj, skesa, shovill, flye, medaka, racon, and `datasets` for the downloads |
 | `repgenr-gubbins` | gubbins |
 | `repgenr-mashtree` | mashtree |
 | `repgenr-snippy` | snippy |

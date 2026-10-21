@@ -107,6 +107,7 @@ mashtree = "repgenr.treebuilders.mashtree:MashtreeBuilder"
 sourmash = "repgenr.treebuilders.sourmash:SourmashBuilder"
 skani = "repgenr.treebuilders.skani:SkaniBuilder"
 ska2 = "repgenr.treebuilders.ska2:Ska2Builder"
+aster = "repgenr.treebuilders.aster:AsterBuilder"
 
 [tool.setuptools.packages.find]
 where = ["src"]

@@ -7,6 +7,15 @@ All notable changes to RepGenR2 are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- Tree builder `aster`: a species tree summarised from per-gene trees with
+  ASTER (`wastral` by default, `astral4` or `astral-pro3` through
+  `--aligner-arg program=`). It needs `--msa-source coregene --partitioned`,
+  cuts the alignment into one FASTA per gene, infers the gene trees in
+  batches with IQ-TREE (`--fast`, aBayes supports) or FastTree
+  (`gene_tree_builder=fasttree`), and writes them to `tree/gene_trees.nwk`.
+  Extras `model`, `rounds` and `min_gene_length`. `auto` never picks it.
+  The pinned image is `aster:1.25--hc52dbad_1`, and `envs/core.yml` gains
+  `aster>=1.19`.
 - `phylo-advise` (Pipeline panel): reads a working directory (genome count,
   species and genera in canonical names, minimum and median pairwise ANI by
   `sourmash compare` over the existing sketches, annotations, outgroup) and

@@ -77,6 +77,7 @@ from ..tree.medoid import (
 from ..tree.partitions import PARTITIONS, copy_partitions, read_partitions
 from ..tree.rooting import (
     ROOT_METHODS,
+    ROOT_MIDPOINT,
     ROOT_NONE,
     ROOT_OUTGROUP,
     midpoint_root,
@@ -767,6 +768,14 @@ def build_tree(
         params, n_leaves, logger, alignment_given=None if msa is None else "--msa"
     )
     builder = treebuilder_registry.create(treebuilder)
+    if root == ROOT_MIDPOINT and not builder.writes_terminal_lengths(
+        {**builder.capabilities.default_params, **_adapter_extra(params.extra)}
+    ):
+        raise UserInputError(
+            f"--root midpoint needs a length on every branch, but tree builder "
+            f"'{treebuilder}' writes no terminal branch lengths with these settings, so "
+            "its tree has no midpoint. Use --root outgroup (or --root none)."
+        )
     if (
         builder.input_kind != InputKind.GENOMES
         and params.bootstrap == 0

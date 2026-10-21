@@ -206,6 +206,9 @@ of this record.
   summarises them into a species tree with weighted ASTRAL (`wastral`) by
   default. Intended for genus and family overviews, where discordance among
   gene trees makes a concatenated ML tree overconfident. Depends on item A.
+  Shipped: the `aster` tree builder (`--treebuilder aster --msa-source
+  coregene --partitioned`); gene trees by IQ-TREE (`--fast`, aBayes) or
+  FastTree, summarised by `wastral` (default), `astral4` or `astral-pro3`.
 
 Deferred: a marker-gene route for family-level sets (F) and a benchmark of
 IQ-TREE and capped core-gene trees at 100 to 500 genomes on real data (G).

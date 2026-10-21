@@ -63,6 +63,7 @@ only where this page records one.
 | tree builder | veryfasttree | fake binary only | no | no | offline contract test | none |
 | tree builder | skani | fake binary only | no | no | offline contract test | none |
 | tree builder | ska2 | fake binary only | no | no | offline contract test | none |
+| tree builder | aster | real tool, by hand | yes | no | builder on a simulated 8-genome, 6-gene alignment with wastral, astral4 and astral-pro3, IQ-TREE and FastTree gene trees (2026-10-21); offline tests with fake binaries | ASTER 1.25.3 (wastral), IQ-TREE 3.1.4, FastTree 2.2.0 (osx-arm64) |
 | annotator | bakta | real tool, by hand | yes | no | core-gene route on Wolbachia (2026-10-15) | bakta 1.12.2, light database (osx-arm64) |
 | annotator | prokka | real tool, by hand | yes | no | core-gene route on Wolbachia (2026-10-15) | prokka 1.15.6 (needs Rosetta on this machine) |
 | core-gene builder | panaroo | real tool, by hand | yes | no | core-gene route on Wolbachia (2026-10-15) | Panaroo 1.8.0 with mafft (osx-64 under Rosetta) |
