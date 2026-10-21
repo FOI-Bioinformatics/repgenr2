@@ -165,9 +165,11 @@ def coregene_core(
 
     ``required`` names records the tree cannot do without (the outgroup):
     one missing from the alignment is an error here rather than a rooting
-    failure two steps later. ``selection`` chooses the genes when the
-    builder returns per-gene alignments; on a builder that returns only its
-    own concatenation anything but the default is refused. ``trim`` is
+    failure two steps later. Any other genome missing from the alignment is
+    refused as well, since the tree must hold every input genome.
+    ``selection`` chooses the genes when the builder returns per-gene
+    alignments; on a builder that returns only its own concatenation
+    anything but the default is refused. ``trim`` is
     ``none`` or ``clipkit``: with clipkit the per-gene alignments are trimmed
     before the selection (refused for a builder without per-gene output).
     """
@@ -283,13 +285,16 @@ def coregene_core(
             "(--no-outgroup --root midpoint)."
         )
     if dropped:
-        logger.warning(
-            "%d genome(s) are not in the core-gene alignment and will be missing from the "
-            "tree (%s): they share no core gene at this threshold, or hold none of the genes kept "
-            "after the cap and filters; lower --core-threshold, relax --max-core-genes, "
-            "--min-gene-length or --max-gene-gaps, or leave them out",
-            len(dropped),
-            ", ".join(dropped[:5]) + (" ..." if len(dropped) > 5 else ""),
+        # The tree is checked for every input genome after it is built
+        # (check_tree_leaves), so a genome missing here would fail only after
+        # the tree builder ran; refuse it before.
+        raise WorkdirError(
+            f"{len(dropped)} genome(s) are not in the core-gene alignment, so the tree would "
+            f"lack them: {', '.join(dropped[:10])}{' ...' if len(dropped) > 10 else ''}. They "
+            f"share no core gene at --core-threshold {params.core_threshold:g}, or hold none of "
+            "the genes kept after the cap and filters. Lower --core-threshold, relax "
+            "--max-core-genes, --min-gene-length or --max-gene-gaps, change --gene-rank, or "
+            "leave the genome(s) out of the set."
         )
     core_genes = len(chosen.kept) if chosen is not None else result.core_genes
     if chosen is not None:

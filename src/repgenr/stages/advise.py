@@ -95,8 +95,9 @@ RECOMMENDATIONS: dict[str, dict[str, Any]] = {
             "1000",
         ),
         "summary": (
-            "Reference-free split k-mer SNPs (ska2) and an IQ-TREE tree. ska2 writes no "
-            "constant-site counts, so branch lengths are inflated and phylo warns."
+            "Reference-free split k-mer SNPs (ska2) and an IQ-TREE tree. The typing pass "
+            "counts constant sites from ska2's all-sites alignment and passes them to the "
+            "tree builder (not under lo=true)."
         ),
         "needs_annotation": False,
     },

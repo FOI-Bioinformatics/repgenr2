@@ -417,6 +417,34 @@ def _msa_artifact(dirs: PhyloDirs, params: PhyloParams) -> Path:
     return dirs.msa_dir / CORE_SNP_FASTA
 
 
+def _msa_source_extra(params: PhyloParams) -> dict:
+    """The adapter extras the MSA source reads, for the MSA key.
+
+    Only the keys the source adapter declares (the aligner, the SNP typer and,
+    when masking, the masker, or the core-gene builder) are kept, so a tree
+    builder setting such as ``alrt=`` or ``model=`` does not rebuild the
+    alignment. An unknown source keeps every extra; ``_build_msa`` refuses it.
+    """
+    extra = _adapter_extra(params.extra)
+    try:
+        caps = _msa_source_capabilities(params)
+    except Exception:  # noqa: BLE001 - an unknown tool is refused when it runs
+        caps = None
+    if caps is None:
+        return extra
+    read: set[str] = set(caps.accepted_extras) | set(caps.default_params)
+    mask = str(params.extra.get("mask", "none"))
+    if params.msa_source == "snptype" and mask not in ("none", ""):
+        from ..maskers.base import registry as masker_registry
+
+        try:
+            mcaps = masker_registry.get(mask).capabilities
+        except Exception:  # noqa: BLE001 - an unknown masker is refused when it runs
+            return extra
+        read |= set(mcaps.accepted_extras) | set(mcaps.default_params)
+    return {k: v for k, v in extra.items() if k in read}
+
+
 def _msa_key(
     genomes: Sequence[Path],
     outgroup_file: Path | None,
@@ -426,8 +454,9 @@ def _msa_key(
 ) -> str:
     """Hash of everything that determines the MSA, and nothing else.
 
-    Deliberately excludes the tree builder, the bootstrap and the thread count:
-    those change the tree, not the alignment the tree is built from.
+    Deliberately excludes the tree builder, its extras, the bootstrap and the
+    thread count: those change the tree, not the alignment the tree is built
+    from. Only the extras the MSA source declares are hashed.
     """
     inputs = list(genomes) + ([outgroup_file] if outgroup_file is not None else [])
     payload = {
@@ -453,7 +482,7 @@ def _msa_key(
         # Read by the typing pass only; an aligner alignment is unchanged by it.
         "core_fraction": _core_fraction(params.extra) if params.msa_source == "snptype" else None,
         "stats": _SNPTYPE_STATS_VERSION if params.msa_source == "snptype" else None,
-        "extra": {k: str(v) for k, v in sorted(_adapter_extra(params.extra).items())},
+        "extra": {k: str(v) for k, v in sorted(_msa_source_extra(params).items())},
         "inputs": paths_stat_digest(inputs),
         "env": result_env_fragment(),
     }

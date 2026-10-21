@@ -80,7 +80,7 @@ All notable changes to RepGenR2 are documented here. The format follows
   cuts the alignment into one FASTA per gene, infers the gene trees in
   batches with IQ-TREE (`--fast`, aBayes supports) or FastTree
   (`gene_tree_builder=fasttree`), and writes them to `tree/gene_trees.nwk`.
-  Extras `model`, `rounds` and `min_gene_length`. `auto` never picks it.
+  Extras `model`, `rounds` and `min_gene_columns`. `auto` never picks it.
   The pinned image is `aster:1.25--hc52dbad_1`, and `envs/core.yml` gains
   `aster>=1.19`.
 - `phylo-advise` (Pipeline panel): reads a working directory (genome count,
@@ -90,8 +90,8 @@ All notable changes to RepGenR2 are documented here. The format follows
   `docs/choosing-tools.md`, the reasons and the full `repgenr phylo`
   command; `--json` prints a `repgenr.phylo-advise/1` object. It writes
   nothing to the workdir. The presets are held as data in
-  `repgenr.stages.advise.RECOMMENDATIONS`; the genus and family rows leave
-  out a partition file and a protein alphabet until those options exist.
+  `repgenr.stages.advise.RECOMMENDATIONS`; the genus row carries
+  `--partitioned`, and the family row also `--coregene-alphabet protein`.
 - ska2 typer: constant-site counts. A first `ska align --filter no-filter`
   call writes every shared split k-mer middle base (`SnpResult.all_sites_alignment`,
   an alignment without reference coordinates); the snptype stage counts its
@@ -129,9 +129,9 @@ All notable changes to RepGenR2 are documented here. The format follows
   sidecar (gene column ranges, guarded by the alignment digest) beside
   `core_gene_alignment.fasta`. `core_gene_stats.json` gains
   `core_genes_available`, `selection`, `variable_sites_total`,
-  `informative_sites_total`, `gene_table` and `partitions`. The adapters
-  still return their own concatenation, which is published as before. The
-  phylo MSA reuse key now holds the selection and a layout version, so an
+  `informative_sites_total`, `gene_table` and `partitions`. All four
+  adapters return per-gene alignments (see Changed), so the selection
+  applies to each builder. The phylo MSA reuse key now holds the selection and a layout version, so an
   existing core-gene alignment is rebuilt once.
 
 ### Changed
@@ -161,6 +161,18 @@ All notable changes to RepGenR2 are documented here. The format follows
   every run failed a warning instead of an error.
 
 ### Fixed
+- phylo MSA reuse key: only the extras the MSA source reads (the aligner,
+  the SNP typer and, when masking, the masker, or the core-gene builder) are
+  hashed, so a tree builder extra such as `alrt=`, `model=` or `gamma=` no
+  longer rebuilds the alignment. An alignment whose key held tree builder
+  extras is rebuilt once.
+- `aster` tree builder: the extra that skips short gene partitions is
+  `min_gene_columns` (was `min_gene_length`, which the phylo stage reads as
+  its core-gene selection filter, so the builder never received it).
+- Core-gene route: a genome missing from the core-gene alignment (it shares
+  no core gene, or holds none of the kept genes) now stops the stage before
+  the tree is built, naming the genome and the options to relax. It was a
+  warning, and the tree leaf check then failed after the tree builder ran.
 - `tree2tax --collapse-support`: a node label of the form `SH-aLRT/UFBoot`,
   which IQ-TREE writes with both `-alrt` and `-B`, is read by its last field
   (the ultrafast bootstrap); it was read as no support, so nothing collapsed.

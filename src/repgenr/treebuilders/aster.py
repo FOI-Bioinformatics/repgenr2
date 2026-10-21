@@ -75,14 +75,16 @@ class AsterBuilder(TreeBuilder):
         # iqtree (-fast, aBayes supports) or fasttree. model=: the IQ-TREE
         # model of every gene tree (GTR+G, or LG+G for protein, by default).
         # rounds=: ASTER's rounds of placement and subsampling (-r, -s).
-        # min_gene_length=: genes shorter than this many columns are skipped.
+        # min_gene_columns=: genes shorter than this many columns are skipped.
+        # Not min_gene_length, which names the stage's core-gene selection
+        # filter and never reaches a tree builder.
         accepted_extras=frozenset(
-            {"program", "gene_tree_builder", "model", "rounds", "min_gene_length"}
+            {"program", "gene_tree_builder", "model", "rounds", "min_gene_columns"}
         ),
         default_params={
             "program": "wastral",
             "gene_tree_builder": "iqtree",
-            "min_gene_length": 0,
+            "min_gene_columns": 0,
         },
         # ASTER prints "Version: v1.25.3.8" in its help. 1.19: the wastral
         # support presets (-B, -L) and the astral4 and astral-pro3 binaries.
@@ -137,7 +139,7 @@ class AsterBuilder(TreeBuilder):
                 f"aster: gene_tree_builder={gene_builder!r} is not supported; use one of "
                 f"{', '.join(GENE_TREE_BUILDERS)}."
             )
-        min_length = parse_extra_int(params.extra, "min_gene_length", 0)
+        min_length = parse_extra_int(params.extra, "min_gene_columns", 0)
         rounds = _rounds(params)
         model = str(params.extra.get("model", "")).strip()
         if model and gene_builder == "fasttree":
@@ -174,7 +176,7 @@ class AsterBuilder(TreeBuilder):
         if not genes:
             raise UserInputError(
                 f"aster: no gene partition has {MIN_RECORDS} or more genomes with a called "
-                "character (and passes min_gene_length); a species tree needs gene trees "
+                "character (and passes min_gene_columns); a species tree needs gene trees "
                 f"of at least {MIN_RECORDS} genomes."
             )
 

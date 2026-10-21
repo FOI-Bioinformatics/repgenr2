@@ -197,9 +197,10 @@ HELP_PRESET = (
 )
 HELP_PARTITIONED = (
     "With --msa-source coregene: fit one substitution model per core gene (an edge-linked "
-    "partition model, from the alignment's partitions.json). Honoured by iqtree and raxmlng; "
-    "other builders warn and fit one model. Refused together with an ascertainment-bias "
-    "correction (asc=, a +ASC model). Changes the tree, not the alignment."
+    "partition model, from the alignment's partitions.json). Honoured by iqtree, raxmlng "
+    "and aster (which requires it); other builders warn and fit one model. Refused "
+    "together with an ascertainment-bias correction (asc=, a +ASC model). Changes the "
+    "tree, not the alignment."
 )
 HELP_ALIGNER_ARG = (
     "Aligner, SNP typer, masker or tree builder tuning as key=value (repeatable), "

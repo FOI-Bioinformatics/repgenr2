@@ -2468,12 +2468,16 @@ concatenated in gene-id order, not in rank order, so a different
 aligned: its metrics, whether it was kept, its rank and its column range.
 `core_gene_stats.json` holds
 the settings and the counts, and `partitions.json` the column range of each
-kept gene.
+kept gene. Every per-gene alignment is held in memory during the selection,
+so the memory it needs is about the size of the alignments: roughly 1 GB at
+500 genomes and 1500 genes.
 
 The options apply only with `--msa-source coregene` and are refused with the
 other sources. They also apply to the `--aligner-arg max_core_genes=` form
 used before, which the option replaces. A genome that holds none of the kept
-genes is missing from the alignment and the tree, and the stage says so.
+genes would be missing from the alignment and the tree, so the stage stops
+before the tree is built and names it; lower `--core-threshold`, relax the
+selection, or leave the genome out of the set.
 
 As a starting point for an overview of a genus, a cap of a few hundred genes
 ranked by `informative` is a reasonable choice. This is a recommendation, not
@@ -2576,7 +2580,7 @@ maintained successor of ASTRAL). It reads the gene partitions, so it needs
 1. The alignment is cut into one FASTA per gene (`tree/genes/`). A genome
    with no called character in a gene is left out of that gene; a gene with
    fewer than 4 remaining genomes, or shorter than `--aligner-arg
-   min_gene_length=` columns, is skipped and counted in the log.
+   min_gene_columns=` columns, is skipped and counted in the log.
 2. Each gene tree is inferred with one thread, the genes run in batches
    over `-t` threads. The default is IQ-TREE with `--fast`, `GTR+G` (`LG+G`
    for a protein alignment, or `--aligner-arg model=`) and aBayes supports;
