@@ -254,6 +254,12 @@ on real data (G).
 The ANI that RepGenR2 computes from a `sourmash compare` Jaccard matrix,
 `(2j / (1 + j))^(1/k)`, is identical to sourmash's own estimate (maximum
 difference 0 on the 276 pairs of 24 Wolbachia genomes at k=21 and k=31).
+Later the same day the dense path was switched to the average containment
+of `sourmash compare --avg-containment`, c^(1/k), the quantity of the
+branchwater back-end; on these genomes of similar size (971 to 1630 hashes
+at k=31) the estimate of the 140 known pairs moved by at most 0.013
+percentage points (mean 0.002), and the shared-hash count, now 2cab/(a + b),
+gave the same 136 unknown pairs at k=31, so the figures below stand.
 Against skani on the same genomes (scaled=1000; mean sourmash minus skani,
 percentage points; the last row is the range of the unchecked sourmash
 estimate for the 57 pairs skani does not align):

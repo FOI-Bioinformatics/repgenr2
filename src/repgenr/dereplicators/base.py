@@ -77,9 +77,38 @@ class DerepResult:
     clusters: dict[str, list[str]]  # representative filename -> contained filenames
     genome_status: dict[str, str]  # genome filename -> status
     genome_information: list[dict] | None = None  # optional checkM-like QC rows
+    # How the tool computed the result, for the stage record (``tool_settings``):
+    # the sourmash back-end and ANI estimate, for example. Empty when the
+    # adapter has nothing to add to its parameters.
+    settings: dict = field(default_factory=dict)
 
 
 _VALID_STATUS = frozenset({STATUS_REPRESENTATIVE, STATUS_CONTAINED, STATUS_FAIL_QC})
+
+
+def combine_settings(results: Iterable[DerepResult]) -> dict:
+    """The ``settings`` of several adapter calls (the chunks and merge passes
+    of one dereplication) as one dict.
+
+    A key whose value is the same in every call that reports settings is
+    kept. Differing back-ends (a chunk that fell back to the dense path) are
+    joined, sorted, with a comma; any other differing key, such as the
+    per-call count of unknown pairs, is left out, since no single value
+    describes the run. Calls without settings (results read back from disk)
+    do not take part.
+    """
+    reported = [r.settings for r in results if r.settings]
+    if not reported:
+        return {}
+    combined: dict = {}
+    for key in dict.fromkeys(k for s in reported for k in s):
+        values = [s[key] for s in reported if key in s]
+        distinct = list(dict.fromkeys(values))
+        if len(values) == len(reported) and len(distinct) == 1:
+            combined[key] = distinct[0]
+        elif key == "backend":
+            combined[key] = ",".join(sorted(str(v) for v in distinct))
+    return combined
 
 
 def check_result_complete(result: DerepResult, genome_names: Collection[str]) -> None:

@@ -29,7 +29,7 @@ if TYPE_CHECKING:
 
 SOURMASH_IMAGE = "quay.io/biocontainers/sourmash:4.9.4--hdfd78af_0"
 SOURMASH_CONDA: tuple[str, ...] = ("bioconda::sourmash",)
-SOURMASH_BINARY = BinarySpec("sourmash", version_args=("--version",), min_version="4.0")
+SOURMASH_BINARY = BinarySpec("sourmash", version_args=("--version",), min_version="4.4")
 
 # ``sourmash sketch`` over several k-mer sizes starts a Rayon thread pool.
 # Measured on macOS (sourmash 4.9.4, 400000 reads, three k): 14 s and 82 s
@@ -79,34 +79,40 @@ MIN_SHARED_HASHES = 30
 MIN_SHARED_FRACTION = 0.1
 
 
-def jaccard_to_ani_matrix(
-    sim: npt.NDArray[np.float64],
+def containment_to_ani_matrix(
+    containment: npt.NDArray[np.float64],
     ksize: int,
     *,
     n_hashes: Sequence[float] | None = None,
     min_shared: int = MIN_SHARED_HASHES,
     min_fraction: float = MIN_SHARED_FRACTION,
 ) -> tuple[npt.NDArray[np.float64], int]:
-    """Elementwise ANI estimate from a k-mer Jaccard similarity matrix, and
-    the number of pairs whose ANI is unknown.
+    """Elementwise ANI estimate from a matrix of average k-mer containment,
+    and the number of pairs whose ANI is unknown.
 
-    Jaccard's containment equivalent is 2j/(1+j); the ANI estimate of the
-    k-mer model is its k-th root (the quantity ``sourmash compare --ani``
-    reports; identical to it on 276 Wolbachia pairs at k=21 and k=31).
-    Computed here rather than with ``--ani`` because sourmash reports an ANI
-    of 0 for sketches of small genomes, identical ones included (sourmash
-    4.9.4, 10 kb and 30 kb genomes at k=31, scaled=1000); the shared-hash
-    rule below keeps such pairs known, through its relative part. Used by
-    the dereplicator and the tree builder.
+    The matrix is that of ``sourmash compare --avg-containment``: for
+    sketches A and B, c = (|A & B| / |A| + |A & B| / |B|) / 2. The ANI
+    estimate of the k-mer model is its k-th root, c^(1/k), the quantity the
+    sparse branchwater path computes from the ``average_containment`` column
+    of ``sourmash scripts pairwise``, so both dereplication back-ends, glance
+    and the tree builder use one estimate. (``sourmash compare
+    --avg-containment --ani`` instead averages the ANI of the two
+    directions, which is slightly lower for sketches of unequal size.)
+    ``--ani`` is not used in any case: sourmash reports an ANI of 0 for
+    sketches of small genomes, identical ones included (sourmash 4.9.4,
+    10 kb and 30 kb genomes at k=31, scaled=1000); the shared-hash rule
+    below keeps such pairs known, through its relative part.
 
     With the hash count of each signature (``n_hashes``, in the order of the
     matrix rows, at the scaled value the matrix was computed at), a pair
-    gets an unknown ANI (NaN) when its number of shared hashes,
-    ``j * (a + b) / (1 + j)`` for sketches of ``a`` and ``b`` hashes, is
-    below ``min_shared`` and also below ``min_fraction * min(a, b)``: too
-    few hashes, in absolute terms and relative to the sketches, to support an
-    estimate. On distant bacterial pairs a few hashes from conserved genes
-    would otherwise give an ANI of 0.80 to 0.88 at k=31 (measured on
+    gets an unknown ANI (NaN) when its number of shared hashes is below
+    ``min_shared`` and also below ``min_fraction * min(a, b)``: too few
+    hashes, in absolute terms and relative to the sketches, to support an
+    estimate. The shared-hash count I of sketches of ``a`` and ``b`` hashes
+    follows from c = (I/a + I/b) / 2, that is I = 2 c a b / (a + b); with
+    a = b it is c a, and it equals the Jaccard form j (a + b) / (1 + j) for
+    the same pair. On distant bacterial pairs a few hashes from conserved
+    genes would otherwise give an ANI of 0.80 to 0.88 at k=31 (measured on
     Wolbachia supergroups that skani does not align), while identical small
     sketches of a few hashes stay at 1.0. A pair without a shared hash is
     unknown in any case; the diagonal stays 1.0. Without sizes, zero stays
@@ -114,18 +120,21 @@ def jaccard_to_ani_matrix(
     """
     import numpy as np
 
-    sim = np.asarray(sim, dtype=float)
-    containment = 2 * sim / (1 + sim)
-    ani = np.where(sim > 0, containment ** (1.0 / ksize), 0.0)
+    c = np.asarray(containment, dtype=float)
+    ani = np.where(c > 0, np.clip(c, 0.0, None) ** (1.0 / ksize), 0.0)
     if n_hashes is None:
         return ani, 0
     sizes = np.asarray(n_hashes, dtype=float)
     if ani.ndim != 2 or ani.shape[0] != ani.shape[1] or sizes.shape != (ani.shape[0],):
         raise ValueError(f"{sizes.size} signature sizes for a matrix of shape {ani.shape}")
-    # The intersection size from the Jaccard index and the two sketch sizes;
-    # rounded, since it is a count recovered through floating point.
-    shared = np.round(sim * (sizes[:, None] + sizes[None, :]) / (1 + sim))
-    smaller = np.minimum(sizes[:, None], sizes[None, :])
+    a = sizes[:, None]
+    b = sizes[None, :]
+    total = a + b
+    # The intersection size from the average containment and the two sketch
+    # sizes; rounded, since it is a count recovered through floating point.
+    with np.errstate(divide="ignore", invalid="ignore"):
+        shared = np.round(np.where(total > 0, 2 * c * a * b / total, 0.0))
+    smaller = np.minimum(a, b)
     unknown = (shared < min_shared) & ((shared < min_fraction * smaller) | (shared == 0))
     np.fill_diagonal(unknown, False)
     ani = np.where(unknown, np.nan, ani)

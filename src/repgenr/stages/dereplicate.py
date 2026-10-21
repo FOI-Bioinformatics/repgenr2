@@ -49,6 +49,7 @@ from ..dereplicators.base import (
     DerepParams,
     DerepResult,
     check_result_complete,
+    combine_settings,
     registry,
     run_quality,
 )
@@ -237,6 +238,10 @@ def run(ctx: WorkdirContext, params: DereplicateParams) -> DerepResult:
         )
     else:
         result = _dereplicate_to_result(adapter, genomes, scratch, derep_params, params, logger)
+    # How the tool computed the clustering (the sourmash back-end and ANI
+    # estimate); the keeper, refinement and --reduce steps below rebuild the
+    # result without it.
+    tool_settings = dict(result.settings)
 
     # N50 per genome for the keeper score and the summary, each genome read once.
     n50 = N50Lookup([ctx.genomes_dir], workers=params.threads)
@@ -304,6 +309,9 @@ def run(ctx: WorkdirContext, params: DereplicateParams) -> DerepResult:
             **(record_params(lineages, rows) if lineages else {}),
             **({"refine_file": params.refine_file} if params.refine_file else {}),
             **(params.extra or {}),
+            # Written after the tool arguments, so an argument of that name
+            # cannot hide it; empty for a tool that reports none.
+            "tool_settings": tool_settings,
         },
         tool_versions=versions,
         completed=datetime.now(UTC).isoformat(),
@@ -944,6 +952,8 @@ def _compose_two_stage(
         representatives=stage2.representatives,
         clusters=final_clusters,
         genome_status=status,
+        # The settings every pass shares, recorded once (combine_settings).
+        settings=combine_settings([*stage1, stage2]),
     )
 
 

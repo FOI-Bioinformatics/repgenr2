@@ -1674,6 +1674,12 @@ name is therefore sketched again, except when the new file carries an older
 timestamp (copied with `cp -p` or `rsync -t`) or, with the plugin, the same
 size and timestamp. Empty the directory after such a replacement.
 
+Both back-ends, the branchwater plugin's `pairwise` and `sourmash compare
+--avg-containment` without it, estimate ANI as c^(1/k) from the average
+containment c of a pair, and the stage record holds `tool_settings`: the
+back-end used, that estimate, `ksize` and `scaled` (see
+[output.md](output.md#files-shared-across-stages)).
+
 ### Chunked dereplication
 
 `dereplicate -s N` (`--process-size`) dereplicates in chunks. Use it for sets
@@ -1866,8 +1872,8 @@ thresholds. `--tool` chooses the comparison tool:
 - `sourmash` compares the genomes with the parameters `dereplicate --tool
   sourmash` uses (k=31, scaled=1000), reading the genome sketches of the
   working directory and writing the missing ones first, runs `sourmash
-  compare`, and converts the values to the same ANI estimate the
-  dereplication threshold applies to. The dendrogram is average-linkage
+  compare --avg-containment`, and converts the values to the same ANI
+  estimate the dereplication threshold applies to, c^(1/k). The dendrogram is average-linkage
   clustering on 1 - ANI. The full N x N matrix is held in memory, so sets
   above 5000 genomes are refused.
 

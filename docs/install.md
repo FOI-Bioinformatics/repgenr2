@@ -328,7 +328,7 @@ the `envs/` files, and the environment that holds each tool is listed in
 | Dereplicator | drep | `drep` (brings `checkm-genome` on linux-64) | no | `drep:3.7.1` | CheckM reference data through `CHECKM_DATA_PATH`, or `--ignoreGenomeQuality` |
 | Dereplicator | skder | `skder`, `skani` | yes | none (Wave) | none |
 | Dereplicator | galah | `galah` | yes | `galah:0.4.2` | none |
-| Dereplicator | sourmash | `sourmash` | yes | `sourmash:4.9.4` | `sourmash_plugin_branchwater` for the sparse back-end (extra `sparse`) |
+| Dereplicator | sourmash | `sourmash` (4.4 or later, for `compare --avg-containment`) | yes | `sourmash:4.9.4` | `sourmash_plugin_branchwater` for the sparse back-end (extra `sparse`) |
 | Annotator | bakta | `bakta` | yes | `bakta:1.12.2` | bakta database: `bakta_db download --output DIR --type light` (1.4 GB download, about 4 GB unpacked; `--type full` is 30 GB and about 84 GB unpacked, with more specific CDS annotation), then `--bakta-db DIR` or `BAKTA_DB` |
 | Annotator | prokka | `prokka` | yes, from an osx-64 environment under Rosetta (tbl2asn is not packaged for arm64) | `prokka:1.15.6` | none |
 | Aligner | progressivemauve | `mauvealigner`, `boost-cpp=1.74.0` | no (unpackaged on macOS) | `mauve:2.4.0.snapshot_2015_02_13` | none |

@@ -160,12 +160,14 @@ def test_sparse_matches_dense_on_same_graph() -> None:
 # --- threshold semantics on the tool invocations ------------------------------
 
 
-def test_dense_thresholds_ani_derived_from_jaccard(tmp_path, monkeypatch) -> None:
-    """The dense path must convert the Jaccard matrix to ANI estimates.
+def test_dense_thresholds_ani_derived_from_containment(tmp_path, monkeypatch) -> None:
+    """The dense path reads ``compare --avg-containment`` and converts the
+    average containment to ANI estimates, c^(1/k), as the sparse path does.
 
-    The measured 99.57 percent ANI pair has k=31 Jaccard 0.796 -> ANI estimate
-    0.9961, so it must merge at threshold 0.99 although its Jaccard is far
-    below 0.99. A Jaccard-1.0 (identical) pair must survive conversion too --
+    The measured 99.57 percent ANI pair has k=31 Jaccard 0.796, average
+    containment 2j/(1+j) = 0.8864 for sketches of one size -> ANI estimate
+    0.9961, so it must merge at threshold 0.99 although its containment is
+    far below 0.99. An identical pair must survive conversion too --
     sourmash's own ``compare --ani`` reports 0 for tiny sketches, which is why
     the adapter converts locally instead.
     """
@@ -179,12 +181,15 @@ def test_dense_thresholds_ani_derived_from_jaccard(tmp_path, monkeypatch) -> Non
         p.write_text(">x\nACGT\n")
         genomes.append(p)
 
+    argvs: list[list[str]] = []
+
     def fake_run_tool(caps, argv, **kwargs):
+        argvs.append([str(a) for a in argv])
         return None
 
-    jaccard = [
-        [1.0, 0.796, 0.0],  # g1-g2: the measured 99.57 pct ANI pair
-        [0.796, 1.0, 0.0],
+    containment = [
+        [1.0, 0.8864, 0.0],  # g1-g2: the measured 99.57 pct ANI pair
+        [0.8864, 1.0, 0.0],
         [0.0, 0.0, 1.0],  # g3 unrelated
     ]
     monkeypatch.setattr(sm, "run_tool", fake_run_tool)
@@ -196,7 +201,7 @@ def test_dense_thresholds_ani_derived_from_jaccard(tmp_path, monkeypatch) -> Non
     monkeypatch.setattr(
         sm,
         "_read_compare_csv",
-        lambda path: (["g1.fasta", "g2.fasta", "g3.fasta"], jaccard),
+        lambda path: (["g1.fasta", "g2.fasta", "g3.fasta"], containment),
     )
 
     adapter = sm.SourmashDereplicator()
@@ -204,16 +209,53 @@ def test_dense_thresholds_ani_derived_from_jaccard(tmp_path, monkeypatch) -> Non
         genomes, tmp_path / "out", 31, 1000, 0.99, logging.getLogger("t")
     )
     assert set(clusters) == {"g1.fasta", "g3.fasta"}  # g2 merged under g1
+    (compare,) = [a for a in argvs if a[:2] == ["sourmash", "compare"]]
+    assert "--avg-containment" in compare
+    assert compare[compare.index("-k") + 1] == "31"
 
 
-def test_jaccard_to_ani_matrix_values() -> None:
-    from repgenr.dereplicators.sourmash import _jaccard_to_ani_matrix
+def test_containment_to_ani_matrix_values() -> None:
+    from repgenr.dereplicators.sourmash import _containment_to_ani_matrix
 
-    ani, n_unknown = _jaccard_to_ani_matrix(np.array([[1.0, 0.796, 0.0]]), 31)
+    ani, n_unknown = _containment_to_ani_matrix(np.array([[1.0, 0.8864, 0.0]]), 31)
     assert n_unknown == 0  # no sizes: no shared-hash minimum
     assert ani[0, 0] == 1.0  # identical content stays 1.0
-    assert abs(ani[0, 1] - 0.9961) < 5e-4  # matches compare --ani
+    assert abs(ani[0, 1] - 0.9961) < 5e-4
     assert ani[0, 2] == 0.0  # disjoint stays 0
+
+
+def test_dense_and_sparse_back_ends_give_one_clustering(tmp_path) -> None:
+    """For one matrix of average containment the dense greedy pick and the
+    sparse one over the pairwise edge list give the same clusters."""
+    from repgenr.dereplicators.sourmash import (
+        _containment_to_ani_matrix,
+        _greedy_cluster,
+        _parse_pairwise_csv,
+        _sparse_greedy_cluster,
+    )
+
+    labels = ["a", "b", "c", "d"]
+    # a-b and c-d close; a 0.6498 fragment pair (ANI 0.986) between b and c.
+    c = np.array(
+        [
+            [1.0, 0.90, 0.10, 0.05],
+            [0.90, 1.0, 0.6498, 0.05],
+            [0.10, 0.6498, 1.0, 0.95],
+            [0.05, 0.05, 0.95, 1.0],
+        ]
+    )
+    names = {x: f"{x}.fasta" for x in labels}
+    for threshold in (0.95, 0.99):
+        ani, _n = _containment_to_ani_matrix(c, 31)
+        dense = _greedy_cluster(labels, ani, names, threshold)
+        rows = ["query_name,match_name,average_containment"]
+        rows += [f"{labels[i]},{labels[j]},{c[i, j]}" for i in range(4) for j in range(4) if i < j]
+        edges = tmp_path / f"pairwise-{threshold}.csv"
+        edges.write_text("\n".join(rows) + "\n", encoding="utf-8")
+        sparse = _sparse_greedy_cluster(
+            labels, _parse_pairwise_csv(edges, threshold, set(labels), 31), names
+        )
+        assert dense == sparse
 
 
 def test_sparse_pairwise_prefilter_is_containment_scaled(tmp_path, monkeypatch) -> None:
@@ -256,3 +298,82 @@ def test_sparse_pairwise_prefilter_is_containment_scaled(tmp_path, monkeypatch) 
     pairwise_argv = next(argv for argv in calls if "pairwise" in argv)
     t_value = float(pairwise_argv[pairwise_argv.index("-t") + 1])
     assert abs(t_value - 0.99**31) < 1e-6
+
+
+# --- the back-end in DerepResult.settings ---------------------------------------
+
+
+def _settings_run(tmp_path, monkeypatch, *, sparse: bool, sparse_fails: bool = False, extra=None):
+    import logging
+
+    from repgenr.core.errors import ToolExecutionError
+    from repgenr.dereplicators import sourmash as sm
+    from repgenr.dereplicators.base import DerepParams
+
+    genomes = []
+    for name in ("g1.fasta", "g2.fasta"):
+        p = tmp_path / name
+        p.write_text(">x\nACGT\n")
+        genomes.append(p)
+    one = ({"g1.fasta": ["g2.fasta"]}, {"g1.fasta": "representative", "g2.fasta": "contained"})
+
+    def fake_sparse(*args, **kwargs):
+        if sparse_fails:
+            raise ToolExecutionError(["sourmash"], 1, "pairwise failed", tool="sourmash")
+        return one
+
+    monkeypatch.setattr(sm, "_branchwater_available", lambda caps, logger: sparse)
+    monkeypatch.setattr(sm.SourmashDereplicator, "_sparse_dereplicate", fake_sparse)
+    monkeypatch.setattr(sm.SourmashDereplicator, "_dense_cluster", lambda *a, **k: (*one, 3))
+    params = DerepParams(secondary_ani=0.95, extra={"ksize": 21, "scaled": 500, **(extra or {})})
+    return sm.SourmashDereplicator().dereplicate(
+        genomes, tmp_path / "out", params, logging.getLogger("t")
+    )
+
+
+def test_settings_name_the_sparse_back_end(tmp_path, monkeypatch) -> None:
+    result = _settings_run(tmp_path, monkeypatch, sparse=True)
+    assert result.settings == {
+        "backend": "sparse",
+        "ani_estimate": "average_containment^(1/k)",
+        "ksize": 21,
+        "scaled": 500,
+    }
+
+
+def test_settings_name_the_dense_back_end_and_unknown_pairs(tmp_path, monkeypatch) -> None:
+    result = _settings_run(tmp_path, monkeypatch, sparse=False)
+    assert result.settings == {
+        "backend": "dense",
+        "ani_estimate": "average_containment^(1/k)",
+        "ksize": 21,
+        "scaled": 500,
+        "unknown_pairs": 3,
+    }
+
+
+def test_settings_follow_the_dense_fallback(tmp_path, monkeypatch) -> None:
+    result = _settings_run(
+        tmp_path, monkeypatch, sparse=True, sparse_fails=True, extra={"dense_fallback": True}
+    )
+    assert result.settings["backend"] == "dense"
+    assert result.settings["unknown_pairs"] == 3
+
+
+def test_dense_cluster_counts_unknown_pairs(tmp_path, monkeypatch) -> None:
+    import logging
+
+    from repgenr.dereplicators import sourmash as sm
+
+    ani = np.array([[1.0, np.nan, 0.99], [np.nan, 1.0, np.nan], [0.99, np.nan, 1.0]])
+    names = {x: x for x in ("a", "b", "c")}
+    monkeypatch.setattr(
+        sm.SourmashDereplicator,
+        "_dense_ani_matrix",
+        lambda *a, **k: (["a", "b", "c"], ani, names),
+    )
+    clusters, _status, unknown = sm.SourmashDereplicator()._dense_cluster(
+        [], tmp_path, 31, 1000, 0.95, logging.getLogger("t")
+    )
+    assert unknown == 2
+    assert clusters == {"a": ["c"], "b": []}

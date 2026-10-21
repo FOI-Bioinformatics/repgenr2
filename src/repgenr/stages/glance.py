@@ -2,7 +2,8 @@
 
 Ports ``glance.py``: compare all genomes with a dereplicator that implements
 ``compare`` (dRep compare, Mash primary clustering only, or sourmash sketches
-with the ANI estimate used by ``dereplicate --tool sourmash``), copy out the
+with the ANI estimate used by ``dereplicate --tool sourmash``, c^(1/k) from
+the average containment c), copy out the
 clustering dendrogram, and plot a box plot + histogram of the pairwise
 similarities. ``--tool auto`` prefers dRep and falls back to sourmash.
 """

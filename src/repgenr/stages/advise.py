@@ -278,7 +278,8 @@ class Evidence:
     ``n_genomes`` counts the representatives, or every genome with
     ``all_genomes``; ``n_species`` and ``n_genera`` count the canonical record
     names; ``ani_min`` and ``ani_median`` are percent over the pairs of the
-    set whose ANI is known (None without sketches or sourmash);
+    set whose ANI is known (None without sketches or sourmash), the sketch
+    ANI c^(1/k) from the average containment c, as in dereplication;
     ``ani_unknown_pairs`` counts the pairs whose sketches share fewer than
     30 hashes and under a tenth of the smaller sketch, too few to estimate an
     ANI (the reach of k=31 sketches of

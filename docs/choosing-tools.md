@@ -291,7 +291,7 @@ described in [Starting from sequencing reads](usage.md#starting-from-sequencing-
 |---|---|---|---|---|---|
 | `skder` (default) | Superlinear in practice: 5 times the genomes cost about 10 times the wall time and 6 times the memory. Single pass: about 7 min at 1000 and 69 min at 5000, memory up to 8.2 GB. Chunked: about 15 min at 5000 (measured before the skani screen default below). Receives the genome set as one staged directory of links, so the set size is not bounded by the command line. At a cutoff of 99 percent or more, skani's screen is set to the cutoff minus one (`--tool-arg screen=` overrides), so pairs below it are not aligned. | Its own aggregate score. Not quality-aware. | One representative per block. Which member is arbitrary. | No | Native and container (Wave) |
 | `galah` | Built for large sets. About 4 to 6 min at 1000 and 63 min at 5000. | With manifest quality for every genome of the run, galah's quality score (passed as `--genome-info`). Otherwise input position, with the genomes listed by descending file size, so a fragment is not preferred over a complete genome. | Without quality, the first listed member in the three orderings tested. | No; used when present | Native and container |
-| `sourmash` | Sparse back-end close to linear in close pairs. About 5.5 min at 5000, 0.3 to 0.7 GB. Dense back-end is capped at 5000. | Most-connected genome, alphabetical tie-break. | Biased toward the most-sequenced genotype. The sparse and dense back-ends can pick different members. | No | Native and container |
+| `sourmash` | Sparse back-end close to linear in close pairs. About 5.5 min at 5000, 0.3 to 0.7 GB. Dense back-end is capped at 5000. | Most-connected genome, alphabetical tie-break. | Biased toward the most-sequenced genotype. The sparse and dense back-ends use the same ANI estimate (average containment); the one used is recorded. | No | Native and container |
 | `drep` | Quadratic within primary clusters. Declared limit 2000, chunk-wrapped. | Completeness, contamination, N50 and size score. Quality-aware. | Best-scored member, so least sensitive to block size. | Yes: completeness and contamination in the manifest (or `selection.tsv` for the Nextflow steps) for every genome of the run, passed as `--genomeInfo`; else CheckM on `PATH`; or `--virus`, which passes `--ignoreGenomeQuality`. Without any of these, dRep stops and `dereplicate` exits 6. | Container only |
 
 To keep one lineage of a species at a finer resolution than the rest,
@@ -383,18 +383,20 @@ sourmash compares FracMinHash sketches (k=31, scaled=1000 by default) and
 stops at set overlap: the containment of one sketch in another is the
 fraction of its sampled k-mers that the other holds. Under a model in which
 each base mutates independently, without indels, a k-mer survives with
-probability ANI^k, so an ANI estimate is containment^(1/k), the quantity
-`sourmash compare --ani` reports. The two directions of containment differ
-when the genomes differ in size, and the back-ends combine them
-differently: the dense back-end (`sourmash compare`) converts Jaccard as
-2j/(1+j), which is the harmonic mean of the two containments, and the
-branchwater back-end prefilters pairs at containment 0.99^31, about 0.73,
-and recomputes the estimate from the arithmetic mean it reports. The two
-agree for genomes of similar size, and for unequal sizes the arithmetic
-mean is the larger, so the sparse back-end can keep a pair the dense one
-drops (the table above notes that they can pick different members). There
-is no alignment and no aligned fraction, so `--primary-ani` and
-`--aligned-fraction` are ignored. The conversion is needed because raw
+probability ANI^k, so an ANI estimate is containment^(1/k). The two
+directions of containment differ when the genomes differ in size; both
+back-ends use their average, c = (|A & B|/|A| + |A & B|/|B|) / 2, and
+estimate ANI as c^(1/k). The dense back-end reads it from `sourmash compare
+--avg-containment`, the branchwater back-end from the `average_containment`
+column of `sourmash scripts pairwise` (which it prefilters at containment
+0.99^31, about 0.73). Until 2026-10-21 the dense back-end converted the
+Jaccard index as 2j/(1+j), the harmonic mean of the two containments, which
+is lower than the average for genomes of unequal size, so a clustering
+could depend on whether the branchwater plugin was installed; it was
+switched so that both back-ends use one quantity. The back-end used is
+recorded as `tool_settings` in the stage record. There is no alignment and
+no aligned fraction, so `--primary-ani` and `--aligned-fraction` are
+ignored. The conversion is needed because raw
 similarity is on another scale: a pair at 99.57% ANI by skani has a k=31
 Jaccard of 0.796 and a sourmash estimate of 99.61%
 ([scaling-audit.md](audit/scaling-audit.md)), so a cutoff applied to the
@@ -615,7 +617,7 @@ they need installed: bakta needs its database and prokka needs none (see
 | `fasttree` | MSA | Declared 5000. Good to about 5000. `--aligner-arg gamma=true` rescales the branch lengths under the Gamma20 likelihood. | Approximate. Weaker resolution on clonal sets. | Unrooted. |
 | `veryfasttree` | MSA | Declared 20000, not measured here; the same algorithm as `fasttree` with multi-core and vectorised arithmetic. `auto` picks it above 5000 leaves when an alignment is requested and never below, since `fasttree`'s tighter limit wins there; without an alignment request `auto` stays with the alignment-free builders once the set exceeds the aligner's limit. `-threads` follows `-t`; `--aligner-arg gamma=true` and `--aligner-arg double_precision=true` are extras. | As `fasttree`. | Unrooted. |
 | `mashtree` | Genomes | Declared 10000. 53 min and 7.6 GB measured at 5000. | Poor on clonal sets. No supports. | Unrooted. |
-| `sourmash` | Genomes | Declared 2000. The distance is one minus ANI (`metric=ani`, the default), or one minus Jaccard with `metric=jaccard`. The ANI is the k-mer model estimate from the Jaccard index, as `sourmash compare --ani` would report it; `--ani` itself is not used because it reports 0 for sketches of small genomes, identical ones included. Pairs with fewer than 30 shared hashes and under a tenth of the smaller sketch (see "How the tools estimate ANI") get distance 1 and are counted in the log. For a set wider than a species, pass `--aligner-arg ksize=21`: k=21 is less biased than the default k=31 at 80 to 95 % identity. The joining step runs rapidNJ when installed (`nj=auto`), else a cubic Python step refused above 5000. | Poor on clonal sets. No supports. | Unrooted. |
+| `sourmash` | Genomes | Declared 2000. The distance is one minus ANI (`metric=ani`, the default), or one minus Jaccard with `metric=jaccard`. The ANI is the k-mer model estimate c^(1/k) from the average containment c (`sourmash compare --avg-containment`), as in dereplication; `--ani` itself is not used because it reports 0 for sketches of small genomes, identical ones included. Pairs with fewer than 30 shared hashes and under a tenth of the smaller sketch (see "How the tools estimate ANI") get distance 1 and are counted in the log. For a set wider than a species, pass `--aligner-arg ksize=21`: k=21 is less biased than the default k=31 at 80 to 95 % identity. The joining step runs rapidNJ when installed (`nj=auto`), else a cubic Python step refused above 5000. | Poor on clonal sets. No supports. | Unrooted. |
 | `skani` | Genomes | Declared 10000, not measured here. ANI from sparse chaining of k-mer sketches, reliable to about 80% identity; pairs below the screen (`screen=80`) get distance 1 and are counted in the log. `preset=fast|medium|slow|small-genomes`, `min_af`, `nj` as extras. Also provides the distance matrix of the viral outgroup selection, with the `small-genomes` preset by default there; when no candidate is within skani's reach no matrix is written and the run proceeds without an outgroup. | Expected to resolve closer pairs than mash distance and more distant ones than Jaccard (skani, Shaw and Yu 2023), not measured here; no supports, and a clonal set resolves only as well as ANI does. | Unrooted. |
 | `ska2` | Genomes | Declared 5000, as the typer. `ska distance` SNP counts (`metric=snps`) or k-mer mismatch fractions (`metric=mismatch`) over the split k-mers each pair shares, joined with rapidNJ when installed. | Good on clonal and outbreak sets, where it is reference-free; undercounts distances once pairs share few k-mers, so it warns on a set spanning several species. No supports. | Unrooted. |
 | `aster` | MSA with gene partitions | Declared 5000, not measured here. Needs `--msa-source coregene --partitioned`: one gene tree per partition (`iqtree --fast`, or `--aligner-arg gene_tree_builder=fasttree`), then a species tree with ASTER (`program=wastral`, the default, `astral4` or `astral-pro3`). Never chosen by `auto`. `rounds=`, `min_gene_columns=` and `model=` (the gene-tree model) are extras. | A summary of the gene trees that allows for discordance among them; node labels are local posterior probabilities in [0, 1], so no bootstrap is needed. `wastral` branch lengths are in coalescent units with no terminal lengths, so `--root midpoint` is refused; `astral4` writes substitutions per site. | Unrooted. |

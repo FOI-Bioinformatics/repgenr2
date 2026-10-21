@@ -18,14 +18,20 @@ Two back-ends compute the pairwise similarities, picked automatically:
   pairwise`` produce only the above-threshold edges (an edge list), never the
   dense N x N matrix. This keeps memory roughly linear in the number of close
   pairs rather than quadratic in the number of genomes, which matters at 10k+.
-* **Dense (fallback)**: plain ``sourmash sketch`` + ``sourmash compare`` build
-  the full N x N similarity matrix. Used when the plugin is absent (e.g. inside a
-  stock BioContainer). For the same threshold both back-ends pick the same
-  representatives on well-separated inputs.
+* **Dense (fallback)**: plain ``sourmash sketch`` + ``sourmash compare
+  --avg-containment`` build the full N x N matrix of average containment.
+  Used when the plugin is absent (e.g. inside a stock BioContainer).
+
+Both back-ends estimate ANI as c^(1/k) from the average containment c of a
+pair (:func:`repgenr.core.sourmash.containment_to_ani_matrix`), so for the
+same threshold they compare the same quantity. The back-end, the estimate,
+k and scaled are returned in ``DerepResult.settings`` and recorded by the
+stage as ``tool_settings``.
 
 ``compare`` (used by ``repgenr glance``) always takes the dense path, since it
 reports every genome pair; it converts to ANI the same way, so the glance plots
-use the scale of the dereplication threshold.
+use the scale of the dereplication threshold. The medoid reference and
+``phylo-advise`` read the same dense matrix.
 
 Both back-ends and ``compare`` read the workdir genome sketches when the stage
 passes them (``DerepParams.sketches``, the ``sketches`` argument of
@@ -55,7 +61,7 @@ from ..core.errors import MissingBinaryError, ToolExecutionError, WorkdirError
 from ..core.plugins import ToolCapabilities, parse_extra_int
 from ..core.process import write_fofn
 from ..core.sourmash import MIN_SHARED_HASHES, signature_sizes, sourmash_capabilities
-from ..core.sourmash import jaccard_to_ani_matrix as _jaccard_to_ani_matrix
+from ..core.sourmash import containment_to_ani_matrix as _containment_to_ani_matrix
 from .base import (
     STATUS_CONTAINED,
     STATUS_REPRESENTATIVE,
@@ -72,6 +78,11 @@ _DENSE_MAX_GENOMES = 5000
 
 # Axis label for the glance plots: sourmash's ANI estimate from k-mer sketches.
 _MEASURE = "ANI"
+
+# The ANI estimate of both back-ends, as recorded in DerepResult.settings.
+ANI_ESTIMATE = "average_containment^(1/k)"
+BACKEND_SPARSE = "sparse"
+BACKEND_DENSE = "dense"
 
 
 class SourmashDereplicator(Dereplicator):
@@ -112,7 +123,9 @@ class SourmashDereplicator(Dereplicator):
         sketch_cache = Path(cache) if cache else None
         sketches = params.sketches
 
+        unknown_pairs: int | None = None
         if _branchwater_available(self.capabilities, logger):
+            backend = BACKEND_SPARSE
             try:
                 clusters, status = self._sparse_dereplicate(
                     genomes,
@@ -137,7 +150,8 @@ class SourmashDereplicator(Dereplicator):
                     "dense fallback requested, retrying with dense compare",
                     exc,
                 )
-                clusters, status = self._dense_dereplicate(
+                backend = BACKEND_DENSE
+                clusters, status, unknown_pairs = self._dense_cluster(
                     genomes,
                     out_dir,
                     ksize,
@@ -149,7 +163,8 @@ class SourmashDereplicator(Dereplicator):
                     sketches,
                 )
         else:
-            clusters, status = self._dense_dereplicate(
+            backend = BACKEND_DENSE
+            clusters, status, unknown_pairs = self._dense_cluster(
                 genomes,
                 out_dir,
                 ksize,
@@ -162,10 +177,19 @@ class SourmashDereplicator(Dereplicator):
             )
 
         rep_paths = [p for p in genomes if p.name in clusters]
+        settings: dict[str, object] = {
+            "backend": backend,
+            "ani_estimate": ANI_ESTIMATE,
+            "ksize": ksize,
+            "scaled": scaled,
+        }
+        if unknown_pairs is not None:
+            settings["unknown_pairs"] = unknown_pairs
         return DerepResult(
             representatives=sorted(rep_paths),
             clusters=clusters,
             genome_status=status,
+            settings=settings,
         )
 
     def _dense_dereplicate(
@@ -181,6 +205,24 @@ class SourmashDereplicator(Dereplicator):
         sketches: Mapping[Path, Path] | None = None,
     ) -> tuple[dict[str, list[str]], dict[str, str]]:
         """Stock sourmash sketch + N x N compare (no plugin needed)."""
+        clusters, status, _unknown = self._dense_cluster(
+            genomes, out_dir, ksize, scaled, threshold, logger, sketch_cache, threads, sketches
+        )
+        return clusters, status
+
+    def _dense_cluster(
+        self,
+        genomes: Sequence[Path],
+        out_dir: Path,
+        ksize: int,
+        scaled: int,
+        threshold: float,
+        logger: logging.Logger,
+        sketch_cache: Path | None = None,
+        threads: int = 1,
+        sketches: Mapping[Path, Path] | None = None,
+    ) -> tuple[dict[str, list[str]], dict[str, str], int]:
+        """The dense clustering and the number of pairs whose ANI is unknown."""
         labels, ani, name_by_label = self._dense_ani_matrix(
             genomes,
             out_dir,
@@ -194,7 +236,11 @@ class SourmashDereplicator(Dereplicator):
             "(pip install sourmash_plugin_branchwater) for the sparse path, or use a "
             "tool that scales better at this size (e.g. --tool skder).",
         )
-        return _greedy_cluster(labels, ani, name_by_label, threshold)
+        clusters, status = _greedy_cluster(labels, ani, name_by_label, threshold)
+        # NaN marks a pair with too few shared hashes; triu leaves the lower
+        # triangle at 0, so each pair is counted once.
+        unknown = int(np.count_nonzero(np.isnan(np.triu(ani, k=1))))
+        return clusters, status, unknown
 
     def compare(
         self,
@@ -208,7 +254,7 @@ class SourmashDereplicator(Dereplicator):
         """All-vs-all ANI estimates for ``repgenr glance`` (dense compare).
 
         Uses the same sketches (default ksize/scaled) and the same
-        Jaccard-to-ANI conversion as the dense dereplication path, so the
+        containment-to-ANI conversion as the dereplication paths, so the
         glance plots are on the scale the ``--secondary-ani`` threshold of
         ``dereplicate --tool sourmash`` applies to. Writes a pairwise CSV (one
         row per unordered pair) and an average-linkage dendrogram on 1 - ANI.
@@ -250,10 +296,13 @@ class SourmashDereplicator(Dereplicator):
     ) -> tuple[list[str], npt.NDArray[np.float64], dict[str, str]]:
         """Sketch (reusing given or cached signatures) and compare all genomes.
 
-        Returns the column labels and the N x N ANI-estimate matrix, both in
-        genome file name order (``sourmash compare`` does not keep its input
-        order, and the greedy pick breaks ties by position), and the map from
-        label to genome basename.
+        The matrix is ``sourmash compare --avg-containment``, converted to
+        ANI with :func:`repgenr.core.sourmash.containment_to_ani_matrix`
+        (c^(1/k), as the sparse path). Returns the column labels and the
+        N x N ANI-estimate matrix, both in genome file name order
+        (``sourmash compare`` does not keep its input order, and the greedy
+        pick breaks ties by position), and the map from label to genome
+        basename.
         """
         if len(genomes) > _DENSE_MAX_GENOMES:
             raise WorkdirError(
@@ -282,6 +331,9 @@ class SourmashDereplicator(Dereplicator):
                 "compare",
                 "-k",
                 str(ksize),
+                # Average containment, (|A & B|/|A| + |A & B|/|B|) / 2, the
+                # quantity of the sparse path (sourmash 4.4 or later).
+                "--avg-containment",
                 "--csv",
                 matrix_csv,
                 "--from-file",
@@ -294,13 +346,13 @@ class SourmashDereplicator(Dereplicator):
             extra_mounts=mounts,
         )
 
-        # Convert the Jaccard matrix to ANI estimates so the threshold applies
-        # on the same scale as skder/galah (raw Jaccard at k=31 is ~0.8 for a
-        # 99.6 pct ANI pair). Converting here, rather than via ``compare
-        # --ani``, keeps identical-content pairs at 1.0 even for tiny sketches,
-        # where sourmash's estimator refuses and reports 0. With the signature
-        # sizes, a pair with fewer than MIN_SHARED_HASHES shared hashes and
-        # fewer than a tenth of the smaller sketch gets ANI NaN (unknown).
+        # Convert the containment matrix to ANI estimates so the threshold
+        # applies on the same scale as skder/galah. Converting here, rather
+        # than via ``compare --ani``, keeps identical-content pairs at 1.0
+        # even for tiny sketches, where sourmash's estimator refuses and
+        # reports 0. With the signature sizes, a pair with fewer than
+        # MIN_SHARED_HASHES shared hashes and fewer than a tenth of the
+        # smaller sketch gets ANI NaN (unknown).
         labels, sim = _read_compare_csv(matrix_csv)
         sizes = signature_sizes(
             self.capabilities,
@@ -317,10 +369,10 @@ class SourmashDereplicator(Dereplicator):
         labels = [labels[i] for i in order]
         sim = np.asarray(sim, dtype=float)[np.ix_(order, order)]
         if sizes is None:
-            ani, n_unknown = _jaccard_to_ani_matrix(sim, ksize)
+            ani, n_unknown = _containment_to_ani_matrix(sim, ksize)
         else:
             n_hashes, _scaled = sizes
-            ani, n_unknown = _jaccard_to_ani_matrix(
+            ani, n_unknown = _containment_to_ani_matrix(
                 sim, ksize, n_hashes=[n_hashes[i] for i in order]
             )
         if n_unknown:
@@ -414,8 +466,8 @@ class SourmashDereplicator(Dereplicator):
         (ANI estimate = containment^(1/k)), and average containment never exceeds
         max containment, so prefiltering at ``threshold ** ksize`` yields a
         superset of the wanted edges; the parser then keeps pairs whose
-        containment-derived ANI is >= ``threshold``, matching the dense
-        ``compare --ani`` graph.
+        average-containment ANI, c^(1/k), is >= ``threshold``: the estimate
+        of the dense path, which reads ``compare --avg-containment``.
 
         Genomes with a given sketch are not sketched: ``pairwise`` reads a
         path list of their ``.sig.zip`` files (plus the zip of the others) and
@@ -475,7 +527,7 @@ class SourmashDereplicator(Dereplicator):
         # a mutually-similar group becomes the representative) matches the dense
         # ``compare`` path, which orders its matrix by genome file name.
         labels = [label_of[g] for g in sorted(genomes, key=lambda g: g.name)]
-        # No shared-hash minimum here (core.sourmash.jaccard_to_ani_matrix):
+        # No shared-hash minimum here (core.sourmash.containment_to_ani_matrix):
         # the pairs kept are above containment threshold**ksize (0.99**31 is
         # about 0.73), so they share about three quarters of the smaller
         # sketch, above the rule's relative part at any sketch size.
@@ -799,12 +851,13 @@ def _parse_pairwise_csv(
 ) -> dict[str, set[str]]:
     """Parse a branchwater ``pairwise`` edge list into a symmetric neighbour map.
 
-    Keeps pairs whose containment-derived ANI estimate (containment^(1/k), the
-    quantity ``sourmash compare --ani`` reports) is >= ``threshold``, mirroring
-    the dense graph. Rows without an ``average_containment`` column fall back to
-    the containment equivalent of Jaccard, 2j/(1+j). Self-edges are dropped, and
-    only labels in ``known`` are kept, so a stray name cannot introduce a
-    phantom node.
+    Keeps pairs whose ANI estimate from the average containment,
+    containment^(1/k), is >= ``threshold``: the estimate of the dense path,
+    so both back-ends build the same graph. Rows without an
+    ``average_containment`` column fall back to 2j/(1+j) from the Jaccard
+    index, which equals the average containment only for sketches of equal
+    size. Self-edges are dropped, and only labels in ``known`` are kept, so a
+    stray name cannot introduce a phantom node.
     """
     min_containment = threshold**ksize
     neighbors: dict[str, set[str]] = {}

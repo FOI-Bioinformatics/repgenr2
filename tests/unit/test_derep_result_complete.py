@@ -74,3 +74,41 @@ def test_fail_qc_needs_no_cluster() -> None:
         genome_status={"a.fasta": STATUS_REPRESENTATIVE, "b.fasta": "fail_qc"},
     )
     check_result_complete(r, ["a.fasta", "b.fasta"])
+
+
+# --- the settings of several adapter calls ---------------------------------------
+
+
+def _with(settings: dict) -> DerepResult:
+    result = _ok()
+    result.settings = settings
+    return result
+
+
+def test_settings_default_to_empty() -> None:
+    assert _ok().settings == {}
+
+
+def test_combine_settings_keeps_shared_values_and_drops_differing_counts() -> None:
+    from repgenr.dereplicators.base import combine_settings
+
+    base = {"backend": "dense", "ksize": 31, "scaled": 1000}
+    combined = combine_settings(
+        [_with({**base, "unknown_pairs": 2}), _ok(), _with({**base, "unknown_pairs": 5})]
+    )
+    assert combined == base  # the result without settings takes no part
+    same = combine_settings([_with({**base, "unknown_pairs": 2})] * 2)
+    assert same == {**base, "unknown_pairs": 2}
+
+
+def test_combine_settings_joins_differing_back_ends() -> None:
+    from repgenr.dereplicators.base import combine_settings
+
+    combined = combine_settings(
+        [
+            _with({"backend": "sparse", "ksize": 31}),
+            _with({"backend": "dense", "ksize": 31, "unknown_pairs": 0}),
+        ]
+    )
+    assert combined == {"backend": "dense,sparse", "ksize": 31}
+    assert combine_settings([_ok(), _ok()]) == {}

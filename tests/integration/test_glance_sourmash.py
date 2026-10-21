@@ -119,7 +119,10 @@ def test_glance_sourmash_uses_the_dereplication_sketch_and_ani(
         csv.DictReader((ctx.workdir / "glance_wd" / "pairwise_ani.csv").open(encoding="utf-8"))
     )
     ab = next(r for r in rows if {r["genome1"], r["genome2"]} == {"a.fasta", "b.fasta"})
-    expected = sm._jaccard_to_ani_matrix(np.array([[0.8]]), 31)[0][0, 0]
+    assert "--avg-containment" in compare
+    # The fake matrix is read as average containment: ANI = c^(1/k).
+    expected = sm._containment_to_ani_matrix(np.array([[0.8]]), 31)[0][0, 0]
+    assert expected == pytest.approx(0.8 ** (1 / 31))
     assert float(ab["similarity"]) == pytest.approx(expected, abs=1e-6)
 
 

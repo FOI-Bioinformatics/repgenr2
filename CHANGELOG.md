@@ -7,6 +7,12 @@ All notable changes to RepGenR2 are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- The `dereplicate` record holds `tool_settings`, how the tool computed the
+  clustering. For sourmash: `backend` (`sparse` or `dense`), `ani_estimate`
+  (`average_containment^(1/k)`), `ksize`, `scaled` and, on the dense
+  back-end, `unknown_pairs`; a chunked run records the back-end once. Empty
+  for the other dereplicators. `repgenr status` prints it on the
+  dereplicate line.
 - Core-gene builder `markers` (`--msa-source coregene --coregene markers`):
   GTDB's single-copy marker proteins (bac120 or ar53) found with HMMER
   3.4 and aligned to their models, with GTDB-Tk's rules: Pfam families
@@ -193,6 +199,17 @@ All notable changes to RepGenR2 are documented here. The format follows
   existing core-gene alignment is rebuilt once.
 
 ### Changed
+- The dense back-end of `dereplicate --tool sourmash` (without the
+  branchwater plugin) estimates ANI from the average containment of
+  `sourmash compare --avg-containment`, c^(1/k), as the sparse back-end
+  does, instead of 2j/(1+j) of the Jaccard index, the harmonic mean of the
+  two containments. Both back-ends now compare one quantity. This is a
+  one-time change: for genomes of unequal size (a fragmented or partial
+  assembly against a complete genome) the dense estimate is higher than
+  before, so clusterings may differ from earlier runs. `glance --tool
+  sourmash`, the medoid reference, `phylo-advise` and the `metric=ani`
+  distance of the sourmash tree builder use the same estimate. sourmash 4.4
+  or later is required (`--avg-containment`).
 - `--preset family` (and the `family` advice of `phylo-advise`) now builds
   from GTDB's marker proteins with `--coregene markers` instead of
   PPanGGOLiN core genes with `--coregene-alphabet protein`; it needs the

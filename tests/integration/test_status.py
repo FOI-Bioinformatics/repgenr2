@@ -208,6 +208,36 @@ def test_stale_metadata_line_keeps_the_gtdb_note(tmp_path: Path) -> None:
     assert "[stale]   metadata [gtdb-table]  t  (GTDB release 232.0)  (missing:" in result.stdout
 
 
+def test_dereplicate_line_names_the_tool_settings(tmp_path: Path) -> None:
+    cfg = Config()
+    settings = {
+        "backend": "sparse",
+        "ani_estimate": "average_containment^(1/k)",
+        "ksize": 31,
+        "scaled": 1000,
+    }
+    cfg.record_stage(
+        "dereplicate", tool="sourmash", params={"tool_settings": settings}, completed="t"
+    )
+    cfg.save(tmp_path)
+    result = _runner.invoke(app, ["status", "-wd", str(tmp_path)])
+    assert "dereplicate [sourmash]  t  (sparse back-end, k=31, scaled=1000)" in result.stdout
+    payload = _status_json(tmp_path)
+    detail = _by_name(payload)["dereplicate"]["detail"]
+    assert detail == "sparse back-end, k=31, scaled=1000"
+
+
+def test_dereplicate_line_without_tool_settings_has_no_note() -> None:
+    from repgenr.cli.cmd_misc import _derep_note
+
+    assert _derep_note({}) == ""
+    assert _derep_note({"tool_settings": {}}) == ""
+    assert (
+        _derep_note({"tool_settings": {"backend": "dense", "ksize": 21, "unknown_pairs": 4}})
+        == "dense back-end, k=21, 4 pairs of unknown ANI"
+    )
+
+
 def _status_json(wd: Path) -> dict:
     import json
 

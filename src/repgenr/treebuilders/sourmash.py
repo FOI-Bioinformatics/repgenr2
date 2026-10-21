@@ -2,9 +2,10 @@
 
 The distance is ``1 - ANI`` by default (``metric=ani``), on the scale of
 skani and mashtree, or ``1 - Jaccard`` with ``metric=jaccard``. The ANI is
-the k-mer model estimate from the Jaccard index of ``sourmash compare``
-(:func:`repgenr.core.sourmash.jaccard_to_ani_matrix`, shared with the
-dereplicator), as ``sourmash compare --ani`` would report it. ``--ani``
+the k-mer model estimate c^(1/k) from the average containment c of
+``sourmash compare --avg-containment``
+(:func:`repgenr.core.sourmash.containment_to_ani_matrix`, shared with both
+dereplication back-ends, glance and the medoid reference). ``--ani``
 itself is not used: sourmash 4.9.4 reports an ANI of 0 for sketches of
 small genomes, identical ones included (10 kb and 30 kb genomes at k=31,
 scaled=1000), which would place identical genomes at the largest distance.
@@ -38,7 +39,7 @@ from ..core.plugins import parse_extra_int, preflight, tool_available
 from ..core.process import write_fofn
 from ..core.sourmash import (
     MIN_SHARED_HASHES,
-    jaccard_to_ani_matrix,
+    containment_to_ani_matrix,
     signature_sizes,
     sourmash_capabilities,
 )
@@ -120,6 +121,9 @@ class SourmashBuilder(TreeBuilder):
         compare_fofn = write_fofn(sigs, out_dir / "signatures.fofn")
         # The given sketches live outside out_dir; their paths are inside the fofn.
         mounts = sorted({os.path.dirname(os.path.abspath(p)) for p in given.values()})
+        # metric=ani reads the average containment, the quantity of the
+        # dereplicator; metric=jaccard the Jaccard index.
+        measure = ["--avg-containment"] if metric == METRIC_ANI else []
         run_tool(
             self.capabilities,
             [
@@ -127,6 +131,7 @@ class SourmashBuilder(TreeBuilder):
                 "compare",
                 "-k",
                 str(ksize),
+                *measure,
                 "--csv",
                 matrix_csv,
                 "--from-file",
@@ -163,9 +168,9 @@ class SourmashBuilder(TreeBuilder):
             )
             sim = np.asarray(similarity, dtype=float)
             if sizes is None:
-                ani, _unknown = jaccard_to_ani_matrix(sim, ksize)
+                ani, _unknown = containment_to_ani_matrix(sim, ksize)
             else:
-                ani, _unknown = jaccard_to_ani_matrix(sim, ksize, n_hashes=sizes[0])
+                ani, _unknown = containment_to_ani_matrix(sim, ksize, n_hashes=sizes[0])
                 too_few = (
                     f"share fewer than {MIN_SHARED_HASHES} hashes (and under a tenth of the "
                     "smaller sketch)"
