@@ -8,6 +8,12 @@ builder's tables under ``tree/msa/pangenome/`` and a small
 ``core_gene_stats.json``. The alignment keeps its invariant sites, so no
 ``alignment_stats.json`` is written and the tree builder applies no
 ascertainment-bias correction.
+
+A builder that returns one alignment per gene has its genes measured,
+ranked and capped by a :class:`~repgenr.coregenes.select.GeneSelection`
+and concatenated here; ``core_genes.tsv`` lists every gene with its
+metrics and ``partitions.json`` the columns of each kept gene. A builder
+that returns only its own concatenation has it published as it is.
 """
 
 from __future__ import annotations
@@ -17,16 +23,37 @@ import logging
 import os
 import shutil
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from pathlib import Path
 
 from ..core.annotations import AnnotationRecord, gff_path, index_digest, read_index
-from ..core.contracts import CORE_GENE_FASTA, CORE_GENE_STATS, PANGENOME_DIR, atomic_path
+from ..core.contracts import (
+    CORE_GENE_FASTA,
+    CORE_GENE_STATS,
+    CORE_GENES_TSV,
+    PANGENOME_DIR,
+    atomic_path,
+)
 from ..core.errors import UserInputError, WorkdirError
 from ..core.plugins import scale_warning, warn_ignored_params, warn_unconsumed_extras
 from ..core.process import remove_tree
-from ..coregenes.base import CoreGeneParams, CoreGeneResult
+from ..coregenes.base import CoreGeneParams, CoreGeneResult, GeneAlignment
 from ..coregenes.base import registry as coregene_registry
+from ..coregenes.select import (
+    GeneMetrics,
+    GeneRow,
+    GeneSelection,
+    Partition,
+    concatenate,
+    gene_metrics,
+    load_gene,
+    rank_genes,
+    write_gene_table,
+)
+from ..tree.partitions import PARTITIONS, write_partitions
+
+# Every gene, ranked by occupancy: what a builder without per-gene output gets.
+_DEFAULT_SELECTION = GeneSelection()
 
 
 @dataclass
@@ -82,12 +109,15 @@ def coregene_core(
     *,
     warn_extras: bool = True,
     required: Sequence[str] = (),
+    selection: GeneSelection = _DEFAULT_SELECTION,
 ) -> tuple[CoreGeneResult, dict[str, str]]:
     """Run the core-gene builder ``tool`` over ``gffs`` into ``msa_dir``.
 
     ``required`` names records the tree cannot do without (the outgroup):
     one missing from the alignment is an error here rather than a rooting
-    failure two steps later.
+    failure two steps later. ``selection`` chooses the genes when the
+    builder returns per-gene alignments; on a builder that returns only its
+    own concatenation anything but the default is refused.
     """
     if tool not in coregene_registry.names():
         raise UserInputError(
@@ -122,11 +152,37 @@ def coregene_core(
 
     msa_dir.mkdir(parents=True, exist_ok=True)
     alignment = msa_dir / CORE_GENE_FASTA
+    expected_names = [g.stem for g in gffs]
+    # A table or sidecar from an earlier run describes another alignment; the
+    # sidecar's digest guard would ignore it, but a failed run should not
+    # leave an old table beside a new alignment.
+    (msa_dir / CORE_GENES_TSV).unlink(missing_ok=True)
+    (msa_dir / PARTITIONS).unlink(missing_ok=True)
+    chosen: _Chosen | None = None
+    if result.gene_alignments is not None:
+        chosen = _choose_genes(
+            result.gene_alignments, expected_names, selection, scratch, tool, logger
+        )
+        source = chosen.concatenation
+    else:
+        if selection != _DEFAULT_SELECTION:
+            raise UserInputError(
+                f"The core-gene builder '{tool}' returns no per-gene alignments, so a gene "
+                "selection (maximum gene count, rank, minimum gene length or maximum gap "
+                "fraction) cannot apply; leave those settings at their defaults."
+            )
+        if result.alignment is None:
+            raise WorkdirError(
+                f"The core-gene builder '{tool}' returned neither per-gene alignments nor an "
+                "alignment."
+            )
+        source = result.alignment
     with atomic_path(alignment) as tmp:
         # A builder that writes every genome (PPanGGOLiN fills a missing family
-        # with gaps) can leave a genome that shares no selected gene as a row
-        # of gaps; dropped here, it meets the same checks as an absent one.
-        empty = _copy_without_gap_only_records(result.alignment, tmp)
+        # with gaps), or the concatenation here, can leave a genome that shares
+        # no selected gene as a row of gaps; dropped here, it meets the same
+        # checks as an absent one.
+        empty = _copy_without_gap_only_records(source, tmp)
     if empty:
         logger.info(
             "Removed %d record(s) of gaps only from the core-gene alignment: %s",
@@ -140,14 +196,8 @@ def coregene_core(
         shutil.copy2(table, tables_dir / table.name)
     names, length = _shape(alignment)
     genomes = len(names)
-    expected = {g.stem for g in gffs}
-    unknown = sorted(set(names) - expected)
-    if unknown:
-        raise WorkdirError(
-            f"The core-gene alignment names {len(unknown)} record(s) that are none of the "
-            f"genomes ({', '.join(unknown[:5])}): the builder did not name its samples after "
-            "the annotation files, so the tree leaves would not match the genome set."
-        )
+    expected = set(expected_names)
+    _refuse_unknown(names, expected)
     dropped = sorted(expected - set(names))
     missing_required = sorted(set(required) & set(dropped))
     if missing_required:
@@ -165,10 +215,22 @@ def coregene_core(
             len(dropped),
             ", ".join(dropped[:5]) + (" ..." if len(dropped) > 5 else ""),
         )
+    core_genes = len(chosen.kept) if chosen is not None else result.core_genes
+    if chosen is not None:
+        write_gene_table(msa_dir / CORE_GENES_TSV, chosen.rows())
+        write_partitions(alignment, chosen.partitions, "dna")
     stats = {
         "alignment": alignment.name,
         "source": tool,
-        "core_genes": result.core_genes,
+        "core_genes": core_genes,
+        # Genes the builder aligned before the selection; None when it hands
+        # over only its own concatenation.
+        "core_genes_available": len(chosen.metrics) if chosen is not None else None,
+        "selection": asdict(selection),
+        "variable_sites_total": chosen.variable_sites if chosen is not None else None,
+        "informative_sites_total": chosen.informative_sites if chosen is not None else None,
+        "gene_table": CORE_GENES_TSV if chosen is not None else None,
+        "partitions": PARTITIONS if chosen is not None else None,
         "alignment_length": length,
         "genomes": genomes,
         "core_threshold": params.core_threshold,
@@ -196,14 +258,104 @@ def coregene_core(
     logger.info(
         "Core-gene alignment: %s genes, %d columns, %d genomes (invariant sites kept; no "
         "ascertainment-bias correction applies)",
-        result.core_genes if result.core_genes is not None else "?",
+        core_genes if core_genes is not None else "?",
         length,
         genomes,
     )
     remove_tree(scratch)
     return CoreGeneResult(
-        alignment=alignment, tables=sorted(tables_dir.iterdir()), core_genes=result.core_genes
+        alignment=alignment, tables=sorted(tables_dir.iterdir()), core_genes=core_genes
     ), versions
+
+
+def _refuse_unknown(names: Sequence[str] | set[str], expected: set[str]) -> None:
+    """Refuse record names that are none of the genomes of the set."""
+    unknown = sorted(set(names) - expected)
+    if unknown:
+        raise WorkdirError(
+            f"The core-gene alignment names {len(unknown)} record(s) that are none of the "
+            f"genomes ({', '.join(unknown[:5])}): the builder did not name its samples after "
+            "the annotation files, so the tree leaves would not match the genome set."
+        )
+
+
+@dataclass
+class _Chosen:
+    """The outcome of the gene selection: metrics of every gene, the kept
+    ones in rank order, their columns in the concatenation written to
+    ``concatenation`` (in scratch, before gap-only rows are dropped)."""
+
+    metrics: dict[str, GeneMetrics]
+    kept: list[str]
+    partitions: list[Partition]
+    concatenation: Path
+
+    @property
+    def variable_sites(self) -> int:
+        return sum(self.metrics[g].variable_sites for g in self.kept)
+
+    @property
+    def informative_sites(self) -> int:
+        return sum(self.metrics[g].informative_sites for g in self.kept)
+
+    def rows(self) -> list[GeneRow]:
+        """Table rows: kept genes in rank order, then the others by gene id."""
+        where = {p.gene: p for p in self.partitions}
+        rows = [
+            GeneRow(g, True, i, self.metrics[g], where[g].start, where[g].end)
+            for i, g in enumerate(self.kept, start=1)
+        ]
+        kept = set(self.kept)
+        rows += [
+            GeneRow(g, False, None, self.metrics[g], None, None)
+            for g in sorted(self.metrics)
+            if g not in kept
+        ]
+        return rows
+
+
+def _choose_genes(
+    gene_alignments: Sequence[GeneAlignment],
+    genomes: Sequence[str],
+    selection: GeneSelection,
+    scratch: Path,
+    tool: str,
+    logger: logging.Logger,
+) -> _Chosen:
+    """Measure, rank and concatenate the per-gene alignments of a builder."""
+    seen: set[str] = set()
+    for ga in gene_alignments:
+        if ga.gene in seen:
+            raise WorkdirError(
+                f"The core-gene builder '{tool}' returned gene '{ga.gene}' more than once."
+            )
+        seen.add(ga.gene)
+    genes = {ga.gene: load_gene(ga.path) for ga in gene_alignments}
+    _refuse_unknown({name for seqs in genes.values() for name in seqs}, set(genomes))
+    metrics = {g: gene_metrics(seqs, len(genomes)) for g, seqs in genes.items()}
+    kept = rank_genes(metrics, selection)
+    if not kept:
+        if not metrics:
+            raise WorkdirError(f"The core-gene builder '{tool}' returned no core gene alignment.")
+        raise WorkdirError(
+            f"None of the {len(metrics)} core genes passes the gene filters (minimum length "
+            f"{selection.min_length}, maximum gap fraction "
+            f"{selection.max_gaps if selection.max_gaps is not None else 'none'}); relax them."
+        )
+    concatenation = scratch / "core_genes_concatenated.fasta"
+    partitions = concatenate(kept, genes, genomes, concatenation)
+    chosen = _Chosen(metrics, kept, partitions, concatenation)
+    logger.info(
+        "Core-gene selection: %d genes available, %d kept (rank %s); %d columns, %d variable "
+        "and %d informative sites",
+        len(metrics),
+        len(kept),
+        selection.rank,
+        partitions[-1].end if partitions else 0,
+        chosen.variable_sites,
+        chosen.informative_sites,
+    )
+    return chosen
 
 
 _GAPS = frozenset("-.?")

@@ -208,6 +208,57 @@ def test_stamp_key_follows_the_core_gene_settings(tmp_path: Path) -> None:
     )
 
 
+def test_stamp_key_follows_the_gene_selection_and_layout(tmp_path: Path, monkeypatch) -> None:
+    genomes = [tmp_path / "a.fasta", tmp_path / "b.fasta"]
+    for g in genomes:
+        g.write_text(">x\nACGT\n", encoding="utf-8")
+
+    def key(**extra) -> str:
+        return phylo_mod._msa_key(
+            genomes, None, PhyloParams(msa_source="coregene", extra=extra), None, "d"
+        )
+
+    k1 = key()
+    # The defaults spelled out are the defaults.
+    assert k1 == key(max_core_genes="0", gene_rank="occupancy")
+    for changed in (
+        {"max_core_genes": "50"},
+        {"gene_rank": "informative"},
+        {"min_gene_length": "300"},
+        {"max_gene_gaps": "0.2"},
+    ):
+        assert k1 != key(**changed), changed
+    monkeypatch.setattr(phylo_mod, "_COREGENE_LAYOUT", phylo_mod._COREGENE_LAYOUT + 1)
+    assert k1 != key()
+
+
+def test_gene_selection_is_read_from_the_stage_extras() -> None:
+    from repgenr.coregenes.select import GeneSelection
+
+    extra = {
+        "max_core_genes": "50",
+        "gene_rank": "length",
+        "min_gene_length": "300",
+        "max_gene_gaps": "0.25",
+        "cgk": "1",
+    }
+    assert phylo_mod._gene_selection(extra) == GeneSelection(
+        max_genes=50, rank="length", min_length=300, max_gaps=0.25
+    )
+    assert phylo_mod._gene_selection({}) == GeneSelection()
+    # Stage keys are never forwarded to the builder.
+    assert phylo_mod._adapter_extra(extra) == {"cgk": "1"}
+    for bad in (
+        {"max_core_genes": "many"},
+        {"min_gene_length": "1.5"},
+        {"max_gene_gaps": "x"},
+        {"max_gene_gaps": "2"},
+        {"gene_rank": "best"},
+    ):
+        with pytest.raises(UserInputError):
+            phylo_mod._gene_selection(bad)
+
+
 def test_phylo_build_reads_or_makes_the_annotations(tmp_path: Path, tools) -> None:
     gdir = tmp_path / "genomes"
     gdir.mkdir()

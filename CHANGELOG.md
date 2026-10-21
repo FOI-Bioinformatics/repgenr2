@@ -6,6 +6,22 @@ All notable changes to RepGenR2 are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+- Core-gene route: a core-gene builder may return one alignment per gene
+  (`CoreGeneResult.gene_alignments`) instead of its own concatenation. The
+  stage then computes per-gene metrics (occupancy, gap fraction, variable
+  and parsimony-informative sites, mean pairwise identity), ranks and caps
+  the genes by a `GeneSelection`, concatenates the kept genes in gene-id
+  order and writes `tree/msa/core_genes.tsv` and a `partitions.json`
+  sidecar (gene column ranges, guarded by the alignment digest) beside
+  `core_gene_alignment.fasta`. `core_gene_stats.json` gains
+  `core_genes_available`, `selection`, `variable_sites_total`,
+  `informative_sites_total`, `gene_table` and `partitions`. The adapters
+  still return their own concatenation, which is published as before; the
+  selection settings have no command-line flags yet. The phylo MSA reuse
+  key now holds the selection and a layout version, so an existing
+  core-gene alignment is rebuilt once.
+
 ### Changed
 - Nextflow: `READS_SKETCH` runs one task per chunk of `--reads_sketch_chunk`
   runs of `reads.tsv` (default 25) instead of one task per batch, so a time
