@@ -188,3 +188,14 @@ def test_partitions_with_asc_are_refused(tmp_path: Path, monkeypatch, params) ->
 def test_a_protein_alignment_is_stated_as_aa(tmp_path: Path, monkeypatch) -> None:
     cmd = _run_capturing(tmp_path, monkeypatch, TreeParams(alphabet="protein"))
     assert cmd[cmd.index("-st") + 1] == "AA"
+
+
+@pytest.mark.parametrize("extra", [{"asc": "lewis"}, {"model": "LG+ASC"}])
+def test_asc_on_a_protein_alignment_is_refused(tmp_path: Path, monkeypatch, extra) -> None:
+    calls: list = []
+    monkeypatch.setattr(mod, "run_tool", lambda caps, cmd, **k: calls.append(cmd))
+    with pytest.raises(UserInputError, match="nucleotide SNP alignments"):
+        mod.IqtreeBuilder().build(
+            _msa(tmp_path), tmp_path / "out", TreeParams(alphabet="protein", extra=extra), _LOG
+        )
+    assert calls == []

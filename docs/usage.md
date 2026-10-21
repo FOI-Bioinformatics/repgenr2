@@ -2540,13 +2540,20 @@ The tree builder is told the alphabet and uses an amino-acid model:
 | `raxmlng` | `GTR+G` | `LG+G`, on every partition line with `--partitioned` |
 | `fasttree`, `veryfasttree` | `-nt -gtr` | `-lg` |
 
+An ascertainment-bias correction (`--aligner-arg asc=`, a model with `+ASC`)
+is refused on a protein alignment: it applies to nucleotide SNP alignments,
+and a core-gene alignment keeps its invariant sites.
+
 The alphabet is recorded in `partitions.json` (field `alphabet`) and in
 `core_gene_stats.json`. When `partitions.json` describes the alignment, the
 tree builder takes the alphabet from it, so `phylo-build --msa FILE` (the
 tree half of the Nextflow split) needs no `--coregene-alphabet` of its own;
-without the sidecar it follows `--coregene-alphabet`. The alphabet is part
-of the reuse key of the core-gene alignment, so changing it rebuilds the
-alignment; the phylo stage record holds `coregene_alphabet`.
+without the sidecar it follows `--coregene-alphabet`. A protein alignment
+given as `--msa FILE` with no sidecar and an MSA source other than
+`coregene` is treated as nucleotide, and IQ-TREE then fails on `-st DNA`.
+The alphabet is part of the reuse key of the core-gene alignment, so
+changing it rebuilds the alignment; the phylo stage record holds
+`coregene_alphabet`.
 
 ```bash
 repgenr phylo -wd $WD --msa-source coregene --coregene ppanggolin \

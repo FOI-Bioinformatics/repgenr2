@@ -34,7 +34,9 @@ _RANK_FIELDS = {
 }
 _GAP = ord("-")
 # Characters that are no state in a column: gaps and the missing-data symbols.
-_NOT_STATE = {"dna": b"-N?.", "protein": b"-X?."}
+# A protein alignment may also hold "*" (a stop), which no mapping removes
+# from PPanGGOLiN's output.
+_NOT_STATE = {"dna": b"-N?.", "protein": b"-X?.*"}
 
 
 @dataclass(frozen=True)

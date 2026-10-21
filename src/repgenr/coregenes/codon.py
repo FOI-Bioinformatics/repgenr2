@@ -107,6 +107,9 @@ def align_orthogroups(
         if not dst.is_file() or dst.stat().st_size == 0:
             raise WorkdirError(f"mafft wrote no alignment for {og}")
     if alphabet == "protein":
+        for og, _, dst in jobs:
+            if not _read_alignment(dst):
+                raise WorkdirError(f"mafft wrote an empty alignment for {og}")
         return [GeneAlignment(og, dst) for og, _, dst in jobs], 0
 
     nucleotides = {g: _read_fasta(ffns[g], ids) for g, ids in wanted.items() if ids}

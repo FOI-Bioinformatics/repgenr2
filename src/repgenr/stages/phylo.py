@@ -439,16 +439,21 @@ def _msa_key(
         # before the core-gene route existed keeps its key and is reused.
         # It holds the builder, its settings and the annotations the pass
         # read (the index rows carry the GFF digests and the annotator).
-        payload["coregene"] = {
+        coregene: dict[str, object] = {
             "tool": params.coregene,
             "core_threshold": _core_threshold(params.extra),
             "clean_mode": _coregene_setting(params, "clean_mode"),
             "filtered": _coregene_setting(params, "filtered"),
-            "alphabet": _coregene_alphabet(params.extra),
             "annotations": annotations,
             "layout": _COREGENE_LAYOUT,
             "selection": asdict(_gene_selection(params.extra)),
         }
+        # Added for protein only, so a nucleotide alignment made before the
+        # alphabet existed keeps its key and is reused rather than rebuilt.
+        alphabet = _coregene_alphabet(params.extra)
+        if alphabet != "dna":
+            coregene["alphabet"] = alphabet
+        payload["coregene"] = coregene
     blob = json.dumps(payload, sort_keys=True, default=str)
     return hashlib.sha256(blob.encode("utf-8")).hexdigest()
 

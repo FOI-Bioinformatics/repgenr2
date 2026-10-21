@@ -161,3 +161,19 @@ def test_an_unknown_alphabet_is_a_programming_error(tmp_path: Path) -> None:
         codon.align_orthogroups(
             [], faas, ffns, tmp_path / "o", _CAPS, 1, _LOG, "orthofinder", alphabet="rna"
         )
+
+
+def test_an_empty_protein_alignment_is_refused(tmp_path: Path, monkeypatch) -> None:
+    def run_chain(caps, steps, **k):
+        for _, argv in steps:
+            argv = [str(c) for c in argv]
+            # A file that is not empty but holds no record.
+            Path(argv[argv.index("--out") + 1]).write_text("\n", encoding="utf-8")
+
+    monkeypatch.setattr(codon, "run_chain", run_chain)
+    faas, ffns = _sidecars(tmp_path)
+    selected = [("OG1", {"G1": "k_G1", "G2": "k_G2"})]
+    with pytest.raises(WorkdirError, match="empty alignment for OG1"):
+        codon.align_orthogroups(
+            selected, faas, ffns, tmp_path / "o", _CAPS, 1, _LOG, "orthofinder", alphabet="protein"
+        )

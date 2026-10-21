@@ -153,3 +153,16 @@ def test_a_protein_alignment_defaults_to_lg(monkeypatch, tmp_path) -> None:
     (tmp_path / "dna").mkdir()
     model, _ = _model_of(monkeypatch, tmp_path / "dna", TreeParams())
     assert model == "GTR+G"
+
+
+@pytest.mark.parametrize("extra", [{"asc": "lewis"}, {"model": "LG+ASC_LEWIS"}])
+def test_asc_on_a_protein_alignment_is_refused(monkeypatch, tmp_path, extra) -> None:
+    calls: list = []
+    monkeypatch.setattr(mod, "run_tool", lambda caps, cmd, **k: calls.append(cmd))
+    msa = tmp_path / "msa.fasta"
+    msa.write_text(">a\nMKLV\n>b\nMKIV\n", encoding="utf-8")
+    with pytest.raises(UserInputError, match="nucleotide SNP alignments"):
+        mod.RaxmlNgBuilder().build(
+            msa, tmp_path / "out", TreeParams(alphabet="protein", extra=extra), logging.getLogger()
+        )
+    assert calls == []

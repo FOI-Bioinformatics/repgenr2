@@ -875,6 +875,26 @@ def test_the_alphabet_is_part_of_the_msa_key(tmp_path: Path) -> None:
     assert key() != key(coregene_alphabet="protein")
 
 
+def test_a_dna_key_has_no_alphabet_field(tmp_path: Path, monkeypatch) -> None:
+    """A nucleotide core-gene alignment keeps the key it had before the
+    alphabet existed, so it is reused rather than rebuilt."""
+    genomes = [tmp_path / "a.fasta"]
+    genomes[0].write_text(">x\nACGT\n", encoding="utf-8")
+    payloads: list[dict] = []
+    real = phylo_mod.json.dumps
+
+    def capture(obj, **kw):
+        payloads.append(obj)
+        return real(obj, **kw)
+
+    monkeypatch.setattr(phylo_mod.json, "dumps", capture)
+    for alphabet in ("dna", "protein"):
+        params = PhyloParams(msa_source="coregene", extra={"coregene_alphabet": alphabet})
+        phylo_mod._msa_key(genomes, None, params, None, "d")
+    dna, protein = (p["coregene"] for p in payloads)
+    assert "alphabet" not in dna and protein["alphabet"] == "protein"
+
+
 def test_the_sidecar_alphabet_reaches_the_tree_params(tmp_path: Path, part_tools) -> None:
     gdir = _genomes_dir(tmp_path)
     protein = _params(

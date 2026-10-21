@@ -19,6 +19,7 @@ from .base import (
     TreeParams,
     as_msa_path,
     partition_names,
+    refuse_asc_on_protein,
     refuse_partitions_with_asc,
 )
 
@@ -49,6 +50,7 @@ class RaxmlNgBuilder(TreeBuilder):
         msa = as_msa_path(msa_or_genomes)
         if params.partitions is not None:
             refuse_partitions_with_asc(params.extra, params.constant_sites, "raxmlng")
+        refuse_asc_on_protein(params, "raxmlng")
         out_dir.mkdir(parents=True, exist_ok=True)
         prefix = out_dir / "raxml"
         default_model = "LG+G" if params.alphabet == "protein" else "GTR+G"
