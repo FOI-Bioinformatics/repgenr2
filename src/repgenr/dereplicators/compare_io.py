@@ -40,7 +40,11 @@ def _check_square(sim: npt.NDArray[np.float64], names: Sequence[str]) -> None:
 
 
 def write_pairwise_csv(names: Sequence[str], sim: npt.NDArray[np.float64], path: Path) -> Path:
-    """Write one ``genome1,genome2,similarity`` row per unordered pair (i < j)."""
+    """Write one ``genome1,genome2,similarity`` row per unordered pair (i < j).
+
+    An unknown similarity (NaN; for sourmash, a pair with too few shared
+    hashes to estimate an ANI) is written as an empty cell.
+    """
     sim = np.asarray(sim, dtype=float)
     _check_square(sim, names)
     rows, cols = np.triu_indices(len(names), k=1)
@@ -49,7 +53,8 @@ def write_pairwise_csv(names: Sequence[str], sim: npt.NDArray[np.float64], path:
         writer = csv.writer(fo, lineterminator="\n")
         writer.writerow(["genome1", "genome2", "similarity"])
         for i, j in zip(rows.tolist(), cols.tolist(), strict=True):
-            writer.writerow([names[i], names[j], f"{sim[i, j]:.6g}"])
+            value = sim[i, j]
+            writer.writerow([names[i], names[j], "" if np.isnan(value) else f"{value:.6g}"])
     return path
 
 
@@ -153,7 +158,8 @@ def write_dendrogram(
     """Draw an average-linkage dendrogram of ``1 - sim`` to ``path`` (PDF).
 
     Leaves are labelled with ``names``; returns the leaf labels from top to
-    bottom of the figure. Needs at least two names.
+    bottom of the figure. Needs at least two names. An unknown similarity
+    (NaN) is drawn at distance 1.0.
     """
     from matplotlib.collections import LineCollection
     from matplotlib.figure import Figure

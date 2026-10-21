@@ -162,6 +162,48 @@ def test_family_for_low_ani_or_several_genera() -> None:
     assert "--partitioned" in rec.expanded
 
 
+def test_unknown_pairs_count_as_below_80() -> None:
+    """The Wolbachia set: one species by name, the known pairs above 80 %,
+    and pairs that share fewer than 30 hashes: family."""
+    ev = _ev(ani_min=81.5, ani_median=97.0, ani_unknown_pairs=27)
+    rec = mod.advise(ev)
+    assert rec.preset == "family"
+    assert any(
+        "27 pairs share fewer than 30 hashes (and under a tenth of the smaller sketch), "
+        "too few to estimate an ANI; they are counted as below 80 %." in r
+        for r in rec.reasons
+    )
+    assert mod.SOURMASH_K21_REASON in rec.reasons
+    # Unknown pairs rule out the close presets whatever the known pairs give.
+    rec = mod.advise(_ev(ani_min=99.8, names_canonical=False, ani_unknown_pairs=1))
+    assert rec.preset == "family"
+    # Every pair unknown: no minimum, still family.
+    assert mod.advise(_ev(names_canonical=False, ani_unknown_pairs=3)).preset == "family"
+    wolbachia = mod.advise(ev)
+    text = mod.format_text(wolbachia, ev)
+    assert "min 81.50 %, median 97.00 % over the known pairs; 27 pairs unknown" in text
+    assert text.isascii()
+    assert mod.to_json(wolbachia, ev)["evidence"]["ani_unknown_pairs"] == 27
+
+
+@pytest.mark.parametrize(
+    ("kw", "k21"),
+    [
+        ({"ani_min": 98.0}, False),  # one species
+        ({"ani_min": 99.8}, False),  # outbreak
+        ({"ani_min": 90.0}, True),  # below 95 %
+        ({"n_species": 5, "n_genera": 2}, True),  # several genera by name
+        ({"names_canonical": False, "ani_min": 88.0}, True),
+        ({"ani_unknown_pairs": 2, "ani_min": 96.0}, True),
+    ],
+)
+def test_k21_advice_for_genus_or_wider(kw, k21) -> None:
+    rec = mod.advise(_ev(**kw))
+    assert (mod.SOURMASH_K21_REASON in rec.reasons) is k21
+    assert "--aligner-arg ksize=21" in mod.SOURMASH_K21_REASON
+    assert "ksize=21" in mod.RECOMMENDATIONS["quick"]["summary"]
+
+
 def test_quick_when_nothing_is_known() -> None:
     rec = mod.advise(_ev(names_canonical=False, n_species=0, n_genera=0, ani_min=None))
     assert rec.preset == "quick"
@@ -332,6 +374,29 @@ def test_collect_evidence_reads_min_and_median_ani(tmp_path: Path, monkeypatch) 
     assert ev.ani_min == pytest.approx(97.0)
     assert ev.ani_median == pytest.approx(98.0)
     assert mod.advise(ev).preset == "species-masked"
+
+
+def test_collect_evidence_takes_min_and_median_over_known_pairs(
+    tmp_path: Path, monkeypatch
+) -> None:
+    wd = _workdir(tmp_path, _ONE)
+    (wd / "sketches").mkdir()
+    (wd / "manifest.sqlite").write_bytes(b"")
+    reps = sorted((wd / "derep" / "representatives").iterdir())
+    matrix = np.array([[1.0, 0.99, np.nan], [0.99, 1.0, 0.97], [np.nan, 0.97, 1.0]])
+    monkeypatch.setattr(
+        mod,
+        "workdir_provider",
+        lambda ctx, logger, threads, consumer, *, write=True: (
+            lambda gs: {g: tmp_path / f"{g.name}.sig" for g in gs}
+        ),
+    )
+    monkeypatch.setattr(mod, "_sourmash_missing", lambda: None)
+    monkeypatch.setattr(mod, "ani_matrix", lambda *a: ([g.name for g in reps], matrix))
+    ev = mod.collect_evidence(WorkdirContext(wd, logger=_LOG), False, 1, _LOG)
+    assert ev.ani_min == pytest.approx(97.0) and ev.ani_median == pytest.approx(98.0)
+    assert ev.ani_unknown_pairs == 1
+    assert mod.advise(ev).preset == "family"
 
 
 def test_collect_evidence_skips_the_ani_beyond_the_dense_limit(tmp_path: Path, monkeypatch) -> None:

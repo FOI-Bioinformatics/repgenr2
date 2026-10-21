@@ -119,7 +119,7 @@ def test_glance_sourmash_uses_the_dereplication_sketch_and_ani(
         csv.DictReader((ctx.workdir / "glance_wd" / "pairwise_ani.csv").open(encoding="utf-8"))
     )
     ab = next(r for r in rows if {r["genome1"], r["genome2"]} == {"a.fasta", "b.fasta"})
-    expected = sm._jaccard_to_ani_matrix(np.array([[0.8]]), 31)[0, 0]
+    expected = sm._jaccard_to_ani_matrix(np.array([[0.8]]), 31)[0][0, 0]
     assert float(ab["similarity"]) == pytest.approx(expected, abs=1e-6)
 
 

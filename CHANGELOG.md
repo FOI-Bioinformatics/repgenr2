@@ -7,6 +7,22 @@ All notable changes to RepGenR2 are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- Sketch ANI: wherever a dense `sourmash compare` matrix is converted to
+  ANI, the signature sizes from `sourmash sig describe --csv` give each
+  pair's number of shared hashes, and a pair with fewer than 30
+  (`MIN_SHARED_HASHES` in `core/sourmash.py`) and fewer than a tenth of the
+  smaller sketch (`MIN_SHARED_FRACTION`, so identical small sketches such as
+  8-hash viral ones stay at ANI 1.0) has an unknown ANI (NaN): the
+  dereplicator does not merge it, glance writes an empty cell in
+  `pairwise_ani.csv` and places it at distance 1.0 in the dendrogram, the
+  medoid counts it as 0, and the sourmash tree builder (`metric=ani`)
+  places it at distance 1.0 and counts it in its log line. `phylo-advise`
+  takes the minimum and median ANI over the known pairs, reports
+  `ani_unknown_pairs` (text and JSON), and treats an unknown pair as below
+  80 %. When `sourmash sig describe` fails, one warning is logged and the
+  conversion runs without the minimum. On 24 Wolbachia genomes 136 of 276
+  pairs are unknown at k=31 and 59 at k=21
+  (docs/audit/phylo-methods-2026-10.md, "Sketch ANI audit (2026-10-21)").
 - `--preset outbreak|species|species-masked|genus|family|quick` on `phylo`,
   `phylo-build` and `run` stands for the flags of one row of the table
   `phylo-advise` applies (`RECOMMENDATIONS` in `stages/advise.py`, with
@@ -135,6 +151,13 @@ All notable changes to RepGenR2 are documented here. The format follows
   existing core-gene alignment is rebuilt once.
 
 ### Changed
+- `phylo-advise` recommends `--aligner-arg ksize=21` for a sourmash tree when
+  the set spans more than one genus by name, has a minimum ANI below 95 % or
+  has pairs of unknown ANI, and the quick row's summary says so; the sourmash
+  tree builder logs the same recommendation at k=31 when the genome names
+  span more than one genus. On the Wolbachia set sketch ANI ran above skani
+  by 2.9 points at k=21 against 4.5 at k=31 in the 85 to 90 % band. The
+  default k stays 31.
 - `panaroo` core-gene builder: when `threshold=` is not set and the
   canonical record names of the genomes (`Family_Genus_species_Accession`)
   span more than one species, the clustering identity `-c` is 0.95 instead

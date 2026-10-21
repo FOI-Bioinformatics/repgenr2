@@ -243,3 +243,69 @@ implemented; F is deferred and G is pending cluster time.
 Deferred: a marker-gene route for family-level sets (F). Pending cluster
 time: a benchmark of IQ-TREE and capped core-gene trees at 100 to 500 genomes
 on real data (G).
+
+## Sketch ANI audit (2026-10-21)
+
+The ANI that RepGenR2 computes from a `sourmash compare` Jaccard matrix,
+`(2j / (1 + j))^(1/k)`, is identical to sourmash's own estimate (maximum
+difference 0 on the 276 pairs of 24 Wolbachia genomes at k=21 and k=31).
+Against skani on the same genomes (scaled=1000; mean sourmash minus skani,
+percentage points; the last row is the range of the unchecked sourmash
+estimate for the 57 pairs skani does not align):
+
+| skani band | Pairs | k=31 | k=21 |
+|---|---|---|---|
+| 95 % and above | 70 | +0.77 | +0.47 |
+| 85 to 90 % | 70 | +4.46 | +2.86 |
+| 80 to 85 % | 65 | +4.93 | +3.90 |
+| below 80 % | 14 | +5.44 | +4.68 |
+| not aligned by skani | 57 | 79.9 to 87.3 % | 80.8 to 83.7 % |
+
+Two changes follow.
+
+- **Shared-hash minimum.** The dense conversion reads the signature sizes
+  from `sourmash sig describe --csv` and sets the ANI of a pair to unknown
+  (NaN) when its sketches share fewer than 30 hashes and fewer than a tenth
+  of the smaller sketch (`MIN_SHARED_HASHES` and `MIN_SHARED_FRACTION` in
+  `core/sourmash.py`; the count is j(a + b)/(1 + j), equal to the exact
+  intersection on these sketches). At these sketch sizes (893 to 1630
+  hashes) the 30 governs; the relative part keeps identical sketches of
+  small genomes, such as 8-hash viral sketches, at ANI 1.0. The dereplicator
+  never merges such a pair, glance writes an empty cell, the medoid counts
+  it as 0, the sourmash tree places it at distance 1.0, and `phylo-advise`
+  takes the minimum and median over the known pairs, reports the unknown
+  count (`ani_unknown_pairs`) and treats an unknown pair as below 80 %, so
+  the Wolbachia set is advised as family. Before the change the same
+  evidence (canonical names giving one species, `Wolbachia sp`, and a
+  minimum sketch ANI of 79.88 % at k=31) gave the species preset, with a
+  note to check for mislabelled genomes, since a single species by name is
+  tested before the ANI; with names that are not canonical the 79.88 %
+  minimum already gave family. The 57 pairs
+  skani does not align share 1 to 22 hashes at k=31 and 13 to 33 at k=21;
+  the lowest pair skani aligns (79.4 %) shares 8 and 26. Below 30 the
+  Poisson sampling error alone is near 20 % of the count. Live
+  (`repgenr phylo-build --treebuilder sourmash --no-outgroup --root none
+  -t 8`, and `--aligner-arg ksize=21`):
+
+  | k | Unknown pairs | Of the 57 skani does not align | Aligned pairs made unknown (skani) | Lowest known sketch ANI |
+  |---|---|---|---|---|
+  | 31 | 136 of 276 | 57 | 79 (79.4 to 83.2 %) | 89.85 % |
+  | 21 | 59 of 276 | 48 | 11 (79.4 to 80.6 %) | 83.38 % |
+
+  With sketches of about 1000 to 1600 hashes (genomes of 1.0 to 1.5 Mb at
+  scaled=1000), the sketch's reach therefore ends near 88 to 90 % sketch ANI
+  at k=31 (83 to 85 % by skani) and near 83 to 85 % at k=21 (about 80 to 81 %
+  by skani). Larger genomes reach lower: 30 shared hashes of 5000 (a 5 Mb
+  genome) is a sketch ANI of about 85 % at k=31 and 78 % at k=21.
+
+  A first version applied sourmash's own probability check
+  (`get_exp_probability_nothing_common`, threshold 1e-3). It marked 27 pairs
+  at k=31 and none at k=21: it asks whether sharing no hash at all would be
+  plausible, not whether a few hashes support an estimate, and was replaced
+  by the minimum.
+- **k=21 for genus-level sourmash trees.** `phylo-advise` adds, when the set
+  spans more than one genus by name, has a minimum ANI below 95 % or has
+  unknown pairs, that a sourmash tree should be built with `--aligner-arg
+  ksize=21`, and the quick row's summary says so; the sourmash tree builder
+  logs the same at k=31 when the genome names span more than one genus. The
+  default k stays 31.

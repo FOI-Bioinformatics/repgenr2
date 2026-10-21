@@ -54,8 +54,8 @@ from ..core.contracts import record_name
 from ..core.errors import MissingBinaryError, ToolExecutionError, WorkdirError
 from ..core.plugins import ToolCapabilities, parse_extra_int
 from ..core.process import write_fofn
+from ..core.sourmash import MIN_SHARED_HASHES, signature_sizes, sourmash_capabilities
 from ..core.sourmash import jaccard_to_ani_matrix as _jaccard_to_ani_matrix
-from ..core.sourmash import sourmash_capabilities
 from .base import (
     STATUS_CONTAINED,
     STATUS_REPRESENTATIVE,
@@ -273,6 +273,8 @@ class SourmashDereplicator(Dereplicator):
         sig_files = [sig_by_genome[g] for g in sorted(genomes, key=lambda g: g.name)]
         # Pass signatures via --from-file, never on argv (ARG_MAX at scale).
         compare_fofn = write_fofn(sig_files, out_dir / "signatures.fofn")
+        # The given sketches live outside out_dir; their paths are inside the fofn.
+        mounts = sorted({os.path.dirname(os.path.abspath(p)) for p in given.values()})
         run_tool(
             self.capabilities,
             [
@@ -289,21 +291,48 @@ class SourmashDereplicator(Dereplicator):
             ],
             logger=logger,
             log_prefix="sourmash",
-            # The given sketches live outside out_dir; their paths are inside the fofn.
-            extra_mounts=sorted({os.path.dirname(os.path.abspath(p)) for p in given.values()}),
+            extra_mounts=mounts,
         )
 
         # Convert the Jaccard matrix to ANI estimates so the threshold applies
         # on the same scale as skder/galah (raw Jaccard at k=31 is ~0.8 for a
         # 99.6 pct ANI pair). Converting here, rather than via ``compare
         # --ani``, keeps identical-content pairs at 1.0 even for tiny sketches,
-        # where sourmash's estimator refuses and reports 0.
+        # where sourmash's estimator refuses and reports 0. With the signature
+        # sizes, a pair with fewer than MIN_SHARED_HASHES shared hashes and
+        # fewer than a tenth of the smaller sketch gets ANI NaN (unknown).
         labels, sim = _read_compare_csv(matrix_csv)
+        sizes = signature_sizes(
+            self.capabilities,
+            compare_fofn,
+            out_dir / "sizes.csv",
+            ksize,
+            labels,
+            logger,
+            run_tool,
+            extra_mounts=mounts,
+        )
         name_by_label = _match_labels_to_genomes(labels, genomes)
         order = sorted(range(len(labels)), key=lambda i: (name_by_label[labels[i]], i))
         labels = [labels[i] for i in order]
         sim = np.asarray(sim, dtype=float)[np.ix_(order, order)]
-        ani = _jaccard_to_ani_matrix(sim, ksize)
+        if sizes is None:
+            ani, n_unknown = _jaccard_to_ani_matrix(sim, ksize)
+        else:
+            n_hashes, _scaled = sizes
+            ani, n_unknown = _jaccard_to_ani_matrix(
+                sim, ksize, n_hashes=[n_hashes[i] for i in order]
+            )
+        if n_unknown:
+            logger.info(
+                "sourmash: %d of %d pairs share fewer than %d hashes (and under a tenth "
+                "of the smaller sketch) at k=%d, too few to estimate an ANI; their ANI is "
+                "unknown",
+                n_unknown,
+                len(labels) * (len(labels) - 1) // 2,
+                MIN_SHARED_HASHES,
+                ksize,
+            )
         return labels, ani, name_by_label
 
     def _sketch_dense(
@@ -446,6 +475,10 @@ class SourmashDereplicator(Dereplicator):
         # a mutually-similar group becomes the representative) matches the dense
         # ``compare`` path, which orders its matrix by genome file name.
         labels = [label_of[g] for g in sorted(genomes, key=lambda g: g.name)]
+        # No shared-hash minimum here (core.sourmash.jaccard_to_ani_matrix):
+        # the pairs kept are above containment threshold**ksize (0.99**31 is
+        # about 0.73), so they share about three quarters of the smaller
+        # sketch, above the rule's relative part at any sketch size.
         neighbors = _parse_pairwise_csv(pairwise_csv, threshold, set(labels), ksize)
         return _sparse_greedy_cluster(labels, neighbors, name_by_label)
 
@@ -882,7 +915,10 @@ def _greedy_cluster(
     n = len(labels)
     # Boolean adjacency (>= threshold); the per-row vectorized ops below replace
     # the previous pure-Python O(n^2) double loops (much faster at 1000s genomes).
-    adj = np.asarray(sim, dtype=float) >= threshold
+    # An unknown ANI (NaN: too few shared hashes to estimate) is below any
+    # threshold.
+    matrix = np.asarray(sim, dtype=float)
+    adj = np.where(np.isnan(matrix), False, matrix >= threshold)
     np.fill_diagonal(adj, False)
     connectivity = adj.sum(axis=1)
     # prefer well-connected genomes as representatives (stable: -connectivity, idx)

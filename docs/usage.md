@@ -1885,7 +1885,9 @@ values are spread evenly across the range, the threshold decides the cluster
 sizes, so check `cluster_summary.tsv` afterwards.
 
 With `--tool sourmash` and `--keep-files`, `glance_wd/pairwise_ani.csv` holds
-the value of every pair and `glance_wd/dendrogram_leaves.txt` the
+the value of every pair (an empty cell means the pair is below the sketch's
+reach: its sketches share fewer than 30 hashes and under a tenth of the
+smaller sketch) and `glance_wd/dendrogram_leaves.txt` the
 dendrogram's leaf order. dRep writes into its cache with names beginning
 `._` on exFAT volumes and fails there; use an APFS or ext4 working directory
 (see [verification.md](verification.md)).
@@ -2918,7 +2920,11 @@ TreeCluster). D is in the tree's own units:
 - one minus ANI as a fraction for the sourmash builder (0.05 at 95 % ANI),
   the ANI being the k-mer model estimate from the Jaccard index, as
   `sourmash compare --ani` would report it (`--ani` itself is not used: it
-  reports 0 for sketches of small genomes, identical ones included); with
+  reports 0 for sketches of small genomes, identical ones included); a
+  pair with fewer than 30 shared hashes and under a tenth of the smaller
+  sketch has an unknown ANI and sits at distance 1.0 (for genomes of 1 to 1.5 Mb the reach ends near 88 to 90 %
+  sketch ANI at k=31 and 83 to 85 % at k=21), so D does not reach between
+  such pairs; with
   `metric=jaccard`, one minus the Jaccard
   similarity at the chosen k (about 0.88 at 95 % ANI with k = 31, so a
   mash-scale value is far too strict there);

@@ -47,6 +47,8 @@ def ani_matrix(
 
     Runs ``sourmash compare`` through the sourmash dereplicator over the
     given sketches (the workdir's k=31 sketches); nothing is sketched here.
+    The dereplicator reads the signature sizes, so a pair with fewer than
+    ``MIN_SHARED_HASHES`` shared hashes is NaN.
     """
     from ..dereplicators.sourmash import SourmashDereplicator
 
@@ -68,13 +70,16 @@ def ani_matrix(
 
 def pick_medoid(names: Sequence[str], ani: np.ndarray) -> tuple[str, float]:
     """The name with the largest summed ANI to the others; ties go to the
-    name that sorts first, so the choice is the same on every run."""
+    name that sorts first, so the choice is the same on every run. An
+    unknown ANI (NaN: too few shared hashes to estimate one) counts
+    as 0."""
     n = len(names)
     if n == 0:
         raise ValueError("no genomes to choose a medoid from")
     if n == 1:
         return names[0], 100.0
-    matrix = np.asarray(ani, dtype=float)  # fractions, 1.0 on the diagonal
+    # Fractions, 1.0 on the diagonal.
+    matrix = np.nan_to_num(np.asarray(ani, dtype=float), nan=0.0)
     totals = matrix.sum(axis=1) - np.diag(matrix)
     best = min(range(n), key=lambda i: (-totals[i], names[i]))
     return names[best], float(totals[best] / (n - 1)) * 100.0
@@ -224,8 +229,9 @@ def resolve_reference(
             shutil.rmtree(work, ignore_errors=True)
         if choice is not None:
             logger.info(
-                "Reference genome %s: the medoid of %d genomes by sketch ANI (mean %.2f%% to "
-                "the others), a less arbitrary choice than the first filename and expected "
+                "Reference genome %s: the medoid of %d genomes by sketch ANI (mean %.2f%% "
+                "over its pairs to the others, a pair of unknown ANI counted as 0), a less "
+                "arbitrary choice than the first filename and expected "
                 "to reduce reference bias; pass --reference NAME to choose deliberately.",
                 choice.genome.name,
                 choice.n_genomes,
