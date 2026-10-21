@@ -1,9 +1,10 @@
 # Phylo methods audit (2026-10)
 
-Status: audit complete (2026-10-21). The documentation fixes listed under
-"Other defects" were made with this record. The improvement items A to D and
-H under "What this audit changes" are planned and not implemented; nothing in
-this record describes them as available.
+Status: audit complete (2026-10-21); this record is #43. The documentation
+fixes listed under "Other defects" were made with it. The improvement items A
+to E and H under "What this audit changes" are implemented (#42 to #53; the
+pull request of each item is named there). F is deferred, and G is pending
+cluster time. The findings below describe the code at the audited commit.
 
 This record reviews the three MSA sources and the tree builders of the `phylo`
 stage at commit e5b66e5, with one question in view: which route and which
@@ -157,7 +158,7 @@ item B of the ladder below; both have shipped.
 
 ### By purpose, span and ANI
 
-Items marked planned depend on ladder work that is not implemented.
+The items named in this table (A5, C) have shipped; F is deferred.
 
 | Purpose | Span, ANI | Route for 100 to 500 genomes | Tree builder | Notes |
 |---|---|---|---|---|
@@ -183,21 +184,24 @@ is for sets under about 30 genomes.
 
 ## What this audit changes
 
-Planned work, one pull request per item; none of it is implemented at the time
-of this record.
+One pull request per item, or per part of an item. A to E and H are
+implemented; F is deferred and G is pending cluster time.
 
 - **A. Core-gene selection and layout.** A gene cap with ranking (occupancy,
   informative sites, variable sites, length, random), per-gene alignments kept
   and reported, a partition file for IQ-TREE and RAxML-NG, a protein alphabet,
-  and optional trimming. The protein alphabet (A5) has shipped as
+  and optional trimming. Shipped: A1 to A4, that is per-gene alignments,
+  the gene selection and `partitions.json` (A1, #42), per-gene alignments
+  from all four builders (A2, #44), the selection options (A3, #45) and
+  `--partitioned` (A4, #47). The protein alphabet (A5, #49) has shipped as
   `--coregene-alphabet protein`. Optional trimming (A6) has shipped as
-  `--gene-trim clipkit`: ClipKIT in smart-gap mode trims each per-gene
+  `--gene-trim clipkit` (#51): ClipKIT in smart-gap mode trims each per-gene
   alignment before the genes are measured, ranked and concatenated; off by
   default, and other ClipKIT modes are not offered on the command line.
 - **B. Default route and builder hygiene.** A lower Panaroo identity on
   multi-species sets, a recommended IQ-TREE recipe for large alignments,
   `1 - ANI` as the sourmash builder's distance, and defects 4 and 5 above.
-  Shipped: B1, Panaroo's `-c` is 0.95 instead of 0.98 when `threshold=` is
+  Shipped in #52: B1, Panaroo's `-c` is 0.95 instead of 0.98 when `threshold=` is
   not set and the canonical genome names span more than one species; B2,
   IQ-TREE's `alrt=N` extra (`-alrt`, SH-aLRT supports without `-B`) and a
   log line above 200 genomes without `model=` that `model=GTR+G` skips
@@ -208,16 +212,16 @@ of this record.
   and 30 kb at k=31, scaled=1000 (sourmash 4.9.4). Defects 4 and 5 are
   fixed.
 - **C. ska2 constant sites.** Counting constant columns from an unfiltered ska2
-  alignment so that the reference-free route gets `-fconst`. Shipped: the
+  alignment so that the reference-free route gets `-fconst`. Shipped (#46): the
   typer writes an all-sites alignment with `ska align --filter no-filter`, the
   snptype stage counts it into `alignment_stats.json` and removes it; not
   under `lo=true`, where `ska lo` writes variants only.
 - **D. Advice and presets.** A `phylo-advise` command that reads a workdir and
   prints the matching row of the table above, and a `--preset` option that
   expands to it.
-  Shipped: `phylo-advise` (D1), with the table held as data in
+  Shipped: `phylo-advise` (D1, #48), with the table held as data in
   `src/repgenr/stages/advise.py`, and `--preset` on `phylo`, `phylo-build`
-  and `run` (D2), which expands the same rows; an option given on the command
+  and `run` (D2, #53), which expands the same rows; an option given on the command
   line overrides the preset. The genus row carries `--partitioned` and the
   family row adds `--coregene-alphabet protein`; per-gene trimming stays an
   explicit choice. `phylo-advise` prints the command with `--preset` and its
@@ -225,15 +229,17 @@ of this record.
 - **E. Documentation.** This record, the corrections listed under "Other
   defects", and the recommendation tables in
   [choosing-tools.md](../choosing-tools.md#by-purpose-and-divergence).
+  Shipped with this record (#43).
 - **H. Species tree from gene trees.** A tree builder `aster` (ASTER,
   github.com/chaoszhang/ASTER, the maintained successor of ASTRAL) that reads
   the partition file of item A, builds one gene tree per partition, and
   summarises them into a species tree with weighted ASTRAL (`wastral`) by
   default. Intended for genus and family overviews, where discordance among
   gene trees makes a concatenated ML tree overconfident. Depends on item A.
-  Shipped: the `aster` tree builder (`--treebuilder aster --msa-source
+  Shipped (#50): the `aster` tree builder (`--treebuilder aster --msa-source
   coregene --partitioned`); gene trees by IQ-TREE (`--fast`, aBayes) or
   FastTree, summarised by `wastral` (default), `astral4` or `astral-pro3`.
 
-Deferred: a marker-gene route for family-level sets (F) and a benchmark of
-IQ-TREE and capped core-gene trees at 100 to 500 genomes on real data (G).
+Deferred: a marker-gene route for family-level sets (F). Pending cluster
+time: a benchmark of IQ-TREE and capped core-gene trees at 100 to 500 genomes
+on real data (G).

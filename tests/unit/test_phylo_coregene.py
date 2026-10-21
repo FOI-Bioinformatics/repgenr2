@@ -428,7 +428,7 @@ def test_phylo_build_msa_only_and_given_msa(tmp_path: Path, tools) -> None:
     assert not (out2 / "annotations").exists()
 
 
-def test_a_dropped_outgroup_is_an_error_not_a_warning(tmp_path: Path, register_tool) -> None:
+def test_a_dropped_genome_is_refused_before_the_tree(tmp_path: Path, register_tool) -> None:
     from repgenr.core.errors import WorkdirError
     from repgenr.coregenes.base import CoreGeneParams
     from repgenr.stages.coregene import coregene_core
@@ -458,11 +458,10 @@ def test_a_dropped_outgroup_is_an_error_not_a_warning(tmp_path: Path, register_t
             _LOG,
             required=("Out_gen_sp_GCA_9",),
         )
-    # Without that requirement a dropped ingroup genome is only a warning.
-    result, _ = coregene_core(
-        gffs, tmp_path / "msa2", tmp_path / "s2", CoreGeneParams(), "dropping", _LOG
-    )
-    assert result.alignment.is_file()
+    # Without that requirement a dropped ingroup genome is refused too, before
+    # a tree is built that would lack it.
+    with pytest.raises(WorkdirError, match="Out_gen_sp_GCA_9.*--core-threshold.*--gene-rank"):
+        coregene_core(gffs, tmp_path / "msa2", tmp_path / "s2", CoreGeneParams(), "dropping", _LOG)
 
 
 def test_phylo_build_re_annotates_when_the_annotator_changes(tmp_path: Path, tools) -> None:
@@ -715,6 +714,34 @@ def test_partitioned_reaches_the_tree_params(tmp_path: Path, part_tools) -> None
         extra={"partitioned": True},
     )
     assert _PartTree.parts == [((("gyrA", 1, 6), ("rec/A", 7, 10)), "dna")]
+
+
+class _AsterLikeTree(_PartTree):
+    capabilities = ToolCapabilities(
+        name="faketree_aster", accepted_extras=frozenset({"min_gene_columns"})
+    )
+    extras: list = []
+
+    def build(self, msa_or_genomes, out_dir, params, logger) -> Path:
+        type(self).extras.append(dict(params.extra))
+        return super().build(msa_or_genomes, out_dir, params, logger)
+
+
+def test_min_gene_columns_reaches_the_builder_and_min_gene_length_does_not(
+    tmp_path: Path, part_tools, register_tool
+) -> None:
+    # aster's column filter is min_gene_columns; min_gene_length is the
+    # stage's core-gene selection filter and is never forwarded.
+    _AsterLikeTree.extras = []
+    register_tool(tb_registry, "faketree_aster", _AsterLikeTree)
+    _step(
+        tmp_path,
+        coregene="fakecg_genes",
+        treebuilder="faketree_aster",
+        extra={"partitioned": True, "min_gene_columns": "5", "min_gene_length": "1"},
+    )
+    assert _AsterLikeTree.extras[0]["min_gene_columns"] == "5"
+    assert "min_gene_length" not in _AsterLikeTree.extras[0]
 
 
 def test_without_partitioned_the_builder_gets_no_partitions(tmp_path: Path, part_tools) -> None:
@@ -1121,3 +1148,43 @@ def test_gene_trim_is_refused_outside_coregene_and_validated(tools) -> None:
 def test_fingerprint_drops_gene_trim_when_no_coregene_pass_runs() -> None:
     payload = {"msa_source": "aligner", "extra": {"gene_trim": "clipkit"}}
     assert phylo_mod.fingerprint_params(payload)["extra"] == {}
+
+
+def test_tree_builder_extras_are_not_part_of_the_coregene_msa_key(tmp_path: Path) -> None:
+    genomes = [tmp_path / "a.fasta", tmp_path / "b.fasta"]
+    for g in genomes:
+        g.write_text(">x\nACGT\n", encoding="utf-8")
+
+    def key(coregene: str = "panaroo", **extra) -> str:
+        params = PhyloParams(msa_source="coregene", coregene=coregene, extra=extra)
+        return phylo_mod._msa_key(genomes, None, params, None, "d")
+
+    base = key()
+    # Tree builder settings change the tree, not the alignment.
+    assert key(alrt="1000") == base
+    assert key(model="GTR+G") == base
+    assert key(gamma="true") == base
+    assert key(alrt="1000", model="GTR+G", gamma="true") == base
+    # A setting the core-gene builder reads rebuilds the alignment.
+    pp = key("ppanggolin")
+    assert key("ppanggolin", identity="0.9") != pp
+    assert key("ppanggolin", identity="0.9", alrt="1000") == key("ppanggolin", identity="0.9")
+
+
+def test_tree_builder_extras_are_not_part_of_the_snptype_msa_key(tmp_path: Path) -> None:
+    genomes = [tmp_path / "a.fasta", tmp_path / "b.fasta"]
+    for g in genomes:
+        g.write_text(">x\nACGT\n", encoding="utf-8")
+
+    def key(**extra) -> str:
+        params = PhyloParams(msa_source="snptype", snptyper="ska2", extra=extra)
+        return phylo_mod._msa_key(genomes, None, params)
+
+    base = key()
+    assert key(model="GTR+G") == base
+    assert key(ksize="21") != base
+    # A masker extra counts only when that masker runs.
+    assert key(gubbins_force="true") == base
+    masked = key(mask="gubbins")
+    assert key(mask="gubbins", gubbins_force="true") != masked
+    assert key(mask="gubbins", model="GTR+G") == masked

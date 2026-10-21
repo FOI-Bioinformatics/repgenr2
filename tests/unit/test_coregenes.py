@@ -440,22 +440,25 @@ class _GapRowBuilder(_FakeBuilder):
 def test_gap_only_records_are_dropped_and_a_required_one_refused(
     tmp_path: Path, register_tool, caplog
 ) -> None:
-    from repgenr.core.contracts import CORE_GENE_STATS
+    from repgenr.core.contracts import CORE_GENE_FASTA, CORE_GENE_STATS
 
     register_tool(registry, "fakegap", _GapRowBuilder)
     gffs = _gffs(tmp_path)
-    with caplog.at_level(logging.INFO, logger=_LOG.name):
-        result, _ = coregene_core(
+    # The gap-only row is removed, and the genome it leaves out of the tree
+    # is refused before a tree is built.
+    with (
+        caplog.at_level(logging.INFO, logger=_LOG.name),
+        pytest.raises(WorkdirError, match=f"not in the core-gene alignment.*{gffs[-1].stem}"),
+    ):
+        coregene_core(
             gffs, tmp_path / "msa", tmp_path / "scratch", CoreGeneParams(), "fakegap", _LOG
         )
-    text = result.alignment.read_text(encoding="utf-8")
+    text = (tmp_path / "msa" / CORE_GENE_FASTA).read_text(encoding="utf-8")
     assert gffs[-1].stem not in text and text.count(">") == 2
     # Multi-line records survive intact.
     assert "ACGTAC\nACG\n" in text
-    stats = json.loads((tmp_path / "msa" / CORE_GENE_STATS).read_text(encoding="utf-8"))
-    assert stats["genomes"] == 2 and stats["alignment_length"] == 9
+    assert not (tmp_path / "msa" / CORE_GENE_STATS).exists()
     assert "Removed 1 record(s) of gaps only" in caplog.text
-    assert "not in the core-gene alignment" in caplog.text
     with pytest.raises(WorkdirError, match="does not hold"):
         coregene_core(
             gffs,
@@ -642,29 +645,26 @@ def test_a_selection_caps_and_filters_the_genes(tmp_path: Path, register_tool) -
 def test_per_gene_gap_only_genome_is_dropped_and_a_required_one_refused(
     tmp_path: Path, register_tool, caplog
 ) -> None:
-    from repgenr.core.contracts import CORE_GENE_STATS
+    from repgenr.core.contracts import CORE_GENE_FASTA, CORE_GENE_STATS
     from repgenr.tree.partitions import read_partitions
 
     # _G3 has only a gap record in the one gene: its concatenated row is gaps.
     genes = {"famA": {_G1: "GGG", _G2: "GGA", _G3: "---"}}
     register_tool(registry, "fakegenes", _gene_builder(genes))
     gffs = _gffs(tmp_path)
-    with caplog.at_level(logging.INFO, logger=_LOG.name):
-        result, _ = coregene_core(
+    with (
+        caplog.at_level(logging.INFO, logger=_LOG.name),
+        pytest.raises(WorkdirError, match=f"not in the core-gene alignment.*{_G3}"),
+    ):
+        coregene_core(
             gffs, tmp_path / "msa", tmp_path / "scratch", CoreGeneParams(), "fakegenes", _LOG
         )
-    assert _read_fasta(result.alignment) == {_G1: "GGG", _G2: "GGA"}
-    # The sidecar matches the published alignment, after the row was dropped.
-    assert read_partitions(result.alignment) is not None
-    stats = json.loads((tmp_path / "msa" / CORE_GENE_STATS).read_text(encoding="utf-8"))
-    assert stats["genomes"] == 2
-    # The gap-only record does not count as present.
-    from repgenr.core.contracts import CORE_GENES_TSV
-
-    row = (tmp_path / "msa" / CORE_GENES_TSV).read_text(encoding="utf-8").splitlines()[1]
-    assert row.split("\t")[3:6] == ["3", "2", "0.6667"]
+    # The gap-only row was removed, and the refusal came before the stats,
+    # the gene table and the partitions were published.
+    assert _read_fasta(tmp_path / "msa" / CORE_GENE_FASTA) == {_G1: "GGG", _G2: "GGA"}
+    assert read_partitions(tmp_path / "msa" / CORE_GENE_FASTA) is None
+    assert not (tmp_path / "msa" / CORE_GENE_STATS).exists()
     assert "Removed 1 record(s) of gaps only" in caplog.text
-    assert "not in the core-gene alignment" in caplog.text
     with pytest.raises(WorkdirError, match="does not hold"):
         coregene_core(
             gffs,

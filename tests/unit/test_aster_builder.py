@@ -110,8 +110,8 @@ def test_four_records_with_called_characters_are_kept(tmp_path: Path) -> None:
     assert ">e\n" not in gene.fasta.read_text(encoding="utf-8")
 
 
-def test_min_gene_length_skips_short_partitions(tmp_path: Path, fake: _Fake) -> None:
-    _build(tmp_path, extra={"min_gene_length": 3})
+def test_min_gene_columns_skips_short_partitions(tmp_path: Path, fake: _Fake) -> None:
+    _build(tmp_path, extra={"min_gene_columns": 3})
     assert [p.name for p in (tmp_path / "out" / "genes").iterdir()] == ["g1.fasta"]
 
 
@@ -207,7 +207,7 @@ def test_without_partitions_it_is_refused(tmp_path: Path, fake: _Fake) -> None:
         ({"program": "astral3"}, "program='astral3'"),
         ({"gene_tree_builder": "raxml"}, "gene_tree_builder='raxml'"),
         ({"rounds": 0}, "rounds must be 1 or more"),
-        ({"min_gene_length": "x"}, "min_gene_length"),
+        ({"min_gene_columns": "x"}, "min_gene_columns"),
     ],
 )
 def test_bad_extras_are_refused(tmp_path: Path, fake: _Fake, extra, match) -> None:
@@ -218,7 +218,7 @@ def test_bad_extras_are_refused(tmp_path: Path, fake: _Fake, extra, match) -> No
 
 def test_no_usable_gene_is_refused(tmp_path: Path, fake: _Fake) -> None:
     with pytest.raises(UserInputError, match="no gene partition"):
-        _build(tmp_path, extra={"min_gene_length": 100})
+        _build(tmp_path, extra={"min_gene_columns": 100})
 
 
 def test_capabilities() -> None:
@@ -227,7 +227,7 @@ def test_capabilities() -> None:
     assert caps.recommended_max_genomes == 5000
     assert mod.AsterBuilder.supports_partitions
     assert mod.AsterBuilder.supports_without_bootstrap
-    assert {"program", "gene_tree_builder", "model", "rounds", "min_gene_length"} <= (
+    assert {"program", "gene_tree_builder", "model", "rounds", "min_gene_columns"} <= (
         caps.accepted_extras
     )
 
