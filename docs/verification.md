@@ -513,6 +513,11 @@ defaults (`core -f 0.95`, method `FH`, 100 seed genomes):
 | PPanGGOLiN (soft core 0.95, single copy) | 398 | 419047 | 186 s |
 | SCARAP (core 0.95) | 577 | 618594 | 388 s |
 
+The two PPanGGOLiN stage times come from two live runs of the same command:
+221 s is the end-to-end run described above, and 186 s in this table is the
+re-run after the review fixes of #22 (recorded in that pull request's commit
+message), with the same 398 genes and 419047 columns.
+
 #### OrthoFinder, alone and inside SCARAP
 
 OrthoFinder 3.1.5 (noarch) with DIAMOND 2.2.8, on the same bakta proteomes.

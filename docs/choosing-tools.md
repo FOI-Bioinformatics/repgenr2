@@ -14,6 +14,7 @@ Contents:
 - [Measured and declared figures](#measured-and-declared-figures)
 - [Start from the question](#start-from-the-question)
 - [Decision table](#decision-table)
+- [By purpose and divergence](#by-purpose-and-divergence)
 - [By number of genomes](#by-number-of-genomes)
 - [Entry points](#entry-points) (where the genomes come from)
 - Read tools: [Assemblers and polishers](#assemblers-and-polishers)
@@ -126,17 +127,62 @@ The evidence behind each row:
   7309fe7; the scaling audit keeps the 1256 figure). Other viral scaling is
   not measured.
 
+## By purpose and divergence
+
+The decision table above starts from the dataset. This table starts from the
+purpose of the tree and the ANI span of the set, for 100 to 500 genomes, the
+range where the whole-genome aligners no longer finish and the choice of route
+matters most. It follows the
+[phylo methods audit](audit/phylo-methods-2026-10.md). Entries marked planned
+depend on work that is not implemented yet; until then the rest of the row
+applies.
+
+| Purpose | Span, ANI | Route for 100 to 500 genomes | Tree builder | Notes |
+|---|---|---|---|---|
+| Outbreak or clonal genotype tree | One lineage, ANI above 99.5 % | `--msa-source snptype --snptyper ska2` (reference-free) | `iqtree` with `--aligner-arg model=GTR+G` and `-B 1000` | ska2 writes no constant-site counts, so the branch lengths are inflated and `phylo` warns; counting them is planned. The `ska2` tree builder gives a quick look. |
+| Genotype tree within a species | One species, ANI 95 to 99.5 % | `--msa-source snptype --snptyper simple` (medoid reference) or `parsnp`; `--mask gubbins` when recombination is expected and under 12 % of columns vary; `--core-fraction 0.95` | `iqtree` with `-B 1000` (constant sites passed as `-fconst` automatically); `fasttree` as Gubbins' internal builder | `ska2` with `--aligner-arg lo=true` is the reference-free alternative when no masking is wanted. |
+| Overview of species representatives in a genus | Several species, ANI 80 to 95 % | `annotate`, then `--msa-source coregene --coregene ppanggolin` (or `scarap`), `--core-threshold 0.95` | `iqtree` with `--aligner-arg model=GTR+G` and `-B 1000`; a `skani` tree first as a quick check | A gene cap with ranking, partitions and a protein alphabet are planned. Panaroo only with `--aligner-arg threshold=` lowered to about 0.90; at its default no gene was in 95 % of 24 Wolbachia genomes. |
+| Overview across a family or wider | ANI 75 to 85 % or below | Protein core genes (planned) or a marker-gene route (deferred) | `iqtree` with `-st AA` and `LG+G` (planned) | DNA alignments saturate, and mash and Jaccard distances are unreliable at this span. Until then, `skani` (reliable to about 80 % ANI) gives an overview without supports. |
+| Quick look at any set | Any | Alignment-free | `skani` (genus or wider), `mashtree` (diverse or viral), `ska2` (clonal) | No supports, so use `--collapse-diameter` in tree2tax rather than `--collapse-support`. |
+
+Rules of thumb:
+
+- A SNP route needs a genome every other genome maps to, so it stops being
+  useful past about 5 % divergence.
+- A core-gene route needs annotation (about 45 s per genome with bakta's light
+  database) and works until the core collapses, which the builder's
+  clustering setting governs (see [Core-gene builders](#core-gene-builders)).
+- A whole-genome MSA is for sets under about 30 genomes.
+
+With an alignment, the tree builder by leaf count:
+
+- Under 500: `iqtree`.
+- 500 to 1000: `iqtree` with `--aligner-arg model=GTR+G`, else `raxmlng`.
+  The declared limit of 500 for `iqtree` is not measured. This differs from
+  `--treebuilder auto`, which picks `raxmlng` here by its declared limits.
+- 1000 to 5000: `fasttree`.
+- Above 5000: `veryfasttree`.
+
 ## By number of genomes
 
 | Genomes | What was measured | What `auto` picks |
 |---|---|---|
-| Under 100 | `mashtree` 9 s at 100 genomes; sourmash tree 25 s at 100. progressiveMauve about 10 minutes at 20 genomes and about 22 minutes at 50, per build. | Tree builder: `iqtree` (limit 500). |
-| 100 to 1000 | `skder` about 7 min and 1.1 to 1.5 GB at 1000; `galah` 4 to 6 min; `sourmash` about 1 min and 0.2 GB. `mashtree` 117 s; sourmash tree 142 s. | Tree builder: `iqtree` up to 500, then `raxmlng` (limit 1000). |
-| 1000 to 5000 | `skder` about 69 min and 6.4 to 8.2 GB at 5000 in one pass, about 15 min chunked; `galah` about 63 min; `sourmash` about 5.5 min sparse. `mashtree` 53 min and 7.6 GB at 5000. | Tree builder: `sourmash` (limit 2000), then `fasttree` (limit 5000). |
-| Over 5000 | Not measured. Single-pass `skder` or `galah` at 10000 would be memory-risky on the 18 GB audit machine. Chunked `skder` or sparse `sourmash` are the safer choices. | Tree builder: `mashtree` (limit 10000). |
+| Under 100 | `mashtree` 9 s at 100 genomes; sourmash tree 25 s at 100. progressiveMauve about 10 minutes at 20 genomes and about 22 minutes at 50, per build. | `iqtree` (limit 500), with or without an alignment request. |
+| 100 to 1000 | `skder` about 7 min and 1.1 to 1.5 GB at 1000; `galah` 4 to 6 min; `sourmash` about 1 min and 0.2 GB. `mashtree` 117 s; sourmash tree 142 s. | Without an alignment request: `iqtree` up to 500, then `sourmash` (limit 2000). With one: `iqtree` up to 500, then `raxmlng` (limit 1000). |
+| 1000 to 5000 | `skder` about 69 min and 6.4 to 8.2 GB at 5000 in one pass, about 15 min chunked; `galah` about 63 min; `sourmash` about 5.5 min sparse. `mashtree` 53 min and 7.6 GB at 5000. | Without an alignment request: `sourmash` up to 2000, then `mashtree` (limit 10000). With one: `fasttree` (limit 5000). |
+| Over 5000 | Not measured. Single-pass `skder` or `galah` at 10000 would be memory-risky on the 18 GB audit machine. Chunked `skder` or sparse `sourmash` are the safer choices. | Without an alignment request: `mashtree` (limit 10000). With one: `veryfasttree` (limit 20000). |
 
-The limits in the last column are declared (see
-[Declared limits](#declared-limits)).
+The last column is the tree builder `--treebuilder auto` picks. Its limits
+are declared (see [Declared limits](#declared-limits)). The count is of
+leaves, the outgroup included, so the first switch happens at 501 leaves. An
+alignment request is `--msa-source snptype` or `coregene`, `--mask`, or an
+alignment supplied with `--msa`. Without one, the column assumes the default
+aligner, progressiveMauve, whose limit is 500: past that `auto` chooses among
+the alignment-free builders only. With `--aligner
+sibeliaz` or `cactus` (limit 2000) that switch happens past 2000 genomes.
+`mashtree` and `skani` share the limit 10000, and the tie goes to `mashtree`
+alphabetically. A builder that cannot run here is passed over (rule 1 of
+[How `auto` chooses](#how-auto-chooses)).
 
 Notes on the table:
 
@@ -376,7 +422,7 @@ builders.
 
 | Route | Tools | Use it for | Limits and costs |
 |---|---|---|---|
-| Alignment-free | `--treebuilder mashtree` or `sourmash` | Diverse sets, large sets, a quick tree. | Distances compress near identity, so clonal sets resolve poorly. No bootstrap supports. |
+| Alignment-free | `--treebuilder mashtree`, `sourmash`, `skani` or `ska2` | Diverse sets, large sets, a quick tree; `skani` for a genus or wider, `ska2` for a clonal set. | `mashtree` and `sourmash` distances compress near identity, so clonal sets resolve poorly; `ska2` undercounts past a few per cent divergence. Neighbour joining only. No bootstrap supports. |
 | Whole-genome MSA | `--aligner progressivemauve`, `sibeliaz` or `cactus`, then an MSA tree builder | Small sets of related genomes when a whole-genome alignment is wanted. | Declared limits 500, 2000 and 2000. progressiveMauve about 10 to 22 minutes per build at 20 to 50 genomes. SibeliaZ timed out at 20 genomes in the audit. Cactus needs its container and is for same-species sets. |
 | Core-gene | `--msa-source coregene` after `annotate` (bakta or prokka), with `--coregene panaroo`, `ppanggolin`, `scarap` or `orthofinder` | A set where a supported, model-based tree is wanted and the reference biases a SNP tree. How much of the core survives depends on the builder's clustering setting and on how wide the set is (see [Core-gene builders](#core-gene-builders)). | Orthologous genes present in `--core-threshold` of the genomes, each aligned with mafft and concatenated. Invariant sites kept, no ascertainment correction. Slow at hundreds of genomes (not measured here); the annotation is cached per genome. Within a species a SNP tree draws on far more positions. |
 | Core-SNP | `--msa-source snptype` with `--snptyper simple`, `snippy`, `parsnp` or `ska2` | One species or a clonal set. | `simple`, `snippy` and `parsnp` map every genome to one reference, so the reference biases the result. `simple` maps with minimap2 `-x asm20` and records reference positions a genome does not cover as N, so a divergent outgroup is largely N (its coverage is in the log). `ska2` is reference-free. |
@@ -493,10 +539,15 @@ builder can root. Details are in [Rooting the tree](usage.md#rooting-the-tree).
 The tree builder decides which collapsing options apply. `--collapse-support`
 needs supports: IQ-TREE writes them only with bootstrap replicates (`-B`),
 FastTree writes SH-like local supports and RAxML-NG bootstraps by default,
-while `mashtree` and the sourmash builder write none. `--collapse-length` and
-`--collapse-diameter` use branch lengths and so work on every builder; the
-diameter maps a distance cutoff (for example about 95 % ANI) onto the
-taxonomy without supports. Units and examples are in
+while `mashtree`, the sourmash builder, `skani` and `ska2` write none.
+`--collapse-length` and `--collapse-diameter` use branch lengths and so work
+on every builder; the diameter maps a distance cutoff (for example about 95 %
+ANI) onto the taxonomy without supports. The units are those of the tree:
+mash distance for `mashtree`, one minus the Jaccard similarity for
+`sourmash`, one minus ANI as a fraction for `skani`, the SNP count
+(`metric=snps`, the default) or the fraction of mismatching k-mers
+(`metric=mismatch`) for `ska2`, and substitutions per site for the ML
+builders. Units and examples are in
 [Collapsing weak splits in tree2tax](usage.md#collapsing-weak-splits-in-tree2tax).
 
 ## CLI `run` or Nextflow
@@ -533,9 +584,9 @@ follows:
    `racon`), then alphabetically.
 4. If nothing fits, choose the tool with the largest limit.
 5. For `--treebuilder auto` only: when no alignment was requested (no
-   `--msa-source snptype`, `--mask` or `--msa`) and the leaf count exceeds
-   the selected aligner's limit, steps 1 to 4 run over the alignment-free
-   builders alone.
+   `--msa-source snptype` or `coregene`, `--mask` or `--msa`) and the leaf
+   count exceeds the selected aligner's limit, steps 1 to 4 run over the
+   alignment-free builders alone.
 
 The default for `--tool` on `dereplicate` is `skder`, not `auto`. With `auto`
 and all tools available, `drep` (limit 2000) would be preferred for up to 2000

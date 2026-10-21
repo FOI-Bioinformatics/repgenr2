@@ -14,7 +14,8 @@ mangles names holding spaces or Newick characters, so the matrix is written
 with integer stand-in names and the labels are restored afterwards, quoted as
 :func:`repgenr.tree.newick._sanitize` does. ``-n`` adjusts negative branch
 lengths to zero, as the Python code does. Command surface checked against
-rapidNJ 2.3.2 (bioconda).
+rapidNJ 2.3.2 (bioconda); the container image below pins the newer 2.3.3,
+whose surface was not checked separately.
 """
 
 from __future__ import annotations

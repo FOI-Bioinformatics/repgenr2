@@ -1962,6 +1962,33 @@ repgenr annotate -wd $WD
 repgenr phylo -wd $WD --msa-source coregene --treebuilder iqtree
 ```
 
+#### Which route for 100 to 500 genomes
+
+At this size the whole-genome aligners no longer finish in reasonable time,
+so the choice is between a SNP route and a core-gene route.
+[By purpose and divergence](choosing-tools.md#by-purpose-and-divergence)
+gives the full table and the reasons.
+
+```bash
+# Genotype tree within one species: map to the medoid genome (the default
+# without --reference), keep the columns where 95 % of the genomes have a
+# called base, mask recombination, and bootstrap
+repgenr phylo -wd $WD --msa-source snptype --snptyper simple \
+  --core-fraction 0.95 --mask gubbins --treebuilder iqtree -B 1000
+
+# Overview of species representatives in a genus: annotate, then the soft
+# core of PPanGGOLiN, with a fixed model so ModelFinder is skipped
+repgenr annotate -wd $WD
+repgenr phylo -wd $WD --msa-source coregene --coregene ppanggolin \
+  --treebuilder iqtree --aligner-arg model=GTR+G -B 1000
+```
+
+The first applies to one species with an ANI of about 95 to 99.5 %, where
+every genome maps to one reference and Gubbins accepts the alignment (under
+12 % of its columns variable). The second applies to several species of one
+genus (ANI about 80 to 95 %), where a single reference no longer serves every
+genome and Panaroo's default clustering identity leaves an empty core.
+
 ### Genome count, leaf check and record names
 
 `phylo` and `phylo-build` need at least three ingroup genomes (the outgroup is
@@ -2493,12 +2520,15 @@ FlexTaxD node. All thresholds are off by default.
 
 - `--collapse-length L` merges a node whose branch is shorter than L, in the
   tree's own units (mash distance for mashtree, one minus the Jaccard
-  similarity of the k-mer sketches for the sourmash builder, substitutions
-  per site for the ML builders).
+  similarity of the k-mer sketches for the sourmash builder, one minus ANI as
+  a fraction for skani, the SNP count with `metric=snps` or the fraction of
+  mismatching k-mers with `metric=mismatch` for the ska2 builder,
+  substitutions per site for the ML builders).
 - `--collapse-support S` merges a node whose support is below the fraction S.
   IQ-TREE and RAxML-NG write percentages and are normalised automatically,
-  FastTree writes fractions, and mashtree and the sourmash builder write no
-  supports, in which case the option warns and does nothing.
+  FastTree writes fractions, and mashtree, the sourmash builder, skani and
+  the ska2 builder write no supports, in which case the option warns and
+  does nothing.
 
 **Clade diameter.** `--collapse-diameter D` works on clades rather than
 single branches: the fewest clades whose leaf-to-leaf distance stays within D
@@ -2512,6 +2542,9 @@ TreeCluster). D is in the tree's own units:
 - one minus the Jaccard similarity at the chosen k for the sourmash builder
   (about 0.88 at 95 % ANI with k = 31, so a mash-scale value is far too strict
   there);
+- one minus ANI as a fraction for skani (0.05 at 95 % ANI);
+- for the ska2 builder, the SNP count with `metric=snps` (the default) or the
+  fraction of mismatching split k-mers with `metric=mismatch`;
 - substitutions per variable site on an ML tree from a SNP alignment.
 
 The diameter rule runs before the other two rules and refuses a tree without

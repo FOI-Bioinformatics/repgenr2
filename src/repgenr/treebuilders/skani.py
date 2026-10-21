@@ -11,7 +11,8 @@ count is logged, since such pairs are beyond the method, not identical.
 The joining step is :func:`repgenr.tree.nj.nj_tree`. skani also writes an
 aligned-fraction matrix beside the distances (``skani_distances.tsv.af``),
 left in place for inspection. Command surface checked against skani 0.4.0
-(bioconda).
+(bioconda); the container image below pins the older 0.3.2, whose surface
+was not checked separately.
 """
 
 from __future__ import annotations
