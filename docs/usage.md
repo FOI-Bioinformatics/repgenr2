@@ -2390,10 +2390,10 @@ its per-orthogroup alignments.
 
 The orthogroups come from profile searches rather than a fixed identity cut,
 so there is no identity to lower. `method=` chooses the orthogroup inference
-(`FH`, the default); `max_core_genes=` caps the count, as for every builder. The seed genomes are
-drawn at random with no fixed random seed, so on a set larger than `seeds`
-two runs can select slightly different cores; the final selection is checked
-over all the genomes, not only the seeds.
+(`FH`, the default); `max_core_genes=` caps the count, as for every builder.
+The seed genomes are drawn at random with no fixed random seed, so on a set
+larger than `seeds` two runs can select slightly different cores; the final
+selection is checked over all the genomes, not only the seeds.
 
 On the same 24 Wolbachia genomes it found 577 single-copy core genes, and its
 IQ-TREE tree shared 20 of 21 splits with the PPanGGOLiN one. It took about

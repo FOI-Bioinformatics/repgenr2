@@ -146,7 +146,7 @@ class ScarapBuilder(CoreGeneBuilder):
                 "leave the most divergent genomes out."
             )
         names = [g.stem for g in gffs]
-        gene_alignments, mismatched = align_orthogroups(
+        gene_alignments, _ = align_orthogroups(
             orthogroups,
             dict(zip(names, faas, strict=True)),
             dict(zip(names, ffns, strict=True)),
@@ -156,12 +156,6 @@ class ScarapBuilder(CoreGeneBuilder):
             logger,
             "scarap",
         )
-        if mismatched:
-            logger.info(
-                "%d gene(s) were left out because their nucleotide length does not match "
-                "the protein (partial or frame-shifted genes)",
-                mismatched,
-            )
         if len(orthogroups) < _SMALL_CORE:
             logger.warning(
                 "Only %d core genes in the scarap alignment. On a divergent set lower "
@@ -175,7 +169,9 @@ class ScarapBuilder(CoreGeneBuilder):
             settings={
                 "method": method,
                 "seeds": seeds,
-                "max_core_genes": max_core,
+                # scarap core's -m; the stage's own max_core_genes is the
+                # general cap and does not reach the adapter from the CLI.
+                "scarap_core_m": max_core,
                 "core_prefilter": prefilter,
                 # Orthogroups come from MMseqs2 profile searches on proteins,
                 # with no fixed identity cut.

@@ -96,7 +96,8 @@ def test_argv_and_outputs(tmp_path: Path, monkeypatch, _mafft_copies) -> None:
     # The adapter aligns each orthogroup with mafft and hands over codon alignments.
     assert result.alignment is None and result.core_genes == 150
     assert len(result.gene_alignments) == 150
-    assert sum(len(chain) for chain in _mafft_copies) == 150
+    # Batches of at most 50 orthogroups per mafft chain.
+    assert [len(chain) for chain in _mafft_copies] == [50, 50, 50]
     first = result.gene_alignments[0]
     assert first.gene == "F0000" and first.path.name == "F0000.fasta"
     records = first.path.read_text(encoding="utf-8").split(">")[1:]
@@ -104,6 +105,7 @@ def test_argv_and_outputs(tmp_path: Path, monkeypatch, _mafft_copies) -> None:
     assert [t.name for t in result.tables] == ["genes.tsv"]
     assert result.clustering_identity is None
     assert result.settings["method"] == "FH" and result.settings["seeds"] == 100
+    assert result.settings["scarap_core_m"] == 0 and "max_core_genes" not in result.settings
 
 
 def test_extras_reach_the_core_call(tmp_path: Path, monkeypatch) -> None:

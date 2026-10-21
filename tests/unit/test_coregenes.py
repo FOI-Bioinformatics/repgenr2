@@ -239,11 +239,22 @@ def test_panaroo_header_labels_map_to_per_gene_files(tmp_path: Path) -> None:
     ]
     # A gene the header lists without its file is refused, naming both.
     (genes_dir / "g2.fasta").unlink()
-    named = r"core_alignment_header.embl lists gene g2.*g2\.aln\.fas"
+    named = r"core_alignment_header.embl lists gene g2.*g2\.fas;"
     with pytest.raises(WorkdirError, match=named):
         mod._gene_alignments(header, tmp_path, _LOG)
     # Without the header (an older Panaroo) the concatenation is used.
     assert mod._gene_alignments(tmp_path / "absent.embl", tmp_path, _LOG) is None
+    # Gene entries without a /label= it can read are refused, not skipped.
+    odd = tmp_path / "odd.embl"
+    odd.write_text("FT   feature         1..4\nFT                   /note=g1\n", encoding="utf-8")
+    with pytest.raises(WorkdirError, match="header format not understood"):
+        mod._gene_alignments(odd, tmp_path, _LOG)
+    # A dotted label is not cut at its first dot: abc.1 is not abc.aln.fas.
+    (genes_dir / "abc.aln.fas").write_text(">a;x\nACGT\n", encoding="utf-8")
+    dotted = tmp_path / "dotted.embl"
+    dotted.write_text("FT   feature         1..4\nFT                   /label=abc.1\n", "utf-8")
+    with pytest.raises(WorkdirError, match=r"lists gene abc\.1"):
+        mod._gene_alignments(dotted, tmp_path, _LOG)
 
 
 def test_panaroo_refuses_a_missing_per_gene_file(tmp_path: Path, monkeypatch) -> None:

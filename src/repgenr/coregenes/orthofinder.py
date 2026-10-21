@@ -124,7 +124,7 @@ class OrthoFinderBuilder(CoreGeneBuilder):
             )
         (out_dir / SELECTED).write_text("".join(f"{og}\n" for og, _ in selected), "utf-8")
 
-        gene_alignments, mismatched = align_orthogroups(
+        gene_alignments, _ = align_orthogroups(
             selected,
             dict(zip(names, faas, strict=True)),
             dict(zip(names, ffns, strict=True)),
@@ -134,12 +134,6 @@ class OrthoFinderBuilder(CoreGeneBuilder):
             logger,
             "orthofinder",
         )
-        if mismatched:
-            logger.info(
-                "%d gene(s) were left out because their nucleotide length does not match "
-                "the protein (partial or frame-shifted genes)",
-                mismatched,
-            )
         if len(selected) < _SMALL_CORE:
             logger.warning(
                 "Only %d core genes in the orthofinder alignment. On a divergent set lower "

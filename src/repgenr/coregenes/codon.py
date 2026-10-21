@@ -116,6 +116,12 @@ def align_orthogroups(
                     continue
                 fo.write(f">{genome}\n{codons}\n")
         out.append(GeneAlignment(og, path))
+    if mismatched:
+        logger.info(
+            "%d gene(s) were left out because their nucleotide length does not match "
+            "the protein (partial or frame-shifted genes)",
+            mismatched,
+        )
     return out, mismatched
 
 

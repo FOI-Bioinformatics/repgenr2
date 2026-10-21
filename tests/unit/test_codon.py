@@ -70,17 +70,20 @@ def test_aligns_and_back_translates(tmp_path: Path, monkeypatch) -> None:
     assert _records(tmp_path / "o" / "orthogroups" / "OG2.faa") == {"G2": "AC", "G3": "AC"}
     argvs = [a for chain in chains for a in chain]
     assert len(argvs) == 2 and all(a[0] == "mafft" and "--auto" in a for a in argvs)
+    # One thread per mafft; the batches run in parallel instead.
+    assert all(a[a.index("--thread") + 1] == "1" for a in argvs)
 
 
-def test_a_length_mismatch_is_counted_and_left_out(tmp_path: Path, monkeypatch) -> None:
+def test_a_length_mismatch_is_counted_and_left_out(tmp_path: Path, monkeypatch, caplog) -> None:
     monkeypatch.setattr(codon, "run_chain", _fake_chain([]))
     faas, ffns = _sidecars(tmp_path)
     ffns["G3"].write_text(">k_G3\nATGAA\n>b_G3\nGCTTGT\n", encoding="utf-8")
-    out, mismatched = codon.align_orthogroups(
-        [("OG1", {"G1": "k_G1", "G2": "k_G2", "G3": "k_G3"})],
-        faas, ffns, tmp_path / "o", _CAPS, 1, _LOG, "scarap",
-    )  # fmt: skip
-    assert mismatched == 1
+    with caplog.at_level(logging.INFO, logger=_LOG.name):
+        out, mismatched = codon.align_orthogroups(
+            [("OG1", {"G1": "k_G1", "G2": "k_G2", "G3": "k_G3"})],
+            faas, ffns, tmp_path / "o", _CAPS, 1, _LOG, "scarap",
+        )  # fmt: skip
+    assert mismatched == 1 and "1 gene(s) were left out" in caplog.text
     assert set(_records(out[0].path)) == {"G1", "G2"}
 
 

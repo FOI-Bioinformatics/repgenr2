@@ -475,11 +475,12 @@ build when given more than one thread; see
 
 The core-gene route first annotates each genome (`annotate`, with `bakta` or
 `prokka`). A core-gene builder then groups the genes into orthologues and
-aligns each of those present in at least `--core-threshold` of the genomes. The four builders differ in how they group
-genes, and that grouping, together with how wide the set is, decides how
-many core genes a set retains. Panaroo's graph cleaning (`--clean-mode`) and
-entropy filter remove annotation errors and badly aligned genes. Both
-options are Panaroo's and have no effect with the other builders.
+aligns each of those present in at least `--core-threshold` of the genomes.
+The four builders differ in how they group genes, and that grouping, together
+with how wide the set is, decides how many core genes a set retains. Panaroo's
+graph cleaning (`--clean-mode`) and entropy filter remove annotation errors
+and badly aligned genes. Both options are Panaroo's and have no effect with
+the other builders.
 
 | Builder | How it groups genes | Setting that governs the core | Measured on Wolbachia (`verification.md`) | Declared limit |
 |---|---|---|---|---|

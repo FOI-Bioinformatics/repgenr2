@@ -238,8 +238,9 @@ def _gene_alignments(
     """The per-gene alignments of the genes ``header`` lists, in its order.
 
     None, with the concatenation then used as it is, when Panaroo wrote no
-    such header (an older Panaroo). Refuses when a listed gene has no file
-    under ``aligned_gene_sequences/``.
+    such header (an older Panaroo). Refuses a header whose gene entries carry
+    no ``/label=`` it can read, and a listed gene with no file under
+    ``aligned_gene_sequences/``.
     """
     if not header.is_file():
         logger.info(
@@ -249,28 +250,26 @@ def _gene_alignments(
         return None
     genes_dir = out_dir / "aligned_gene_sequences"
     out: list[GeneAlignment] = []
-    for line in header.read_text(encoding="utf-8").splitlines():
+    lines = header.read_text(encoding="utf-8").splitlines()
+    for line in lines:
         match = _LABEL.match(line)
         if match is None:
             continue
         label = match.group(1)
-        stem = label.split(".")[0]
         # The label is the file name less its last extension: <gene>.aln for
         # <gene>.aln.fas, <gene> for the <gene>.fasta of a single sequence.
-        candidates = (f"{label}.fas", f"{label}.fasta", f"{stem}.aln.fas", f"{stem}.fasta")
+        candidates = (f"{label}.fas", f"{label}.fasta")
         path = next((genes_dir / c for c in candidates if (genes_dir / c).is_file()), None)
         if path is None:
             raise WorkdirError(
                 f"{header.name} lists gene {label}, but panaroo wrote no "
-                f"{genes_dir / (stem + '.aln.fas')}; the panaroo run is incomplete, and its log "
+                f"{genes_dir / (label + '.fas')}; the panaroo run is incomplete, and its log "
                 "says why."
             )
         out.append(GeneAlignment(label.removesuffix(".aln"), path))
-    if not out:
-        logger.info(
-            "%s names no gene (no /label= entries), so panaroo's own concatenation is used "
-            "and no gene selection applies",
-            header.name,
+    if not out and any(_FEATURE.match(line) for line in lines):
+        raise WorkdirError(
+            f"{header}: header format not understood; its gene entries carry no /label= "
+            "qualifier this adapter can read, so the per-gene alignments cannot be found."
         )
-        return None
     return out
