@@ -98,12 +98,10 @@ All notable changes to RepGenR2 are documented here. The format follows
   ModelFinder. Tree builders gain `writes_supports(extra)`.
 - `sourmash` tree builder: `--aligner-arg metric=ani|jaccard` (default
   `ani`). With `ani` the distance is `1 - ANI`, on the scale of skani and
-  mashtree. The ANI is the k-mer model estimate from the Jaccard index,
-  `(2j / (1 + j))^(1/k)`, as `sourmash compare --ani` would report it,
-  computed by the converter the dereplicator already used (now
-  `core.sourmash.jaccard_to_ani_matrix`, re-exported in the dereplicator).
-  `--ani` itself is not used: it reports 0 for sketches of small genomes,
-  identical ones included. `jaccard` keeps the former `1 - Jaccard`.
+  mashtree. The ANI is the k-mer model estimate c^(1/k) from the average
+  containment c of `sourmash compare --avg-containment`, computed by
+  `core.sourmash.containment_to_ani_matrix`, shared with the dereplicator.
+  `jaccard` keeps the former `1 - Jaccard`.
 - `phylo` stage record: `treebuilder_settings`, the tree builder's
   settings in effect for every key it declares a default for, so a tree
   made under a changed default (the sourmash builder's `metric`) is told

@@ -126,7 +126,7 @@ def _assemble_note(params: dict) -> str:
 
 def _derep_note(params: dict) -> str:
     """The tool settings a dereplication recorded, for its status line:
-    'sourmash sparse back-end, k=31, scaled=1000' and the like."""
+    'sparse back-end, k=31, scaled=1000' and the like."""
     settings = params.get("tool_settings")
     if not isinstance(settings, dict) or not settings:
         return ""
