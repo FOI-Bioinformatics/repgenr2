@@ -44,6 +44,7 @@ from .base import (
     HELP_NO_OUTGROUP,
     HELP_NODE_BASENAME,
     HELP_PARTITIONED,
+    HELP_PRESET,
     HELP_PRIMARY_ANI,
     HELP_RANK_RED,
     HELP_RANKS,
@@ -246,6 +247,7 @@ def annotate_index_cmd(
 
 @app.command(name="phylo-build", rich_help_panel=PANEL_STEPS)
 def phylo_build_cmd(
+    ctx: typer.Context,
     genomes_dir: Path = typer.Option(
         ..., "--genomes-dir", help="Directory of genome FASTA files to build the tree from."
     ),
@@ -256,6 +258,7 @@ def phylo_build_cmd(
     outgroup_accession: Path | None = typer.Option(
         None, "--outgroup-accession", help="File naming the outgroup accession."
     ),
+    preset: str | None = typer.Option(None, "--preset", help=HELP_PRESET),
     treebuilder: str = typer.Option("iqtree", "--treebuilder", help=_tree_help()),
     msa_source: str = typer.Option("aligner", "--msa-source", help=HELP_MSA_SOURCE),
     aligner: str = typer.Option("progressivemauve", "--aligner", help=_aligner_help()),
@@ -322,6 +325,7 @@ def phylo_build_cmd(
     from ..tree.rooting import ROOT_METHODS
     from ..treebuilders.base import registry as _tb_registry
     from .param_builders import (
+        apply_preset,
         gene_selection_extra,
         refuse_outside_coregene,
         require_gene_rank,
@@ -330,6 +334,13 @@ def phylo_build_cmd(
 
     logger = configure_logging(None, level=_RUN_STATE["log_level"])
     with stage_errors(logger):
+        p = apply_preset(ctx, preset)
+        treebuilder, msa_source, snptyper = p["treebuilder"], p["msa_source"], p["snptyper"]
+        bootstrap, aligner_arg, mask = p["bootstrap"], p["aligner_arg"], p["mask"]
+        core_fraction, coregene = p["core_fraction"], p["coregene"]
+        core_threshold, max_core_genes = p["core_threshold"], p["max_core_genes"]
+        gene_rank, partitioned = p["gene_rank"], p["partitioned"]
+        coregene_alphabet = p["coregene_alphabet"]
         _require_choice(treebuilder, {"auto", *_tb_registry.names()}, "--treebuilder")
         _require_choice(msa_source, {"aligner", "snptype", "coregene"}, "--msa-source")
         if root is not None:
@@ -425,6 +436,7 @@ def phylo_build_cmd(
                 ),
                 **({"partitioned": True} if partitioned else {}),
             },
+            preset=preset,
         )
         phylo_build(
             PhyloBuildParams(

@@ -76,7 +76,7 @@
                     "default": "bakta",
                     "enum": ["bakta", "prokka"],
                     "description": "Annotator for the core-gene route (phylo_args with --msa-source coregene).",
-                    "help_text": "Bacterial and reads paths. ANNOTATE runs it once per representative genome, and for the outgroup unless phylo_args has --no-outgroup, and the records are staged into the phylo task as --annotations-dir. Without --msa-source coregene nothing is annotated.",
+                    "help_text": "Bacterial and reads paths. ANNOTATE runs it once per representative genome, and for the outgroup unless phylo_args has --no-outgroup, and the records are staged into the phylo task as --annotations-dir. Without --msa-source coregene (or --preset genus or family) nothing is annotated.",
                     "fa_icon": "fas fa-tags"
                 },
                 "bakta_db": {

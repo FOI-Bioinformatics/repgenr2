@@ -57,6 +57,7 @@ from .base import (
     HELP_PARTITIONED,
     HELP_PRE_PRIMARY_ANI,
     HELP_PRE_SECONDARY_ANI,
+    HELP_PRESET,
     HELP_PRIMARY_ANI,
     HELP_PROCESS_SIZE,
     HELP_RANK_RED,
@@ -239,6 +240,7 @@ def _msa_source_summary(treebuilder: str, msa_source: str, aligner: str, snptype
 
 @app.command(rich_help_panel=PANEL_PIPELINE)
 def run(
+    ctx: typer.Context,
     workdir: Path = typer.Option(..., "-wd", "--workdir", help=HELP_WORKDIR_CREATED),
     viral: bool = typer.Option(
         False, "--viral", help="Run the viral chain (vmetadata -> vgenome) instead of bacterial."
@@ -370,6 +372,7 @@ def run(
         "dereplication, so the SNP tables are produced whatever builds the tree.",
     ),
     # --- phylogeny ---
+    preset: str | None = typer.Option(None, "--preset", help=HELP_PRESET),
     treebuilder: str = typer.Option("iqtree", "--treebuilder", help=_tree_help()),
     msa_source: str = typer.Option("aligner", "--msa-source", help=HELP_MSA_SOURCE),
     aligner: str = typer.Option("progressivemauve", "--aligner", help=_aligner_help()),
@@ -469,6 +472,7 @@ def run(
         METADATA_LEVELS,
         METADATA_SOURCES,
         VIRAL_SOURCES,
+        apply_preset,
         assemble_params,
         dereplicate_params,
         gene_selection_extra,
@@ -485,6 +489,15 @@ def run(
 
     logger = configure_logging(workdir if workdir.exists() else None, level=_RUN_STATE["log_level"])
     with stage_errors(logger):
+        # The preset fills the phylo options left at their defaults; a
+        # core-gene preset adds the annotate stage through --msa-source below.
+        p = apply_preset(ctx, preset)
+        treebuilder, msa_source, snptyper = p["treebuilder"], p["msa_source"], p["snptyper"]
+        bootstrap, aligner_arg, mask = p["bootstrap"], p["aligner_arg"], p["mask"]
+        core_fraction, coregene = p["core_fraction"], p["coregene"]
+        core_threshold, max_core_genes = p["core_threshold"], p["max_core_genes"]
+        gene_rank, partitioned = p["gene_rank"], p["partitioned"]
+        coregene_alphabet = p["coregene_alphabet"]
         # Fail fast before any stage runs; the same validation re-runs inside
         # each stage's builder. The selection sources are checked here under
         # the names `run` gives them (the builders know them as --source).
@@ -624,7 +637,8 @@ def run(
         typer.echo(f"selection: {selection_summary}")
         typer.echo(
             f"dereplicate: tool={derep_tool}, primary_ani={primary_ani}, "
-            f"secondary_ani={secondary_ani}; phylo: treebuilder={treebuilder}"
+            f"secondary_ani={secondary_ani}; phylo: "
+            f"{f'preset={preset}, ' if preset else ''}treebuilder={treebuilder}"
             f"{_msa_source_summary(treebuilder, msa_source, aligner, snptyper)}; "
             f"threads={threads}"
         )
@@ -799,6 +813,7 @@ def run(
             threads=threads,
             extra=phylo_extra,
             allow_incomplete=allow_incomplete,
+            preset=preset,
         ),
     )
     _run(

@@ -2001,7 +2001,9 @@ Without either the tree carries no supports, and `phylo` says so. Without
 
 `repgenr phylo-advise -wd $WD` reads the working directory and prints which
 row of the [By purpose and divergence](choosing-tools.md#by-purpose-and-divergence)
-table applies, the reasons, and the full `repgenr phylo` command. It counts
+table applies, the reasons, and the `repgenr phylo` command with
+`--preset` (see [Presets](#presets)), followed by the same command with the
+preset written out as its flags. It counts
 the genomes (the representatives, or every genome with `--all-genomes`), the
 species and genera in canonical record names, the minimum and median
 pairwise ANI by `sourmash compare` over the existing genome sketches
@@ -2018,8 +2020,10 @@ with a minimum ANI of 97 % or more, else `species`; a minimum ANI under
 80 to 95 % gives `genus`; with neither ANI nor canonical names the advice is
 `quick`, an alignment-free `skani` tree. Without an outgroup the command
 gains `--root midpoint`; above the declared IQ-TREE limit of 500 genomes it
-uses `--treebuilder fasttree`; a core-gene route without annotations adds a
-reason to run `repgenr annotate` first. `--json` prints the same as one
+adds `--treebuilder fasttree` (with `--aligner-arg gamma=true` in place of an
+IQ-TREE model; `-B` stays, as the number of resamples behind FastTree's
+SH-like supports); a core-gene route without annotations adds a reason to
+run `repgenr annotate` first. `--json` prints the same as one
 `repgenr.phylo-advise/1` object. The advice follows a table of measured and
 declared figures and is a starting point, not a substitute for looking at
 the set.
@@ -2047,12 +2051,58 @@ Reasons:
     midpoint`); with an outgroup the default roots on it.
 
 Command:
+  repgenr phylo -wd /data/wd --all-genomes --preset species-masked --root midpoint
+Expands to:
   repgenr phylo -wd /data/wd --all-genomes --msa-source snptype --snptyper simple --core-fraction 0.95 --treebuilder iqtree -B 1000 --mask gubbins --root midpoint
 ```
 
-The `genus` and `family` rows do not yet carry a partition file or a protein
-alphabet; both are planned (see the
-[phylo methods audit](audit/phylo-methods-2026-10.md)).
+#### Presets
+
+`--preset NAME` on `phylo`, `phylo-build` and `run` stands for the flags of
+one row of the table that `phylo-advise` applies (`RECOMMENDATIONS` in
+`src/repgenr/stages/advise.py`; the reasons for each row are in
+[By purpose and divergence](choosing-tools.md#by-purpose-and-divergence)):
+
+| Preset | Flags |
+|--------|-------|
+| `outbreak` | `--msa-source snptype --snptyper ska2 --treebuilder iqtree --aligner-arg model=GTR+G -B 1000` |
+| `species` | `--msa-source snptype --snptyper simple --core-fraction 0.95 --treebuilder iqtree -B 1000` |
+| `species-masked` | the `species` flags and `--mask gubbins` |
+| `genus` | `--msa-source coregene --coregene ppanggolin --core-threshold 0.95 --max-core-genes 300 --gene-rank informative --partitioned --treebuilder iqtree -B 1000` |
+| `family` | the `genus` flags and `--coregene-alphabet protein` |
+| `quick` | `--treebuilder skani` |
+
+The preset is read as if its flags were given before the user's own:
+
+- **An option given on the command line wins** over the preset's value, also
+  when it is given at its default value (`--preset species -B 0` builds
+  without bootstrap). Options left at their defaults take the preset's value.
+- **`--aligner-arg` values add to the preset's.** A key given twice takes the
+  user's value, so `--preset outbreak --aligner-arg model=GTR+G+I` changes
+  the model.
+- **A `--treebuilder` other than the preset's drops the preset's tree-builder
+  tuning**, its `--aligner-arg` values and `--partitioned`, which the other
+  builder may not read. `-B` is kept.
+- **A `--msa-source` other than the preset's is refused**: the preset's
+  settings belong to its route. Give the flags without `--preset` instead.
+
+Per-gene trimming (`--gene-trim clipkit`) is not part of any preset; add it
+to `genus` or `family` when wanted. On `run`, the `genus` and `family`
+presets add the `annotate` stage, as `--msa-source coregene` does, and
+`species-masked` masks in phylo's own typing pass, so `--with-snptype` is
+not needed. The phylo stage record names the preset (`preset`); the MSA key
+and the resume fingerprint read only the settings it expanded to, so a
+preset and the same flags written out reuse each other's alignment and
+resume each other. In the Nextflow pipeline, `--preset` is passed inside
+`phylo_args` and expanded by `phylo-build`; `--preset genus` or `family`
+there starts the per-genome annotation, as `--msa-source coregene` does.
+
+```bash
+repgenr annotate -wd $WD
+repgenr phylo -wd $WD --preset genus
+repgenr phylo -wd $WD --preset family --gene-trim clipkit
+repgenr run -wd $WD -l species -ts "Francisella tularensis" --preset species-masked
+```
 
 ### Genome count, leaf check and record names
 
@@ -3009,7 +3059,7 @@ selection target (`francisella` for `-tg francisella`), `mode` is
 | `--phylo_args` | `--treebuilder mashtree` | Aligner or tree builder for the phylogeny, and the rooting (`--root outgroup\|midpoint\|none`). |
 | `--phylo_split_msa` | `false` | Run the alignment and the tree as separate tasks. |
 | `--sketch` | `false` | Bacterial mode: sketch the genomes and the outgroup with sourmash, publish `sketches/`, and stage them into the dereplication and tree tasks. |
-| `--annotator` | `bakta` | With `--msa-source coregene` in `--phylo_args`: the annotator `ANNOTATE` runs on each representative and the outgroup (`bakta` or `prokka`). |
+| `--annotator` | `bakta` | With `--msa-source coregene` (or `--preset genus` or `family`) in `--phylo_args`: the annotator `ANNOTATE` runs on each representative and the outgroup (`bakta` or `prokka`). |
 | `--bakta_db` | `null` | bakta database directory, staged into each `ANNOTATE` task; without it bakta reads `BAKTA_DB` from the task environment. |
 | `--annotate_args` | (empty) | Extra `annotate-build` arguments (`--tool-arg key=value`). |
 | `--tree2tax_args` | (empty) | tree-to-taxonomy (FlexTaxD) arguments; redundant genomes are listed by default (`--no-include-dereplicated` to omit them). `--no-outgroup` is added when `phylo_args` contains it, and `--keep-root` when it contains `--root midpoint`. |

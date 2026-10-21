@@ -285,6 +285,10 @@ class PhyloParams:
     # outgroup | midpoint | none; None picks outgroup when an outgroup is
     # staged (and not --no-outgroup), else none.
     root: str | None = None
+    # The --preset the settings were expanded from (stages/advise.py), or
+    # None. A label for the record: the expanded settings are what the MSA
+    # key and the resume fingerprint read.
+    preset: str | None = None
 
 
 @dataclass
@@ -515,7 +519,11 @@ def fingerprint_params(payload: dict) -> dict:
     core-gene builder ignores them (PPanGGOLiN, SCARAP, OrthoFinder) or when
     no core-gene pass runs, so a changed value reruns nothing it cannot
     change. The gene-selection keys are removed when no core-gene pass runs.
+    The preset name is removed: the settings it expanded to are hashed, so
+    a preset and the same flags written out resume each other.
     """
+    # The preset name only labels the expanded settings, which are hashed.
+    payload = {k: v for k, v in payload.items() if k != "preset"}
     extra = payload.get("extra")
     if not isinstance(extra, dict) or not (_COREGENE_ONLY_EXTRA & extra.keys()):
         return payload
@@ -1527,6 +1535,8 @@ def run(ctx: WorkdirContext, params: PhyloParams) -> Path:
         "phylo",
         tool=outcome.treebuilder,
         params={
+            # The --preset the settings were expanded from, or None.
+            "preset": params.preset,
             "requested_treebuilder": params.treebuilder,
             # Alignment-free builders never run an MSA source; recording one
             # would put --aligner into a fingerprint it does not influence.

@@ -59,17 +59,58 @@ def test_every_preset_has_flags_summary_and_annotation_need() -> None:
     assert masked == (*mod.RECOMMENDATIONS["species"]["flags"], "--mask", "gubbins")
 
 
+def test_genus_and_family_rows() -> None:
+    genus = mod.preset_flags("genus")
+    assert genus == [
+        "--msa-source",
+        "coregene",
+        "--coregene",
+        "ppanggolin",
+        "--core-threshold",
+        "0.95",
+        "--max-core-genes",
+        "300",
+        "--gene-rank",
+        "informative",
+        "--partitioned",
+        "--treebuilder",
+        "iqtree",
+        "-B",
+        "1000",
+    ]
+    assert mod.preset_flags("family") == [*genus, "--coregene-alphabet", "protein"]
+    # Trimming stays an explicit choice.
+    assert not any("--gene-trim" in mod.preset_flags(name) for name in mod.RECOMMENDATIONS)
+    assert not any("planned" in e["summary"] for e in mod.RECOMMENDATIONS.values())
+
+
+def test_expand_preset_rules() -> None:
+    assert mod.expand_preset("quick") == ["--treebuilder", "skani"]
+    # An explicit option replaces the preset's value, whichever spelling.
+    out = mod.expand_preset("species", ["--bootstrap", "100"])
+    assert out.count("-B") == 1 and out[-2:] == ["-B", "100"]
+    # --aligner-arg adds to the preset's.
+    out = mod.expand_preset("outbreak", ["--aligner-arg", "x=1"])
+    assert "model=GTR+G" in out and out[-2:] == ["--aligner-arg", "x=1"]
+    # Another tree builder drops the preset's tree-builder tuning.
+    out = mod.expand_preset("genus", ["--treebuilder", "raxmlng"])
+    assert "--partitioned" not in out and out.count("--treebuilder") == 1
+    assert mod.expand_preset("genus", ["--treebuilder", "iqtree"]).count("--partitioned") == 1
+
+
 def test_outbreak_when_the_minimum_ani_is_at_least_99_5() -> None:
     rec = mod.advise(_ev(ani_min=99.6, ani_median=99.9, names_canonical=False))
     assert rec.preset == "outbreak" and rec.route == "snptype"
-    assert "--snptyper" in rec.command and "ska2" in rec.command
+    assert rec.command[-2:] == ("--preset", "outbreak")
+    assert "--snptyper" in rec.expanded and "ska2" in rec.expanded
     assert any("99.6" in r for r in rec.reasons)
 
 
 def test_species_masked_for_a_small_close_species_set() -> None:
     rec = mod.advise(_ev(ani_min=98.0, ani_median=99.0))
     assert rec.preset == "species-masked"
-    assert rec.command[-2:] == ("--mask", "gubbins")
+    assert rec.command[-2:] == ("--preset", "species-masked")
+    assert rec.expanded[-2:] == ("--mask", "gubbins")
     assert any("Gubbins" in r for r in rec.reasons)
 
 
@@ -84,7 +125,7 @@ def test_species_masked_for_a_small_close_species_set() -> None:
 def test_species_without_masking(kw) -> None:
     rec = mod.advise(_ev(**kw))
     assert rec.preset == "species"
-    assert "gubbins" not in rec.command
+    assert "gubbins" not in rec.expanded
 
 
 def test_species_from_ani_when_names_are_not_canonical() -> None:
@@ -102,7 +143,8 @@ def test_genus_for_several_species_or_mid_ani() -> None:
     assert mod.advise(_ev(n_species=4)).preset == "genus"
     rec = mod.advise(_ev(names_canonical=False, n_species=0, n_genera=0, ani_min=88.0))
     assert rec.preset == "genus" and rec.route == "coregene"
-    assert "ppanggolin" in rec.command and "informative" in rec.command
+    assert "ppanggolin" in rec.expanded and "informative" in rec.expanded
+    assert "--partitioned" in rec.expanded and "--coregene-alphabet" not in rec.expanded
 
 
 def test_family_for_low_ani_or_several_genera() -> None:
@@ -110,12 +152,14 @@ def test_family_for_low_ani_or_several_genera() -> None:
     rec = mod.advise(_ev(names_canonical=False, n_species=0, n_genera=0, ani_min=78.0))
     assert rec.preset == "family"
     assert any("protein" in r for r in rec.reasons)
+    assert rec.expanded[-2:] == ("--coregene-alphabet", "protein")
+    assert "--partitioned" in rec.expanded
 
 
 def test_quick_when_nothing_is_known() -> None:
     rec = mod.advise(_ev(names_canonical=False, n_species=0, n_genera=0, ani_min=None))
     assert rec.preset == "quick"
-    assert rec.command[-2:] == ("--treebuilder", "skani")
+    assert rec.expanded[-2:] == ("--treebuilder", "skani")
     assert any("repgenr sketch" in r for r in rec.reasons)
 
 
@@ -133,6 +177,7 @@ def test_annotation_hint_for_the_coregene_route() -> None:
 def test_midpoint_root_without_an_outgroup() -> None:
     rec = mod.advise(_ev(outgroup=False))
     assert rec.command[-2:] == ("--root", "midpoint")
+    assert rec.expanded[-2:] == ("--root", "midpoint")
     assert any("--root midpoint" in r for r in rec.reasons)
     assert "--root" not in mod.advise(_ev(outgroup=True)).command
     assert "--no-outgroup" not in rec.command
@@ -140,15 +185,31 @@ def test_midpoint_root_without_an_outgroup() -> None:
 
 def test_fasttree_above_the_iqtree_limit() -> None:
     rec = mod.advise(_ev(n_genomes=501, ani_min=99.8))
-    cmd = rec.command
+    assert rec.command[-6:] == (
+        "--preset",
+        "outbreak",
+        "--treebuilder",
+        "fasttree",
+        "--aligner-arg",
+        "gamma=true",
+    )
+    cmd = rec.expanded
+    assert cmd.count("--treebuilder") == 1
     assert cmd[cmd.index("--treebuilder") + 1] == "fasttree"
-    assert "model=GTR+G" not in cmd and "-B" not in cmd
+    # FastTree takes its SH-like supports from the -B resamples.
+    assert "model=GTR+G" not in cmd and cmd[cmd.index("-B") + 1] == "1000"
     assert any("--treebuilder fasttree" in r for r in rec.reasons)
     rec = mod.advise(_ev(n_genomes=500, ani_min=99.8))
-    assert rec.command[rec.command.index("--treebuilder") + 1] == "iqtree"
+    assert rec.expanded[rec.expanded.index("--treebuilder") + 1] == "iqtree"
+    assert "--treebuilder" not in rec.command
+    # A genus set: the swap drops the partitions as well; no IQ-TREE model to replace.
+    rec = mod.advise(_ev(n_genomes=600, n_species=4))
+    assert rec.command[-2:] == ("--treebuilder", "fasttree")
+    assert "--partitioned" not in rec.expanded
     # The alignment-free tree builder is not swapped.
     rec = mod.advise(_ev(n_genomes=900, names_canonical=False, n_species=0, n_genera=0))
-    assert rec.command[rec.command.index("--treebuilder") + 1] == "skani"
+    assert rec.expanded[rec.expanded.index("--treebuilder") + 1] == "skani"
+    assert "--treebuilder" not in rec.command
 
 
 def test_command_starts_with_the_workdir() -> None:
@@ -160,12 +221,15 @@ def test_text_and_json_carry_the_same_recommendation() -> None:
     ev = _ev(ani_min=97.5, ani_median=99.0, n_genomes=40)
     rec = mod.advise(ev)
     text = mod.format_text(rec, ev)
-    assert "species-masked" in text and "97.50" in text and "repgenr phylo -wd /wd" in text
+    assert "species-masked" in text and "97.50" in text
+    assert "repgenr phylo -wd /wd --preset species-masked" in text
+    assert "Expands to:\n  repgenr phylo -wd /wd --msa-source snptype" in text
     assert text.isascii()
     data = mod.to_json(rec, ev)
     assert data["schema"] == mod.ADVISE_SCHEMA
     assert data["recommendation"]["preset"] == "species-masked"
     assert data["recommendation"]["command"][:2] == ["repgenr", "phylo"]
+    assert data["recommendation"]["expanded_command"] == list(rec.expanded)
     assert data["evidence"]["ani_min"] == 97.5
     json.dumps(data)
 
@@ -323,8 +387,8 @@ def test_command_text_output(tmp_path: Path) -> None:
     result = _runner.invoke(app, ["phylo-advise", "-wd", str(wd), "-t", "1"])
     assert result.exit_code == 0, result.output
     assert "Preset: species" in result.stdout
-    assert f"repgenr phylo -wd {wd}" in result.stdout
-    assert "--root midpoint" in result.stdout
+    assert f"repgenr phylo -wd {wd} --preset species --root midpoint" in result.stdout
+    assert f"repgenr phylo -wd {wd} --msa-source snptype" in result.stdout
 
 
 def test_command_json_output(tmp_path: Path) -> None:

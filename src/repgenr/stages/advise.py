@@ -5,8 +5,8 @@ annotation index and the staged outgroup, and applies the recommendation
 table of docs/choosing-tools.md ("By purpose and divergence"; the audit
 behind it is docs/audit/phylo-methods-2026-10.md). Nothing is written to the
 workdir and no tool runs except ``sourmash compare`` over sketches that
-already exist. ``RECOMMENDATIONS`` holds the table as data, so a preset
-option can expand the same rows.
+already exist. ``RECOMMENDATIONS`` holds the table as data, and --preset on
+phylo, phylo-build and run expands the same rows.
 """
 
 from __future__ import annotations
@@ -56,8 +56,9 @@ _SPECIES_FLAGS = (
     "-B",
     "1000",
 )
-# `--partitioned` (a partition file for IQ-TREE) is not part of this release;
-# it joins the genus and family rows when it ships.
+# Core genes from PPanGGOLiN, ranked by parsimony-informative sites, with one
+# substitution model per gene (--partitioned). Per-gene trimming
+# (--gene-trim) stays an explicit choice and is not part of a preset.
 _GENUS_FLAGS = (
     "--msa-source",
     "coregene",
@@ -69,6 +70,7 @@ _GENUS_FLAGS = (
     "300",
     "--gene-rank",
     "informative",
+    "--partitioned",
     "--treebuilder",
     "iqtree",
     "-B",
@@ -123,18 +125,18 @@ RECOMMENDATIONS: dict[str, dict[str, Any]] = {
         "flags": _GENUS_FLAGS,
         "summary": (
             "Core genes from PPanGGOLiN (in 95 % of genomes), capped at 300 ranked by "
-            "parsimony-informative sites, and an IQ-TREE tree."
+            "parsimony-informative sites, and an IQ-TREE tree with one model per gene."
         ),
         "needs_annotation": True,
     },
     "family": {
         "purpose": "Overview across a family or wider",
         "route": "coregene",
-        "flags": _GENUS_FLAGS,
+        "flags": (*_GENUS_FLAGS, "--coregene-alphabet", "protein"),
         "summary": (
-            "The genus route for now. DNA alignments saturate at this span; a protein "
-            "alphabet for the core genes is planned. A skani tree (reliable to about "
-            "80 % ANI) gives an overview without supports."
+            "The genus route on protein core genes: DNA alignments saturate at this "
+            "span. A skani tree (reliable to about 80 % ANI) gives an overview without "
+            "supports."
         ),
         "needs_annotation": True,
     },
@@ -151,13 +153,70 @@ RECOMMENDATIONS: dict[str, dict[str, Any]] = {
 }
 
 
+# Options of a preset that take no value.
+_VALUELESS = frozenset({"--partitioned"})
+# Long forms of the short options a preset uses, so an explicit flag is
+# matched whichever spelling it has.
+_ALIASES = {"--bootstrap": "-B"}
+# Tuning of the preset's tree builder: dropped when another tree builder is
+# chosen, since it may not read it (FastTree reads no model= and no partitions).
+TREE_TUNING = frozenset({"--aligner-arg", "--partitioned"})
+
+
+def preset_flags(name: str) -> list[str]:
+    """The command-line flags preset ``name`` stands for."""
+    return list(RECOMMENDATIONS[name]["flags"])
+
+
+def flag_items(flags: Sequence[str]) -> list[tuple[str, str | None]]:
+    """``flags`` as (option, value) pairs; the value is None for a switch."""
+    items: list[tuple[str, str | None]] = []
+    i = 0
+    while i < len(flags):
+        opt = _ALIASES.get(flags[i], flags[i])
+        if opt in _VALUELESS:
+            items.append((opt, None))
+            i += 1
+        else:
+            items.append((opt, flags[i + 1]))
+            i += 2
+    return items
+
+
+def expand_preset(name: str, flags: Sequence[str] = ()) -> list[str]:
+    """The flags of preset ``name`` combined with explicit ``flags``, by the
+    rule the commands apply: an explicit option replaces the preset's value,
+    except --aligner-arg, whose values follow the preset's; an explicit
+    --treebuilder other than the preset's drops the preset's tree-builder
+    tuning (TREE_TUNING)."""
+    preset = flag_items(preset_flags(name))
+    given = flag_items(flags)
+    given_opts = {opt for opt, _ in given}
+    preset_tb = dict(preset).get("--treebuilder")
+    new_tb = dict(given).get("--treebuilder")
+    builder_changed = new_tb is not None and new_tb != preset_tb
+    kept = [
+        (opt, value)
+        for opt, value in preset
+        if not (builder_changed and opt in TREE_TUNING)
+        and not (opt in given_opts and opt != "--aligner-arg")
+    ]
+    out: list[str] = []
+    for opt, value in (*kept, *given):
+        out += [opt] if value is None else [opt, value]
+    return out
+
+
 @dataclass(frozen=True)
 class Recommendation:
     preset: str
     purpose: str
     route: str
     reasons: tuple[str, ...]
+    # ``repgenr phylo ... --preset NAME`` and the flags the evidence added.
     command: tuple[str, ...]
+    # The same command with the preset written out as its flags.
+    expanded: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -355,8 +414,7 @@ def _choose(ev: Evidence) -> tuple[str, list[str]]:
         if ani is not None and ani < GENUS_MIN_ANI:
             reasons.append(f"The minimum pairwise ANI is {_pct(ani)}, below {GENUS_MIN_ANI:g} %.")
         reasons.append(
-            "DNA alignments saturate at this span; protein core genes are planned and "
-            "the genus route applies until then."
+            "DNA alignments saturate at this span, so the core genes are aligned as protein."
         )
         return "family", reasons
     if (canonical and ev.n_species > 1) or (ani is not None and ani >= GENUS_MIN_ANI):
@@ -380,8 +438,8 @@ def _choose(ev: Evidence) -> tuple[str, list[str]]:
 
 
 def advise(evidence: Evidence) -> Recommendation:
-    """The recommendation for ``evidence``: the preset, the reasons and the
-    full ``repgenr phylo`` command."""
+    """The recommendation for ``evidence``: the preset, the reasons, the
+    ``repgenr phylo --preset`` command and its expansion."""
     from .phylo import MIN_TREE_GENOMES
 
     preset, reasons = _choose(evidence)
@@ -396,7 +454,6 @@ def advise(evidence: Evidence) -> Recommendation:
             "there are enough.",
         )
     entry = RECOMMENDATIONS[preset]
-    flags = list(entry["flags"])
     if entry["needs_annotation"] and not evidence.has_annotations:
         annotate = f"repgenr annotate -wd {evidence.workdir}"
         if evidence.all_genomes:
@@ -404,15 +461,19 @@ def advise(evidence: Evidence) -> Recommendation:
         reasons.append(
             f"The core-gene route needs an annotation of every genome; run `{annotate}` first."
         )
+    # The flags the evidence adds after --preset NAME.
+    added: list[str] = []
     limit = _iqtree_limit()
-    if evidence.n_genomes > limit and "iqtree" in flags:
-        flags = _to_fasttree(flags)
+    builder = dict(flag_items(entry["flags"])).get("--treebuilder")
+    if evidence.n_genomes > limit and builder == "iqtree":
+        added += _to_fasttree(entry["flags"])
         reasons.append(
             f"{evidence.n_genomes} genomes are above the declared IQ-TREE limit of {limit}; "
-            "use `--treebuilder fasttree` instead (SH-like supports, no -B needed)."
+            "use `--treebuilder fasttree` instead (SH-like supports from the -B resamples; "
+            "the IQ-TREE model and the partitions are dropped)."
         )
     if not evidence.outgroup:
-        flags += ["--root", "midpoint"]
+        added += ["--root", "midpoint"]
         reasons.append(
             "No outgroup is staged, so the tree is rooted at its midpoint (add `--root "
             "midpoint`); with an outgroup the default roots on it."
@@ -425,27 +486,22 @@ def advise(evidence: Evidence) -> Recommendation:
         purpose=entry["purpose"],
         route=entry["route"],
         reasons=tuple(reasons),
-        command=(*command, *flags),
+        command=(*command, "--preset", preset, *added),
+        expanded=(*command, *expand_preset(preset, added)),
     )
 
 
-def _to_fasttree(flags: list[str]) -> list[str]:
-    """``flags`` with IQ-TREE swapped for FastTree: the IQ-TREE model and the
-    bootstrap count are dropped (FastTree gives SH-like supports by default)."""
-    out: list[str] = []
-    i = 0
-    while i < len(flags):
-        flag = flags[i]
-        value = flags[i + 1] if i + 1 < len(flags) else ""
-        if flag == "--treebuilder" and value == "iqtree":
-            out += [flag, "fasttree"]
-        elif flag == "--aligner-arg" and value.startswith("model="):
-            out += [flag, "gamma=true"]
-        elif flag == "-B":
-            pass
-        else:
-            out += [flag, value]
-        i += 2
+def _to_fasttree(flags: Sequence[str]) -> list[str]:
+    """The flags that swap IQ-TREE for FastTree after a preset: the tree
+    builder, and Gamma20 branch lengths in place of an IQ-TREE model (the
+    model and --partitioned are tree-builder tuning the swap drops). -B is
+    kept: FastTree computes its SH-like supports from that many resamples."""
+    out = ["--treebuilder", "fasttree"]
+    if any(
+        opt == "--aligner-arg" and (value or "").startswith("model=")
+        for opt, value in flag_items(flags)
+    ):
+        out += ["--aligner-arg", "gamma=true"]
     return out
 
 
@@ -463,7 +519,8 @@ def _wrap(text: str, first: str = "", rest: str = "") -> str:
 
 
 def format_text(rec: Recommendation, evidence: Evidence) -> str:
-    """The advice as plain text: evidence, preset, reasons and command."""
+    """The advice as plain text: evidence, preset, reasons, the command with
+    --preset and the same command with the preset written out."""
     genomes = "all genomes" if evidence.all_genomes else "representatives"
     if evidence.names_canonical:
         genera = "genus" if evidence.n_genera == 1 else "genera"
@@ -494,6 +551,8 @@ def format_text(rec: Recommendation, evidence: Evidence) -> str:
         "",
         "Command:",
         f"  {shlex.join(rec.command)}",
+        "Expands to:",
+        f"  {shlex.join(rec.expanded)}",
     ]
     return "\n".join(lines)
 
@@ -515,5 +574,6 @@ def to_json(rec: Recommendation, evidence: Evidence) -> dict[str, Any]:
             "summary": RECOMMENDATIONS[rec.preset]["summary"],
             "reasons": list(rec.reasons),
             "command": list(rec.command),
+            "expanded_command": list(rec.expanded),
         },
     }

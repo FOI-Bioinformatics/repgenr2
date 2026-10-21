@@ -36,6 +36,7 @@ from .base import (
     HELP_NO_OUTGROUP,
     HELP_NODE_BASENAME,
     HELP_PARTITIONED,
+    HELP_PRESET,
     HELP_RANK_RED,
     HELP_RANKS,
     HELP_REFERENCE,
@@ -155,7 +156,9 @@ def snptype(
 
 @app.command(rich_help_panel=PANEL_CORE)
 def phylo(
+    ctx: typer.Context,
     workdir: Path = typer.Option(..., "-wd", "--workdir", help=HELP_WORKDIR),
+    preset: str | None = typer.Option(None, "--preset", help=HELP_PRESET),
     treebuilder: str = typer.Option("iqtree", "--treebuilder", help=_tree_help()),
     msa_source: str = typer.Option("aligner", "--msa-source", help=HELP_MSA_SOURCE),
     aligner: str = typer.Option("progressivemauve", "--aligner", help=_aligner_help()),
@@ -208,42 +211,48 @@ def phylo(
     ),
 ) -> None:
     """Build a phylogenetic tree from an alignment, SNP alignment, or directly."""
-    from .param_builders import gene_selection_extra, phylo_params
+    from .param_builders import apply_preset, gene_selection_extra, phylo_params
 
     def build():
+        p = apply_preset(ctx, preset)
         return phylo_params(
-            treebuilder=treebuilder,
-            msa_source=msa_source,
+            treebuilder=p["treebuilder"],
+            msa_source=p["msa_source"],
             aligner=aligner,
-            snptyper=snptyper,
-            coregene=coregene,
+            snptyper=p["snptyper"],
+            coregene=p["coregene"],
             all_genomes=all_genomes,
             no_outgroup=no_outgroup,
             root=root,
-            bootstrap=bootstrap,
+            bootstrap=p["bootstrap"],
             reference=reference,
             threads=threads,
             extra={
-                **_parse_key_values(aligner_arg, "--aligner-arg"),
-                **({"mask": mask} if mask != "none" else {}),
-                **({"core_fraction": core_fraction} if core_fraction is not None else {}),
-                **({"core_threshold": core_threshold} if core_threshold is not None else {}),
+                **_parse_key_values(p["aligner_arg"], "--aligner-arg"),
+                **({"mask": p["mask"]} if p["mask"] != "none" else {}),
+                **({"core_fraction": p["core_fraction"]} if p["core_fraction"] is not None else {}),
+                **(
+                    {"core_threshold": p["core_threshold"]}
+                    if p["core_threshold"] is not None
+                    else {}
+                ),
                 **({"clean_mode": clean_mode} if clean_mode is not None else {}),
                 **(
-                    {"coregene_alphabet": coregene_alphabet}
-                    if coregene_alphabet is not None
+                    {"coregene_alphabet": p["coregene_alphabet"]}
+                    if p["coregene_alphabet"] is not None
                     else {}
                 ),
                 **({"gene_trim": gene_trim} if gene_trim is not None else {}),
                 **gene_selection_extra(
-                    max_core_genes=max_core_genes,
-                    gene_rank=gene_rank,
+                    max_core_genes=p["max_core_genes"],
+                    gene_rank=p["gene_rank"],
                     min_gene_length=min_gene_length,
                     max_gene_gaps=max_gene_gaps,
                 ),
-                **({"partitioned": True} if partitioned else {}),
+                **({"partitioned": True} if p["partitioned"] else {}),
             },
             allow_incomplete=allow_incomplete,
+            preset=preset,
         )
 
     _run("phylo", workdir, build)
@@ -262,10 +271,11 @@ def phylo_advise(
 
     Reads the genome names, the existing genome sketches (sourmash compare
     for the pairwise ANI), the annotations and the outgroup, applies the
-    table in docs/choosing-tools.md and prints the reasons and the full
-    phylo command. Writes nothing to the workdir, except that opening a
-    manifest of an older layout migrates its schema in place, as any
-    command does. A -wd that does not exist exits 3.
+    table in docs/choosing-tools.md and prints the reasons, the phylo
+    command with --preset and that command with the preset written out.
+    Writes nothing to the workdir, except that opening a manifest of an
+    older layout migrates its schema in place, as any command does. A -wd
+    that does not exist exits 3.
     """
     import logging
 
