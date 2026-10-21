@@ -832,7 +832,9 @@ def _fake_clipkit(monkeypatch, calls: list[str], *, empty: tuple[str, ...] = ())
 def test_trimming_runs_before_the_selection_and_reaches_the_stats(
     tmp_path: Path, register_tool, monkeypatch
 ) -> None:
-    from repgenr.core.contracts import CORE_GENE_STATS
+    from repgenr.core.contracts import CORE_GENE_STATS, CORE_GENES_TSV
+    from repgenr.coregenes.select import Partition
+    from repgenr.tree.partitions import read_partitions
 
     calls: list[str] = []
     _fake_clipkit(monkeypatch, calls, empty=("famC",))
@@ -856,6 +858,14 @@ def test_trimming_runs_before_the_selection_and_reaches_the_stats(
     assert stats["trimmed_columns_removed"] == 4
     assert stats["genes_dropped_by_trimming"] == 1
     assert stats["core_genes_available"] == 2 and stats["core_genes"] == 2
+    # The partitions and the gene table describe the trimmed widths.
+    found = read_partitions(result.alignment)
+    assert found is not None
+    assert found.partitions == [Partition("famA", 1, 2), Partition("famB", 3, 5)]
+    rows = (msa / CORE_GENES_TSV).read_text(encoding="utf-8").splitlines()
+    header = rows[0].split("\t")
+    widths = {r.split("\t")[0]: r.split("\t")[header.index("length")] for r in rows[1:]}
+    assert widths == {"famA": "2", "famB": "3"}
     # Without trimming the fields say so.
     coregene_core(_gffs(tmp_path), msa, tmp_path / "scratch", CoreGeneParams(), "fakegenes", _LOG)
     stats = json.loads((msa / CORE_GENE_STATS).read_text(encoding="utf-8"))

@@ -17,8 +17,10 @@ All notable changes to RepGenR2 are documented here. The format follows
   part of the alignment reuse key and the phylo stage record gains
   `gene_trim`. Refused outside `--msa-source coregene` and for a builder
   that returns no per-gene alignments. New module `coregenes/trim.py`
-  (`clipkit` 2.0 or later; container `clipkit:2.14.0`); `clipkit` added to
-  `envs/core.yml` and to the `--bin-dir` tool names.
+  (`clipkit` 2.1.2 or later, run with `-s nt -co` on codon alignments so
+  whole codons are removed and `-s aa` on protein ones; container
+  `clipkit:2.14.0`); `clipkit` added to `envs/core.yml` and to the
+  `--bin-dir` tool names.
 - Core-gene route: `--coregene-alphabet dna|protein` (default `dna`) on
   `phylo`, `phylo-build` and `run` gives a protein core-gene alignment, for
   genus and family overviews where third codon positions saturate.

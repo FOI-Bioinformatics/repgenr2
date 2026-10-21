@@ -464,12 +464,15 @@ def _msa_key(
         if alphabet != "dna":
             coregene["alphabet"] = alphabet
         # Likewise trimming: added only when on, so an untrimmed alignment
-        # keeps its key. The ClipKIT mode is part of it.
+        # keeps its key. The ClipKIT mode is part of it, and for dna the
+        # codon-preserving trim (-co), so an alignment trimmed column by
+        # column is rebuilt.
         gene_trim = _gene_trim(params.extra)
         if gene_trim != "none":
             from ..coregenes.trim import DEFAULT_TRIM_MODE
 
-            coregene["gene_trim"] = f"{gene_trim}:{DEFAULT_TRIM_MODE}"
+            frame = ":codon" if alphabet == "dna" else ""
+            coregene["gene_trim"] = f"{gene_trim}:{DEFAULT_TRIM_MODE}{frame}"
         payload["coregene"] = coregene
     blob = json.dumps(payload, sort_keys=True, default=str)
     return hashlib.sha256(blob.encode("utf-8")).hexdigest()

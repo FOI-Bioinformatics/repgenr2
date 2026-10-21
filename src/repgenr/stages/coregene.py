@@ -220,7 +220,7 @@ def coregene_core(
         gene_alignments = result.gene_alignments
         if trim != "none":
             gene_alignments, trimming = _trim(
-                gene_alignments, scratch / "trim", params.threads, tool, logger
+                gene_alignments, scratch / "trim", params.threads, tool, logger, params.alphabet
             )
         chosen = _choose_genes(
             gene_alignments,
@@ -370,11 +370,12 @@ def _trim(
     threads: int,
     tool: str,
     logger: logging.Logger,
+    alphabet: str = "dna",
 ) -> tuple[list[GeneAlignment], dict[str, int]]:
     """Trim the per-gene alignments with ClipKIT; return them with the counts
     for the stats file (columns removed, genes dropped)."""
     before = sum(alignment_width(ga.path) for ga in gene_alignments)
-    trimmed = trim_gene_alignments(gene_alignments, out_dir, threads, logger)
+    trimmed = trim_gene_alignments(gene_alignments, out_dir, threads, logger, alphabet=alphabet)
     after = sum(alignment_width(ga.path) for ga in trimmed)
     counts = {
         "columns_removed": before - after,

@@ -2434,9 +2434,10 @@ that the gene filters and `--gene-rank` read.
 
 - ClipKIT runs in its `smart-gap` mode (`clipkit IN -o OUT -m smart-gap`).
   It is the only mode offered on the command line.
-- ClipKIT removes single columns, so a codon alignment no longer keeps its
-  reading frame. The tree models applied here (one model per gene, no
-  codon-position partitions) do not depend on the frame.
+- ClipKIT is given the sequence type. A nucleotide (codon) gene alignment is
+  trimmed with `-s nt -co`, which removes whole codons so the reading frame
+  is kept; a protein one (`--coregene-alphabet protein`) with `-s aa`. This
+  needs ClipKIT 2.1.2 or later.
 - A gene whose alignment loses every column is dropped, and the log says
   how many. When every gene is dropped the stage stops.
 - It needs per-gene alignments, which all four builders hand over; a builder

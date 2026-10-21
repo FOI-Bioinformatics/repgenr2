@@ -1027,11 +1027,16 @@ def test_gene_trim_is_part_of_the_msa_key_only_when_on(tmp_path: Path, monkeypat
         return real(obj, **kw)
 
     monkeypatch.setattr(phylo_mod.json, "dumps", capture)
-    for value in ("none", "clipkit"):
-        params = PhyloParams(msa_source="coregene", extra={"gene_trim": value})
-        phylo_mod._msa_key(genomes, None, params, None, "d")
-    off, on = (p["coregene"] for p in payloads)
-    assert "gene_trim" not in off and on["gene_trim"] == "clipkit:smart-gap"
+    for value, alphabet in (("none", "dna"), ("clipkit", "dna"), ("clipkit", "protein")):
+        extra = {"gene_trim": value, "coregene_alphabet": alphabet}
+        phylo_mod._msa_key(
+            genomes, None, PhyloParams(msa_source="coregene", extra=extra), None, "d"
+        )
+    off, dna, protein = (p["coregene"] for p in payloads)
+    # The codon-preserving trim is in the dna key, so an alignment trimmed
+    # column by column (before -co) is rebuilt.
+    assert "gene_trim" not in off and dna["gene_trim"] == "clipkit:smart-gap:codon"
+    assert protein["gene_trim"] == "clipkit:smart-gap"
 
 
 def test_record_carries_gene_trim_and_the_alignment_is_trimmed(

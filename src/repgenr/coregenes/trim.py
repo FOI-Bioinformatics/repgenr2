@@ -7,13 +7,16 @@ little phylogenetic signal, and the gene metrics and ranking read them as
 signal. ``trim_gene_alignments`` runs ClipKIT on each gene alignment before
 the stage measures, ranks and concatenates the genes.
 
-ClipKIT removes single columns; on a codon alignment it does not keep the
-reading frame. The tree models applied to the core-gene alignment (one
-model per gene, no codon-position partitions) do not depend on the frame.
+ClipKIT is told the sequence type rather than left to guess it: a dna
+(codon) gene alignment is trimmed with ``-s nt -co``, which removes whole
+codons so the reading frame is kept (ClipKIT 2.1.2 or later), and a protein
+one with ``-s aa``.
 
 The genes run in batches, one ``clipkit`` per gene, each batch in one
-container when a container backend is active. A gene whose alignment loses
-every column is dropped and counted.
+container when a container backend is active. ClipKIT runs on one thread
+unless given ``-t`` (its default, and the flag is not passed because ClipKIT
+before 2.14 lacks it), so the parallel batches are the only parallelism. A
+gene whose alignment loses every column is dropped and counted.
 """
 
 from __future__ import annotations
@@ -29,6 +32,7 @@ from ..core.errors import UserInputError, WorkdirError
 from ..core.executors import parallel_map
 from ..core.plugins import ToolCapabilities, preflight
 from .base import GeneAlignment
+from .select import ALPHABETS
 
 # The --gene-trim choices: no trimming, or ClipKIT.
 GENE_TRIMS = ("none", "clipkit")
@@ -40,8 +44,8 @@ CLIPKIT = ToolCapabilities(
     name="clipkit",
     container="quay.io/biocontainers/clipkit:2.14.0--pyhdfd78af_0",
     conda=("bioconda::clipkit",),
-    # `clipkit --version` prints "clipkit <version>".
-    required_binaries=(BinarySpec("clipkit", version_args=("--version",), min_version="2.0"),),
+    # `clipkit --version` prints "clipkit <version>"; 2.1.2 added -co (codon).
+    required_binaries=(BinarySpec("clipkit", version_args=("--version",), min_version="2.1.2"),),
 )
 
 # Genes trimmed per container start.
@@ -62,7 +66,11 @@ def preflight_clipkit() -> dict[str, str]:
 
 
 def alignment_width(path: Path) -> int:
-    """Columns of the first record of the FASTA alignment ``path`` (0 when empty)."""
+    """Columns of the first record of the FASTA alignment ``path`` (0 when empty).
+
+    Only the first record is read: the records of an alignment share one
+    length, which load_gene checks when the gene is read for the metrics.
+    """
     seen = False
     width = 0
     with open(path, encoding="utf-8", errors="replace") as fh:
@@ -82,15 +90,21 @@ def trim_gene_alignments(
     threads: int,
     logger: logging.Logger,
     mode: str = DEFAULT_TRIM_MODE,
+    alphabet: str = "dna",
 ) -> list[GeneAlignment]:
-    """Trim each gene alignment with ClipKIT (``clipkit IN -o OUT -m MODE``).
+    """Trim each gene alignment with ClipKIT (``clipkit IN -o OUT -m MODE``,
+    then ``-s nt -co`` for a dna alphabet or ``-s aa`` for protein).
 
     Writes ``out_dir/trimmed/<gene>.fasta`` (characters outside letters,
     digits and ``._~+-`` in the gene id are replaced by ``_``). Records keep
     their names; a trimmed file whose record names differ from its input is
     an error. Returns the trimmed alignments in input order, without the
-    genes that lost every column (counted in one log line).
+    genes that lost every column (counted in one log line). A trimmed file
+    with no records at all is an error, not an emptied gene.
     """
+    if alphabet not in ALPHABETS:
+        raise ValueError(f"Unknown alphabet '{alphabet}'; expected dna or protein")
+    seq_args = ["-s", "nt", "-co"] if alphabet == "dna" else ["-s", "aa"]
     if mode not in TRIM_MODES:
         raise UserInputError(
             f"Unknown ClipKIT mode '{mode}'. Choose from: {', '.join(TRIM_MODES)}."
@@ -108,12 +122,17 @@ def trim_gene_alignments(
     def run(batch: Sequence[tuple[GeneAlignment, Path]]) -> None:
         run_chain(
             CLIPKIT,
-            [("clipkit", ["clipkit", ga.path, "-o", dst, "-m", mode]) for ga, dst in batch],
+            [
+                ("clipkit", ["clipkit", ga.path, "-o", dst, "-m", mode, *seq_args])
+                for ga, dst in batch
+            ],
             logger=logger,
             cwd=out_dir,
         )
 
-    logger.info("Trimming %d gene alignments with ClipKIT (-m %s)", len(jobs), mode)
+    logger.info(
+        "Trimming %d gene alignments with ClipKIT (-m %s %s)", len(jobs), mode, " ".join(seq_args)
+    )
     # The first failure cancels the batches not yet started.
     parallel_map(run, batches, max(1, threads), logger=logger)
 
@@ -123,6 +142,10 @@ def trim_gene_alignments(
         if not dst.is_file():
             raise WorkdirError(f"clipkit wrote no trimmed alignment for gene {ga.gene}")
         after = _records(dst)
+        if not after:
+            raise WorkdirError(
+                f"clipkit wrote a trimmed alignment without records for gene {ga.gene} ({dst})"
+            )
         if all(not seq for _, seq in after):
             dropped.append(ga.gene)
             continue

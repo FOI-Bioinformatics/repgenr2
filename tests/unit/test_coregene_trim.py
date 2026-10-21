@@ -62,6 +62,8 @@ def test_trims_in_batches_and_keeps_record_names(tmp_path: Path, monkeypatch) ->
     argv = chains[0][0]
     assert argv[0] == "clipkit" and argv[1] == str(genes[0].path)
     assert argv[argv.index("-m") + 1] == "smart-gap"
+    # dna: codon-preserving trimming of a nucleotide alignment.
+    assert argv[-3:] == ["-s", "nt", "-co"]
     text = out[0].path.read_text(encoding="utf-8")
     assert text == ">G1;g0_1 a gene\nAAA\n>G2;g0_2\nCCC\n"
     assert trim.alignment_width(out[0].path) == 3
@@ -82,7 +84,7 @@ def test_mode_is_validated_and_passed(tmp_path: Path, monkeypatch) -> None:
     chains: list[list[list[str]]] = []
     monkeypatch.setattr(trim, "run_chain", _fake_chain(chains))
     trim.trim_gene_alignments(_genes(tmp_path, 1), tmp_path / "s", 1, _LOG, mode="kpic-smart-gap")
-    assert chains[0][0][-2:] == ["-m", "kpic-smart-gap"]
+    assert chains[0][0][-5:] == ["-m", "kpic-smart-gap", "-s", "nt", "-co"]
     with pytest.raises(UserInputError, match="Unknown ClipKIT mode 'c3'"):
         trim.trim_gene_alignments(_genes(tmp_path, 1), tmp_path / "s", 1, _LOG, mode="c3")
     assert set(trim.TRIM_MODES) == {"smart-gap", "gappy", "kpic-smart-gap", "kpi-smart-gap"}
@@ -116,4 +118,36 @@ def test_check_gene_trim_and_the_capabilities() -> None:
     assert trim.CLIPKIT.container == "quay.io/biocontainers/clipkit:2.14.0--pyhdfd78af_0"
     (spec,) = trim.CLIPKIT.required_binaries
     assert spec.name == "clipkit" and spec.version_args == ("--version",)
-    assert spec.min_version == "2.0"
+    assert spec.min_version == "2.1.2"
+
+
+def test_protein_alignments_are_trimmed_as_amino_acids(tmp_path: Path, monkeypatch) -> None:
+    chains: list[list[list[str]]] = []
+    monkeypatch.setattr(trim, "run_chain", _fake_chain(chains))
+    trim.trim_gene_alignments(_genes(tmp_path, 1), tmp_path / "s", 1, _LOG, alphabet="protein")
+    argv = chains[0][0]
+    assert argv[-2:] == ["-s", "aa"] and "-co" not in argv
+    with pytest.raises(ValueError, match="alphabet"):
+        trim.trim_gene_alignments(_genes(tmp_path, 1), tmp_path / "s", 1, _LOG, alphabet="rna")
+
+
+def test_an_output_without_records_is_refused_not_dropped(tmp_path: Path, monkeypatch) -> None:
+    def run_chain(caps, steps, **k):
+        for _, argv in steps:
+            Path(str(argv[argv.index("-o") + 1])).write_text("", encoding="utf-8")
+
+    monkeypatch.setattr(trim, "run_chain", run_chain)
+    with pytest.raises(WorkdirError, match="without records for gene g0"):
+        trim.trim_gene_alignments(_genes(tmp_path, 1), tmp_path / "s", 1, _LOG)
+
+
+def test_a_failing_batch_propagates(tmp_path: Path, monkeypatch) -> None:
+    from repgenr.core.errors import ToolExecutionError
+
+    def run_chain(caps, steps, **k):
+        raise ToolExecutionError(["clipkit"], 1)
+
+    monkeypatch.setattr(trim, "run_chain", run_chain)
+    # 120 genes in three batches on two threads: the error reaches the caller.
+    with pytest.raises(ToolExecutionError):
+        trim.trim_gene_alignments(_genes(tmp_path, 120), tmp_path / "s", 2, _LOG)
