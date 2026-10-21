@@ -32,7 +32,7 @@ from pathlib import Path
 from ..core.binaries import BinarySpec
 from ..core.containers import run_tool
 from ..core.contracts import record_name
-from ..core.errors import WorkdirError
+from ..core.errors import ToolExecutionError, WorkdirError
 from ..core.plugins import ToolCapabilities, parse_extra_bool, parse_extra_int
 from .base import SnpParams, SnpResult, SnpTyper
 
@@ -158,17 +158,32 @@ class Ska2Typer(SnpTyper):
         # Every shared split k-mer middle base, constant columns included: the
         # source of the constant-site counts. Written first so the variable-site
         # alignment, and its refusal below, are as without it.
+        # The counts are optional: a failure here (disk full, out of memory)
+        # costs the correction, not the typing.
         all_sites = out_dir / "all_sites.fasta"
-        self._align(skf, all_sites, "no-filter", min_freq, params, logger, out_dir)
+        all_sites_failed = False
+        try:
+            self._align(skf, all_sites, "no-filter", min_freq, params, logger, out_dir)
+        except ToolExecutionError as exc:
+            logger.warning(
+                "ska align --filter no-filter failed: %s; no constant-site counts, so the "
+                "tree's branch lengths are not corrected",
+                exc,
+            )
+            all_sites.unlink(missing_ok=True)
+            all_sites_failed = True
         self._align(skf, core, "no-ambig-or-const", min_freq, params, logger, out_dir)
         if not core.exists() or core.stat().st_size == 0:
+            all_sites.unlink(missing_ok=True)
             raise WorkdirError(
                 "ska align produced no variable-site alignment: the genomes may be "
                 "identical, or too divergent for split k-mers at this k (try a smaller "
                 "--tool-arg ksize, or lower min_freq)."
             )
         all_sites_alignment: Path | None = all_sites
-        if not all_sites.exists():
+        if all_sites_failed:
+            all_sites_alignment = None
+        elif not all_sites.exists():
             logger.warning(
                 "ska align --filter no-filter wrote no all_sites.fasta; no constant-site "
                 "counts, so the tree's branch lengths are not corrected"

@@ -403,17 +403,29 @@ def test_all_sites_alignment_gives_constant_site_counts(
     assert not _AllSitesTyper.seen["all_sites"].exists()
     assert not (ctx.snp_dir / "all_sites.fasta").exists()
     assert not (ctx.snp_dir / "full_alignment.fasta").exists()
-    assert any(
-        "4 constant and 1 variable columns counted" in r.getMessage()
-        and "was removed" in r.getMessage()
-        for r in caplog.records
-    )
+    counted = [r.getMessage() for r in caplog.records if "all_sites.fasta" in r.getMessage()]
+    # One line with the counts, saying the file is removed.
+    assert counted == [
+        "Constant sites in all_sites.fasta: A 2, C 1, G 0, T 1 (1 variable columns); "
+        "the file is not published and is removed"
+    ]
     # --core-fraction applies to the counted columns as it does to the core:
     # at 0.6 the column called in one genome of three is not counted.
     run(ctx, SnptypeParams(tool="allsites", all_genomes=True, core_fraction=0.6))
     stats = json.loads((ctx.snp_dir / ALIGNMENT_STATS).read_text())
     assert stats["constant_sites"] == {"A": 1, "C": 1, "G": 0, "T": 1}
     assert stats["core_fraction"] == 0.6 and stats["variable_sites"] == 1
+
+
+def test_all_sites_alignment_is_removed_after_a_refusal(
+    workdir, genome_files, register_tool
+) -> None:
+    register_tool(registry, "allsites", _AllSitesTyper)
+    ctx = WorkdirContext(workdir, create=True)
+    # The core column is called in two genomes of three: 1.0 keeps none.
+    with pytest.raises(UserInputError, match="keeps none of the"):
+        run(ctx, SnptypeParams(tool="allsites", all_genomes=True, core_fraction=1.0))
+    assert not _AllSitesTyper.seen["all_sites"].exists()
 
 
 def test_neither_alignment_writes_no_stats(workdir, genome_files, register_tool) -> None:

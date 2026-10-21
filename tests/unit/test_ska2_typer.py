@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from repgenr.core.errors import WorkdirError
+from repgenr.core.errors import ToolExecutionError, WorkdirError
 from repgenr.snptypers import ska2 as mod
 from repgenr.snptypers.base import SnpParams
 
@@ -111,6 +111,32 @@ def test_ska2_all_sites_missing_or_empty_warns_and_is_none(
     assert any("no constant-site counts" in r.getMessage() for r in caplog.records)
 
 
+def test_ska2_failed_all_sites_call_keeps_the_typing(tmp_path: Path, monkeypatch, caplog) -> None:
+    calls: list[list[str]] = []
+    inner = _fake_run_tool(calls)
+
+    def fake(caps, argv, **kw):  # noqa: ANN001
+        args = [str(a) for a in argv]
+        if args[1] == "align" and args[args.index("--filter") + 1] == "no-filter":
+            # A partial file left by the failed call must not be used.
+            Path(args[args.index("-o") + 1]).write_text(">a\nAA", encoding="utf-8")
+            raise ToolExecutionError(args, 1, output="No space left on device")
+        return inner(caps, argv, **kw)
+
+    monkeypatch.setattr(mod, "run_tool", fake)
+    out = tmp_path / "out"
+    with caplog.at_level(logging.WARNING, logger="test"):
+        result = mod.Ska2Typer().call(_genomes(tmp_path), None, out, SnpParams(threads=1), _LOG)
+    assert result.core_snp_fasta.exists()
+    assert result.all_sites_alignment is None
+    assert not (out / "all_sites.fasta").exists()
+    assert any(
+        "ska align --filter no-filter failed" in r.getMessage()
+        and "no constant-site counts" in r.getMessage()
+        for r in caplog.records
+    )
+
+
 def test_ska2_ignores_the_reference_argument(tmp_path: Path, monkeypatch) -> None:
     calls: list[list[str]] = []
     monkeypatch.setattr(mod, "run_tool", _fake_run_tool(calls))
@@ -139,6 +165,8 @@ def test_ska2_empty_alignment_is_an_error(tmp_path: Path, monkeypatch) -> None:
     )
     with pytest.raises(WorkdirError, match="no variable-site alignment"):
         mod.Ska2Typer().call(_genomes(tmp_path), None, tmp_path / "out", SnpParams(threads=1), _LOG)
+    # The all-sites alignment is not left behind by the refusal.
+    assert not (tmp_path / "out" / "all_sites.fasta").exists()
 
 
 def test_ska2_is_registered_as_reference_free() -> None:

@@ -2057,7 +2057,10 @@ after `--mask` they are a slight undercount.
 
 The `ska2` counts cover only the split k-mers shared by at least `min_freq` of
 the genomes, so they describe the shared part of the genomes, not the whole
-of them. With `--tool-arg lo=true`, `ska lo` writes variants only: that route
+of them. ska's `no-ambig` filter also drops a variable column that holds an
+ambiguity code from `core_snp.fasta`, while a constant column with one still
+counts as constant, so the corrected branch lengths are a slight
+underestimate. With `--tool-arg lo=true`, `ska lo` writes variants only: that route
 has no counts, its tree has no correction, and `phylo` warns. Compare
 topologies and supports rather than lengths there, or build the tree from a
 whole-genome alignment (`phylo-build --msa snp/full_alignment.fasta`).
