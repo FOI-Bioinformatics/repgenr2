@@ -1,9 +1,9 @@
 # Phylo methods audit (2026-10)
 
 Status: audit complete (2026-10-21). The documentation fixes listed under
-"Other defects" were made with this record. The improvement items A to D under
-"What this audit changes" are planned and not implemented; nothing in this
-record describes them as available.
+"Other defects" were made with this record. The improvement items A to D and
+H under "What this audit changes" are planned and not implemented; nothing in
+this record describes them as available.
 
 This record reviews the three MSA sources and the tree builders of the `phylo`
 stage at commit e5b66e5, with one question in view: which route and which
@@ -190,6 +190,12 @@ of this record.
 - **E. Documentation.** This record, the corrections listed under "Other
   defects", and the recommendation tables in
   [choosing-tools.md](../choosing-tools.md#by-purpose-and-divergence).
+- **H. Species tree from gene trees.** A tree builder `aster` (ASTER,
+  github.com/chaoszhang/ASTER, the maintained successor of ASTRAL) that reads
+  the partition file of item A, builds one gene tree per partition, and
+  summarises them into a species tree with weighted ASTRAL (`wastral`) by
+  default. Intended for genus and family overviews, where discordance among
+  gene trees makes a concatenated ML tree overconfident. Depends on item A.
 
 Deferred: a marker-gene route for family-level sets (F) and a benchmark of
 IQ-TREE and capped core-gene trees at 100 to 500 genomes on real data (G).

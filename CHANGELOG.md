@@ -12,7 +12,8 @@ All notable changes to RepGenR2 are documented here. The format follows
   defects found, recommendations by purpose and divergence, and the planned
   improvement items (gene selection and ranking, partitions, protein
   alphabet, trimming, ska2 constant sites, sourmash ANI distance,
-  `phylo-advise` and `--preset`; none implemented yet).
+  `phylo-advise` and `--preset`, an ASTER species-tree builder; none
+  implemented yet).
 - `docs/choosing-tools.md`: a "By purpose and divergence" section with the
   recommendations; the `auto` column of "By number of genomes" now says what
   the code picks (alignment-free builders past the aligner's limit when no
