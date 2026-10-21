@@ -1632,6 +1632,51 @@ commands:
         nextflow: 'n/a: environment query; the Nextflow layer preflights inside each step'
         live: 'n/a: needs a container engine; tests/unit/test_list_tools_labels.py'
         observable: "'[image <ref>, present]' or '[image <ref>, not pulled]' per image-run tool"
+  markers-db:
+    dispatch: query
+    base_args:
+    - download
+    - --output
+    - '{out}'
+    flags:
+      --output:
+        param: 'n/a: query command, no stage parameters'
+        value: '{alt_dir}'
+        validated: none
+        docs:
+        - docs/cli-reference.md
+        - docs/usage.md
+        - docs/install.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'n/a: database setup, run once outside the pipeline'
+        live: 'n/a: needs the InterPro API; tests/unit/test_markers_db.py'
+        observable: hmms/<set>.hmm, markers.tsv and version.json written in the directory
+      --set:
+        param: 'n/a: query command, no stage parameters'
+        value: ar53
+        validated: callback
+        invalid: bac121
+        docs:
+        - docs/cli-reference.md
+        - docs/usage.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'n/a: database setup, run once outside the pipeline'
+        live: 'n/a: needs the InterPro API; tests/unit/test_markers_db.py'
+        observable: version.json sets and markers.tsv rows of the chosen set only
+      --threads:
+        aliases:
+        - -t
+        param: 'n/a: query command, no stage parameters'
+        value: '2'
+        validated: range
+        invalid: '0'
+        docs:
+        - docs/cli-reference.md
+        - docs/usage.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'n/a: database setup, run once outside the pipeline'
+        live: 'n/a: needs the InterPro API; tests/unit/test_markers_db.py'
+        observable: concurrent requests to the InterPro API
   metadata:
     dispatch: stage
     base_args:

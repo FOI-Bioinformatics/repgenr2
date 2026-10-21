@@ -356,7 +356,7 @@ COMMAND_PANELS: dict[str, tuple[str, ...]] = {
     ),
     PANEL_CORE: ("dereplicate", "derep-refine", "annotate", "snptype", "phylo", "tree2tax"),
     PANEL_INSPECT: ("census", "glance", "cluster-summary", "derep-unpack", "derep-stock", "sketch"),
-    PANEL_ENV: ("list-tools", "doctor", "versions"),
+    PANEL_ENV: ("list-tools", "doctor", "versions", "markers-db"),
     PANEL_STEPS: (
         "genome-fetch",
         "dereplicate-chunk",

@@ -7,6 +7,20 @@ All notable changes to RepGenR2 are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- Marker database: `repgenr markers-db download --output DIR [--set
+  bac120|ar53|all] [-t N]` fetches GTDB-Tk's single-copy marker families
+  (bac120 and ar53, 168 distinct families; lists from GTDB-Tk's
+  `gtdbtk/config/common.py`, 2026-10-07, packaged under
+  `coregenes/markers_data/`) one at a time from the InterPro API and
+  writes `hmms/<set>.hmm`, `markers.tsv` (set, accession, source, cutoff,
+  name, version, length) and `version.json`, about 25 MB in all. Pfam
+  families are marked for the GA cutoff and TIGRFAM families for NC, as
+  GTDB-Tk searches them. The database is written beside its destination and
+  renamed into place; a rerun fetches only the families it lacks.
+  `repgenr markers-db info DIR` prints its summary, `REPGENR_MARKERS_DB`
+  names it, and `doctor` reports a recorded marker database that has moved
+  or changed version. It is used by the markers core-gene builder.
+  `envs/core.yml` gains `hmmer>=3.3`.
 - Sketch ANI: wherever a dense `sourmash compare` matrix is converted to
   ANI, the signature sizes from `sourmash sig describe --csv` give each
   pair's number of shared hashes, and a pair with fewer than 30

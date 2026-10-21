@@ -1,5 +1,5 @@
-"""Auxiliary commands: status, doctor, census, glance, derep-unpack, derep-stock, sketch,
-list-tools."""
+"""Auxiliary commands: status, doctor, markers-db, census, glance, derep-unpack, derep-stock,
+sketch, list-tools."""
 
 from __future__ import annotations
 
@@ -441,7 +441,8 @@ def doctor(
     checks the outputs themselves: missing, corrupt or untracked genomes,
     dangling links, manifest drift, representative/cluster mismatches,
     truncated tree and tree2tax tables, missing deliverables, stages whose
-    inputs changed since completion, and leftover temp files.
+    inputs changed since completion, a recorded marker database that moved
+    or changed version, and leftover temp files.
     Exits 0 when only warnings are found (a stale stage re-runs on its next
     invocation), 7 when any failure is found (including a malformed
     repgenr.yaml or a check that could not complete), 3 when the workdir
@@ -480,6 +481,101 @@ def doctor(
         typer.echo(f"\n{counts['fail']} failure(s), {counts['warn']} warning(s).")
     if exit_code:
         raise typer.Exit(code=exit_code)
+
+
+_MARKERS_DB_ACTIONS = ("download", "info")
+_MARKERS_DB_SETS = ("bac120", "ar53", "all")
+
+
+def _markers_db_set(value: str) -> str:
+    if value not in _MARKERS_DB_SETS:
+        raise typer.BadParameter(f"choose from {', '.join(_MARKERS_DB_SETS)}; got '{value}'.")
+    return value
+
+
+@app.command(name="markers-db", rich_help_panel=PANEL_ENV)
+def markers_db(
+    action: str = typer.Argument(
+        ...,
+        metavar="ACTION",
+        help="download: fetch the marker models into --output; info: summarise the "
+        "database in DIRECTORY.",
+    ),
+    directory: Path | None = typer.Argument(
+        None,
+        metavar="[DIRECTORY]",
+        help="With info: the database directory (default: $REPGENR_MARKERS_DB).",
+    ),
+    output: Path | None = typer.Option(
+        None,
+        "--output",
+        help="With download: the database directory, new, empty or an earlier download "
+        "(families already present are kept).",
+    ),
+    marker_set: str = typer.Option(
+        "all",
+        "--set",
+        callback=_markers_db_set,
+        help="With download: bac120, ar53 or all (default) GTDB marker families.",
+    ),
+    threads: int = typer.Option(
+        8,
+        "-t",
+        "--threads",
+        min=1,
+        callback=resolve_threads,
+        help="With download: concurrent requests (default 8, or the CPU limit when lower).",
+    ),
+) -> None:
+    """Download or describe the GTDB marker-gene database (HMMER3 models).
+
+    download fetches GTDB-Tk's single-copy marker families (bac120: 120,
+    ar53: 53, 168 distinct families, about 25 MB) one at a time from the InterPro
+    API and writes one HMM file per set, an index (markers.tsv) and
+    version.json. The model versions are InterPro's current ones and can be
+    newer than those GTDB-Tk pins. The database is written beside --output
+    and renamed into place, so an interrupted download leaves none. It is used by
+    the markers core-gene builder; set REPGENR_MARKERS_DB to its path.
+    info prints the sets, model counts and versions of a database.
+    Exits 2 on a wrong argument or a missing database, 3 when a model cannot
+    be fetched.
+    """
+    from ..core.logging import configure_logging
+    from ..coregenes import markers_db as mdb
+    from .base import stage_errors
+
+    if action not in _MARKERS_DB_ACTIONS:
+        raise typer.BadParameter(
+            f"choose from {', '.join(_MARKERS_DB_ACTIONS)}; got '{action}'.", param_hint="ACTION"
+        )
+    logger = configure_logging(None, level=_RUN_STATE["log_level"])
+    if action == "download":
+        if output is None:
+            raise typer.BadParameter(
+                "download needs the database directory.", param_hint="--output"
+            )
+        if directory is not None:
+            raise typer.BadParameter(
+                "download takes the directory as --output, not as an argument.",
+                param_hint="DIRECTORY",
+            )
+        sets = mdb.MARKER_SETS if marker_set == "all" else (marker_set,)
+        with stage_errors(logger):
+            mdb.download(output, sets, logger, threads=threads)
+        return
+    with stage_errors(logger):
+        db = mdb.check_markers_db(directory or output)
+        info = mdb.summary(db)
+    typer.echo(f"Marker database: {info['path']}")
+    typer.echo(f"  version:       {info['version']}")
+    typer.echo(f"  sets:          {', '.join(info['sets'])} ({info['families']} families)")
+    typer.echo(f"  GTDB-Tk lists: {info['gtdbtk_lists']}")
+    typer.echo(f"  fetched:       {info['fetched']} from {info['interpro_api']}")
+    for name, entry in info["per_set"].items():
+        typer.echo(
+            f"  {name}: {entry['models']} models ({entry['pfam']} Pfam with GA, "
+            f"{entry['tigrfam']} TIGRFAM with NC), {entry['hmm_bytes']} bytes"
+        )
 
 
 def _census_source(value: str | None) -> str | None:
