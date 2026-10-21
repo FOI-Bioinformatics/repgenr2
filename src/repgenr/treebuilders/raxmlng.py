@@ -47,7 +47,8 @@ class RaxmlNgBuilder(TreeBuilder):
         logger: logging.Logger,
     ) -> Path:
         msa = as_msa_path(msa_or_genomes)
-        refuse_partitions_with_asc(params, "raxmlng")
+        if params.partitions is not None:
+            refuse_partitions_with_asc(params.extra, params.constant_sites, "raxmlng")
         out_dir.mkdir(parents=True, exist_ok=True)
         prefix = out_dir / "raxml"
         default_model = "LG+G" if params.alphabet == "protein" else "GTR+G"
@@ -89,6 +90,7 @@ class RaxmlNgBuilder(TreeBuilder):
             "--msa",
             msa,
             "--model",
+            # model may have gained +ASC_STAM above; the partition file never carries it.
             model_arg if params.partitions is not None else model,
             # auto{N}: let RAxML-NG pick an efficient thread count up to the
             # budget, avoiding its core-oversubscription guard on small alignments.

@@ -85,17 +85,27 @@ def partition_names(genes: Sequence[str]) -> list[str]:
     return names
 
 
-def refuse_partitions_with_asc(params: TreeParams, builder: str) -> None:
-    """Refuse partitions combined with an ascertainment-bias correction.
+def asc_requested(
+    extra: Mapping[str, object], constant_sites: tuple[int, int, int, int] | None = None
+) -> bool:
+    """True when an ascertainment-bias correction applies: any asc= value, a
+    model carrying +ASC, or the constant-site counts of a SNP alignment."""
+    asc = str(extra.get("asc", "")).strip()
+    model = str(extra.get("model", ""))
+    return bool(asc) or constant_sites is not None or "+asc" in model.lower()
+
+
+def refuse_partitions_with_asc(
+    extra: Mapping[str, object],
+    constant_sites: tuple[int, int, int, int] | None,
+    builder: str,
+) -> None:
+    """Refuse a partitioned model combined with an ascertainment-bias correction.
 
     The correction needs the invariant columns removed, which would shift the
     partition coordinates, and a variable-site (SNP) alignment has no genes.
     """
-    if params.partitions is None:
-        return
-    asc = str(params.extra.get("asc", "")).strip()
-    model = str(params.extra.get("model", ""))
-    if asc or params.constant_sites is not None or "+asc" in model.lower():
+    if asc_requested(extra, constant_sites):
         raise UserInputError(
             f"{builder}: a partitioned model cannot be combined with an ascertainment-bias "
             "correction (asc=, a +ASC model, or the constant-site counts of a SNP "

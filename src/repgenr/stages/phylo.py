@@ -804,7 +804,7 @@ def build_tree(
         # Refused here, before the alignment is built, rather than by the
         # builder once it has been: an ascertainment-bias correction and a
         # partition model exclude each other.
-        refuse_partitions_with_asc(TreeParams(extra=tree_params.extra, partitions=()), treebuilder)
+        refuse_partitions_with_asc(tree_params.extra, None, treebuilder)
     dirs.tree_dir.mkdir(parents=True, exist_ok=True)
 
     if builder.input_kind == InputKind.GENOMES:

@@ -60,7 +60,8 @@ class IqtreeBuilder(TreeBuilder):
                 f"replicates (-B); got {params.bootstrap}. Use --bootstrap "
                 f"{self.MIN_BOOTSTRAP} or more, or 0 for none."
             )
-        refuse_partitions_with_asc(params, "iqtree")
+        if params.partitions is not None:
+            refuse_partitions_with_asc(params.extra, params.constant_sites, "iqtree")
         out_dir.mkdir(parents=True, exist_ok=True)
         work_msa = out_dir / "msa.fasta"
         asc = str(params.extra.get("asc", "")).strip().lower()
