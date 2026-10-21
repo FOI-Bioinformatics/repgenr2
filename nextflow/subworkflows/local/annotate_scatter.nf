@@ -10,13 +10,16 @@
 
 include { ANNOTATE } from '../../modules/local/dataflow/annotate'
 
-// True when the phylo arguments select the core-gene alignment source. Read
-// from params.phylo_args only (a withName ext.args override is not seen).
-// Quotes around a value are dropped, and the last --msa-source wins, as on
-// the repgenr command line.
+// True when the phylo arguments select the core-gene alignment source, by
+// --msa-source or, without it, by a core-gene --preset (phylo-build refuses
+// a --msa-source other than the preset's). Read from params.phylo_args only
+// (a withName ext.args override is not seen). Quotes around a value are
+// dropped, and the last --msa-source or --preset wins, as on the repgenr
+// command line.
 def phylo_uses_coregene(args) {
     def tokens = (args ?: '').toString().tokenize().collect { t -> t.replaceAll(/^["']|["']$/, '') }
     def source = null
+    def preset = null
     tokens.eachWithIndex { t, i ->
         if (t.startsWith('--msa-source=')) {
             source = t.substring('--msa-source='.length()).replaceAll(/^["']|["']$/, '')
@@ -24,8 +27,20 @@ def phylo_uses_coregene(args) {
         else if (t == '--msa-source' && i + 1 < tokens.size()) {
             source = tokens[i + 1]
         }
+        else if (t.startsWith('--preset=')) {
+            preset = t.substring('--preset='.length()).replaceAll(/^["']|["']$/, '')
+        }
+        else if (t == '--preset' && i + 1 < tokens.size()) {
+            preset = tokens[i + 1]
+        }
     }
-    return source == 'coregene'
+    if (source != null) {
+        return source == 'coregene'
+    }
+    // The core-gene presets: the genus and family rows of RECOMMENDATIONS in
+    // src/repgenr/stages/advise.py (tests/unit/test_cli_presets.py checks
+    // that the two agree).
+    return preset in ['genus', 'family']
 }
 
 // True when the phylo arguments keep the outgroup in the tree.

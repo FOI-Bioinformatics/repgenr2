@@ -216,9 +216,12 @@ of this record.
   prints the matching row of the table above, and a `--preset` option that
   expands to it.
   Shipped: `phylo-advise` (D1), with the table held as data in
-  `src/repgenr/stages/advise.py`. The genus and family rows leave out the
-  partition file and the protein alphabet until those options exist. The
-  `--preset` option is open.
+  `src/repgenr/stages/advise.py`, and `--preset` on `phylo`, `phylo-build`
+  and `run` (D2), which expands the same rows; an option given on the command
+  line overrides the preset. The genus row carries `--partitioned` and the
+  family row adds `--coregene-alphabet protein`; per-gene trimming stays an
+  explicit choice. `phylo-advise` prints the command with `--preset` and its
+  expansion.
 - **E. Documentation.** This record, the corrections listed under "Other
   defects", and the recommendation tables in
   [choosing-tools.md](../choosing-tools.md#by-purpose-and-divergence).

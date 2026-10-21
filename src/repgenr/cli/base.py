@@ -186,6 +186,15 @@ HELP_MAX_GENE_GAPS = (
     "With --msa-source coregene: drop genes where more than this fraction of the "
     "alignment is gap characters, before ranking (0 to 1; unset applies no limit)."
 )
+HELP_PRESET = (
+    "A recommended configuration from the table phylo-advise applies: outbreak, species, "
+    "species-masked, genus, family or quick (flags listed in docs/usage.md, Presets). It "
+    "sets the MSA source, tree builder and their settings. An option given on the command "
+    "line overrides the preset, also at its default value; --aligner-arg values add to the "
+    "preset's. A --treebuilder other than the preset's drops the preset's --aligner-arg and "
+    "--partitioned where that builder does not read them, and a different --msa-source is "
+    "refused. A preset setting cannot be removed; write the flags out without --preset then."
+)
 HELP_PARTITIONED = (
     "With --msa-source coregene: fit one substitution model per core gene (an edge-linked "
     "partition model, from the alignment's partitions.json). Honoured by iqtree and raxmlng; "

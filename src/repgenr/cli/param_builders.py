@@ -500,6 +500,92 @@ def require_gene_rank(rank: str) -> None:
     _require_choice(rank, set(RANKS), "--gene-rank")
 
 
+# The command parameters a preset may set (stages/advise.py RECOMMENDATIONS),
+# by their names on phylo, phylo-build and run.
+PRESET_PARAMS = (
+    "treebuilder",
+    "msa_source",
+    "snptyper",
+    "bootstrap",
+    "aligner_arg",
+    "mask",
+    "core_fraction",
+    "coregene",
+    "core_threshold",
+    "max_core_genes",
+    "gene_rank",
+    "partitioned",
+    "coregene_alphabet",
+)
+
+
+def _given(ctx: Any, name: str) -> bool:
+    """Whether parameter ``name`` was given on the command line (or from an
+    environment variable) rather than left at its default."""
+    source = ctx.get_parameter_source(name)
+    # Compared by name: Typer vendors its own copy of Click's ParameterSource.
+    return source is not None and source.name not in {"DEFAULT", "DEFAULT_MAP"}
+
+
+def apply_preset(ctx: Any, preset: str | None) -> dict[str, Any]:
+    """The values of PRESET_PARAMS with ``preset`` applied, from the Click
+    context of phylo, phylo-build or run.
+
+    The preset's flags are read as if given before the user's own: an option
+    given on the command line keeps its value, even when it equals the
+    default, and a value of the preset fills each option left at its default.
+    --aligner-arg values add to the preset's (a repeated key takes the
+    user's value). An explicit --treebuilder other than the preset's drops
+    the items of the preset's tree-builder tuning (--aligner-arg,
+    --partitioned) that the new builder does not read. A
+    --msa-source other than the preset's is refused: the preset's settings
+    belong to its route.
+    """
+    values: dict[str, Any] = {name: ctx.params[name] for name in PRESET_PARAMS}
+    values["aligner_arg"] = list(values["aligner_arg"])
+    if preset is None:
+        return values
+    from ..core.errors import UserInputError
+    from ..stages.advise import (
+        RECOMMENDATIONS,
+        TREE_TUNING,
+        builder_reads,
+        flag_items,
+        preset_flags,
+    )
+
+    _require_choice(preset, set(RECOMMENDATIONS), "--preset")
+    by_opt = {opt: param for param in ctx.command.params for opt in getattr(param, "opts", ())}
+    items = flag_items(preset_flags(preset))
+    preset_tb = dict(items).get("--treebuilder")
+    builder_changed = (
+        preset_tb is not None and _given(ctx, "treebuilder") and values["treebuilder"] != preset_tb
+    )
+    # Repeatable options: the preset's values go first.
+    preset_lists: dict[str, list[str]] = {}
+    for opt, raw in items:
+        param = by_opt[opt]
+        name = param.name
+        if opt == "--msa-source" and _given(ctx, name) and values[name] != raw:
+            raise UserInputError(
+                f"--preset {preset} sets --msa-source {raw}; --msa-source {values[name]} "
+                "changes the route, so give its settings without --preset."
+            )
+        if (
+            builder_changed
+            and opt in TREE_TUNING
+            and not builder_reads(values["treebuilder"], opt, raw)
+        ):
+            continue
+        if param.multiple:
+            preset_lists.setdefault(name, []).append(str(raw))
+        elif not _given(ctx, name):
+            values[name] = True if param.is_flag else param.type(raw, param, ctx)
+    for name, preset_values in preset_lists.items():
+        values[name] = [*preset_values, *values[name]]
+    return values
+
+
 def phylo_params(
     *,
     treebuilder: Any = _UNSET,
@@ -515,6 +601,7 @@ def phylo_params(
     threads: Any = _UNSET,
     extra: Any = _UNSET,
     allow_incomplete: Any = _UNSET,
+    preset: Any = _UNSET,
     on_run: bool = False,
 ) -> PhyloParams:
     from ..aligners.base import registry as _aln_registry
@@ -605,6 +692,7 @@ def phylo_params(
         threads=threads,
         extra=extra,
         allow_incomplete=allow_incomplete,
+        preset=preset,
     )
 
 

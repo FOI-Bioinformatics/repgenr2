@@ -7,6 +7,24 @@ All notable changes to RepGenR2 are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- `--preset outbreak|species|species-masked|genus|family|quick` on `phylo`,
+  `phylo-build` and `run` stands for the flags of one row of the table
+  `phylo-advise` applies (`RECOMMENDATIONS` in `stages/advise.py`, with
+  `preset_flags` and `expand_preset`). An option given on the command line
+  overrides the preset, also at its default value (read from the Click
+  parameter source); `--aligner-arg` values add to the preset's; a
+  `--treebuilder` other than the preset's drops the preset's `--aligner-arg`
+  keys and `--partitioned` where that builder does not read them
+  (`builder_reads`: its accepted extras and `supports_partitions`); a different `--msa-source` is refused. The phylo stage
+  record gains `preset`; the MSA key and the resume fingerprint read only the
+  expanded settings. On `run` the core-gene presets add the annotate stage.
+  In Nextflow, `--preset genus` or `family` in `phylo_args` starts
+  `ANNOTATE_SCATTER` as `--msa-source coregene` does. The genus row gains
+  `--partitioned` and the family row `--coregene-alphabet protein`.
+  `phylo-advise` prints the command as `--preset NAME` with the flags the
+  evidence adds, then the expansion on a second line (JSON:
+  `expanded_command`); its FastTree swap keeps `-B` and drops the
+  partitions.
 - `iqtree` tree builder: `--aligner-arg alrt=N` (N at least 1000) passes
   `-alrt N`, SH-aLRT supports without `-B`; with `-B` as well both values
   are written. `phylo` no longer reports a tree without supports when

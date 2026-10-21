@@ -89,6 +89,7 @@ is 'vmetadata --source'. --platform filters the sequencing platform with
 | `--refine-file` |  | TSV with the columns seed and ani: several lineages, each refined at its own ANI (the seeds of one ANI form one lineage). |
 | `--tool-arg` |  | Tool tuning as key=value (repeatable), e.g. mode=greedy. |
 | `--with-snptype` | off | Run the standalone snptype stage (with --snptyper, --mask, --reference) after dereplication, so the SNP tables are produced whatever builds the tree. |
+| `--preset` |  | A recommended configuration from the table phylo-advise applies: outbreak, species, species-masked, genus, family or quick (flags listed in docs/usage.md, Presets). It sets the MSA source, tree builder and their settings. An option given on the command line overrides the preset, also at its default value; --aligner-arg values add to the preset's. A --treebuilder other than the preset's drops the preset's --aligner-arg and --partitioned where that builder does not read them, and a different --msa-source is refused. A preset setting cannot be removed; write the flags out without --preset then. |
 | `--treebuilder` | `iqtree` | auto, aster, fasttree, iqtree, mashtree, raxmlng, ska2, skani, sourmash, veryfasttree. |
 | `--msa-source` | `aligner` | aligner, snptype or coregene (a concatenated core-gene alignment from the annotations the annotate stage wrote). |
 | `--aligner` | `progressivemauve` | cactus, progressivemauve, sibeliaz. |
@@ -149,10 +150,11 @@ Suggest a phylo route and tree builder for the genome set of a workdir.
 
 Reads the genome names, the existing genome sketches (sourmash compare
 for the pairwise ANI), the annotations and the outgroup, applies the
-table in docs/choosing-tools.md and prints the reasons and the full
-phylo command. Writes nothing to the workdir, except that opening a
-manifest of an older layout migrates its schema in place, as any
-command does. A -wd that does not exist exits 3.
+table in docs/choosing-tools.md and prints the reasons, the phylo
+command with --preset and that command with the preset written out.
+Writes nothing to the workdir, except that opening a manifest of an
+older layout migrates its schema in place, as any command does. A -wd
+that does not exist exits 3.
 
 | option | default | description |
 |---|---|---|
@@ -435,6 +437,7 @@ Build a phylogenetic tree from an alignment, SNP alignment, or directly.
 | option | default | description |
 |---|---|---|
 | `-wd`, `--workdir` | required | Working directory. |
+| `--preset` |  | A recommended configuration from the table phylo-advise applies: outbreak, species, species-masked, genus, family or quick (flags listed in docs/usage.md, Presets). It sets the MSA source, tree builder and their settings. An option given on the command line overrides the preset, also at its default value; --aligner-arg values add to the preset's. A --treebuilder other than the preset's drops the preset's --aligner-arg and --partitioned where that builder does not read them, and a different --msa-source is refused. A preset setting cannot be removed; write the flags out without --preset then. |
 | `--treebuilder` | `iqtree` | auto, aster, fasttree, iqtree, mashtree, raxmlng, ska2, skani, sourmash, veryfasttree. |
 | `--msa-source` | `aligner` | aligner, snptype or coregene (a concatenated core-gene alignment from the annotations the annotate stage wrote). |
 | `--aligner` | `progressivemauve` | cactus, progressivemauve, sibeliaz. |
@@ -763,6 +766,7 @@ Here --outgroup-accession takes a file that names the accession, not the accessi
 | `-o`, `--out` | required | Output dir (writes tree/tree.nwk). |
 | `--outgroup-dir` |  | Directory holding the outgroup genome file(s). |
 | `--outgroup-accession` |  | File naming the outgroup accession. |
+| `--preset` |  | A recommended configuration from the table phylo-advise applies: outbreak, species, species-masked, genus, family or quick (flags listed in docs/usage.md, Presets). It sets the MSA source, tree builder and their settings. An option given on the command line overrides the preset, also at its default value; --aligner-arg values add to the preset's. A --treebuilder other than the preset's drops the preset's --aligner-arg and --partitioned where that builder does not read them, and a different --msa-source is refused. A preset setting cannot be removed; write the flags out without --preset then. |
 | `--treebuilder` | `iqtree` | auto, aster, fasttree, iqtree, mashtree, raxmlng, ska2, skani, sourmash, veryfasttree. |
 | `--msa-source` | `aligner` | aligner, snptype or coregene (a concatenated core-gene alignment from the annotations the annotate stage wrote). |
 | `--aligner` | `progressivemauve` | cactus, progressivemauve, sibeliaz. |

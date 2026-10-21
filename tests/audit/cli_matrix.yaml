@@ -1814,6 +1814,17 @@ commands:
         nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
         live: tests/live/test_smoke.py::test_offline_chain_sourmash_mashtree
         observable: the workdir is populated
+      --preset:
+        param: PhyloParams.preset
+        value: quick
+        validated: choice
+        docs:
+        - docs/cli-reference.md
+        - docs/usage.md
+        - docs/choosing-tools.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
+        live: 'n/a: covered offline in tests/unit/test_cli_presets.py and tests/unit/test_advise.py (a preset only sets the flags whose live runs are listed under them)'
       --treebuilder:
         param: PhyloParams.treebuilder
         value: fasttree
@@ -2221,6 +2232,17 @@ commands:
         - docs/audit/cli-matrix.md
         nextflow: 'module: fixed by the process script'
         live: tests/live/test_steps.py::test_phylo_build_and_tree2tax_relations_with_outgroup
+      --preset:
+        param: PhyloBuildParams.phylo.preset
+        value: quick
+        validated: choice
+        docs:
+        - docs/cli-reference.md
+        - docs/usage.md
+        - docs/choosing-tools.md
+        - docs/audit/cli-matrix.md
+        nextflow: params.phylo_args
+        live: 'n/a: covered offline in tests/unit/test_cli_presets.py and tests/unit/test_advise.py (a preset only sets the flags whose live runs are listed under them)'
       --treebuilder:
         param: PhyloBuildParams.phylo.treebuilder
         value: fasttree
@@ -3964,6 +3986,17 @@ commands:
         - docs/audit/cli-matrix.md
         nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
         live: tests/live/test_network.py::test_run_bacterial_chain_end_to_end
+      --preset:
+        param: PhyloParams.preset
+        value: quick
+        validated: choice
+        docs:
+        - docs/cli-reference.md
+        - docs/usage.md
+        - docs/choosing-tools.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
+        live: 'n/a: covered offline in tests/unit/test_cli_presets.py and tests/unit/test_advise.py (a preset only sets the flags whose live runs are listed under them)'
       --treebuilder:
         param: PhyloParams.treebuilder
         value: fasttree
