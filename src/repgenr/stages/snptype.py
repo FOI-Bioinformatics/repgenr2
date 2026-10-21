@@ -282,32 +282,53 @@ def snptype_core(
             shutil.copy2(result.snp_distance_matrix, tmp)
     full_alignment_out: Path | None = None
     constant_sites: tuple[int, int, int, int] | None = None
+    # The alignment the constant columns are counted from: the published
+    # whole-genome alignment when the typer writes one, else an all-sites
+    # alignment without reference coordinates (ska2), which is counted here
+    # and then removed, since it is as large as the core genome.
+    counted: Path | None = None
     if result.full_alignment is not None:
         full_alignment_out = snp_dir / "full_alignment.fasta"
         with atomic_path(full_alignment_out) as tmp:
             shutil.copy2(result.full_alignment, tmp)
+        counted = full_alignment_out
+    elif result.all_sites_alignment is not None and result.all_sites_alignment.is_file():
+        counted = result.all_sites_alignment
+    if counted is not None:
         # Constant columns of the whole-genome alignment: the tree builder
         # adds them back as counts, which keeps branch lengths on scale.
         # Counted before masking: masking turns bases into N, which cannot
         # make a constant column variable; a column it makes constant is
-        # missed, so after --mask the counts are a slight undercount.
+        # missed, so after --mask the counts are a slight undercount. The
+        # --core-fraction rule that filters the variable-site alignment
+        # applies to the counted columns as well.
+        source = counted.name
         constant_sites, variable = constant_site_counts(
-            full_alignment_out, logger, min_fraction=params.core_fraction
+            counted, logger, min_fraction=params.core_fraction
         )
         write_alignment_stats(
             core,
             constant_sites,
             variable,
-            source=full_alignment_out.name,
+            source=source,
             masked=masked,
             core_fraction=params.core_fraction,
         )
         logger.info(
             "Constant sites in %s: A %d, C %d, G %d, T %d (%d variable columns)",
-            full_alignment_out.name,
+            source,
             *constant_sites,
             variable,
         )
+        if full_alignment_out is None:
+            counted.unlink(missing_ok=True)
+            logger.info(
+                "%s: %d constant and %d variable columns counted; the file is not "
+                "published and was removed",
+                source,
+                sum(constant_sites),
+                variable,
+            )
     else:
         (snp_dir / ALIGNMENT_STATS).unlink(missing_ok=True)
 

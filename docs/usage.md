@@ -2035,7 +2035,11 @@ A tree from a variable-site-only alignment overestimates branch lengths
 unless the builder is told how many invariant sites the alignment lost. When
 the typer writes a whole-genome alignment (`simple`, `snippy`, `parsnp`), the
 typing pass counts its constant A, C, G and T columns into
-`alignment_stats.json` beside `core_snp.fasta`, and `phylo` passes them on:
+`alignment_stats.json` beside `core_snp.fasta`, and `phylo` passes them on.
+`ska2` has no whole-genome alignment, but it also writes an all-sites
+alignment (`ska align --filter no-filter`, every shared split k-mer middle
+base); the counts are taken from it, under the same `--core-fraction` rule,
+and the file is then removed, since it is as large as the core genome:
 
 - IQ-TREE receives them as `-fconst`, RAxML-NG as `+ASC_STAM{...}` on its
   model. Both are first given the alignment without any invariant column that
@@ -2051,10 +2055,12 @@ corrected twice. In the Nextflow split mode the alignment task publishes the
 sidecar and the tree task reads it. The counts are taken before masking, so
 after `--mask` they are a slight undercount.
 
-`ska2` writes no whole-genome alignment, so its tree has no correction and
-`phylo` warns. Compare topologies and supports rather than lengths there, or
-build the tree from a whole-genome alignment
-(`phylo-build --msa snp/full_alignment.fasta`).
+The `ska2` counts cover only the split k-mers shared by at least `min_freq` of
+the genomes, so they describe the shared part of the genomes, not the whole
+of them. With `--tool-arg lo=true`, `ska lo` writes variants only: that route
+has no counts, its tree has no correction, and `phylo` warns. Compare
+topologies and supports rather than lengths there, or build the tree from a
+whole-genome alignment (`phylo-build --msa snp/full_alignment.fasta`).
 
 #### Soft core (`--core-fraction`)
 
@@ -2192,7 +2198,10 @@ sequence at the cost of the accuracy above.
 `--tool ska2` (split k-mer analysis) is reference-free: every genome is an
 ordinary sample, so no assembly's private errors bias the SNP distances, and
 the alphabetical-first-genome reference default does not apply. It emits a
-variable-site alignment only, so it is not compatible with `--mask`. Tune it
+variable-site alignment and no whole-genome alignment, so it is not
+compatible with `--mask`. A second `ska align` call with `--filter no-filter`
+gives the constant-site counts for the tree builder (see "Invariant sites and
+branch lengths"); that alignment is counted and removed, not published. Tune it
 with `--tool-arg ksize=31` and `--tool-arg min_freq=0.9` (the fraction of
 samples a split k-mer must occur in).
 
@@ -2205,7 +2214,9 @@ says so when the genome names span more than one species.
 variants in more diverged samples by local assembly of the split k-mer graph
 (Horsfield et al. 2025). The indels it finds are published as
 `snp/variants.vcf`, `lo_missing` (0.1) is its limit on missing data per site,
-and `min_freq` is not read in this mode.
+and `min_freq` is not read in this mode. `ska lo` writes variants only, so this
+mode has no constant-site counts and the tree's branch lengths are not
+corrected; the log says so.
 
 `--treebuilder ska2` builds a tree without an alignment from the same split
 k-mers. `ska distance` counts the SNPs among the k-mers each pair shares

@@ -36,6 +36,12 @@ class SnpResult:
     # equal lengths). Required input for recombination maskers; None when the
     # typer only produces variable sites.
     full_alignment: Path | None = None
+    # An alignment holding the constant columns as well as the variable ones,
+    # but WITHOUT reference coordinates (one record per genome, equal
+    # lengths), from a typer that has no whole-genome alignment (ska2).
+    # Usable for constant-site counting, not for masking; the stage counts
+    # it and removes it. None when the typer writes no such alignment.
+    all_sites_alignment: Path | None = None
     # Constant A, C, G, T columns of the whole-genome alignment, for the tree
     # builder's ascertainment-bias correction; None when there is no such
     # alignment to count them from.
