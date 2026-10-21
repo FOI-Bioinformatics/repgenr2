@@ -2078,6 +2078,16 @@ commands:
         with_args:
         - --msa-source
         - coregene
+  phylo-advise:
+    dispatch: query
+    base_args:
+    - -wd
+    - '{wd}'
+    flags:
+      --workdir:
+        aliases:
+        - -wd
+        param: 'n/a: query command, no stage parameters'
       --partitioned:
         param: PhyloParams.extra
         validated: none
@@ -2085,6 +2095,42 @@ commands:
         - docs/cli-reference.md
         - docs/usage.md
         - docs/audit/cli-matrix.md
+        nextflow: 'n/a: read-only workdir query; the Nextflow layer takes its route from params'
+        live: 'n/a: read-only workdir query; tests/unit/test_advise.py'
+        observable: a missing -wd exits 3; an existing one prints the advice and exits 0
+      --all-genomes:
+        param: 'n/a: query command, no stage parameters'
+        validated: none
+        docs:
+        - docs/cli-reference.md
+        - docs/usage.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'n/a: read-only workdir query; the Nextflow layer takes its route from params'
+        live: 'n/a: read-only workdir query; tests/unit/test_advise.py'
+        observable: the evidence counts every genome under genomes/ and the command carries --all-genomes
+      --threads:
+        aliases:
+        - -t
+        param: 'n/a: query command, no stage parameters'
+        validated: range
+        invalid: '0'
+        docs:
+        - docs/cli-reference.md
+        - docs/usage.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'n/a: read-only workdir query; the Nextflow layer takes its route from params'
+        live: 'n/a: read-only workdir query; tests/unit/test_advise.py'
+        observable: threads for sourmash compare over the existing sketches
+      --json:
+        param: 'n/a: query command, no stage parameters'
+        validated: none
+        docs:
+        - docs/cli-reference.md
+        - docs/usage.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'n/a: read-only workdir query; the Nextflow layer takes its route from params'
+        live: 'n/a: read-only workdir query; tests/unit/test_advise.py'
+        observable: one repgenr.phylo-advise/1 JSON object on stdout
         nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
         live: 'n/a: covered offline in tests/unit/test_cli_gene_selection.py (the live run needs bakta, panaroo and the bakta database)'
         with_args:

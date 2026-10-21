@@ -141,6 +141,23 @@ record still exits 3 and leaves stdout empty.
 | `-wd`, `--workdir` | required | Working directory. |
 | `--json` | off | Print one versioned JSON object on stdout instead of the text report (schema in docs/output.md); exit codes are unchanged. |
 
+### phylo-advise
+
+Suggest a phylo route and tree builder for the genome set of a workdir.
+
+Reads the genome names, the existing genome sketches (sourmash compare
+for the pairwise ANI), the annotations and the outgroup, applies the
+table in docs/choosing-tools.md and prints the reasons and the full
+phylo command. Writes nothing to the workdir. A -wd that does not exist
+exits 3.
+
+| option | default | description |
+|---|---|---|
+| `-wd`, `--workdir` | required | Working directory. |
+| `--all-genomes` | off | Use all genomes, not only the representatives. |
+| `-t`, `--threads` | `16` | Threads for the external tool (default 16, or the CPU limit when lower). |
+| `--json` | off | Print one versioned JSON object (repgenr.phylo-advise/1) on stdout instead of the text. |
+
 ## Entry points: select and fetch genomes
 
 ### metadata

@@ -7,6 +7,15 @@ All notable changes to RepGenR2 are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- `phylo-advise` (Pipeline panel): reads a working directory (genome count,
+  species and genera in canonical names, minimum and median pairwise ANI by
+  `sourmash compare` over the existing sketches, annotations, outgroup) and
+  prints the matching row of the "By purpose and divergence" table in
+  `docs/choosing-tools.md`, the reasons and the full `repgenr phylo`
+  command; `--json` prints a `repgenr.phylo-advise/1` object. It writes
+  nothing to the workdir. The presets are held as data in
+  `repgenr.stages.advise.RECOMMENDATIONS`; the genus and family rows leave
+  out a partition file and a protein alphabet until those options exist.
 - ska2 typer: constant-site counts. A first `ska align --filter no-filter`
   call writes every shared split k-mer middle base (`SnpResult.all_sites_alignment`,
   an alignment without reference coordinates); the snptype stage counts its

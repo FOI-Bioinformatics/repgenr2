@@ -136,6 +136,9 @@ matters most. It follows the
 [phylo methods audit](audit/phylo-methods-2026-10.md). Entries marked planned
 depend on work that is not implemented yet; until then the rest of the row
 applies.
+`repgenr phylo-advise -wd WD` reads a working directory and prints the row
+that applies, the reasons and the full `phylo` command
+([usage](usage.md#asking-for-a-route-phylo-advise)).
 
 | Purpose | Span, ANI | Route for 100 to 500 genomes | Tree builder | Notes |
 |---|---|---|---|---|

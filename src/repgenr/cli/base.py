@@ -75,6 +75,9 @@ HELP_TARGET_GENUS = "Restrict the selection to this genus."
 HELP_TARGET_SPECIES = "Restrict the selection to this species."
 HELP_OUTGROUP_ACCESSION = "Accession to fetch and set aside as the outgroup."
 HELP_NO_OUTGROUP = "Do not root with an outgroup."
+HELP_ADVISE_JSON = (
+    "Print one versioned JSON object (repgenr.phylo-advise/1) on stdout instead of the text."
+)
 HELP_ROOT = (
     "How phylo roots tree/tree.nwk: outgroup (on the branch to the outgroup), midpoint, "
     "or none (as the tree builder wrote it). Default: outgroup when an outgroup is "
@@ -318,7 +321,7 @@ PANEL_STEPS = "Nextflow data-channel steps"
 # Panel -> commands in display order. The single source of truth for the
 # grouped --help, the rendered command reference, and the panel test.
 COMMAND_PANELS: dict[str, tuple[str, ...]] = {
-    PANEL_PIPELINE: ("run", "status"),
+    PANEL_PIPELINE: ("run", "status", "phylo-advise"),
     PANEL_ENTRY: (
         "metadata",
         "genome",
@@ -1386,6 +1389,13 @@ def missing_workdir_message(workdir: Path) -> str:
         f"Workdir not found: {workdir}. Create it with an entry stage "
         "(metadata, ingest, reads or vmetadata) first."
     )
+
+
+def _echo_json(payload: dict[str, Any]) -> None:
+    """One JSON object on stdout, for the --json form of the query commands."""
+    import json
+
+    typer.echo(json.dumps(payload, indent=2, default=str))
 
 
 def require_existing_workdir(workdir: Path) -> None:

@@ -908,7 +908,7 @@ def resolve_sketches(
                 consumer,
                 len(todo),
             )
-    if (ctx.workdir / SKETCHES_DIR).is_dir():
+    if write and (ctx.workdir / SKETCHES_DIR).is_dir():
         _save_cache(cache, [*known_paths, *(t.path for t in targets)], logger)
     left = len(genomes) - len(reused) - len(written)
     logger.info(

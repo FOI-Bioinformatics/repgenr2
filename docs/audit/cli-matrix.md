@@ -3,7 +3,7 @@
 Generated from `tests/audit/cli_matrix.yaml` by `scripts/render_cli_matrix.py`;
 `tests/unit/test_cli_matrix.py` keeps both in step with the command tree.
 
-37 commands, 467 flags (467 with a live test or an n/a reason, 0 pending).
+38 commands, 468 flags (468 with a live test or an n/a reason, 0 pending).
 
 ## Global flags
 
@@ -303,7 +303,17 @@ dispatch: `stage`
 | `--gene-rank` |  | PhyloParams.extra | choice | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: covered offline in tests/unit/test_cli_gene_selection.py (the live run needs bakta, panaroo and the bakta database) | docs/cli-reference.md, docs/usage.md, docs/audit/cli-matrix.md |
 | `--min-gene-length` |  | PhyloParams.extra | range | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: covered offline in tests/unit/test_cli_gene_selection.py (the live run needs bakta, panaroo and the bakta database) | docs/cli-reference.md, docs/usage.md, docs/audit/cli-matrix.md |
 | `--max-gene-gaps` |  | PhyloParams.extra | range | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: covered offline in tests/unit/test_cli_gene_selection.py (the live run needs bakta, panaroo and the bakta database) | docs/cli-reference.md, docs/usage.md, docs/audit/cli-matrix.md |
-| `--partitioned` |  | PhyloParams.extra | none | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: covered offline in tests/unit/test_cli_gene_selection.py (the live run needs bakta, panaroo and the bakta database) | docs/cli-reference.md, docs/usage.md, docs/audit/cli-matrix.md |
+
+## phylo-advise
+
+dispatch: `query`
+
+| flag | aliases | param | validated | nextflow | live | docs |
+|---|---|---|---|---|---|---|
+| `--workdir` | -wd | n/a: query command, no stage parameters | none | n/a: read-only workdir query; the Nextflow layer takes its route from params | n/a: read-only workdir query; tests/unit/test_advise.py | docs/cli-reference.md, docs/usage.md, docs/audit/cli-matrix.md |
+| `--all-genomes` |  | n/a: query command, no stage parameters | none | n/a: read-only workdir query; the Nextflow layer takes its route from params | n/a: read-only workdir query; tests/unit/test_advise.py | docs/cli-reference.md, docs/usage.md, docs/audit/cli-matrix.md |
+| `--threads` | -t | n/a: query command, no stage parameters | range | n/a: read-only workdir query; the Nextflow layer takes its route from params | n/a: read-only workdir query; tests/unit/test_advise.py | docs/cli-reference.md, docs/usage.md, docs/audit/cli-matrix.md |
+| `--json` |  | n/a: query command, no stage parameters | none | n/a: read-only workdir query; the Nextflow layer takes its route from params | n/a: read-only workdir query; tests/unit/test_advise.py | docs/cli-reference.md, docs/usage.md, docs/audit/cli-matrix.md |
 
 ## phylo-build
 
@@ -338,7 +348,6 @@ dispatch: `step:repgenr.stages.phylo.phylo_build`
 | `--gene-rank` |  | PhyloBuildParams.phylo.extra | choice | params.phylo_args | n/a: covered offline in tests/unit/test_cli_gene_selection.py (the live run needs bakta, panaroo and the bakta database) | docs/cli-reference.md, docs/usage.md, docs/audit/cli-matrix.md |
 | `--min-gene-length` |  | PhyloBuildParams.phylo.extra | range | params.phylo_args | n/a: covered offline in tests/unit/test_cli_gene_selection.py (the live run needs bakta, panaroo and the bakta database) | docs/cli-reference.md, docs/usage.md, docs/audit/cli-matrix.md |
 | `--max-gene-gaps` |  | PhyloBuildParams.phylo.extra | range | params.phylo_args | n/a: covered offline in tests/unit/test_cli_gene_selection.py (the live run needs bakta, panaroo and the bakta database) | docs/cli-reference.md, docs/usage.md, docs/audit/cli-matrix.md |
-| `--partitioned` |  | PhyloBuildParams.phylo.extra | none | params.phylo_args | n/a: covered offline in tests/unit/test_cli_gene_selection.py (the live run needs bakta, panaroo and the bakta database) | docs/cli-reference.md, docs/usage.md, docs/audit/cli-matrix.md |
 | `--annotations-dir` |  | PhyloBuildParams.annotations_dir | stage | module: the ANNOTATE records, staged and indexed by PHYLO and PHYLO_MSA | n/a: covered offline in tests/unit/test_phylo_coregene.py (the live run needs bakta, panaroo and the bakta database) | docs/cli-reference.md, docs/usage.md, docs/audit/cli-matrix.md |
 | `--annotator` |  | PhyloBuildParams.annotator | registry | n/a: ANNOTATE uses params.annotator; phylo-build reads this flag, from params.phylo_args, only when no records are staged | n/a: covered offline in tests/unit/test_phylo_coregene.py (the live run needs bakta, panaroo and the bakta database) | docs/cli-reference.md, docs/usage.md, docs/audit/cli-matrix.md |
 | `--bakta-db` |  | PhyloBuildParams.bakta_db | stage | n/a: ANNOTATE uses params.bakta_db; phylo-build reads this flag, from params.phylo_args, only when no records are staged | n/a: covered offline in tests/unit/test_phylo_coregene.py (the live run needs bakta, panaroo and the bakta database) | docs/cli-reference.md, docs/install.md, docs/audit/cli-matrix.md |
@@ -557,7 +566,6 @@ dispatch: `stage`
 | `--gene-rank` |  | PhyloParams.extra | choice | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: covered offline in tests/unit/test_cli_gene_selection.py (the live run needs bakta, panaroo and the bakta database) | docs/cli-reference.md, docs/usage.md, docs/audit/cli-matrix.md |
 | `--min-gene-length` |  | PhyloParams.extra | range | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: covered offline in tests/unit/test_cli_gene_selection.py (the live run needs bakta, panaroo and the bakta database) | docs/cli-reference.md, docs/usage.md, docs/audit/cli-matrix.md |
 | `--max-gene-gaps` |  | PhyloParams.extra | range | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: covered offline in tests/unit/test_cli_gene_selection.py (the live run needs bakta, panaroo and the bakta database) | docs/cli-reference.md, docs/usage.md, docs/audit/cli-matrix.md |
-| `--partitioned` |  | PhyloParams.extra | none | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: covered offline in tests/unit/test_cli_gene_selection.py (the live run needs bakta, panaroo and the bakta database) | docs/cli-reference.md, docs/usage.md, docs/audit/cli-matrix.md |
 | `--annotator` |  | AnnotateStageParams.tool | registry | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: covered offline in tests/unit/test_phylo_coregene.py (the live run needs bakta, panaroo and the bakta database) | docs/cli-reference.md, docs/usage.md, docs/audit/cli-matrix.md |
 | `--bakta-db` |  | AnnotateStageParams.bakta_db | stage | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: covered offline in tests/unit/test_phylo_coregene.py (the live run needs bakta, panaroo and the bakta database) | docs/cli-reference.md, docs/install.md, docs/audit/cli-matrix.md |
 

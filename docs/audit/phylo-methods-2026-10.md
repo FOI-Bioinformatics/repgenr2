@@ -193,6 +193,10 @@ of this record.
 - **D. Advice and presets.** A `phylo-advise` command that reads a workdir and
   prints the matching row of the table above, and a `--preset` option that
   expands to it.
+  Shipped: `phylo-advise` (D1), with the table held as data in
+  `src/repgenr/stages/advise.py`. The genus and family rows leave out the
+  partition file and the protein alphabet until those options exist. The
+  `--preset` option is open.
 - **E. Documentation.** This record, the corrections listed under "Other
   defects", and the recommendation tables in
   [choosing-tools.md](../choosing-tools.md#by-purpose-and-divergence).
