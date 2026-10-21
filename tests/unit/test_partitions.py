@@ -42,8 +42,11 @@ def test_read_refuses_another_file_or_changed_content(tmp_path: Path) -> None:
     assert read_partitions(other) is None
     _aln(aln, "ACGTACGTT")
     assert read_partitions(aln) is None
+    # A sidecar that is not JSON is ignored, even beside the file it names.
+    write_partitions(aln, _PARTS, "dna")
+    assert read_partitions(aln) is not None
     (tmp_path / PARTITIONS).write_text("not json", encoding="utf-8")
-    assert read_partitions(other) is None
+    assert read_partitions(aln) is None
 
 
 def test_copy_reissues_the_sidecar_for_the_copy(tmp_path: Path) -> None:

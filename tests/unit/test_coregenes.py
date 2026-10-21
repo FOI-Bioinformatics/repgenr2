@@ -558,6 +558,11 @@ def test_per_gene_gap_only_genome_is_dropped_and_a_required_one_refused(
     assert read_partitions(result.alignment) is not None
     stats = json.loads((tmp_path / "msa" / CORE_GENE_STATS).read_text(encoding="utf-8"))
     assert stats["genomes"] == 2
+    # The gap-only record does not count as present.
+    from repgenr.core.contracts import CORE_GENES_TSV
+
+    row = (tmp_path / "msa" / CORE_GENES_TSV).read_text(encoding="utf-8").splitlines()[1]
+    assert row.split("\t")[3:6] == ["3", "2", "0.6667"]
     assert "Removed 1 record(s) of gaps only" in caplog.text
     assert "not in the core-gene alignment" in caplog.text
     with pytest.raises(WorkdirError, match="does not hold"):

@@ -92,6 +92,10 @@ def test_load_gene_refuses_unequal_lengths(tmp_path: Path) -> None:
     path = _fasta(tmp_path / "odd.fasta", {"a": "ACGT", "b": "ACG"})
     with pytest.raises(WorkdirError, match="odd.fasta"):
         load_gene(path)
+    # Also when the odd record is a duplicate that would be dropped.
+    dup = _fasta(tmp_path / "dup.fasta", [("a;1", "ACGT"), ("a;2", "------"), ("b", "ACGT")])
+    with pytest.raises(WorkdirError, match="dup.fasta"):
+        load_gene(dup)
 
 
 def test_load_gene_refuses_an_unknown_alphabet(tmp_path: Path) -> None:
@@ -144,9 +148,19 @@ def test_gene_metrics_excludes_missing_symbols() -> None:
 def test_gene_metrics_without_qualifying_columns() -> None:
     m = gene_metrics({"a": "A-", "b": "-N"}, n_genomes=4)
     assert m.mean_identity == 1.0 and m.variable_sites == 0
+    # "b" has no called character, so it is not present.
+    assert m.present == 1 and m.occupancy == pytest.approx(0.25)
     empty = gene_metrics({}, n_genomes=4)
     assert empty.present == 0 and empty.length == 0 and empty.occupancy == 0.0
     assert empty.gap_fraction == 0.0 and empty.mean_identity == 1.0
+
+
+def test_a_record_without_called_characters_is_not_present() -> None:
+    m = gene_metrics({"a": "AC-T", "b": "AGTT", "c": "----", "d": "NN-?"}, n_genomes=4)
+    assert m.present == 2 and m.occupancy == pytest.approx(0.5)
+    # Gap fraction over the present records only: one '-' of 8 characters.
+    assert m.gap_fraction == pytest.approx(1 / 8)
+    assert m.variable_sites == 1
 
 
 # --- rank_genes ---------------------------------------------------------------

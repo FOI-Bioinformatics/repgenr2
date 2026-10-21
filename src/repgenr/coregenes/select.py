@@ -73,8 +73,15 @@ class GeneSelection:
 
 @dataclass(frozen=True)
 class GeneMetrics:
+    """Metrics of one gene alignment.
+
+    A genome counts as present only when its record holds at least one
+    character that is neither a gap nor a missing-data symbol; a record of
+    gaps (or N) only is treated as absent, for occupancy and gap fraction.
+    """
+
     length: int  # alignment columns
-    present: int  # genomes with a record
+    present: int  # genomes with a record of at least one called character
     occupancy: float  # present / genomes in the set
     gap_fraction: float  # '-' over all characters of the present records
     variable_sites: int  # columns with at least two states
@@ -140,6 +147,13 @@ def load_gene(path: Path, alphabet: str = "dna") -> dict[str, str]:
                 parts.append(line.strip())
     if name is not None:
         records.append((name, "".join(parts)))
+    # Checked over every record, a duplicate dropped below included.
+    lengths = {len(seq) for _, seq in records}
+    if len(lengths) > 1:
+        raise WorkdirError(
+            f"{path}: the records of a gene alignment differ in length "
+            f"({min(lengths)} to {max(lengths)}); the builder's alignment is not usable."
+        )
     seqs: dict[str, str] = {}
     for rec, seq in records:
         if not rec:
@@ -147,12 +161,6 @@ def load_gene(path: Path, alphabet: str = "dna") -> dict[str, str]:
         seq = seq.upper()
         if rec not in seqs or seq.count("-") < seqs[rec].count("-"):
             seqs[rec] = seq
-    lengths = {len(s) for s in seqs.values()}
-    if len(lengths) > 1:
-        raise WorkdirError(
-            f"{path}: the records of a gene alignment differ in length "
-            f"({min(lengths)} to {max(lengths)}); the builder's alignment is not usable."
-        )
     return seqs
 
 
@@ -166,19 +174,21 @@ def gene_metrics(seqs: dict[str, str], n_genomes: int, alphabet: str = "dna") ->
     qualifies.
     """
     _check_alphabet(alphabet)
-    present = len(seqs)
-    occupancy = present / n_genomes if n_genomes else 0.0
     if not seqs:
-        return GeneMetrics(0, 0, occupancy, 0.0, 0, 0, 1.0)
+        return GeneMetrics(0, 0, 0.0, 0.0, 0, 0, 1.0)
     arr = np.frombuffer("".join(seqs.values()).encode("ascii", "replace"), dtype=np.uint8)
     length = len(next(iter(seqs.values())))
-    arr = arr.reshape(present, length)
-    total = arr.size
-    gap_fraction = float(np.count_nonzero(arr == _GAP) / total) if total else 0.0
+    arr = arr.reshape(len(seqs), length)
 
     not_state = np.zeros(256, dtype=bool)
     not_state[list(_NOT_STATE[alphabet])] = True
     called = ~not_state[arr]
+    # A record without one called character is no evidence of the gene.
+    rows = called.any(axis=1)
+    present = int(rows.sum())
+    occupancy = present / n_genomes if n_genomes else 0.0
+    total = present * length
+    gap_fraction = float(np.count_nonzero(arr[rows] == _GAP) / total) if total else 0.0
     # Per-state counts per column, one vectorised pass per symbol in use.
     states = [int(s) for s in np.unique(arr[called])]
     counts = np.zeros((len(states), length), dtype=np.int64)

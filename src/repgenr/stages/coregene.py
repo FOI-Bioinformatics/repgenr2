@@ -153,6 +153,11 @@ def coregene_core(
     msa_dir.mkdir(parents=True, exist_ok=True)
     alignment = msa_dir / CORE_GENE_FASTA
     expected_names = [g.stem for g in gffs]
+    # A table or sidecar from an earlier run describes another alignment; the
+    # sidecar's digest guard would ignore it, but a failed run should not
+    # leave an old table beside a new alignment.
+    (msa_dir / CORE_GENES_TSV).unlink(missing_ok=True)
+    (msa_dir / PARTITIONS).unlink(missing_ok=True)
     chosen: _Chosen | None = None
     if result.gene_alignments is not None:
         chosen = _choose_genes(
@@ -172,11 +177,6 @@ def coregene_core(
                 "alignment."
             )
         source = result.alignment
-        # A table or sidecar from an earlier per-gene run would describe
-        # another alignment; the sidecar's digest guard would ignore it, but
-        # it should not be left to suggest otherwise.
-        (msa_dir / CORE_GENES_TSV).unlink(missing_ok=True)
-        (msa_dir / PARTITIONS).unlink(missing_ok=True)
     with atomic_path(alignment) as tmp:
         # A builder that writes every genome (PPanGGOLiN fills a missing family
         # with gaps), or the concatenation here, can leave a genome that shares
