@@ -57,7 +57,9 @@ def _click_flags(cmd) -> dict[str, Any]:
     out = {}
     for p in cmd.params:
         opts = getattr(p, "opts", None)
-        if not opts or opts[0] in SKIP_OPTS:
+        # The matrix records options; a positional argument (markers-db
+        # ACTION and DIRECTORY) is listed in the rendered reference only.
+        if not opts or opts[0] in SKIP_OPTS or getattr(p, "param_type_name", "") == "argument":
             continue
         long = next(o for o in opts if o.startswith("--"))
         out[long] = p

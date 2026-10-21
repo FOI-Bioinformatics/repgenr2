@@ -2796,6 +2796,34 @@ step took about six minutes, most of it the search, close to SCARAP's. The
 search is all against all, so its cost grows roughly with the square of the
 genome count; the declared limit of 200 genomes is not measured.
 
+#### Marker database
+
+The markers core-gene builder searches each genome's proteins for GTDB's
+single-copy marker families with HMMER: the 120 bacterial families (bac120)
+and the 53 archaeal ones (ar53), 168 distinct families, as listed by GTDB-Tk.
+It needs a marker database, which `repgenr markers-db` downloads once:
+
+```bash
+repgenr markers-db download --output ~/db/repgenr_markers   # --set bac120|ar53|all
+export REPGENR_MARKERS_DB=~/db/repgenr_markers
+repgenr markers-db info ~/db/repgenr_markers
+```
+
+Each family's HMMER3 model is fetched from the InterPro API (`--threads`
+concurrent requests, 8 by default); the full database is about 25 MB and
+took about 10 s on a fast connection. The model versions are InterPro's
+current ones, so they can be newer than the versions GTDB-Tk pins (for
+example `PF00380.26` against GTDB-Tk's `PF00380.20`); `markers.tsv` records
+each family's version and the cutoff it is searched with, the gathering
+cutoff (GA) for Pfam and the noise cutoff (NC) for TIGRFAM, as GTDB-Tk does.
+The database is written beside `--output` and renamed into place, so an
+interrupted download leaves no partial database; a download stopped while it
+swaps a new database for an earlier one leaves the earlier one beside
+`--output`, and the next download puts it back and removes such leftovers
+before it starts. A second download into the same directory fetches only the
+families it lacks. `repgenr doctor`
+reports when a database that a stage recorded has moved or changed version.
+
 ### Rooting the tree
 
 `phylo` (and `phylo-build`, and `run`) roots `tree/tree.nwk` after any tree

@@ -30,6 +30,10 @@ class _FakeResp:
         self.headers = headers or {}
         self._status_exc = status_exc
 
+    @property
+    def content(self):
+        return self._content
+
     def raise_for_status(self):
         if self._status_exc is not None:
             raise self._status_exc
@@ -76,6 +80,11 @@ def test_get_json_bad_body(monkeypatch) -> None:
 def test_get_text_ok(monkeypatch) -> None:
     _patch(monkeypatch, _FakeResp(text="hello"))
     assert http.get_text("https://x/y") == "hello"
+
+
+def test_get_bytes_returns_the_body_as_sent(monkeypatch) -> None:
+    _patch(monkeypatch, _FakeResp(content=b"\x1f\x8bgz"))
+    assert http.get_bytes("https://x/y") == b"\x1f\x8bgz"
 
 
 def test_status_error_becomes_workdir_error(monkeypatch) -> None:

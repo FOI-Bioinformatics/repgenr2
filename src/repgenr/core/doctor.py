@@ -87,6 +87,7 @@ def diagnose(workdir: Path, *, quick: bool = False) -> list[Finding]:
         _check_tree,
         _check_phylo_stamp_in_snp,
         _check_tree2tax_pair,
+        _check_external_databases,
         _check_stale_inputs,
         _check_deliverables,
         _check_leftovers,
@@ -423,6 +424,56 @@ def _check_tree2tax_pair(workdir: Path, config: Config) -> list[Finding]:
             "exists; the tree2tax stage likely crashed mid-write -- re-run it.",
         )
     ]
+
+
+# A stage that used an external database records its path and version under
+# these parameter keys; doctor checks that the path still resolves to a
+# database of the recorded version.
+EXTERNAL_DATABASES: tuple[tuple[str, str, str], ...] = (
+    ("markers_db", "markers_db_version", "marker database"),
+)
+
+
+def _check_external_databases(workdir: Path, config: Config) -> list[Finding]:
+    from ..coregenes.markers_db import check_markers_db, markers_db_version
+    from .errors import RepGenRError
+
+    resolvers: dict[str, tuple[Callable[[Path | None], Path], Callable[[Path], str]]] = {
+        "markers_db": (check_markers_db, markers_db_version),
+    }
+    out: list[Finding] = []
+    for stage, record in config.stages.items():
+        for path_key, version_key, what in EXTERNAL_DATABASES:
+            raw = record.params.get(path_key)
+            if not raw:
+                continue
+            recorded = str(record.params.get(version_key) or "")
+            check, version_of = resolvers[path_key]
+            try:
+                db = check(Path(str(raw)))
+                current = version_of(db)
+            except RepGenRError as exc:
+                out.append(
+                    Finding(
+                        "warn",
+                        stage,
+                        f"the {what} it used ({raw}) no longer resolves: {exc} The stage "
+                        "cannot re-run until the database is restored or the path changed.",
+                    )
+                )
+                continue
+            if recorded and current != recorded:
+                out.append(
+                    Finding(
+                        "warn",
+                        stage,
+                        f"the {what} at {raw} is version {current}, not the recorded "
+                        f"{recorded}; the stage re-runs with it on its next invocation.",
+                    )
+                )
+            else:
+                out.append(Finding("ok", stage, f"{what} {raw} (version {current or 'unknown'})"))
+    return out
 
 
 def _tree2tax_top_node(t2t: Path) -> str:

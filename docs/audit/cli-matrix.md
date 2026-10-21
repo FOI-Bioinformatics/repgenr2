@@ -3,7 +3,7 @@
 Generated from `tests/audit/cli_matrix.yaml` by `scripts/render_cli_matrix.py`;
 `tests/unit/test_cli_matrix.py` keeps both in step with the command tree.
 
-38 commands, 480 flags (480 with a live test or an n/a reason, 0 pending).
+39 commands, 483 flags (483 with a live test or an n/a reason, 0 pending).
 
 ## Global flags
 
@@ -253,6 +253,16 @@ dispatch: `query`
 | `--check` |  | n/a: query command, no stage parameters | none | n/a: environment query; the Nextflow layer preflights inside each step | tests/live/test_aux_commands.py::test_list_tools_check_reports_every_adapter | docs/cli-reference.md, docs/usage.md, docs/audit/cli-matrix.md |
 | `--strict` |  | n/a: query command, no stage parameters | callback | n/a: environment query; the Nextflow layer preflights inside each step | n/a: exit status from the per-adapter states; tests/unit/test_plugin_visibility.py | docs/cli-reference.md, docs/usage.md, docs/install.md, docs/audit/cli-matrix.md |
 | `--images` |  | n/a: query command, no stage parameters | callback | n/a: environment query; the Nextflow layer preflights inside each step | n/a: needs a container engine; tests/unit/test_list_tools_labels.py | docs/cli-reference.md, docs/install.md, docs/audit/cli-matrix.md |
+
+## markers-db
+
+dispatch: `query`
+
+| flag | aliases | param | validated | nextflow | live | docs |
+|---|---|---|---|---|---|---|
+| `--output` |  | n/a: query command, no stage parameters | none | n/a: database setup, run once outside the pipeline | n/a: needs the InterPro API; tests/unit/test_markers_db.py | docs/cli-reference.md, docs/usage.md, docs/install.md, docs/audit/cli-matrix.md |
+| `--set` |  | n/a: query command, no stage parameters | callback | n/a: database setup, run once outside the pipeline | n/a: needs the InterPro API; tests/unit/test_markers_db.py | docs/cli-reference.md, docs/usage.md, docs/audit/cli-matrix.md |
+| `--threads` | -t | n/a: query command, no stage parameters | range | n/a: database setup, run once outside the pipeline | n/a: needs the InterPro API; tests/unit/test_markers_db.py | docs/cli-reference.md, docs/usage.md, docs/audit/cli-matrix.md |
 
 ## metadata
 

@@ -112,6 +112,9 @@ aster = "repgenr.treebuilders.aster:AsterBuilder"
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+"repgenr.coregenes" = ["markers_data/*.txt"]
+
 [tool.ruff]
 line-length = 100
 target-version = "py312"

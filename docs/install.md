@@ -343,6 +343,7 @@ the `envs/` files, and the environment that holds each tool is listed in
 | Core-gene builder | ppanggolin | `ppanggolin`, `mafft` | yes | `ppanggolin:2.3.2` | none |
 | Core-gene builder | scarap | `scarap`, `mmseqs`, `mafft` | yes | `scarap:1.0.2` | none |
 | Core-gene builder | orthofinder | `orthofinder`, `diamond`, `mafft` | yes | `orthofinder:3.1.5` | none |
+| Marker search (markers core-gene builder) | hmmer | `hmmer` (in `envs/core.yml`) | yes | set by the markers core-gene builder | marker database: `repgenr markers-db download --output DIR`, then `REPGENR_MARKERS_DB` |
 | Core-gene trimming (`--gene-trim clipkit`) | clipkit | `clipkit` (in `envs/core.yml`) | yes | `clipkit:2.14.0` | none |
 | Tree builder | iqtree | `iqtree` | yes | `iqtree:3.1.3` | none |
 | Tree builder | fasttree | `fasttree` | yes | `fasttree:2.2.0` | none |
@@ -373,6 +374,7 @@ Most tools need no database. The following do; the details are in the
 | Tool | Database | How to provide it |
 |---|---|---|
 | bakta (annotator) | bakta database | `bakta_db download --output DIR --type light`, then `--bakta-db DIR` or `BAKTA_DB` |
+| hmmer (markers core-gene builder) | GTDB marker models (bac120, ar53; about 25 MB) | `repgenr markers-db download --output DIR`, then `REPGENR_MARKERS_DB` |
 | checkm2 (reads chain) | CheckM2 database | `checkm2 database --download`, then `assemble --checkm2-db` or `CHECKM2DB` |
 | drep (dereplicator) | CheckM reference data | `CHECKM_DATA_PATH`, or run dRep with `--ignoreGenomeQuality` |
 | sourmash (classifier) | a GTDB sourmash sketch and its lineages CSV | `assemble --gtdb-sketch` and `--gtdb-lineages` (or `REPGENR_GTDB_SKETCH` and `REPGENR_GTDB_LINEAGES`) |

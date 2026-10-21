@@ -620,7 +620,8 @@ Verify a workdir's outputs against its records (read-only health check).
 checks the outputs themselves: missing, corrupt or untracked genomes,
 dangling links, manifest drift, representative/cluster mismatches,
 truncated tree and tree2tax tables, missing deliverables, stages whose
-inputs changed since completion, and leftover temp files.
+inputs changed since completion, a recorded marker database that moved
+or changed version, and leftover temp files.
 Exits 0 when only warnings are found (a stale stage re-runs on its next
 invocation), 7 when any failure is found (including a malformed
 repgenr.yaml or a check that could not complete), 3 when the workdir
@@ -648,6 +649,30 @@ workdir) surface the resolved tool versions into versions.yml.
 |---|---|---|
 | `-wd`, `--workdir` | required | Working directory. |
 | `--versions-out` |  | Write a versions.yml fragment here instead of stdout. |
+
+### markers-db
+
+Download or describe the GTDB marker-gene database (HMMER3 models).
+
+download fetches GTDB-Tk's single-copy marker families (bac120: 120,
+ar53: 53, 168 distinct families, about 25 MB) one at a time from the InterPro
+API and writes one HMM file per set, an index (markers.tsv) and
+version.json. The model versions are InterPro's current ones and can be
+newer than those GTDB-Tk pins. The database is written beside --output
+and renamed into place, so an interrupted download leaves none (the next
+download removes or restores what one left beside it). It is used by
+the markers core-gene builder; set REPGENR_MARKERS_DB to its path.
+info prints the sets, model counts and versions of a database.
+Exits 2 on a wrong argument or a missing database, 3 when a model cannot
+be fetched.
+
+| option | default | description |
+|---|---|---|
+| `action` | required | download: fetch the marker models into --output; info: summarise the database in DIRECTORY. |
+| `directory` |  | With info: the database directory (default: $REPGENR_MARKERS_DB). |
+| `--output` |  | With download: the database directory, new, empty or an earlier download (families already present are kept). |
+| `--set` | `all` | With download: bac120, ar53 or all (default) GTDB marker families. |
+| `-t`, `--threads` | `8` | With download: concurrent requests (default 8, or the CPU limit when lower). |
 
 ## Nextflow data-channel steps
 

@@ -159,6 +159,17 @@ def get_text(url: str, *, params: dict | None = None, timeout: Timeout = _DEFAUL
     return _get(url, params=params, timeout=timeout).text
 
 
+def get_bytes(
+    url: str, *, params: dict | None = None, timeout: Timeout = _DEFAULT_TIMEOUT
+) -> bytes:
+    """GET ``url`` and return the response body as bytes (status-checked).
+
+    The body is returned as sent: a file served as ``application/gzip``
+    without a ``Content-Encoding`` header stays compressed.
+    """
+    return _get(url, params=params, timeout=timeout).content
+
+
 def iter_lines(
     url: str, *, params: dict | None = None, timeout: Timeout = _DEFAULT_TIMEOUT
 ) -> Iterator[str]:
