@@ -510,12 +510,13 @@ defaults (`core -f 0.95`, method `FH`, 100 seed genomes):
 | builder | core genes on 24 Wolbachia genomes | alignment columns | stage time |
 |---|---|---|---|
 | Panaroo (defaults) | 0 at 95% occupancy | none | refused |
-| PPanGGOLiN (soft core 0.95, single copy) | 398 | 419047 | 221 s |
+| PPanGGOLiN (soft core 0.95, single copy) | 398 | 419047 | 186 s |
 | SCARAP (core 0.95) | 577 | 618594 | 388 s |
 
-The PPanGGOLiN stage time is the 221 s of the end-to-end run above. The table
-gave 186 s until 2026-10-21; that figure could not be traced to a recorded
-run (see [phylo-methods-2026-10.md](audit/phylo-methods-2026-10.md)).
+The two PPanGGOLiN stage times come from two live runs of the same command:
+221 s is the end-to-end run described above, and 186 s in this table is the
+re-run after the review fixes of #22 (recorded in that pull request's commit
+message), with the same 398 genes and 419047 columns.
 
 #### OrthoFinder, alone and inside SCARAP
 

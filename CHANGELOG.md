@@ -6,27 +6,6 @@ All notable changes to RepGenR2 are documented here. The format follows
 
 ## [Unreleased]
 
-### Documentation
-- New audit record `docs/audit/phylo-methods-2026-10.md`: the three MSA
-  sources and the tree builders of `phylo` reviewed for 100 to 500 genomes,
-  defects found, recommendations by purpose and divergence, and the planned
-  improvement items (gene selection and ranking, partitions, protein
-  alphabet, trimming, ska2 constant sites, sourmash ANI distance,
-  `phylo-advise` and `--preset`, an ASTER species-tree builder; none
-  implemented yet).
-- `docs/choosing-tools.md`: a "By purpose and divergence" section with the
-  recommendations; the `auto` column of "By number of genomes" now says what
-  the code picks (alignment-free builders past the aligner's limit when no
-  alignment is requested); rule 5 of "How `auto` chooses" names
-  `--msa-source coregene`; skani and ska2 in the alignment-free route and
-  the collapse units.
-- `docs/usage.md`: a "Which route for 100 to 500 genomes" example, and the
-  collapse units of skani and the ska2 builder.
-- Corrections: the PPanGGOLiN stage time in `docs/verification.md` (221 s,
-  not 186 s); the status of batch E in the phylo and tree2tax gap record;
-  the version comments of the skani and rapidNJ adapters against their
-  image pins.
-
 ### Changed
 - Nextflow: `READS_SKETCH` runs one task per chunk of `--reads_sketch_chunk`
   runs of `reads.tsv` (default 25) instead of one task per batch, so a time
@@ -62,6 +41,27 @@ All notable changes to RepGenR2 are documented here. The format follows
   tool itself must see in every backend (Docker `-e`; under Singularity the
   client's environment and the engine's own `APPTAINERENV_`/`SINGULARITYENV_`
   variables; the host runs the tool in it).
+
+### Documentation
+- New audit record `docs/audit/phylo-methods-2026-10.md`: the three MSA
+  sources and the tree builders of `phylo` reviewed for 100 to 500 genomes,
+  defects found, recommendations by purpose and divergence, and the planned
+  improvement items (gene selection and ranking, partitions, protein
+  alphabet, trimming, ska2 constant sites, sourmash ANI distance,
+  `phylo-advise` and `--preset`, an ASTER species-tree builder; none
+  implemented yet).
+- `docs/choosing-tools.md`: a "By purpose and divergence" section with the
+  recommendations; the `auto` column of "By number of genomes" now says what
+  the code picks (alignment-free builders past the aligner's limit when no
+  alignment is requested); rule 5 of "How `auto` chooses" names
+  `--msa-source coregene`; skani and ska2 in the alignment-free route and
+  the collapse units.
+- `docs/usage.md`: a "Which route for 100 to 500 genomes" example, and the
+  collapse units of skani and the ska2 builder.
+- Corrections: the two PPanGGOLiN stage times in `docs/verification.md`
+  (221 s and 186 s) are explained as two runs of the same command; the
+  status of batch E in the phylo and tree2tax gap record; the version
+  comments of the skani and rapidNJ adapters against their image pins.
 
 ### Fixed
 - `OMP_NUM_THREADS` of the FastTree and VeryFastTree builders never reached

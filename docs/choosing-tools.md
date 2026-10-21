@@ -158,7 +158,8 @@ With an alignment, the tree builder by leaf count:
 
 - Under 500: `iqtree`.
 - 500 to 1000: `iqtree` with `--aligner-arg model=GTR+G`, else `raxmlng`.
-  The declared limit of 500 for `iqtree` is not measured.
+  The declared limit of 500 for `iqtree` is not measured. This differs from
+  `--treebuilder auto`, which picks `raxmlng` here by its declared limits.
 - 1000 to 5000: `fasttree`.
 - Above 5000: `veryfasttree`.
 
@@ -172,10 +173,12 @@ With an alignment, the tree builder by leaf count:
 | Over 5000 | Not measured. Single-pass `skder` or `galah` at 10000 would be memory-risky on the 18 GB audit machine. Chunked `skder` or sparse `sourmash` are the safer choices. | Without an alignment request: `mashtree` (limit 10000). With one: `veryfasttree` (limit 20000). |
 
 The last column is the tree builder `--treebuilder auto` picks. Its limits
-are declared (see [Declared limits](#declared-limits)). An alignment request
-is `--msa-source snptype` or `coregene`, or `--mask`. Without one, the column
-assumes the default aligner, progressiveMauve, whose limit is 500: past that
-`auto` chooses among the alignment-free builders only. With `--aligner
+are declared (see [Declared limits](#declared-limits)). The count is of
+leaves, the outgroup included, so the first switch happens at 501 leaves. An
+alignment request is `--msa-source snptype` or `coregene`, `--mask`, or an
+alignment supplied with `--msa`. Without one, the column assumes the default
+aligner, progressiveMauve, whose limit is 500: past that `auto` chooses among
+the alignment-free builders only. With `--aligner
 sibeliaz` or `cactus` (limit 2000) that switch happens past 2000 genomes.
 `mashtree` and `skani` share the limit 10000, and the tie goes to `mashtree`
 alphabetically. A builder that cannot run here is passed over (rule 1 of

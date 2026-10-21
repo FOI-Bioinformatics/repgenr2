@@ -84,8 +84,9 @@ found no gene at 95 % occupancy.
 - (e) Invariant sites are kept, so no `-fconst` is needed, but
   `_warn_low_diversity` (`stages/phylo.py:1647`) is the only check on the
   alignment.
-- Annotation costs about 45 s per genome with bakta's light database, 135 s
-  with prokka (verification.md); it is cached per genome.
+- Annotation costs about 45 s per genome with bakta's light database; prokka
+  "took 135 seconds against bakta's 45 per genome" on the same three genomes
+  (verification.md). The annotation is cached per genome.
 
 ## Tree builders
 
@@ -138,9 +139,11 @@ item B of the ladder below.
 6. `docs/audit/phylo-tree2tax-gap-2026-10.md:3-4` still said batch E was
    deferred; E2 to E4 shipped as #15, #16 and #18 (with the skani builder, #17).
 7. `docs/verification.md` gave the PPanGGOLiN stage time on 24 Wolbachia
-   genomes as 221 s in the end-to-end bullet and 186 s in the summary table.
-   Both describe the same command; the 186 s figure could not be traced to a
-   recorded run, so the table now gives 221 s and says so.
+   genomes as 221 s in the end-to-end bullet and 186 s in the summary table,
+   without saying why. They are two live runs of the same command: 221 s the
+   run in the prose, 186 s the re-run after the review fixes of #22 (commit
+   3953525), with the same genes and columns. Both figures stand, and the
+   table caption now says so.
 
 ## Recommendations
 
