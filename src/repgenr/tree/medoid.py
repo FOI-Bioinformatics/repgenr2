@@ -229,8 +229,9 @@ def resolve_reference(
             shutil.rmtree(work, ignore_errors=True)
         if choice is not None:
             logger.info(
-                "Reference genome %s: the medoid of %d genomes by sketch ANI (mean %.2f%% to "
-                "the others), a less arbitrary choice than the first filename and expected "
+                "Reference genome %s: the medoid of %d genomes by sketch ANI (mean %.2f%% "
+                "over its pairs to the others, a pair of unknown ANI counted as 0), a less "
+                "arbitrary choice than the first filename and expected "
                 "to reduce reference bias; pass --reference NAME to choose deliberately.",
                 choice.genome.name,
                 choice.n_genomes,

@@ -10,7 +10,8 @@ small genomes, identical ones included (10 kb and 30 kb genomes at k=31,
 scaled=1000), which would place identical genomes at the largest distance.
 With ``metric=ani`` the signature sizes from ``sourmash sig describe``
 give each pair's number of shared hashes: a pair with fewer than 30
-(``MIN_SHARED_HASHES``) has an unknown ANI and distance 1.0, rather than
+(``MIN_SHARED_HASHES``) and fewer than a tenth of the smaller sketch has
+an unknown ANI and distance 1.0, rather than
 the ANI of 0.80 to 0.88 a handful of hashes from conserved genes would give
 at k=31. For sets wider than a genus, ``ksize=21``
 is less biased than the default 31 (docs/choosing-tools.md).
@@ -165,7 +166,10 @@ class SourmashBuilder(TreeBuilder):
                 ani, _unknown = jaccard_to_ani_matrix(sim, ksize)
             else:
                 ani, _unknown = jaccard_to_ani_matrix(sim, ksize, n_hashes=sizes[0])
-                too_few = f"share fewer than {MIN_SHARED_HASHES} hashes"
+                too_few = (
+                    f"share fewer than {MIN_SHARED_HASHES} hashes (and under a tenth of the "
+                    "smaller sketch)"
+                )
             # An unknown ANI (NaN) is placed at distance 1.0.
             similarity = np.nan_to_num(ani, nan=0.0).tolist()
         dist = [[1.0 - similarity[i][j] for j in order] for i in order]

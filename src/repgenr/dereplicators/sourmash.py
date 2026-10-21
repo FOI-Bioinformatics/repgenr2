@@ -299,8 +299,8 @@ class SourmashDereplicator(Dereplicator):
         # 99.6 pct ANI pair). Converting here, rather than via ``compare
         # --ani``, keeps identical-content pairs at 1.0 even for tiny sketches,
         # where sourmash's estimator refuses and reports 0. With the signature
-        # sizes, a pair with fewer than MIN_SHARED_HASHES shared hashes gets
-        # ANI NaN (unknown).
+        # sizes, a pair with fewer than MIN_SHARED_HASHES shared hashes and
+        # fewer than a tenth of the smaller sketch gets ANI NaN (unknown).
         labels, sim = _read_compare_csv(matrix_csv)
         sizes = signature_sizes(
             self.capabilities,
@@ -325,8 +325,9 @@ class SourmashDereplicator(Dereplicator):
             )
         if n_unknown:
             logger.info(
-                "sourmash: %d of %d pairs share fewer than %d hashes at k=%d, too few to "
-                "estimate an ANI; their ANI is unknown",
+                "sourmash: %d of %d pairs share fewer than %d hashes (and under a tenth "
+                "of the smaller sketch) at k=%d, too few to estimate an ANI; their ANI is "
+                "unknown",
                 n_unknown,
                 len(labels) * (len(labels) - 1) // 2,
                 MIN_SHARED_HASHES,
@@ -476,7 +477,8 @@ class SourmashDereplicator(Dereplicator):
         labels = [label_of[g] for g in sorted(genomes, key=lambda g: g.name)]
         # No shared-hash minimum here (core.sourmash.jaccard_to_ani_matrix):
         # the pairs kept are above containment threshold**ksize (0.99**31 is
-        # about 0.73), hundreds of shared hashes for any bacterial genome.
+        # about 0.73), so they share about three quarters of the smaller
+        # sketch, above the rule's relative part at any sketch size.
         neighbors = _parse_pairwise_csv(pairwise_csv, threshold, set(labels), ksize)
         return _sparse_greedy_cluster(labels, neighbors, name_by_label)
 

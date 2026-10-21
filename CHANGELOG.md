@@ -10,7 +10,9 @@ All notable changes to RepGenR2 are documented here. The format follows
 - Sketch ANI: wherever a dense `sourmash compare` matrix is converted to
   ANI, the signature sizes from `sourmash sig describe --csv` give each
   pair's number of shared hashes, and a pair with fewer than 30
-  (`MIN_SHARED_HASHES` in `core/sourmash.py`) has an unknown ANI (NaN): the
+  (`MIN_SHARED_HASHES` in `core/sourmash.py`) and fewer than a tenth of the
+  smaller sketch (`MIN_SHARED_FRACTION`, so identical small sketches such as
+  8-hash viral ones stay at ANI 1.0) has an unknown ANI (NaN): the
   dereplicator does not merge it, glance writes an empty cell in
   `pairwise_ani.csv` and places it at distance 1.0 in the dendrogram, the
   medoid counts it as 0, and the sourmash tree builder (`metric=ani`)

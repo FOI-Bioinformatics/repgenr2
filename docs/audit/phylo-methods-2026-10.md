@@ -265,14 +265,22 @@ Two changes follow.
 
 - **Shared-hash minimum.** The dense conversion reads the signature sizes
   from `sourmash sig describe --csv` and sets the ANI of a pair to unknown
-  (NaN) when its sketches share fewer than 30 hashes
-  (`MIN_SHARED_HASHES` in `core/sourmash.py`; the count is j(a + b)/(1 + j),
-  equal to the exact intersection on these sketches). The dereplicator
+  (NaN) when its sketches share fewer than 30 hashes and fewer than a tenth
+  of the smaller sketch (`MIN_SHARED_HASHES` and `MIN_SHARED_FRACTION` in
+  `core/sourmash.py`; the count is j(a + b)/(1 + j), equal to the exact
+  intersection on these sketches). At these sketch sizes (893 to 1630
+  hashes) the 30 governs; the relative part keeps identical sketches of
+  small genomes, such as 8-hash viral sketches, at ANI 1.0. The dereplicator
   never merges such a pair, glance writes an empty cell, the medoid counts
   it as 0, the sourmash tree places it at distance 1.0, and `phylo-advise`
   takes the minimum and median over the known pairs, reports the unknown
   count (`ani_unknown_pairs`) and treats an unknown pair as below 80 %, so
-  the Wolbachia set is advised as family rather than species. The 57 pairs
+  the Wolbachia set is advised as family. Before the change the same
+  evidence (canonical names giving one species, `Wolbachia sp`, and a
+  minimum sketch ANI of 79.88 % at k=31) gave the species preset, with a
+  note to check for mislabelled genomes, since a single species by name is
+  tested before the ANI; with names that are not canonical the 79.88 %
+  minimum already gave family. The 57 pairs
   skani does not align share 1 to 22 hashes at k=31 and 13 to 33 at k=21;
   the lowest pair skani aligns (79.4 %) shares 8 and 26. Below 30 the
   Poisson sampling error alone is near 20 % of the count. Live

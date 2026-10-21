@@ -255,7 +255,8 @@ class Evidence:
     names; ``ani_min`` and ``ani_median`` are percent over the pairs of the
     set whose ANI is known (None without sketches or sourmash);
     ``ani_unknown_pairs`` counts the pairs whose sketches share fewer than
-    30 hashes, too few to estimate an ANI (the reach of k=31 sketches of
+    30 hashes and under a tenth of the smaller sketch, too few to estimate an
+    ANI (the reach of k=31 sketches of
     small genomes ends near 88 % sketch ANI);
     ``has_annotations`` is true when the annotation index holds every genome
     of the tree, outgroup included.
@@ -348,7 +349,7 @@ def _ani_summary(
 ) -> tuple[float | None, float | None, int, str | None]:
     """Minimum and median pairwise ANI (percent) over the existing workdir
     sketches, taken over the pairs whose ANI is known; the number of pairs
-    with fewer than 30 shared hashes (unknown ANI); and a note
+    with too few shared hashes (unknown ANI); and a note
     when the ANI could not be computed."""
     from ..core.errors import ToolExecutionError, WorkdirError
     from ..core.manifest import MANIFEST_FILENAME
@@ -410,13 +411,14 @@ def _choose(ev: Evidence) -> tuple[str, list[str]]:
     reasons: list[str] = []
     ani = ev.ani_min
     canonical = ev.names_canonical
-    # A pair with fewer than 30 shared hashes is beyond the sketch's reach:
+    # A pair with too few shared hashes is beyond the sketch's reach:
     # it counts as below GENUS_MIN_ANI, whatever the known pairs give.
     unknown = ev.ani_unknown_pairs
     if unknown:
         reasons.append(
-            f"{unknown} pairs share fewer than {MIN_SHARED_HASHES} hashes, too few to "
-            "estimate an ANI; they are counted as below 80 %."
+            f"{unknown} pairs share fewer than {MIN_SHARED_HASHES} hashes (and under a "
+            "tenth of the smaller sketch), too few to estimate an ANI; they are counted as "
+            "below 80 %."
         )
     if not unknown and ani is not None and ani >= OUTBREAK_MIN_ANI:
         reasons.append(

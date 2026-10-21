@@ -169,8 +169,8 @@ def test_unknown_pairs_count_as_below_80() -> None:
     rec = mod.advise(ev)
     assert rec.preset == "family"
     assert any(
-        "27 pairs share fewer than 30 hashes, too few to estimate an ANI; they are "
-        "counted as below 80 %." in r
+        "27 pairs share fewer than 30 hashes (and under a tenth of the smaller sketch), "
+        "too few to estimate an ANI; they are counted as below 80 %." in r
         for r in rec.reasons
     )
     assert mod.SOURMASH_K21_REASON in rec.reasons

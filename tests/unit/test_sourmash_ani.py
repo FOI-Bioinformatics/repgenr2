@@ -33,7 +33,7 @@ _SIM = np.array([[1.0, 0.5, 0.002], [0.5, 1.0, 0.0], [0.002, 0.0, 1.0]])
 
 
 def test_matrix_guard_marks_pairs_with_few_shared_hashes_unknown() -> None:
-    assert core.MIN_SHARED_HASHES == 30
+    assert core.MIN_SHARED_HASHES == 30 and core.MIN_SHARED_FRACTION == 0.1
     ani, n_unknown = core.jaccard_to_ani_matrix(_SIM, 31, n_hashes=[1150] * 3)
     assert n_unknown == 2
     assert np.isnan(ani[0, 2]) and np.isnan(ani[2, 0]) and np.isnan(ani[1, 2])
@@ -64,6 +64,45 @@ def test_matrix_guard_boundary(shared, unknown) -> None:
     assert bool(np.isnan(ani[0, 1])) is unknown
     # The threshold can be lowered.
     assert core.jaccard_to_ani_matrix(sim, 21, n_hashes=[1000, 1000], min_shared=10)[1] == 0
+
+
+def _pair(shared: float, a: float, b: float) -> np.ndarray:
+    j = shared / (a + b - shared)
+    return np.array([[1.0, j], [j, 1.0]])
+
+
+def test_identical_small_sketches_stay_known() -> None:
+    """A 7.5 kb viral genome has about 8 hashes at scaled=1000: two identical
+    sketches share all 8, below 30 but not below a tenth of the sketch."""
+    ani, n_unknown = core.jaccard_to_ani_matrix(_pair(8, 8, 8), 31, n_hashes=[8, 8])
+    assert n_unknown == 0 and ani[0, 1] == pytest.approx(1.0)
+    # 5 of 8 shared is still informative relative to the sketch.
+    assert core.jaccard_to_ani_matrix(_pair(5, 8, 8), 31, n_hashes=[8, 8])[1] == 0
+    # No shared hash is unknown at any size.
+    assert core.jaccard_to_ani_matrix(_pair(0, 8, 8), 31, n_hashes=[8, 8])[1] == 1
+
+
+@pytest.mark.parametrize(
+    ("shared", "a", "b", "unknown"),
+    [
+        (3, 100, 100, True),  # below 30 and below 10
+        (10, 100, 100, False),  # a tenth of the smaller sketch
+        (3, 25, 400, False),  # a tenth of 25 is 2.5
+        (29, 1200, 1200, True),  # Wolbachia size: a tenth is 120, 30 governs
+        (30, 1200, 1200, False),
+    ],
+)
+def test_relative_and_absolute_minimum(shared, a, b, unknown) -> None:
+    _ani, n_unknown = core.jaccard_to_ani_matrix(_pair(shared, a, b), 31, n_hashes=[a, b])
+    assert n_unknown == int(unknown)
+
+
+def test_identical_small_sketches_merge_in_greedy_cluster() -> None:
+    from repgenr.dereplicators.sourmash import _greedy_cluster
+
+    ani, _n = core.jaccard_to_ani_matrix(_pair(8, 8, 8), 31, n_hashes=[8, 8])
+    clusters, _status = _greedy_cluster(["v1", "v2"], ani, {"v1": "v1", "v2": "v2"}, 0.95)
+    assert clusters == {"v1": ["v2"]}
 
 
 def test_matrix_guard_rejects_misaligned_sizes() -> None:
@@ -169,7 +208,9 @@ def test_dense_path_marks_unknown_pairs(tmp_path: Path, monkeypatch, caplog) -> 
     assert labels == ["g1.fasta", "g2.fasta", "g3.fasta"]
     assert np.isnan(ani[0, 2]) and np.isnan(ani[1, 2]) and not np.isnan(ani[0, 1])
     assert any(
-        "2 of 3 pairs share fewer than 30 hashes at k=31" in r.getMessage() for r in caplog.records
+        "2 of 3 pairs share fewer than 30 hashes (and under a tenth of the smaller sketch) "
+        "at k=31" in r.getMessage()
+        for r in caplog.records
     )
 
 
@@ -223,7 +264,16 @@ def test_medoid_counts_unknown_as_zero() -> None:
 # --- the tree builder -------------------------------------------------------------
 
 
-def _tree(tmp_path: Path, monkeypatch, names: list[str], extra: dict, describe: bool = True):
+def _tree(
+    tmp_path: Path,
+    monkeypatch,
+    names: list[str],
+    extra: dict,
+    describe: bool = True,
+    *,
+    body: str = "1,0.5,0.002\n0.5,1,0\n0.002,0,1\n",
+    n_hashes: int = 1150,
+):
     from repgenr.treebuilders import sourmash as tb
     from repgenr.treebuilders.base import TreeParams
 
@@ -239,12 +289,11 @@ def _tree(tmp_path: Path, monkeypatch, names: list[str], extra: dict, describe: 
             ):
                 (outdir / (Path(line).name + ".sig")).write_text("{}", encoding="utf-8")
         elif cmd[:2] == ["sourmash", "compare"]:
-            body = "1,0.5,0.002\n0.5,1,0\n0.002,0,1\n"
             Path(cmd[cmd.index("--csv") + 1]).write_text(
                 ",".join(files) + "\n" + body, encoding="utf-8"
             )
         elif cmd[:3] == ["sourmash", "sig", "describe"] and describe:
-            rows = "".join(_describe_row(f, 1150) for f in files)
+            rows = "".join(_describe_row(f, n_hashes) for f in files)
             Path(cmd[cmd.index("--csv") + 1]).write_text(_DESCRIBE_HEADER + rows, encoding="utf-8")
         return 0
 
@@ -271,7 +320,7 @@ def test_tree_places_unknown_pairs_at_distance_one(tmp_path: Path, monkeypatch, 
     dist = seen["dist"]
     assert dist[0][2] == 1.0 and dist[1][2] == 1.0 and dist[0][1] < 0.1
     (line,) = [r.getMessage() for r in caplog.records if "distance is set to 1.0" in r.getMessage()]
-    assert line.startswith("sourmash: 2 of 3 pairs share fewer than 30 hashes at k=31")
+    assert line.startswith("sourmash: 2 of 3 pairs share fewer than 30 hashes (and under")
     # Not a multi-genus set: no k-mer size note.
     assert "ksize=21" not in caplog.text
 
@@ -297,3 +346,16 @@ def test_tree_recommends_k21_for_several_genera(tmp_path: Path, monkeypatch, cap
     with caplog.at_level(logging.INFO, logger=_LOG.name):
         _tree(tmp_path / "k21", monkeypatch, names, {"ksize": 21})
     assert not any("ksize=21" in r.getMessage() for r in caplog.records)
+
+
+def test_tree_keeps_identical_small_sketches_at_distance_zero(
+    tmp_path: Path, monkeypatch, caplog
+) -> None:
+    """Three 8-hash viral sketches, a and b identical, c disjoint."""
+    with caplog.at_level(logging.WARNING, logger=_LOG.name):
+        seen = _tree(
+            tmp_path, monkeypatch, ["a", "b", "c"], {}, body="1,1,0\n1,1,0\n0,0,1\n", n_hashes=8
+        )
+    assert seen["dist"][0][1] == pytest.approx(0.0)
+    assert seen["dist"][0][2] == 1.0 and seen["dist"][1][2] == 1.0
+    assert "2 of 3 pairs" in caplog.text
