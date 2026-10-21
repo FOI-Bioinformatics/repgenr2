@@ -47,8 +47,8 @@ def ani_matrix(
 
     Runs ``sourmash compare`` through the sourmash dereplicator over the
     given sketches (the workdir's k=31 sketches); nothing is sketched here.
-    The dereplicator reads the signature sizes and applies the chance check,
-    so a pair whose shared hashes are compatible with chance is NaN.
+    The dereplicator reads the signature sizes, so a pair with fewer than
+    ``MIN_SHARED_HASHES`` shared hashes is NaN.
     """
     from ..dereplicators.sourmash import SourmashDereplicator
 
@@ -71,7 +71,7 @@ def ani_matrix(
 def pick_medoid(names: Sequence[str], ani: np.ndarray) -> tuple[str, float]:
     """The name with the largest summed ANI to the others; ties go to the
     name that sorts first, so the choice is the same on every run. An
-    unknown ANI (NaN: the shared hashes are compatible with chance) counts
+    unknown ANI (NaN: too few shared hashes to estimate one) counts
     as 0."""
     n = len(names)
     if n == 0:

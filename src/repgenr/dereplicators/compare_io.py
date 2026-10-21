@@ -42,8 +42,8 @@ def _check_square(sim: npt.NDArray[np.float64], names: Sequence[str]) -> None:
 def write_pairwise_csv(names: Sequence[str], sim: npt.NDArray[np.float64], path: Path) -> Path:
     """Write one ``genome1,genome2,similarity`` row per unordered pair (i < j).
 
-    An unknown similarity (NaN; for sourmash, a pair whose shared hashes are
-    compatible with chance) is written as an empty cell.
+    An unknown similarity (NaN; for sourmash, a pair with too few shared
+    hashes to estimate an ANI) is written as an empty cell.
     """
     sim = np.asarray(sim, dtype=float)
     _check_square(sim, names)

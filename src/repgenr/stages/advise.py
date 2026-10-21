@@ -26,6 +26,7 @@ import numpy as np
 
 from ..core.contracts import record_name
 from ..core.sketches import SKETCHES_DIR, workdir_provider
+from ..core.sourmash import MIN_SHARED_HASHES
 from ..maskers.gubbins import canonical_taxon, genus_spread, species_spread
 from ..tree.medoid import ani_matrix
 
@@ -253,8 +254,9 @@ class Evidence:
     ``all_genomes``; ``n_species`` and ``n_genera`` count the canonical record
     names; ``ani_min`` and ``ani_median`` are percent over the pairs of the
     set whose ANI is known (None without sketches or sourmash);
-    ``ani_unknown_pairs`` counts the pairs whose shared k-mers are compatible
-    with chance, so that no ANI can be estimated (below about 80 % at k=31);
+    ``ani_unknown_pairs`` counts the pairs whose sketches share fewer than
+    30 hashes, too few to estimate an ANI (the reach of k=31 sketches of
+    small genomes ends near 88 % sketch ANI);
     ``has_annotations`` is true when the annotation index holds every genome
     of the tree, outgroup included.
     """
@@ -346,7 +348,7 @@ def _ani_summary(
 ) -> tuple[float | None, float | None, int, str | None]:
     """Minimum and median pairwise ANI (percent) over the existing workdir
     sketches, taken over the pairs whose ANI is known; the number of pairs
-    whose shared k-mers are compatible with chance (unknown ANI); and a note
+    with fewer than 30 shared hashes (unknown ANI); and a note
     when the ANI could not be computed."""
     from ..core.errors import ToolExecutionError, WorkdirError
     from ..core.manifest import MANIFEST_FILENAME
@@ -408,12 +410,13 @@ def _choose(ev: Evidence) -> tuple[str, list[str]]:
     reasons: list[str] = []
     ani = ev.ani_min
     canonical = ev.names_canonical
-    # A pair whose shared k-mers are compatible with chance has an ANI below
-    # about 80 %: it counts as below GENUS_MIN_ANI, whatever the known pairs give.
+    # A pair with fewer than 30 shared hashes is beyond the sketch's reach:
+    # it counts as below GENUS_MIN_ANI, whatever the known pairs give.
     unknown = ev.ani_unknown_pairs
     if unknown:
         reasons.append(
-            f"{unknown} pairs share too few k-mers to estimate an ANI (below about 80 %)."
+            f"{unknown} pairs share fewer than {MIN_SHARED_HASHES} hashes, too few to "
+            "estimate an ANI; they are counted as below 80 %."
         )
     if not unknown and ani is not None and ani >= OUTBREAK_MIN_ANI:
         reasons.append(

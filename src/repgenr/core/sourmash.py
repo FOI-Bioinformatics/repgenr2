@@ -62,46 +62,23 @@ def sourmash_capabilities(**overrides: Any) -> ToolCapabilities:
     return dataclasses.replace(SOURMASH_TOOL, **overrides)
 
 
-# The probability above which sourmash treats the shared hashes of a pair as
-# compatible with chance (``jaccard_ani``'s ``prob_threshold``).
-P_NOTHING_IN_COMMON_THRESHOLD = 1e-3
-
-
-def exp_n_mutated(n_kmers: Any, ksize: int, mutation_rate: Any) -> Any:
-    """Expected number of mutated k-mers among ``n_kmers`` at a per-base
-    ``mutation_rate``: ``L * (1 - (1 - r)^k)``.
-
-    Ported from sourmash 4.9.4 (``sourmash/distance_utils.py``,
-    ``exp_n_mutated`` and ``r1_to_q``); works on numpy arrays.
-    """
-    return n_kmers * (1.0 - (1.0 - mutation_rate) ** ksize)
-
-
-def p_nothing_in_common(ani: Any, ksize: int, scaled: int, n_unique_kmers: Any) -> Any:
-    """Expected probability that two FracMinHash sketches share no hash by
-    chance alone, for sequences of ``n_unique_kmers`` k-mers at ``ani``.
-
-    ``exp((L - exp_n_mutated(L, k, 1 - ani)) * ln(1 - 1/scaled))``; 1.0 at
-    ANI 0 and 0.0 at ANI 1. Ported from sourmash 4.9.4
-    (``sourmash/distance_utils.py``, ``get_exp_probability_nothing_common``
-    and ``get_expected_log_probability``); works on numpy arrays.
-    """
-    import numpy as np
-
-    ani_a = np.asarray(ani, dtype=float)
-    n_a = np.asarray(n_unique_kmers, dtype=float)
-    log_p = (n_a - exp_n_mutated(n_a, ksize, 1.0 - ani_a)) * np.log(1.0 - 1.0 / float(scaled))
-    out = np.where(ani_a <= 0.0, 1.0, np.where(ani_a >= 1.0, 0.0, np.exp(log_p)))
-    return float(out) if out.ndim == 0 else out
+# A pair whose sketches share fewer hashes than this has an unknown sketch
+# ANI (NaN). Measured on 24 Wolbachia genomes of 1.0 to 1.5 Mb at
+# scaled=1000 (docs/audit/phylo-methods-2026-10.md, "Sketch ANI audit
+# (2026-10-21)"): the 57 pairs skani cannot align share 1 to 22 hashes at
+# k=31 and 13 to 33 at k=21, while the lowest pair skani aligns (79.4 %)
+# shares 8 (k=31) and 26 (k=21). Below 30 hashes the Poisson sampling error
+# alone is near 20 % of the count, and the shared hashes come mostly from
+# conserved genes and mobile elements rather than from the whole genome.
+MIN_SHARED_HASHES = 30
 
 
 def jaccard_to_ani_matrix(
     sim: npt.NDArray[np.float64],
     ksize: int,
     *,
-    scaled: int | None = None,
     n_hashes: Sequence[float] | None = None,
-    p_threshold: float = P_NOTHING_IN_COMMON_THRESHOLD,
+    min_shared: int = MIN_SHARED_HASHES,
 ) -> tuple[npt.NDArray[np.float64], int]:
     """Elementwise ANI estimate from a k-mer Jaccard similarity matrix, and
     the number of pairs whose ANI is unknown.
@@ -114,15 +91,14 @@ def jaccard_to_ani_matrix(
     4.9.4, 10 kb and 30 kb genomes at k=31, scaled=1000). Used by the
     dereplicator and the tree builder.
 
-    With ``scaled`` and the hash count of each signature (``n_hashes``, in
-    the order of the matrix rows), the chance check of sourmash's
-    ``jaccard_ani`` is applied: the number of k-mers is the mean of the two
-    hash counts times ``scaled``, and where :func:`p_nothing_in_common` at
-    the estimate exceeds ``p_threshold`` the shared hashes are compatible
-    with chance and the ANI is set to NaN (unknown). On distant pairs a few
-    hashes from conserved genes would otherwise give an ANI of 0.80 to 0.87
-    (measured on Wolbachia supergroups that skani does not align). A pair
-    without a shared hash is unknown as well; the diagonal stays 1.0.
+    With the hash count of each signature (``n_hashes``, in the order of the
+    matrix rows, at the scaled value the matrix was computed at), a pair
+    whose number of shared hashes, ``j * (a + b) / (1 + j)`` for sketches of
+    ``a`` and ``b`` hashes, is below ``min_shared`` gets an unknown ANI
+    (NaN): too few hashes to support an estimate. On distant pairs a few
+    hashes from conserved genes would otherwise give an ANI of 0.80 to 0.88
+    at k=31 (measured on Wolbachia supergroups that skani does not align).
+    A pair without a shared hash is unknown as well; the diagonal stays 1.0.
     Without sizes, zero stays zero and no pair is unknown.
     """
     import numpy as np
@@ -130,14 +106,15 @@ def jaccard_to_ani_matrix(
     sim = np.asarray(sim, dtype=float)
     containment = 2 * sim / (1 + sim)
     ani = np.where(sim > 0, containment ** (1.0 / ksize), 0.0)
-    if scaled is None or n_hashes is None:
+    if n_hashes is None:
         return ani, 0
     sizes = np.asarray(n_hashes, dtype=float)
     if ani.ndim != 2 or ani.shape[0] != ani.shape[1] or sizes.shape != (ani.shape[0],):
         raise ValueError(f"{sizes.size} signature sizes for a matrix of shape {ani.shape}")
-    # sourmash rounds the mean k-mer count of the pair (jaccard_ani).
-    n_kmers = np.round((sizes[:, None] + sizes[None, :]) / 2.0 * scaled)
-    unknown = p_nothing_in_common(ani, ksize, scaled, n_kmers) > p_threshold
+    # The intersection size from the Jaccard index and the two sketch sizes;
+    # rounded, since it is a count recovered through floating point.
+    shared = np.round(sim * (sizes[:, None] + sizes[None, :]) / (1 + sim))
+    unknown = shared < min_shared
     np.fill_diagonal(unknown, False)
     ani = np.where(unknown, np.nan, ani)
     np.fill_diagonal(ani, 1.0)
@@ -164,12 +141,12 @@ def signature_sizes(
     sourmash displays it). Signatures at different scaled values are brought
     to the largest one, which ``compare`` downsamples to. Returns None, after
     one WARNING, when the describe call fails or a label has no row or more
-    than one; the caller then converts without the chance check. ``run`` is
+    than one; the caller then converts without the shared-hash minimum. ``run`` is
     the caller's ``run_tool``.
     """
     from .errors import MissingBinaryError, ToolExecutionError
 
-    fallback = "the sketch ANI is computed without the check for chance-level sharing"
+    fallback = "the sketch ANI is computed without the shared-hash minimum"
     out_csv.unlink(missing_ok=True)  # never read a table from an earlier run
     try:
         run(

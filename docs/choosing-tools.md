@@ -442,25 +442,34 @@ a set wider than a species is better built with `--aligner-arg ksize=21`
 genome names span more than one genus at k=31; the default stays 31).
 
 A handful of shared hashes, from genes conserved across the set, still
-gives an estimate of 0.80 to 0.87 at k=31 for pairs that have little else
-in common. sourmash itself checks whether the shared hashes are compatible
-with chance (the probability that two sketches of that size share nothing at
-the estimated ANI, threshold 1e-3; `jaccard_ani` in sourmash), but
-`sourmash compare --ani` only prints a warning about it. RepGenR2 applies
-the same check wherever it converts a dense `sourmash compare` matrix (the
+gives an estimate of 0.80 to 0.88 at k=31 for pairs that have little else
+in common. Wherever RepGenR2 converts a dense `sourmash compare` matrix (the
 dereplicator's dense back-end, `glance`, the medoid reference,
-`phylo-advise` and the sourmash tree builder with `metric=ani`), using the
-signature sizes from `sourmash sig describe`: such a pair has an unknown ANI.
-It never merges in dereplication, is an empty cell in the glance table and
-distance 1.0 in the glance dendrogram and in a sourmash tree, counts as 0
-for the medoid, and counts as below 80 % in `phylo-advise`. The check is
-about sketch resolution, not about the bias above: on the Wolbachia set it
-marks 27 of the 276 pairs unknown at k=31 (21 of the 57 pairs skani does not
-align, and 6 pairs at 80.0 to 80.5 % by skani) and none at k=21, where the
-unaligned pairs share about three times as many hashes (mean Jaccard 0.0092
-against 0.0033 at k=31). The other 36 unaligned pairs keep estimates of 84.7 to
-87.3 % at k=31. The sparse branchwater back-end keeps only pairs above
-containment 0.99^k, where the check cannot apply.
+`phylo-advise` and the sourmash tree builder with `metric=ani`), it reads
+the signature sizes from `sourmash sig describe` and counts each pair's
+shared hashes, j(a + b)/(1 + j) for sketches of a and b hashes. A pair with
+fewer than 30 shared hashes has an unknown ANI: below that the Poisson
+sampling error alone is near 20 % of the count, and the shared hashes come
+mostly from conserved genes and mobile elements rather than from the whole
+genome. Such a pair never merges in dereplication, is an empty cell in the
+glance table and distance 1.0 in the glance dendrogram and in a sourmash
+tree, counts as 0 for the medoid, and counts as below 80 % in
+`phylo-advise`. On the Wolbachia set:
+
+| k | Unknown pairs | Of the 57 skani does not align | Aligned pairs made unknown (skani) | Lowest known sketch ANI |
+|---|---|---|---|---|
+| 31 | 136 of 276 | 57 | 79 (79.4 to 83.2 %) | 89.85 % |
+| 21 | 59 of 276 | 48 | 11 (79.4 to 80.6 %) | 83.38 % |
+
+With sketches of about 1000 to 1600 hashes (genomes of 1.0 to 1.5 Mb at
+scaled=1000), the sketch's reach therefore ends near 88 to 90 % sketch ANI
+at k=31 (83 to 85 % by skani) and near 83 to 85 % at k=21 (about 80 to 81 %
+by skani). Larger genomes reach lower: 30 shared hashes of 5000 (a 5 Mb
+genome) is a sketch ANI of about 85 % at k=31 and 78 % at k=21. At k=21, 9 of the
+unaligned pairs share 30 to 33 hashes and keep estimates of 83.4 to 83.7 %.
+The sparse branchwater back-end keeps only pairs above containment 0.99^k,
+hundreds of shared hashes for any bacterial genome, so the rule does not
+apply there.
 
 For the same cutoff on well-separated data the tools usually form the same
 clusters (see the `clonal_50_clustered` result above); the differences
@@ -593,7 +602,7 @@ they need installed: bakta needs its database and prokka needs none (see
 | `fasttree` | MSA | Declared 5000. Good to about 5000. `--aligner-arg gamma=true` rescales the branch lengths under the Gamma20 likelihood. | Approximate. Weaker resolution on clonal sets. | Unrooted. |
 | `veryfasttree` | MSA | Declared 20000, not measured here; the same algorithm as `fasttree` with multi-core and vectorised arithmetic. `auto` picks it above 5000 leaves when an alignment is requested and never below, since `fasttree`'s tighter limit wins there; without an alignment request `auto` stays with the alignment-free builders once the set exceeds the aligner's limit. `-threads` follows `-t`; `--aligner-arg gamma=true` and `--aligner-arg double_precision=true` are extras. | As `fasttree`. | Unrooted. |
 | `mashtree` | Genomes | Declared 10000. 53 min and 7.6 GB measured at 5000. | Poor on clonal sets. No supports. | Unrooted. |
-| `sourmash` | Genomes | Declared 2000. The distance is one minus ANI (`metric=ani`, the default), or one minus Jaccard with `metric=jaccard`. The ANI is the k-mer model estimate from the Jaccard index, as `sourmash compare --ani` would report it; `--ani` itself is not used because it reports 0 for sketches of small genomes, identical ones included. Pairs that share no hash, or whose shared hashes are compatible with chance (see "How the tools estimate ANI"), get distance 1 and are counted in the log. For a set wider than a species, pass `--aligner-arg ksize=21`: k=21 is less biased than the default k=31 at 80 to 95 % identity. The joining step runs rapidNJ when installed (`nj=auto`), else a cubic Python step refused above 5000. | Poor on clonal sets. No supports. | Unrooted. |
+| `sourmash` | Genomes | Declared 2000. The distance is one minus ANI (`metric=ani`, the default), or one minus Jaccard with `metric=jaccard`. The ANI is the k-mer model estimate from the Jaccard index, as `sourmash compare --ani` would report it; `--ani` itself is not used because it reports 0 for sketches of small genomes, identical ones included. Pairs with fewer than 30 shared hashes (see "How the tools estimate ANI") get distance 1 and are counted in the log. For a set wider than a species, pass `--aligner-arg ksize=21`: k=21 is less biased than the default k=31 at 80 to 95 % identity. The joining step runs rapidNJ when installed (`nj=auto`), else a cubic Python step refused above 5000. | Poor on clonal sets. No supports. | Unrooted. |
 | `skani` | Genomes | Declared 10000, not measured here. ANI from sparse chaining of k-mer sketches, reliable to about 80% identity; pairs below the screen (`screen=80`) get distance 1 and are counted in the log. `preset=fast|medium|slow|small-genomes`, `min_af`, `nj` as extras. Also provides the distance matrix of the viral outgroup selection, with the `small-genomes` preset by default there; when no candidate is within skani's reach no matrix is written and the run proceeds without an outgroup. | Expected to resolve closer pairs than mash distance and more distant ones than Jaccard (skani, Shaw and Yu 2023), not measured here; no supports, and a clonal set resolves only as well as ANI does. | Unrooted. |
 | `ska2` | Genomes | Declared 5000, as the typer. `ska distance` SNP counts (`metric=snps`) or k-mer mismatch fractions (`metric=mismatch`) over the split k-mers each pair shares, joined with rapidNJ when installed. | Good on clonal and outbreak sets, where it is reference-free; undercounts distances once pairs share few k-mers, so it warns on a set spanning several species. No supports. | Unrooted. |
 | `aster` | MSA with gene partitions | Declared 5000, not measured here. Needs `--msa-source coregene --partitioned`: one gene tree per partition (`iqtree --fast`, or `--aligner-arg gene_tree_builder=fasttree`), then a species tree with ASTER (`program=wastral`, the default, `astral4` or `astral-pro3`). Never chosen by `auto`. `rounds=`, `min_gene_columns=` and `model=` (the gene-tree model) are extras. | A summary of the gene trees that allows for discordance among them; node labels are local posterior probabilities in [0, 1], so no bootstrap is needed. `wastral` branch lengths are in coalescent units with no terminal lengths, so `--root midpoint` is refused; `astral4` writes substitutions per site. | Unrooted. |

@@ -1,9 +1,5 @@
-"""Sketch ANI: sourmash's check for chance-level sharing, ported to numpy,
-and its consumers (dereplicator, glance table, medoid, tree builder).
-
-The reference values were computed with sourmash 4.9.4
-(``sourmash.distance_utils``) in the development environment.
-"""
+"""Sketch ANI: the shared-hash minimum below which a pair's ANI is unknown,
+and its consumers (dereplicator, glance table, medoid, tree builder)."""
 
 from __future__ import annotations
 
@@ -29,42 +25,16 @@ def _describe_row(name: str, n_hashes: int, *, ksize: int = 31, scaled: int = 10
     return f"x.sig,{md5},{ksize},DNA,0,{scaled},{n_hashes},42,0,{name},,CC0,{n_hashes}\n"
 
 
-# --- the ported formulas -----------------------------------------------------------
-
-
-def test_exp_n_mutated_matches_sourmash() -> None:
-    assert core.exp_n_mutated(1_000_000, 31, 0.05) == pytest.approx(796093, rel=1e-6)
-    assert core.exp_n_mutated(1_200_000, 21, 0.15) == pytest.approx(1.16047e6, rel=1e-5)
-
-
-@pytest.mark.parametrize(
-    ("ani", "ksize", "n_kmers", "expected"),
-    [
-        (0.85, 31, 1_200_000, 0.000414985),
-        (0.80, 31, 1_150_000, 0.319987),
-        (0.80, 21, 1_150_000, 2.46143e-05),
-        (0.90, 31, 1_000_000, 2.64538e-17),
-        (0.83, 21, 1_100_000, 2.81399e-10),
-    ],
-)
-def test_p_nothing_in_common_matches_sourmash(ani, ksize, n_kmers, expected) -> None:
-    assert core.p_nothing_in_common(ani, ksize, 1000, n_kmers) == pytest.approx(expected, rel=1e-5)
-
-
-def test_p_nothing_in_common_limits() -> None:
-    assert core.p_nothing_in_common(0.0, 31, 1000, 1_000_000) == 1.0
-    assert core.p_nothing_in_common(1.0, 31, 1000, 1_000_000) == 0.0
-
-
 # --- the matrix guard ----------------------------------------------------------------
 
-# a-b close; a-c a handful of shared hashes (sourmash: ANI 0.836795,
-# p_nothing_in_common 0.0101 at 1.15 M k-mers, above 1e-3); b-c none.
+# a-b close; a-c about 5 shared hashes of 1150 each (sourmash ANI estimate
+# 0.836795); b-c none.
 _SIM = np.array([[1.0, 0.5, 0.002], [0.5, 1.0, 0.0], [0.002, 0.0, 1.0]])
 
 
-def test_matrix_guard_marks_chance_pairs_unknown() -> None:
-    ani, n_unknown = core.jaccard_to_ani_matrix(_SIM, 31, scaled=1000, n_hashes=[1150] * 3)
+def test_matrix_guard_marks_pairs_with_few_shared_hashes_unknown() -> None:
+    assert core.MIN_SHARED_HASHES == 30
+    ani, n_unknown = core.jaccard_to_ani_matrix(_SIM, 31, n_hashes=[1150] * 3)
     assert n_unknown == 2
     assert np.isnan(ani[0, 2]) and np.isnan(ani[2, 0]) and np.isnan(ani[1, 2])
     assert np.all(np.diag(ani) == 1.0)
@@ -79,14 +49,26 @@ def test_matrix_without_sizes_is_unchanged() -> None:
 
 
 def test_matrix_guard_follows_the_size() -> None:
-    """Larger sketches make a few shared hashes informative."""
-    _ani, n_unknown = core.jaccard_to_ani_matrix(_SIM, 31, scaled=1000, n_hashes=[20000] * 3)
+    """The same Jaccard on larger sketches is more shared hashes (a-c: 80)."""
+    _ani, n_unknown = core.jaccard_to_ani_matrix(_SIM, 31, n_hashes=[20000] * 3)
     assert n_unknown == 1  # only the pair without a shared hash
+
+
+@pytest.mark.parametrize(("shared", "unknown"), [(29, True), (30, False), (31, False)])
+def test_matrix_guard_boundary(shared, unknown) -> None:
+    """Sketches of 1000 hashes each sharing ``shared``: Jaccard s / (2000 - s)."""
+    j = shared / (2000 - shared)
+    sim = np.array([[1.0, j], [j, 1.0]])
+    ani, n_unknown = core.jaccard_to_ani_matrix(sim, 21, n_hashes=[1000, 1000])
+    assert n_unknown == int(unknown)
+    assert bool(np.isnan(ani[0, 1])) is unknown
+    # The threshold can be lowered.
+    assert core.jaccard_to_ani_matrix(sim, 21, n_hashes=[1000, 1000], min_shared=10)[1] == 0
 
 
 def test_matrix_guard_rejects_misaligned_sizes() -> None:
     with pytest.raises(ValueError, match="signature sizes"):
-        core.jaccard_to_ani_matrix(_SIM, 31, scaled=1000, n_hashes=[1150, 1150])
+        core.jaccard_to_ani_matrix(_SIM, 31, n_hashes=[1150, 1150])
 
 
 # --- the signature sizes -------------------------------------------------------------
@@ -141,7 +123,7 @@ def test_signature_sizes_falls_back_with_one_warning(tmp_path: Path, caplog) -> 
         )
     warnings = [r.getMessage() for r in caplog.records if r.levelno == logging.WARNING]
     assert len(warnings) == 2
-    assert all("without the check for chance-level sharing" in w for w in warnings)
+    assert all("without the shared-hash minimum" in w for w in warnings)
 
 
 # --- the dereplicator's dense path ---------------------------------------------------
@@ -186,7 +168,9 @@ def test_dense_path_marks_unknown_pairs(tmp_path: Path, monkeypatch, caplog) -> 
         labels, ani, _names = _dense(tmp_path, monkeypatch, describe)
     assert labels == ["g1.fasta", "g2.fasta", "g3.fasta"]
     assert np.isnan(ani[0, 2]) and np.isnan(ani[1, 2]) and not np.isnan(ani[0, 1])
-    assert any("2 of 3 pairs share too few hashes" in r.getMessage() for r in caplog.records)
+    assert any(
+        "2 of 3 pairs share fewer than 30 hashes at k=31" in r.getMessage() for r in caplog.records
+    )
 
 
 def test_dense_path_without_describe_converts_unguarded(
@@ -286,8 +270,8 @@ def test_tree_places_unknown_pairs_at_distance_one(tmp_path: Path, monkeypatch, 
         seen = _tree(tmp_path, monkeypatch, ["a", "b", "c"], {})
     dist = seen["dist"]
     assert dist[0][2] == 1.0 and dist[1][2] == 1.0 and dist[0][1] < 0.1
-    (line,) = [r.getMessage() for r in caplog.records if "compatible with chance" in r.getMessage()]
-    assert line.startswith("sourmash: 2 of 3 pairs share no hash, or only hashes")
+    (line,) = [r.getMessage() for r in caplog.records if "distance is set to 1.0" in r.getMessage()]
+    assert line.startswith("sourmash: 2 of 3 pairs share fewer than 30 hashes at k=31")
     # Not a multi-genus set: no k-mer size note.
     assert "ksize=21" not in caplog.text
 

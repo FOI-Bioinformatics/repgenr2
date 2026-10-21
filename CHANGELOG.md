@@ -7,20 +7,19 @@ All notable changes to RepGenR2 are documented here. The format follows
 ## [Unreleased]
 
 ### Added
-- Sketch ANI: sourmash's check for chance-level sharing
-  (`get_exp_probability_nothing_common`, threshold 1e-3) is ported to
-  `core/sourmash.py` and applied wherever a dense `sourmash compare` matrix
-  is converted to ANI, with the signature sizes from `sourmash sig describe
-  --csv`. A pair whose shared hashes are compatible with chance has an
-  unknown ANI (NaN): the dereplicator does not merge it, glance writes an
-  empty cell in `pairwise_ani.csv` and places it at distance 1.0 in the
-  dendrogram, the medoid counts it as 0, and the sourmash tree builder
-  (`metric=ani`) places it at distance 1.0 and counts it in its log line.
-  `phylo-advise` takes the minimum and median ANI over the known pairs,
-  reports `ani_unknown_pairs` (text and JSON), and treats an unknown pair as
-  below 80 %. When `sourmash sig describe` fails, one warning is logged and
-  the conversion runs without the check. On 24 Wolbachia genomes the check
-  marks 27 of 276 pairs unknown at k=31 and none at k=21
+- Sketch ANI: wherever a dense `sourmash compare` matrix is converted to
+  ANI, the signature sizes from `sourmash sig describe --csv` give each
+  pair's number of shared hashes, and a pair with fewer than 30
+  (`MIN_SHARED_HASHES` in `core/sourmash.py`) has an unknown ANI (NaN): the
+  dereplicator does not merge it, glance writes an empty cell in
+  `pairwise_ani.csv` and places it at distance 1.0 in the dendrogram, the
+  medoid counts it as 0, and the sourmash tree builder (`metric=ani`)
+  places it at distance 1.0 and counts it in its log line. `phylo-advise`
+  takes the minimum and median ANI over the known pairs, reports
+  `ani_unknown_pairs` (text and JSON), and treats an unknown pair as below
+  80 %. When `sourmash sig describe` fails, one warning is logged and the
+  conversion runs without the minimum. On 24 Wolbachia genomes 136 of 276
+  pairs are unknown at k=31 and 59 at k=21
   (docs/audit/phylo-methods-2026-10.md, "Sketch ANI audit (2026-10-21)").
 - `--preset outbreak|species|species-masked|genus|family|quick` on `phylo`,
   `phylo-build` and `run` stands for the flags of one row of the table

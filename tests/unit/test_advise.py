@@ -164,12 +164,13 @@ def test_family_for_low_ani_or_several_genera() -> None:
 
 def test_unknown_pairs_count_as_below_80() -> None:
     """The Wolbachia set: one species by name, the known pairs above 80 %,
-    and pairs whose shared k-mers are compatible with chance: family."""
+    and pairs that share fewer than 30 hashes: family."""
     ev = _ev(ani_min=81.5, ani_median=97.0, ani_unknown_pairs=27)
     rec = mod.advise(ev)
     assert rec.preset == "family"
     assert any(
-        "27 pairs share too few k-mers to estimate an ANI (below about 80 %)" in r
+        "27 pairs share fewer than 30 hashes, too few to estimate an ANI; they are "
+        "counted as below 80 %." in r
         for r in rec.reasons
     )
     assert mod.SOURMASH_K21_REASON in rec.reasons

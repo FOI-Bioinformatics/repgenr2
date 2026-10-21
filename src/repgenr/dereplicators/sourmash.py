@@ -54,8 +54,8 @@ from ..core.contracts import record_name
 from ..core.errors import MissingBinaryError, ToolExecutionError, WorkdirError
 from ..core.plugins import ToolCapabilities, parse_extra_int
 from ..core.process import write_fofn
+from ..core.sourmash import MIN_SHARED_HASHES, signature_sizes, sourmash_capabilities
 from ..core.sourmash import jaccard_to_ani_matrix as _jaccard_to_ani_matrix
-from ..core.sourmash import signature_sizes, sourmash_capabilities
 from .base import (
     STATUS_CONTAINED,
     STATUS_REPRESENTATIVE,
@@ -298,9 +298,9 @@ class SourmashDereplicator(Dereplicator):
         # on the same scale as skder/galah (raw Jaccard at k=31 is ~0.8 for a
         # 99.6 pct ANI pair). Converting here, rather than via ``compare
         # --ani``, keeps identical-content pairs at 1.0 even for tiny sketches,
-        # where sourmash's estimator refuses and reports 0. The signature
-        # sizes enable sourmash's check for chance-level sharing: such pairs
-        # get ANI NaN (unknown).
+        # where sourmash's estimator refuses and reports 0. With the signature
+        # sizes, a pair with fewer than MIN_SHARED_HASHES shared hashes gets
+        # ANI NaN (unknown).
         labels, sim = _read_compare_csv(matrix_csv)
         sizes = signature_sizes(
             self.capabilities,
@@ -319,16 +319,17 @@ class SourmashDereplicator(Dereplicator):
         if sizes is None:
             ani, n_unknown = _jaccard_to_ani_matrix(sim, ksize)
         else:
-            n_hashes, sizes_scaled = sizes
+            n_hashes, _scaled = sizes
             ani, n_unknown = _jaccard_to_ani_matrix(
-                sim, ksize, scaled=sizes_scaled, n_hashes=[n_hashes[i] for i in order]
+                sim, ksize, n_hashes=[n_hashes[i] for i in order]
             )
         if n_unknown:
             logger.info(
-                "sourmash: %d of %d pairs share too few hashes at k=%d to estimate an ANI "
-                "(their shared hashes are compatible with chance); their ANI is unknown",
+                "sourmash: %d of %d pairs share fewer than %d hashes at k=%d, too few to "
+                "estimate an ANI; their ANI is unknown",
                 n_unknown,
                 len(labels) * (len(labels) - 1) // 2,
+                MIN_SHARED_HASHES,
                 ksize,
             )
         return labels, ani, name_by_label
@@ -473,9 +474,9 @@ class SourmashDereplicator(Dereplicator):
         # a mutually-similar group becomes the representative) matches the dense
         # ``compare`` path, which orders its matrix by genome file name.
         labels = [label_of[g] for g in sorted(genomes, key=lambda g: g.name)]
-        # No chance check here (core.sourmash.jaccard_to_ani_matrix): the
-        # pairs kept are above containment threshold**ksize (0.99**31 is
-        # about 0.73), where sharing by chance is not a possible reading.
+        # No shared-hash minimum here (core.sourmash.jaccard_to_ani_matrix):
+        # the pairs kept are above containment threshold**ksize (0.99**31 is
+        # about 0.73), hundreds of shared hashes for any bacterial genome.
         neighbors = _parse_pairwise_csv(pairwise_csv, threshold, set(labels), ksize)
         return _sparse_greedy_cluster(labels, neighbors, name_by_label)
 
@@ -912,7 +913,7 @@ def _greedy_cluster(
     n = len(labels)
     # Boolean adjacency (>= threshold); the per-row vectorized ops below replace
     # the previous pure-Python O(n^2) double loops (much faster at 1000s genomes).
-    # An unknown ANI (NaN: shared hashes compatible with chance) is below any
+    # An unknown ANI (NaN: too few shared hashes to estimate) is below any
     # threshold.
     matrix = np.asarray(sim, dtype=float)
     adj = np.where(np.isnan(matrix), False, matrix >= threshold)
