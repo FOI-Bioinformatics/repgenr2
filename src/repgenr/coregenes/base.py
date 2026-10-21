@@ -1,9 +1,10 @@
-"""CoreGeneBuilder interface: annotated genomes in, a concatenated core-gene
-alignment out.
+"""CoreGeneBuilder interface: annotated genomes in, core-gene alignments out.
 
 The builder takes the GFF3 files the ``annotate`` stage wrote (sequences
-appended), clusters the genes into a pangenome, aligns the core genes and
-concatenates them. ``phylo --msa-source coregene`` hands the alignment to
+appended), clusters the genes into a pangenome and aligns the core genes.
+It hands over either one aligned FASTA per gene, which the stage ranks,
+caps and concatenates itself (``coregenes/select.py``), or its own
+concatenation. ``phylo --msa-source coregene`` hands the alignment to
 an MSA tree builder; it keeps the invariant sites, so no ascertainment-bias
 correction applies.
 """
@@ -37,9 +38,29 @@ class CoreGeneParams:
     extra: dict = field(default_factory=dict)
 
 
+@dataclass(frozen=True)
+class GeneAlignment:
+    """One core gene's alignment as a builder hands it over."""
+
+    # Family or orthogroup id, unique within one result.
+    gene: str
+    # Aligned FASTA; records are named by genome record name. A genome that
+    # lacks the gene is absent (no gap-only record is required).
+    path: Path
+
+
 @dataclass
 class CoreGeneResult:
-    alignment: Path
+    """What a builder returns.
+
+    A builder supplies ``gene_alignments`` (the stage then selects and
+    concatenates the genes and records a partition per gene) or its own
+    concatenated ``alignment``. Both are allowed; ``alignment`` is then
+    ignored by the stage.
+    """
+
+    # The tool's own concatenation, used only when gene_alignments is None.
+    alignment: Path | None = None
     # The builder's tables (presence/absence, summary) to publish beside it.
     tables: list[Path] = field(default_factory=list)
     core_genes: int | None = None
@@ -48,6 +69,9 @@ class CoreGeneResult:
     clustering_identity: float | None = None
     # Builder-specific settings that shaped the result, for the stats file.
     settings: dict = field(default_factory=dict)
+    # One aligned FASTA per core gene, or None for a builder that returns
+    # only its own concatenation.
+    gene_alignments: list[GeneAlignment] | None = None
 
 
 class CoreGeneBuilder(ABC):
@@ -66,7 +90,7 @@ class CoreGeneBuilder(ABC):
         params: CoreGeneParams,
         logger: logging.Logger,
     ) -> CoreGeneResult:
-        """Build the core-gene alignment of ``gffs`` under ``out_dir``."""
+        """Build the core-gene alignment(s) of ``gffs`` under ``out_dir``."""
         raise NotImplementedError
 
 

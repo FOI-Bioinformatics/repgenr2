@@ -52,6 +52,8 @@ ANNOTATIONS_DIR = "annotations"
 ANNOTATIONS_TSV = "annotations.tsv"
 CORE_GENE_FASTA = "core_gene_alignment.fasta"
 CORE_GENE_STATS = "core_gene_stats.json"
+# Per-gene metrics and selection of the core-gene route, beside its alignment.
+CORE_GENES_TSV = "core_genes.tsv"
 PANGENOME_DIR = "pangenome"
 TREE2TAX_TSV = "tree2tax.tsv"
 GENOMES_MAP_TSV = "genomes_map.tsv"

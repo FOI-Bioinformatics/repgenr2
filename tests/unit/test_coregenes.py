@@ -11,7 +11,7 @@ import pytest
 from repgenr.core import annotations as cache
 from repgenr.core.errors import UserInputError, WorkdirError
 from repgenr.coregenes import panaroo as mod
-from repgenr.coregenes.base import CoreGeneParams, CoreGeneResult, registry
+from repgenr.coregenes.base import CoreGeneParams, CoreGeneResult, GeneAlignment, registry
 from repgenr.stages.coregene import annotated_set, coregene_core
 
 _LOG = logging.getLogger("test-coregene")
@@ -399,3 +399,226 @@ def test_builder_settings_reach_the_stats(tmp_path: Path, register_tool) -> None
     )
     stats = json.loads((tmp_path / "msa" / CORE_GENE_STATS).read_text(encoding="utf-8"))
     assert stats["builder_settings"] == {"partition": "core"}
+
+
+# --- per-gene alignments: selection, table and partitions --------------------
+
+
+def _gene_builder(genes: dict[str, dict[str, str]], *, also_alignment: bool = False):
+    """A builder that hands over one alignment per gene (records ``<genome>;<id>``)."""
+
+    class _PerGene(_FakeBuilder):
+        def call(self, gffs, out_dir, params, logger) -> CoreGeneResult:
+            out_dir.mkdir(parents=True, exist_ok=True)
+            found = []
+            for gene, seqs in genes.items():
+                path = out_dir / f"{gene}.aln.fas"
+                path.write_text(
+                    "".join(f">{g};{gene}_1\n{s}\n" for g, s in seqs.items()), encoding="utf-8"
+                )
+                found.append(GeneAlignment(gene, path))
+            aln = None
+            if also_alignment:
+                aln = out_dir / "tool_concat.fasta"
+                aln.write_text("".join(f">{g.stem}\nNNNN\n" for g in gffs), encoding="utf-8")
+            return CoreGeneResult(alignment=aln, gene_alignments=found, core_genes=99)
+
+    return _PerGene
+
+
+_G1, _G2, _G3 = "Fam_Gen_sp_GCA_1", "Fam_Gen_sp_GCA_2", "Fam_Gen_sp_GCA_3"
+_GENES = {
+    # Every genome; column 1 (C, T, C) is variable but not informative.
+    "famB": {_G1: "ACGT", _G2: "ATGT", _G3: "ACGT"},
+    # Two genomes; no variation.
+    "famA": {_G1: "GGG", _G2: "GGG"},
+    # Every genome but short; column 1 (T, A, A) is variable only.
+    "famC": {_G1: "TT", _G2: "TA", _G3: "TA"},
+}
+
+
+def _read_fasta(path: Path) -> dict[str, str]:
+    out: dict[str, str] = {}
+    name = ""
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if line.startswith(">"):
+            name = line[1:]
+            out[name] = ""
+        else:
+            out[name] += line
+    return out
+
+
+def test_per_gene_alignments_are_selected_and_concatenated(
+    tmp_path: Path, register_tool, caplog
+) -> None:
+    from repgenr.core.contracts import CORE_GENE_STATS, CORE_GENES_TSV
+    from repgenr.coregenes.select import Partition
+    from repgenr.tree.partitions import PARTITIONS, PartitionSet, read_partitions
+
+    register_tool(registry, "fakegenes", _gene_builder(_GENES, also_alignment=True))
+    gffs = _gffs(tmp_path)
+    msa = tmp_path / "msa"
+    with caplog.at_level(logging.INFO, logger=_LOG.name):
+        result, _ = coregene_core(
+            gffs, msa, tmp_path / "scratch", CoreGeneParams(), "fakegenes", _LOG
+        )
+    # The builder's own concatenation is ignored when it hands over genes;
+    # the layout follows the gene ids.
+    assert _read_fasta(result.alignment) == {
+        _G1: "GGGACGTTT",
+        _G2: "GGGATGTTA",
+        _G3: "---ACGTTA",
+    }
+    assert result.core_genes == 3
+    assert read_partitions(result.alignment) == PartitionSet(
+        "dna", [Partition("famA", 1, 3), Partition("famB", 4, 7), Partition("famC", 8, 9)]
+    )
+    table = (msa / CORE_GENES_TSV).read_text(encoding="utf-8").splitlines()
+    # Kept genes in rank order (occupancy, then length, then id).
+    assert [ln.split("\t")[:3] for ln in table[1:]] == [
+        ["famB", "true", "1"],
+        ["famC", "true", "2"],
+        ["famA", "true", "3"],
+    ]
+    stats = json.loads((msa / CORE_GENE_STATS).read_text(encoding="utf-8"))
+    assert stats["core_genes"] == 3 and stats["core_genes_available"] == 3
+    assert stats["alignment_length"] == 9 and stats["genomes"] == 3
+    assert stats["variable_sites_total"] == 2 and stats["informative_sites_total"] == 0
+    assert stats["gene_table"] == CORE_GENES_TSV and stats["partitions"] == PARTITIONS
+    assert stats["selection"] == {
+        "max_genes": 0,
+        "rank": "occupancy",
+        "min_length": 0,
+        "max_gaps": None,
+        "seed": 0,
+    }
+    assert "3 genes available, 3 kept (rank occupancy); 9 columns" in caplog.text
+    # The sidecar describes that very file: refused once the alignment changes.
+    result.alignment.write_text(">x\nAAAA\n", encoding="utf-8")
+    assert read_partitions(result.alignment) is None
+
+
+def test_a_selection_caps_and_filters_the_genes(tmp_path: Path, register_tool) -> None:
+    from repgenr.core.contracts import CORE_GENE_STATS, CORE_GENES_TSV
+    from repgenr.coregenes.select import GeneSelection, Partition
+    from repgenr.tree.partitions import read_partitions
+
+    register_tool(registry, "fakegenes", _gene_builder(_GENES))
+    msa = tmp_path / "msa"
+    result, _ = coregene_core(
+        _gffs(tmp_path),
+        msa,
+        tmp_path / "scratch",
+        CoreGeneParams(),
+        "fakegenes",
+        _LOG,
+        selection=GeneSelection(max_genes=1, min_length=3),
+    )
+    assert _read_fasta(result.alignment) == {_G1: "ACGT", _G2: "ATGT", _G3: "ACGT"}
+    found = read_partitions(result.alignment)
+    assert found is not None and found.partitions == [Partition("famB", 1, 4)]
+    rows = {
+        ln.split("\t")[0]: ln.split("\t")
+        for ln in (msa / CORE_GENES_TSV).read_text(encoding="utf-8").splitlines()[1:]
+    }
+    assert rows["famB"][1:3] == ["true", "1"] and rows["famB"][-2:] == ["1", "4"]
+    assert rows["famA"][1:3] == ["false", ""] and rows["famA"][-2:] == ["", ""]
+    stats = json.loads((msa / CORE_GENE_STATS).read_text(encoding="utf-8"))
+    assert stats["core_genes"] == 1 and stats["core_genes_available"] == 3
+    assert stats["selection"]["max_genes"] == 1 and stats["selection"]["min_length"] == 3
+    with pytest.raises(WorkdirError, match="None of the 3 core genes passes"):
+        coregene_core(
+            _gffs(tmp_path),
+            tmp_path / "m2",
+            tmp_path / "s2",
+            CoreGeneParams(),
+            "fakegenes",
+            _LOG,
+            selection=GeneSelection(min_length=10),
+        )
+
+
+def test_per_gene_gap_only_genome_is_dropped_and_a_required_one_refused(
+    tmp_path: Path, register_tool, caplog
+) -> None:
+    from repgenr.core.contracts import CORE_GENE_STATS
+    from repgenr.tree.partitions import read_partitions
+
+    # _G3 has only a gap record in the one gene: its concatenated row is gaps.
+    genes = {"famA": {_G1: "GGG", _G2: "GGA", _G3: "---"}}
+    register_tool(registry, "fakegenes", _gene_builder(genes))
+    gffs = _gffs(tmp_path)
+    with caplog.at_level(logging.INFO, logger=_LOG.name):
+        result, _ = coregene_core(
+            gffs, tmp_path / "msa", tmp_path / "scratch", CoreGeneParams(), "fakegenes", _LOG
+        )
+    assert _read_fasta(result.alignment) == {_G1: "GGG", _G2: "GGA"}
+    # The sidecar matches the published alignment, after the row was dropped.
+    assert read_partitions(result.alignment) is not None
+    stats = json.loads((tmp_path / "msa" / CORE_GENE_STATS).read_text(encoding="utf-8"))
+    assert stats["genomes"] == 2
+    assert "Removed 1 record(s) of gaps only" in caplog.text
+    assert "not in the core-gene alignment" in caplog.text
+    with pytest.raises(WorkdirError, match="does not hold"):
+        coregene_core(
+            gffs,
+            tmp_path / "m2",
+            tmp_path / "s2",
+            CoreGeneParams(),
+            "fakegenes",
+            _LOG,
+            required=(_G3,),
+        )
+
+
+def test_per_gene_records_must_name_genomes_of_the_set(tmp_path: Path, register_tool) -> None:
+    register_tool(registry, "fakegenes", _gene_builder({"famA": {_G1: "GG", "stranger": "GG"}}))
+    with pytest.raises(WorkdirError, match="none of the genomes.*stranger"):
+        coregene_core(
+            _gffs(tmp_path), tmp_path / "msa", tmp_path / "s", CoreGeneParams(), "fakegenes", _LOG
+        )
+
+
+def test_the_legacy_path_is_unchanged_and_refuses_a_selection(
+    tmp_path: Path, register_tool
+) -> None:
+    from repgenr.core.contracts import CORE_GENE_STATS, CORE_GENES_TSV
+    from repgenr.coregenes.select import GeneSelection
+    from repgenr.tree.partitions import PARTITIONS
+
+    register_tool(registry, "fakecg", _FakeBuilder)
+    msa = tmp_path / "msa"
+    msa.mkdir()
+    # Left by an earlier per-gene run; they describe another alignment.
+    (msa / CORE_GENES_TSV).write_text("gene\n", encoding="utf-8")
+    (msa / PARTITIONS).write_text("{}\n", encoding="utf-8")
+    result, _ = coregene_core(
+        _gffs(tmp_path), msa, tmp_path / "scratch", CoreGeneParams(), "fakecg", _LOG
+    )
+    assert result.core_genes == 7 and result.alignment is not None
+    assert result.alignment.read_text(encoding="utf-8").count("ACGTAC") == 3
+    assert not (msa / CORE_GENES_TSV).exists() and not (msa / PARTITIONS).exists()
+    stats = json.loads((msa / CORE_GENE_STATS).read_text(encoding="utf-8"))
+    assert stats["core_genes"] == 7 and stats["alignment_length"] == 6
+    assert stats["genomes"] == 3 and stats["core_threshold"] == 0.95
+    assert stats["core_genes_available"] is None
+    assert stats["variable_sites_total"] is None and stats["informative_sites_total"] is None
+    assert stats["gene_table"] is None and stats["partitions"] is None
+    assert stats["selection"] == {
+        "max_genes": 0,
+        "rank": "occupancy",
+        "min_length": 0,
+        "max_gaps": None,
+        "seed": 0,
+    }
+    with pytest.raises(UserInputError, match="returns no per-gene alignments"):
+        coregene_core(
+            _gffs(tmp_path),
+            tmp_path / "m2",
+            tmp_path / "s2",
+            CoreGeneParams(),
+            "fakecg",
+            _LOG,
+            selection=GeneSelection(max_genes=10),
+        )

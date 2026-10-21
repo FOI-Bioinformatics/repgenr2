@@ -29,7 +29,7 @@ import os
 import re
 import shutil
 from collections.abc import Collection, Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -62,6 +62,7 @@ from ..core.sketches import (
     directory_provider,
     workdir_provider,
 )
+from ..coregenes.select import GeneSelection
 from ..tree.alignment import ALIGNMENT_STATS, copy_alignment_stats, read_constant_sites
 from ..tree.medoid import (
     REFERENCE_RULES as REFERENCE_RULES_ALL,
@@ -89,7 +90,23 @@ from ..treebuilders.base import registry as treebuilder_registry
 __all__ = ["PhyloParams", "PhyloBuildParams", "build_tree", "phylo_build", "run", "list_fasta"]
 
 # Keys the phylo stage reads itself; never forwarded to an adapter.
-_STAGE_EXTRA_KEYS = frozenset({"mask", "core_fraction", "core_threshold", "clean_mode", "filtered"})
+_STAGE_EXTRA_KEYS = frozenset(
+    {
+        "mask",
+        "core_fraction",
+        "core_threshold",
+        "clean_mode",
+        "filtered",
+        # The core-gene selection (coregenes/select.py); read by _gene_selection.
+        "max_core_genes",
+        "gene_rank",
+        "min_gene_length",
+        "max_gene_gaps",
+    }
+)
+# Bump when the rule that lays the selected genes out in the core-gene
+# concatenation changes, so an alignment built by the old rule is rebuilt.
+_COREGENE_LAYOUT = 1
 
 
 def _core_fraction(extra: Mapping[str, object]) -> float | None:
@@ -119,6 +136,38 @@ def _core_threshold(extra: Mapping[str, object]) -> float:
     if not 0.0 < value <= 1.0:
         raise UserInputError(f"--core-threshold must be within (0, 1], got {raw!r}")
     return value
+
+
+def _gene_selection(extra: Mapping[str, object]) -> GeneSelection:
+    """The core-gene selection carried in the stage extras; the defaults keep
+    every gene, ranked by occupancy. Values are validated by GeneSelection."""
+
+    def raw(key: str) -> str | None:
+        value = extra.get(key)
+        return None if value is None or str(value).strip() == "" else str(value).strip()
+
+    def integer(key: str, default: int) -> int:
+        value = raw(key)
+        if value is None:
+            return default
+        try:
+            return int(value)
+        except ValueError:
+            raise UserInputError(f"{key} must be an integer, got {value!r}") from None
+
+    gaps = raw("max_gene_gaps")
+    try:
+        max_gaps = float(gaps) if gaps is not None else None
+    except ValueError:
+        raise UserInputError(
+            f"max_gene_gaps must be a number between 0 and 1, got {gaps!r}"
+        ) from None
+    return GeneSelection(
+        max_genes=integer("max_core_genes", 0),
+        rank=raw("gene_rank") or "occupancy",
+        min_length=integer("min_gene_length", 0),
+        max_gaps=max_gaps,
+    )
 
 
 def _filtered(extra: Mapping[str, object]) -> bool:
@@ -358,6 +407,8 @@ def _msa_key(
             "clean_mode": _coregene_setting(params, "clean_mode"),
             "filtered": _coregene_setting(params, "filtered"),
             "annotations": annotations,
+            "layout": _COREGENE_LAYOUT,
+            "selection": asdict(_gene_selection(params.extra)),
         }
     blob = json.dumps(payload, sort_keys=True, default=str)
     return hashlib.sha256(blob.encode("utf-8")).hexdigest()
@@ -1629,7 +1680,9 @@ def _build_msa(
             logger,
             warn_extras=False,
             required=(record_name(outgroup_file),) if outgroup_file is not None else (),
+            selection=_gene_selection(params.extra),
         )
+        assert cg_result.alignment is not None  # coregene_core always publishes one
         return cg_result.alignment, versions
 
     raise UserInputError(f"Unknown msa-source '{params.msa_source}' (aligner|snptype|coregene)")
