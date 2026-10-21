@@ -89,7 +89,7 @@ is 'vmetadata --source'. --platform filters the sequencing platform with
 | `--refine-file` |  | TSV with the columns seed and ani: several lineages, each refined at its own ANI (the seeds of one ANI form one lineage). |
 | `--tool-arg` |  | Tool tuning as key=value (repeatable), e.g. mode=greedy. |
 | `--with-snptype` | off | Run the standalone snptype stage (with --snptyper, --mask, --reference) after dereplication, so the SNP tables are produced whatever builds the tree. |
-| `--treebuilder` | `iqtree` | auto, fasttree, iqtree, mashtree, raxmlng, ska2, skani, sourmash, veryfasttree. |
+| `--treebuilder` | `iqtree` | auto, aster, fasttree, iqtree, mashtree, raxmlng, ska2, skani, sourmash, veryfasttree. |
 | `--msa-source` | `aligner` | aligner, snptype or coregene (a concatenated core-gene alignment from the annotations the annotate stage wrote). |
 | `--aligner` | `progressivemauve` | cactus, progressivemauve, sibeliaz. |
 | `--snptyper` | `simple` | SNP typer: parsnp, simple, ska2, snippy. |
@@ -433,7 +433,7 @@ Build a phylogenetic tree from an alignment, SNP alignment, or directly.
 | option | default | description |
 |---|---|---|
 | `-wd`, `--workdir` | required | Working directory. |
-| `--treebuilder` | `iqtree` | auto, fasttree, iqtree, mashtree, raxmlng, ska2, skani, sourmash, veryfasttree. |
+| `--treebuilder` | `iqtree` | auto, aster, fasttree, iqtree, mashtree, raxmlng, ska2, skani, sourmash, veryfasttree. |
 | `--msa-source` | `aligner` | aligner, snptype or coregene (a concatenated core-gene alignment from the annotations the annotate stage wrote). |
 | `--aligner` | `progressivemauve` | cactus, progressivemauve, sibeliaz. |
 | `--snptyper` | `simple` | SNP typer: parsnp, simple, ska2, snippy. |
@@ -759,7 +759,7 @@ Here --outgroup-accession takes a file that names the accession, not the accessi
 | `-o`, `--out` | required | Output dir (writes tree/tree.nwk). |
 | `--outgroup-dir` |  | Directory holding the outgroup genome file(s). |
 | `--outgroup-accession` |  | File naming the outgroup accession. |
-| `--treebuilder` | `iqtree` | auto, fasttree, iqtree, mashtree, raxmlng, ska2, skani, sourmash, veryfasttree. |
+| `--treebuilder` | `iqtree` | auto, aster, fasttree, iqtree, mashtree, raxmlng, ska2, skani, sourmash, veryfasttree. |
 | `--msa-source` | `aligner` | aligner, snptype or coregene (a concatenated core-gene alignment from the annotations the annotate stage wrote). |
 | `--aligner` | `progressivemauve` | cactus, progressivemauve, sibeliaz. |
 | `--snptyper` | `simple` | SNP typer: parsnp, simple, ska2, snippy. |

@@ -151,13 +151,13 @@ The phylo stage combines independent choices:
   typer's core-SNP alignment, or a concatenated core-gene alignment built
   from the `annotate` stage's annotations (`--msa-source aligner`, `snptype`
   or `coregene`); skipped for alignment-free tree builders;
-* tree builder: MSA-based (iqtree, fasttree, veryfasttree, raxmlng) or
+* tree builder: MSA-based (iqtree, fasttree, veryfasttree, raxmlng, aster) or
   alignment-free (mashtree, sourmash, skani, ska2).
 
 The stage adds the outgroup genome (a genome outside the target taxon, used
 to root the tree) to the input set and passes it to the builders that can
-root (iqtree, raxmlng). mashtree, fasttree, veryfasttree, sourmash, skani and
-ska2 emit an unrooted tree. `phylo --root` then roots the published tree (on
+root (iqtree, raxmlng). mashtree, fasttree, veryfasttree, sourmash, skani,
+ska2 and aster emit an unrooted tree. `phylo --root` then roots the published tree (on
 the outgroup edge by default, at the midpoint, or not at all) and keeps the
 builder's output as `tree/tree.unrooted.nwk`. tree2tax reroots on the
 outgroup only when the tree is not already rooted there, and keeps a midpoint

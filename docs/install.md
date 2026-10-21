@@ -92,7 +92,7 @@ on every change to `envs/` and once a week (`.github/workflows/envs.yml`).
 
 | File | Environment | Contents | Platforms that solve |
 |---|---|---|---|
-| `envs/core.yml` | `repgenr` | Python 3.12, RepGenR2, sourmash and branchwater, skDER, skani, galah, dRep, datasets, SibeliaZ, minimap2, samtools, bcftools, ska2, skesa, shovill, flye, medaka, racon, FastTree, VeryFastTree, IQ-TREE, RAxML-NG, rapidNJ, sra-tools (`fastq-dump` for `reads-sketch`) | linux-64, osx-arm64 |
+| `envs/core.yml` | `repgenr` | Python 3.12, RepGenR2, sourmash and branchwater, skDER, skani, galah, dRep, datasets, SibeliaZ, minimap2, samtools, bcftools, ska2, skesa, shovill, flye, medaka, racon, FastTree, VeryFastTree, IQ-TREE, RAxML-NG, ASTER, rapidNJ, sra-tools (`fastq-dump` for `reads-sketch`) | linux-64, osx-arm64 |
 | `envs/gubbins.yml` | `repgenr-gubbins` | Gubbins (Python 3.10, with its own IQ-TREE 2 and RAxML) | linux-64, osx-64, osx-arm64 |
 | `envs/mashtree.yml` | `repgenr-mashtree` | mashtree (brings samtools 0.1.19) | linux-64, osx-64, osx-arm64 |
 | `envs/snippy.yml` | `repgenr-snippy` | snippy 4.6 | linux-64, osx-64 |
@@ -351,6 +351,7 @@ the `envs/` files, and the environment that holds each tool is listed in
 | Tree builder | sourmash | `sourmash` | yes | `sourmash:4.9.4` | `rapidnj` for the joining step; without it more than 5000 leaves are refused (optional; `rapidnj:2.3.3` under a container backend) |
 | Tree builder | skani | `skani` | no record (offline contract test only) | `skani:0.3.2` | `rapidnj` for the joining step above a few thousand leaves (optional; `rapidnj:2.3.3` under a container backend) |
 | Tree builder | ska2 | `ska2` | no record (offline contract test only) | `ska2:0.5.1` | `rapidnj` for the joining step above a few thousand leaves (optional) |
+| Tree builder | aster | `aster` | yes | `aster:1.25` | IQ-TREE or FastTree for the gene trees, which run in their own images under a container backend |
 
 The genome download steps also need `ncbi-datasets-cli`.
 

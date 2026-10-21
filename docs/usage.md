@@ -2440,6 +2440,8 @@ parameters and run time.
   (`GTR+G, <gene> = <start>-<end>`, or the `--aligner-arg model=` given) and is
   run with `--model partitions.txt`; branch lengths are scaled per partition,
   RAxML-NG's default.
+- `aster` does not fit a partition model: it builds one tree per partition
+  and summarises them (see [Species tree from gene trees](#species-tree-from-gene-trees)).
 - Other tree builders read no partitions: the stage warns that the builder
   ignores them and fits one model.
 
@@ -2461,6 +2463,47 @@ stage record holds `partitioned`.
 ```bash
 repgenr phylo -wd $WD --msa-source coregene --max-core-genes 300 \
     --gene-rank informative --treebuilder iqtree --partitioned -B 1000
+```
+
+#### Species tree from gene trees
+
+`--treebuilder aster` infers one tree per core gene and summarises the gene
+trees into a species tree with ASTER (github.com/chaoszhang/ASTER, the
+maintained successor of ASTRAL). It reads the gene partitions, so it needs
+`--msa-source coregene --partitioned`; without them it is refused, and
+`auto` never picks it.
+
+1. The alignment is cut into one FASTA per gene (`tree/genes/`). A genome
+   with no called character in a gene is left out of that gene; a gene with
+   fewer than 4 remaining genomes, or shorter than `--aligner-arg
+   min_gene_length=` columns, is skipped and counted in the log.
+2. Each gene tree is inferred with one thread, the genes run in batches
+   over `-t` threads. The default is IQ-TREE with `--fast`, `GTR+G` (`LG+G`
+   for a protein alignment, or `--aligner-arg model=`) and aBayes supports;
+   `--aligner-arg gene_tree_builder=fasttree` uses FastTree (`-nt -gtr`, or
+   `-lg`) with its SH-like local supports. The gene trees are collected in
+   `tree/gene_trees.nwk`, one per line.
+3. ASTER summarises them (`--aligner-arg program=`):
+   - `wastral` (default): weighted ASTRAL, which weights each gene-tree
+     quartet by its support and branch length. Internal branch lengths are
+     in coalescent units and terminal branches have none, so `--root
+     midpoint` is refused; root on the outgroup instead.
+   - `astral4`: unweighted ASTRAL-IV, with branch lengths in substitutions
+     per site.
+   - `astral-pro3`: ASTRAL-Pro3; with one record per genome it gives the
+     same kind of tree as `astral4`.
+
+   `--aligner-arg rounds=N` sets ASTER's rounds of placement and
+   subsampling (`-r N -s N`; 4 each by default).
+
+Node labels are local posterior probabilities in [0, 1]: they are written
+without `-B`, and tree2tax `--collapse-support` reads them on that scale.
+The outgroup, when one is staged, is a genome like the others in the gene
+trees, and `phylo --root` roots the species tree afterwards.
+
+```bash
+repgenr phylo -wd $WD --msa-source coregene --max-core-genes 500 \
+    --gene-rank informative --treebuilder aster --partitioned
 ```
 
 #### Panaroo and its clustering identity
@@ -2690,7 +2733,7 @@ FlexTaxD node. All thresholds are off by default.
   substitutions per site for the ML builders).
 - `--collapse-support S` merges a node whose support is below the fraction S.
   IQ-TREE and RAxML-NG write percentages and are normalised automatically,
-  FastTree writes fractions, and mashtree, the sourmash builder, skani and
+  FastTree and aster write fractions, and mashtree, the sourmash builder, skani and
   the ska2 builder write no supports, in which case the option warns and
   does nothing.
 

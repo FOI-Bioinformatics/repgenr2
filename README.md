@@ -117,7 +117,7 @@ is built from (`phylo`, `snptype`).
 
 | Family | Built-in adapters |
 |--------|-------------------|
-| Tree builders | from an MSA: `iqtree`, `fasttree`, `veryfasttree`, `raxmlng`; alignment-free, from the genomes: `mashtree`, `sourmash`, `skani`, `ska2` |
+| Tree builders | from an MSA: `iqtree`, `fasttree`, `veryfasttree`, `raxmlng`, and `aster` (a species tree from the gene trees of a core-gene alignment); alignment-free, from the genomes: `mashtree`, `sourmash`, `skani`, `ska2` |
 
 `repgenr list-tools` prints what is available in the current environment.
 [docs/choosing-tools.md](docs/choosing-tools.md) describes which tools suit a

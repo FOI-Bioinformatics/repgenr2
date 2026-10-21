@@ -773,3 +773,65 @@ def test_record_carries_partitioned(workdir: Path, part_tools) -> None:
     # A tree-side setting: the alignment is reused.
     assert len(_TwoGeneCoreGene.calls) == calls
     assert _PartTree.parts[-1][0] == (("gyrA", 1, 6), ("rec/A", 7, 10))
+
+
+def test_aster_with_partitioned_reaches_the_builder(
+    tmp_path: Path, part_tools, monkeypatch
+) -> None:
+    """--treebuilder aster --partitioned: one gene tree per partition, then ASTER."""
+    from repgenr.treebuilders import aster as aster_mod
+
+    seen: list = []
+    chains: list[list[str]] = []
+    real_build = aster_mod.AsterBuilder.build
+
+    def build(self, msa, out_dir, params, logger):
+        seen.append(params.partitions)
+        return real_build(self, msa, out_dir, params, logger)
+
+    def run_chain(caps, steps, **k):
+        for _, cmd in steps:
+            cmd = [str(c) for c in cmd]
+            chains.append(cmd)
+            fasta = Path(cmd[cmd.index("-s") + 1])
+            names = [
+                ln[1:]
+                for ln in fasta.read_text(encoding="utf-8").splitlines()
+                if ln.startswith(">")
+            ]
+            Path(cmd[cmd.index("-pre") + 1] + ".treefile").write_text(
+                f"({names[0]},{names[1]},({','.join(names[2:])})/1:1);\n",
+                encoding="utf-8",
+            )
+
+    def run_tool(caps, cmd, **k):
+        cmd = [str(c) for c in cmd]
+        first = Path(cmd[cmd.index("-i") + 1]).read_text(encoding="utf-8").splitlines()[0]
+        Path(cmd[cmd.index("-o") + 1]).write_text(first + "\n", encoding="utf-8")
+        return 0
+
+    monkeypatch.setattr(aster_mod.AsterBuilder, "build", build)
+    monkeypatch.setattr(aster_mod, "run_chain", run_chain)
+    monkeypatch.setattr(aster_mod, "run_tool", run_tool)
+    monkeypatch.setattr(aster_mod, "preflight", lambda caps: {caps.name: "1.0"})
+    monkeypatch.setattr(aster_mod, "_program_version", lambda caps, program: "")
+    gdir = tmp_path / "genomes"
+    gdir.mkdir()
+    for i in range(1, 5):
+        (gdir / f"Fam_gen_sp_GCA_00000{i}.fasta").write_text(f">s{i}\nACGT\n", encoding="utf-8")
+    out = phylo_build(
+        PhyloBuildParams(
+            genomes_dir=gdir,
+            out_dir=tmp_path / "out",
+            phylo=_params(
+                coregene="fakecg_genes", treebuilder="aster", extra={"partitioned": True}
+            ),
+            annotator="fakeannot",
+        ),
+        _LOG,
+    )
+    assert seen == [(("gyrA", 1, 6), ("rec/A", 7, 10))]
+    assert len(chains) == 2
+    tree_dir = tmp_path / "out" / "tree"
+    assert len((tree_dir / "gene_trees.nwk").read_text(encoding="utf-8").splitlines()) == 2
+    assert out.is_file()
