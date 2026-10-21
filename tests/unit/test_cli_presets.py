@@ -187,7 +187,12 @@ def test_another_tree_builder_drops_the_preset_tuning(built, tmp_path, command) 
     params = _invoke(built, [*base, "--preset", "outbreak", "--treebuilder", "fasttree"])
     assert params.treebuilder == "fasttree" and params.extra == {}
     assert params.bootstrap == 1000
+    # raxmlng reads the IQ-TREE model key and partitions, so both stay.
+    params = _invoke(built, [*base, "--preset", "outbreak", "--treebuilder", "raxmlng"])
+    assert params.extra == {"model": "GTR+G"}
     params = _invoke(built, [*base, "--preset", "genus", "--treebuilder", "raxmlng"])
+    assert params.extra["partitioned"] is True and params.extra["max_core_genes"] == 300
+    params = _invoke(built, [*base, "--preset", "genus", "--treebuilder", "fasttree"])
     assert "partitioned" not in params.extra and params.extra["max_core_genes"] == 300
     # The preset's own tree builder, given explicitly, keeps the tuning.
     params = _invoke(built, [*base, "--preset", "genus", "--treebuilder", "iqtree"])
@@ -215,6 +220,18 @@ def test_unknown_preset_is_refused(built, tmp_path, command) -> None:
     text = _text(result)
     assert "--preset" in text and "outbreak" in text
     assert not any(isinstance(o, PhyloParams) for o in built)
+
+
+@pytest.mark.parametrize("command", sorted(COMMANDS))
+def test_unknown_preset_exits_with_the_usage_code(tmp_path, command) -> None:
+    """Through the real _run (and stage_errors) rather than the recorder."""
+    from repgenr.core.errors import UserInputError
+
+    (tmp_path / "wd").mkdir()
+    result = _runner.invoke(app, [*COMMANDS[command](tmp_path), "--preset", "strain"])
+    assert result.exit_code == UserInputError.exit_code == 2, _text(result)
+    assert "Invalid --preset 'strain'" in _text(result)
+    assert not (tmp_path / "wd" / "tree").exists()
 
 
 # --- phylo-advise ------------------------------------------------------------------------

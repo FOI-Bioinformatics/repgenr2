@@ -158,9 +158,31 @@ _VALUELESS = frozenset({"--partitioned"})
 # Long forms of the short options a preset uses, so an explicit flag is
 # matched whichever spelling it has.
 _ALIASES = {"--bootstrap": "-B"}
-# Tuning of the preset's tree builder: dropped when another tree builder is
-# chosen, since it may not read it (FastTree reads no model= and no partitions).
+# Tuning of the preset's tree builder. When another tree builder is chosen,
+# an item it does not read is dropped (FastTree reads no model= and no
+# partitions); see builder_reads.
 TREE_TUNING = frozenset({"--aligner-arg", "--partitioned"})
+
+
+def builder_reads(treebuilder: str, opt: str, value: str | None) -> bool:
+    """Whether ``treebuilder`` reads the tuning item ``opt value``: partitions
+    when it declares ``supports_partitions``, a ``--aligner-arg key=...``
+    when the key is among its accepted extras or default parameters. An
+    unknown builder, or ``auto``, reads none of it."""
+    from ..core.errors import PluginError
+    from ..treebuilders.base import registry
+
+    try:
+        cls = registry.get(treebuilder)
+    except PluginError:
+        return False
+    if opt == "--partitioned":
+        return bool(cls.supports_partitions)
+    if opt == "--aligner-arg":
+        key = (value or "").partition("=")[0].strip()
+        caps = cls.capabilities
+        return key in caps.accepted_extras or key in caps.default_params
+    return True
 
 
 def preset_flags(name: str) -> list[str]:
@@ -187,8 +209,8 @@ def expand_preset(name: str, flags: Sequence[str] = ()) -> list[str]:
     """The flags of preset ``name`` combined with explicit ``flags``, by the
     rule the commands apply: an explicit option replaces the preset's value,
     except --aligner-arg, whose values follow the preset's; an explicit
-    --treebuilder other than the preset's drops the preset's tree-builder
-    tuning (TREE_TUNING)."""
+    --treebuilder other than the preset's drops the items of the preset's
+    tree-builder tuning (TREE_TUNING) that the new builder does not read."""
     preset = flag_items(preset_flags(name))
     given = flag_items(flags)
     given_opts = {opt for opt, _ in given}
@@ -198,7 +220,9 @@ def expand_preset(name: str, flags: Sequence[str] = ()) -> list[str]:
     kept = [
         (opt, value)
         for opt, value in preset
-        if not (builder_changed and opt in TREE_TUNING)
+        if not (
+            builder_changed and opt in TREE_TUNING and not builder_reads(str(new_tb), opt, value)
+        )
         and not (opt in given_opts and opt != "--aligner-arg")
     ]
     out: list[str] = []
@@ -470,7 +494,8 @@ def advise(evidence: Evidence) -> Recommendation:
         reasons.append(
             f"{evidence.n_genomes} genomes are above the declared IQ-TREE limit of {limit}; "
             "use `--treebuilder fasttree` instead (SH-like supports from the -B resamples; "
-            "the IQ-TREE model and the partitions are dropped)."
+            "the IQ-TREE model and the partitions, which FastTree does not read, are "
+            "dropped)."
         )
     if not evidence.outgroup:
         added += ["--root", "midpoint"]

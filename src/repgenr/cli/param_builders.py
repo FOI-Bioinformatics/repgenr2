@@ -536,7 +536,8 @@ def apply_preset(ctx: Any, preset: str | None) -> dict[str, Any]:
     default, and a value of the preset fills each option left at its default.
     --aligner-arg values add to the preset's (a repeated key takes the
     user's value). An explicit --treebuilder other than the preset's drops
-    the preset's tree-builder tuning (--aligner-arg, --partitioned). A
+    the items of the preset's tree-builder tuning (--aligner-arg,
+    --partitioned) that the new builder does not read. A
     --msa-source other than the preset's is refused: the preset's settings
     belong to its route.
     """
@@ -545,7 +546,13 @@ def apply_preset(ctx: Any, preset: str | None) -> dict[str, Any]:
     if preset is None:
         return values
     from ..core.errors import UserInputError
-    from ..stages.advise import RECOMMENDATIONS, TREE_TUNING, flag_items, preset_flags
+    from ..stages.advise import (
+        RECOMMENDATIONS,
+        TREE_TUNING,
+        builder_reads,
+        flag_items,
+        preset_flags,
+    )
 
     _require_choice(preset, set(RECOMMENDATIONS), "--preset")
     by_opt = {opt: param for param in ctx.command.params for opt in getattr(param, "opts", ())}
@@ -564,7 +571,11 @@ def apply_preset(ctx: Any, preset: str | None) -> dict[str, Any]:
                 f"--preset {preset} sets --msa-source {raw}; --msa-source {values[name]} "
                 "changes the route, so give its settings without --preset."
             )
-        if builder_changed and opt in TREE_TUNING:
+        if (
+            builder_changed
+            and opt in TREE_TUNING
+            and not builder_reads(values["treebuilder"], opt, raw)
+        ):
             continue
         if param.multiple:
             preset_lists.setdefault(name, []).append(str(raw))

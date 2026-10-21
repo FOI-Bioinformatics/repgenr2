@@ -14,7 +14,8 @@ All notable changes to RepGenR2 are documented here. The format follows
   overrides the preset, also at its default value (read from the Click
   parameter source); `--aligner-arg` values add to the preset's; a
   `--treebuilder` other than the preset's drops the preset's `--aligner-arg`
-  and `--partitioned`; a different `--msa-source` is refused. The phylo stage
+  keys and `--partitioned` where that builder does not read them
+  (`builder_reads`: its accepted extras and `supports_partitions`); a different `--msa-source` is refused. The phylo stage
   record gains `preset`; the MSA key and the resume fingerprint read only the
   expanded settings. On `run` the core-gene presets add the annotate stage.
   In Nextflow, `--preset genus` or `family` in `phylo_args` starts

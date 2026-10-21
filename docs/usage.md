@@ -2081,10 +2081,15 @@ The preset is read as if its flags were given before the user's own:
   user's value, so `--preset outbreak --aligner-arg model=GTR+G+I` changes
   the model.
 - **A `--treebuilder` other than the preset's drops the preset's tree-builder
-  tuning**, its `--aligner-arg` values and `--partitioned`, which the other
-  builder may not read. `-B` is kept.
+  tuning that builder does not read**: an `--aligner-arg` key outside its
+  accepted parameters, and `--partitioned` for a builder without partition
+  support. `--preset genus --treebuilder raxmlng` keeps `--partitioned`;
+  `--treebuilder fasttree` drops it and the IQ-TREE model. `-B` is kept.
 - **A `--msa-source` other than the preset's is refused**: the preset's
   settings belong to its route. Give the flags without `--preset` instead.
+- **A preset's settings cannot be removed while keeping its route.** There
+  is no `--no-partitioned` and no way to unset `--core-threshold`; to leave
+  one out, write the preset's other flags out without `--preset`.
 
 Per-gene trimming (`--gene-trim clipkit`) is not part of any preset; add it
 to `genus` or `family` when wanted. On `run`, the `genus` and `family`

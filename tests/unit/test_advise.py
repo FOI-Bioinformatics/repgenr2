@@ -93,8 +93,14 @@ def test_expand_preset_rules() -> None:
     out = mod.expand_preset("outbreak", ["--aligner-arg", "x=1"])
     assert "model=GTR+G" in out and out[-2:] == ["--aligner-arg", "x=1"]
     # Another tree builder drops the preset's tree-builder tuning.
-    out = mod.expand_preset("genus", ["--treebuilder", "raxmlng"])
+    out = mod.expand_preset("genus", ["--treebuilder", "fasttree"])
     assert "--partitioned" not in out and out.count("--treebuilder") == 1
+    out = mod.expand_preset("outbreak", ["--treebuilder", "fasttree"])
+    assert "model=GTR+G" not in out
+    # Unless the new builder reads it: raxmlng takes partitions and model=.
+    assert "--partitioned" in mod.expand_preset("genus", ["--treebuilder", "raxmlng"])
+    assert "model=GTR+G" in mod.expand_preset("outbreak", ["--treebuilder", "raxmlng"])
+    assert not mod.builder_reads("auto", "--partitioned", None)
     assert mod.expand_preset("genus", ["--treebuilder", "iqtree"]).count("--partitioned") == 1
 
 

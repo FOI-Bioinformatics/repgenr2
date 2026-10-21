@@ -192,7 +192,8 @@ HELP_PRESET = (
     "sets the MSA source, tree builder and their settings. An option given on the command "
     "line overrides the preset, also at its default value; --aligner-arg values add to the "
     "preset's. A --treebuilder other than the preset's drops the preset's --aligner-arg and "
-    "--partitioned, and a different --msa-source is refused."
+    "--partitioned where that builder does not read them, and a different --msa-source is "
+    "refused. A preset setting cannot be removed; write the flags out without --preset then."
 )
 HELP_PARTITIONED = (
     "With --msa-source coregene: fit one substitution model per core gene (an edge-linked "
