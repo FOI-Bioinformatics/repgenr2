@@ -706,6 +706,15 @@ comparison of support values.
   more, where the clustering builders find few genes; such a set was not
   run here.
 
+### sourmash dereplication back-ends on the same genomes (2026-10-21)
+
+On the 24 Wolbachia genomes, `repgenr dereplicate --tool sourmash
+--secondary-ani 0.95` gave 6 representatives with identical membership on
+the sparse back-end (branchwater plugin) and on the dense back-end
+(`sourmash compare --avg-containment`, the plugin hidden by a `--bin-dir`
+wrapper), and the records name the back-end in `tool_settings` (the dense
+one with 136 of 276 pairs of unknown ANI).
+
 ### Gzipped genomes in the aligners and typers (2026-10-08)
 
 * **Data:** gzipped genomes from `pureclone_20` (three or four `.fasta.gz`
@@ -995,7 +1004,7 @@ the observation says so.
 | Resume | `metadata --metadata-path`, `reads --accession-file` and `assemble --outgroup` record relative paths as given, as ingest did before this audit. |
 | vgenome | On the NCBI Virus path the species is the record's organism name, which is often a strain or an older name (Orthohantavirus: `Hantaanvirus-CGAa1011`; Mammarenavirus: `Argentinian mammarenavirus` and `Mammarenavirus juninense` under one taxid). One species then splits into several species tokens, which affects `--target-species`, the median-of-medians window and the outgroup candidates. A lineage-derived binomial is proposed in the deep-audit report. Addressed in #227 (defects table): the species is now the current NCBI Taxonomy species of the taxid. |
 | vgenome | NCBI Virus segment labels are not normalised (`M`, `M; medium`, `middle`), so one segment can count as two labels when an isolate mixes them. Addressed in #227 (defects table): labels are normalised. |
-| dereplicate | On `mixed_1000_clustered` (20 truth clusters) skder, galah, sourmash sparse and sourmash dense all recover the truth partition at the defaults (adjusted Rand index 1.0); sparse and dense pick different representatives within clusters, as choosing-tools.md states. |
+| dereplicate | On `mixed_1000_clustered` (20 truth clusters) skder, galah, sourmash sparse and sourmash dense all recover the truth partition at the defaults (adjusted Rand index 1.0); sparse and dense picked different representatives within clusters (measured before the dense back-end read average containment, 2026-10-21; not measured again on this set). |
 | dereplicate | Without manifest quality, galah picks a 40 percent fragment as the representative of its cluster (input order), and sourmash keeps the fragment as its own cluster (k-mer similarity counts the missing part). `--keeper quality` with manifest quality corrects the first. See also #233 and #254 in the defects table (galah input order by file size; the keeper's replacement rule). |
 | dereplicate | `--target-reps` with `--process-size` re-sketches the union of chunk representatives at each search step, since the union changes with the threshold; on 50 genomes the search took 87 s against 22 s unchunked. Addressed in #233 (defects table) for sourmash: the union is now assembled from the chunk zips. |
 | doctor | The first-bytes FASTA check reads every genome: 28 s for 1000 genomes on an exFAT USB volume (about 35 ms per file, not cached between runs); 8 to 16 threads gave 1.3 to 1.7 times. `status` reads no genome content and takes 0.4 s there. `doctor --quick` skips the check (#242). |

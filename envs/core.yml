@@ -17,7 +17,7 @@ dependencies:
   - skder>=1.0
   - skani>=0.2
   - galah>=0.4
-  - sourmash>=4.0
+  - sourmash>=4.4
   - sourmash_plugin_branchwater>=0.9
   - ncbi-datasets-cli
   - sra-tools>=3.0        # fastq-dump for reads-sketch

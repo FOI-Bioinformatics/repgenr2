@@ -27,14 +27,23 @@ def _describe_row(name: str, n_hashes: int, *, ksize: int = 31, scaled: int = 10
 
 # --- the matrix guard ----------------------------------------------------------------
 
-# a-b close; a-c about 5 shared hashes of 1150 each (sourmash ANI estimate
-# 0.836795); b-c none.
-_SIM = np.array([[1.0, 0.5, 0.002], [0.5, 1.0, 0.0], [0.002, 0.0, 1.0]])
+
+def _pair(shared: float, a: float, b: float) -> np.ndarray:
+    """Average containment of sketches of ``a`` and ``b`` hashes sharing ``shared``."""
+    c = (shared / a + shared / b) / 2
+    return np.array([[1.0, c], [c, 1.0]])
+
+
+# Average containment of three sketches of 1150 hashes each: a-b close; a-c
+# about 5 shared hashes (ANI estimate 0.836795); b-c none. For sketches of
+# one size the average containment is 2j/(1+j) of the Jaccard index j.
+_JAC = np.array([[1.0, 0.5, 0.002], [0.5, 1.0, 0.0], [0.002, 0.0, 1.0]])
+_SIM = 2 * _JAC / (1 + _JAC)
 
 
 def test_matrix_guard_marks_pairs_with_few_shared_hashes_unknown() -> None:
     assert core.MIN_SHARED_HASHES == 30 and core.MIN_SHARED_FRACTION == 0.1
-    ani, n_unknown = core.jaccard_to_ani_matrix(_SIM, 31, n_hashes=[1150] * 3)
+    ani, n_unknown = core.containment_to_ani_matrix(_SIM, 31, n_hashes=[1150] * 3)
     assert n_unknown == 2
     assert np.isnan(ani[0, 2]) and np.isnan(ani[2, 0]) and np.isnan(ani[1, 2])
     assert np.all(np.diag(ani) == 1.0)
@@ -42,7 +51,7 @@ def test_matrix_guard_marks_pairs_with_few_shared_hashes_unknown() -> None:
 
 
 def test_matrix_without_sizes_is_unchanged() -> None:
-    ani, n_unknown = core.jaccard_to_ani_matrix(_SIM, 31)
+    ani, n_unknown = core.containment_to_ani_matrix(_SIM, 31)
     assert n_unknown == 0 and not np.isnan(ani).any()
     assert ani[0, 2] == pytest.approx(0.836795, rel=1e-5)  # the sourmash estimate
     assert ani[1, 2] == 0.0 and np.all(np.diag(ani) == 1.0)
@@ -50,36 +59,30 @@ def test_matrix_without_sizes_is_unchanged() -> None:
 
 def test_matrix_guard_follows_the_size() -> None:
     """The same Jaccard on larger sketches is more shared hashes (a-c: 80)."""
-    _ani, n_unknown = core.jaccard_to_ani_matrix(_SIM, 31, n_hashes=[20000] * 3)
+    _ani, n_unknown = core.containment_to_ani_matrix(_SIM, 31, n_hashes=[20000] * 3)
     assert n_unknown == 1  # only the pair without a shared hash
 
 
 @pytest.mark.parametrize(("shared", "unknown"), [(29, True), (30, False), (31, False)])
 def test_matrix_guard_boundary(shared, unknown) -> None:
-    """Sketches of 1000 hashes each sharing ``shared``: Jaccard s / (2000 - s)."""
-    j = shared / (2000 - shared)
-    sim = np.array([[1.0, j], [j, 1.0]])
-    ani, n_unknown = core.jaccard_to_ani_matrix(sim, 21, n_hashes=[1000, 1000])
+    """Sketches of 1000 hashes each sharing ``shared``: containment s / 1000."""
+    sim = _pair(shared, 1000, 1000)
+    ani, n_unknown = core.containment_to_ani_matrix(sim, 21, n_hashes=[1000, 1000])
     assert n_unknown == int(unknown)
     assert bool(np.isnan(ani[0, 1])) is unknown
     # The threshold can be lowered.
-    assert core.jaccard_to_ani_matrix(sim, 21, n_hashes=[1000, 1000], min_shared=10)[1] == 0
-
-
-def _pair(shared: float, a: float, b: float) -> np.ndarray:
-    j = shared / (a + b - shared)
-    return np.array([[1.0, j], [j, 1.0]])
+    assert core.containment_to_ani_matrix(sim, 21, n_hashes=[1000, 1000], min_shared=10)[1] == 0
 
 
 def test_identical_small_sketches_stay_known() -> None:
     """A 7.5 kb viral genome has about 8 hashes at scaled=1000: two identical
     sketches share all 8, below 30 but not below a tenth of the sketch."""
-    ani, n_unknown = core.jaccard_to_ani_matrix(_pair(8, 8, 8), 31, n_hashes=[8, 8])
+    ani, n_unknown = core.containment_to_ani_matrix(_pair(8, 8, 8), 31, n_hashes=[8, 8])
     assert n_unknown == 0 and ani[0, 1] == pytest.approx(1.0)
     # 5 of 8 shared is still informative relative to the sketch.
-    assert core.jaccard_to_ani_matrix(_pair(5, 8, 8), 31, n_hashes=[8, 8])[1] == 0
+    assert core.containment_to_ani_matrix(_pair(5, 8, 8), 31, n_hashes=[8, 8])[1] == 0
     # No shared hash is unknown at any size.
-    assert core.jaccard_to_ani_matrix(_pair(0, 8, 8), 31, n_hashes=[8, 8])[1] == 1
+    assert core.containment_to_ani_matrix(_pair(0, 8, 8), 31, n_hashes=[8, 8])[1] == 1
 
 
 @pytest.mark.parametrize(
@@ -93,21 +96,67 @@ def test_identical_small_sketches_stay_known() -> None:
     ],
 )
 def test_relative_and_absolute_minimum(shared, a, b, unknown) -> None:
-    _ani, n_unknown = core.jaccard_to_ani_matrix(_pair(shared, a, b), 31, n_hashes=[a, b])
+    _ani, n_unknown = core.containment_to_ani_matrix(_pair(shared, a, b), 31, n_hashes=[a, b])
     assert n_unknown == int(unknown)
 
 
 def test_identical_small_sketches_merge_in_greedy_cluster() -> None:
     from repgenr.dereplicators.sourmash import _greedy_cluster
 
-    ani, _n = core.jaccard_to_ani_matrix(_pair(8, 8, 8), 31, n_hashes=[8, 8])
+    ani, _n = core.containment_to_ani_matrix(_pair(8, 8, 8), 31, n_hashes=[8, 8])
     clusters, _status = _greedy_cluster(["v1", "v2"], ani, {"v1": "v1", "v2": "v2"}, 0.95)
     assert clusters == {"v1": ["v2"]}
 
 
+@pytest.mark.parametrize("ksize", [21, 31])
+def test_containment_to_ani_values(ksize) -> None:
+    c = np.array([[1.0, 0.8, 0.0], [0.8, 1.0, 0.05], [0.0, 0.05, 1.0]])
+    ani, n_unknown = core.containment_to_ani_matrix(c, ksize)
+    assert n_unknown == 0 and np.all(np.diag(ani) == 1.0)
+    assert ani[0, 1] == pytest.approx(0.8 ** (1 / ksize))
+    assert ani[1, 2] == pytest.approx(0.05 ** (1 / ksize))
+    assert ani[0, 2] == 0.0  # disjoint stays 0 without sizes
+
+
+@pytest.mark.parametrize(
+    ("shared", "a", "b"), [(500, 1000, 1000), (359, 359, 1198), (40, 300, 5000)]
+)
+def test_shared_count_from_containment_matches_the_jaccard_form(shared, a, b) -> None:
+    """I = 2 c a b / (a + b) from the average containment equals
+    j (a + b) / (1 + j) from the Jaccard index of the same pair."""
+    c = (shared / a + shared / b) / 2
+    j = shared / (a + b - shared)
+    assert 2 * c * a * b / (a + b) == pytest.approx(shared)
+    assert j * (a + b) / (1 + j) == pytest.approx(shared)
+    if a == b:
+        assert c * a == pytest.approx(shared)
+
+
+@pytest.mark.parametrize(("shared", "unknown"), [(29, True), (30, False)])
+def test_matrix_guard_on_sketches_of_unequal_size(shared, unknown) -> None:
+    """1200 and 3000 hashes: a tenth of the smaller is 120, so 30 governs."""
+    _ani, n_unknown = core.containment_to_ani_matrix(
+        _pair(shared, 1200, 3000), 31, n_hashes=[1200, 3000]
+    )
+    assert n_unknown == int(unknown)
+
+
+def test_fragment_against_a_complete_genome() -> None:
+    """A 0.4 Mb fragment (359 hashes, all in the 1198-hash genome; measured
+    with sourmash 4.9.4 at k=31, scaled=1000): average containment 0.6498 and
+    ANI 0.986, where 2j/(1+j) of the Jaccard index would give 0.975."""
+    c = _pair(359, 359, 1198)
+    assert c[0, 1] == pytest.approx(0.6498, abs=1e-4)
+    ani, n_unknown = core.containment_to_ani_matrix(c, 31, n_hashes=[359, 1198])
+    assert n_unknown == 0
+    assert ani[0, 1] == pytest.approx(0.6498 ** (1 / 31), abs=1e-4)
+    j = 359 / 1198
+    assert (2 * j / (1 + j)) ** (1 / 31) < ani[0, 1] - 0.01
+
+
 def test_matrix_guard_rejects_misaligned_sizes() -> None:
     with pytest.raises(ValueError, match="signature sizes"):
-        core.jaccard_to_ani_matrix(_SIM, 31, n_hashes=[1150, 1150])
+        core.containment_to_ani_matrix(_SIM, 31, n_hashes=[1150, 1150])
 
 
 # --- the signature sizes -------------------------------------------------------------
@@ -192,8 +241,10 @@ def _dense(tmp_path: Path, monkeypatch, describe: str | None):
     )
     # compare's column order differs from the file name order.
     labels = ["g3.fasta", "g1.fasta", "g2.fasta"]
+    # Average containment (compare --avg-containment), equal sketch sizes.
     jaccard = np.array([[1.0, 0.002, 0.0], [0.002, 1.0, 0.5], [0.0, 0.5, 1.0]])
-    monkeypatch.setattr(sm, "_read_compare_csv", lambda path: (labels, jaccard))
+    containment = 2 * jaccard / (1 + jaccard)
+    monkeypatch.setattr(sm, "_read_compare_csv", lambda path: (labels, containment))
     out = tmp_path / "out"
     out.mkdir(exist_ok=True)
     return sm.SourmashDereplicator()._dense_ani_matrix(
@@ -289,6 +340,7 @@ def _tree(
             ):
                 (outdir / (Path(line).name + ".sig")).write_text("{}", encoding="utf-8")
         elif cmd[:2] == ["sourmash", "compare"]:
+            seen["compare"] = cmd
             Path(cmd[cmd.index("--csv") + 1]).write_text(
                 ",".join(files) + "\n" + body, encoding="utf-8"
             )
@@ -327,7 +379,20 @@ def test_tree_places_unknown_pairs_at_distance_one(tmp_path: Path, monkeypatch, 
 
 def test_tree_without_sizes_keeps_the_estimate(tmp_path: Path, monkeypatch) -> None:
     seen = _tree(tmp_path, monkeypatch, ["a", "b", "c"], {}, describe=False)
-    assert seen["dist"][0][2] == pytest.approx(1 - 0.836795, rel=1e-4)
+    # The matrix is read as average containment: ANI = c^(1/k).
+    assert seen["dist"][0][2] == pytest.approx(1 - 0.002 ** (1 / 31), rel=1e-6)
+    assert seen["dist"][0][1] == pytest.approx(1 - 0.5 ** (1 / 31), rel=1e-6)
+
+
+@pytest.mark.parametrize(("metric", "flag"), [("ani", True), ("jaccard", False)])
+def test_tree_compare_reads_average_containment_for_ani(
+    tmp_path: Path, monkeypatch, metric, flag
+) -> None:
+    seen = _tree(tmp_path, monkeypatch, ["a", "b", "c"], {"metric": metric}, describe=False)
+    assert ("--avg-containment" in seen["compare"]) is flag
+    if metric == "jaccard":
+        # 1 - Jaccard, nothing converted.
+        assert seen["dist"][0][1] == pytest.approx(0.5)
 
 
 def test_tree_recommends_k21_for_several_genera(tmp_path: Path, monkeypatch, caplog) -> None:

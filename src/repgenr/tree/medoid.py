@@ -45,8 +45,10 @@ def ani_matrix(
 ) -> tuple[list[str], np.ndarray]:
     """Genome file names (sorted) and their N x N ANI-estimate matrix.
 
-    Runs ``sourmash compare`` through the sourmash dereplicator over the
-    given sketches (the workdir's k=31 sketches); nothing is sketched here.
+    Runs ``sourmash compare --avg-containment`` through the sourmash
+    dereplicator over the given sketches (the workdir's k=31 sketches);
+    nothing is sketched here. The ANI is c^(1/k) from the average
+    containment c, the estimate of both dereplication back-ends.
     The dereplicator reads the signature sizes, so a pair with fewer than
     ``MIN_SHARED_HASHES`` shared hashes is NaN.
     """

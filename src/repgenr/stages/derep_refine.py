@@ -68,6 +68,7 @@ _RECORD_KEYS = frozenset(
         "keeper_swaps",
         "stock",
         "tool_args",
+        "tool_settings",
         "refine_seeds",
         "refine_ani",
         "refine_genomes",

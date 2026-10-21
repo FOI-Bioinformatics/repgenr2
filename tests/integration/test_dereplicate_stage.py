@@ -71,6 +71,25 @@ class _PrimaryBlindDereplicator(_FakeDereplicator):
     )
 
 
+class _SettingsDereplicator(_NonScalingDereplicator):
+    """Reports tool settings as the sourmash adapter does; the count of
+    unknown pairs differs between calls of different sizes."""
+
+    capabilities = ToolCapabilities(name="settings", supports_native_scaling=False)
+
+    def dereplicate(self, genomes, out_dir, params, logger) -> DerepResult:
+        genomes = list(genomes)
+        result = super().dereplicate(genomes, out_dir, params, logger)
+        result.settings = {
+            "backend": "dense",
+            "ani_estimate": "average_containment^(1/k)",
+            "ksize": 31,
+            "scaled": 1000,
+            "unknown_pairs": len(genomes),
+        }
+        return result
+
+
 @pytest.fixture
 def fake_tool() -> None:
     registry._load()
@@ -78,12 +97,14 @@ def fake_tool() -> None:
     registry.register("chunky", _NonScalingDereplicator, replace=True)
     registry.register("recording", _RecordingDereplicator, replace=True)
     registry.register("primaryblind", _PrimaryBlindDereplicator, replace=True)
+    registry.register("settings", _SettingsDereplicator, replace=True)
     _RecordingDereplicator.calls = []
     yield
     registry._classes.pop("fake", None)
     registry._classes.pop("chunky", None)
     registry._classes.pop("recording", None)
     registry._classes.pop("primaryblind", None)
+    registry._classes.pop("settings", None)
 
 
 def test_stage_warns_when_tool_ignores_a_set_parameter(
@@ -117,6 +138,51 @@ def test_dereplicate_writes_contract(workdir: Path, genome_files, fake_tool) -> 
     assert summary.representative == genome_files[0].name and summary.n_members == 2
     assert (workdir / "repgenr.yaml").exists()
     assert ctx.config.stages["dereplicate"].tool == "fake"
+
+
+def test_record_has_empty_tool_settings_for_a_tool_without_them(
+    workdir: Path, genome_files, fake_tool
+) -> None:
+    ctx = WorkdirContext(workdir, create=True)
+    run(ctx, DereplicateParams(tool="fake", extra={"opt": "1"}))
+    params = ctx.config.stages["dereplicate"].params
+    assert params["tool_settings"] == {}
+    # The existing keys are unchanged.
+    assert params["tool_args"] == {"opt": "1"} and params["opt"] == "1"
+    assert params["secondary_ani"] == DereplicateParams().secondary_ani
+
+
+def test_record_has_the_tool_settings(workdir: Path, genome_files, fake_tool) -> None:
+    from repgenr.core.config import Config
+
+    ctx = WorkdirContext(workdir, create=True)
+    run(ctx, DereplicateParams(tool="settings", keeper="quality"))
+    params = Config.load(workdir).stages["dereplicate"].params
+    assert params["tool_settings"] == {
+        "backend": "dense",
+        "ani_estimate": "average_containment^(1/k)",
+        "ksize": 31,
+        "scaled": 1000,
+        "unknown_pairs": 3,
+    }
+    assert params["tool_args"] == {}
+
+
+def test_chunked_record_names_the_back_end_once(workdir: Path, genome_files, fake_tool) -> None:
+    gdir = workdir / "genomes"
+    for i in range(4, 7):
+        (gdir / f"Francisellaceae_f_t_GCA_00000{i}.fasta").write_text(f">s{i}\n{'ACGT' * 10}\n")
+    ctx = WorkdirContext(workdir, create=True)
+    run(ctx, DereplicateParams(tool="settings", process_size=2))
+    settings = ctx.config.stages["dereplicate"].params["tool_settings"]
+    # Chunks of 2 and a merge of 3: the per-call count of unknown pairs is
+    # left out, the settings every call shares are kept.
+    assert settings == {
+        "backend": "dense",
+        "ani_estimate": "average_containment^(1/k)",
+        "ksize": 31,
+        "scaled": 1000,
+    }
 
 
 def test_chunking_composes_membership(workdir: Path, genome_files, fake_tool) -> None:

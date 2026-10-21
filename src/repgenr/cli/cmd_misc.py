@@ -124,6 +124,24 @@ def _assemble_note(params: dict) -> str:
     return f"{params.get('n_assembled', 0)} assembled, {params.get('n_deferred', 0)} deferred"
 
 
+def _derep_note(params: dict) -> str:
+    """The tool settings a dereplication recorded, for its status line:
+    'sparse back-end, k=31, scaled=1000' and the like."""
+    settings = params.get("tool_settings")
+    if not isinstance(settings, dict) or not settings:
+        return ""
+    parts = []
+    if settings.get("backend"):
+        parts.append(f"{settings['backend']} back-end")
+    if settings.get("ksize") is not None:
+        parts.append(f"k={settings['ksize']}")
+    if settings.get("scaled") is not None:
+        parts.append(f"scaled={settings['scaled']}")
+    if settings.get("unknown_pairs"):
+        parts.append(f"{settings['unknown_pairs']} pairs of unknown ANI")
+    return ", ".join(parts)
+
+
 STATUS_SCHEMA = "repgenr.status/1"
 DOCTOR_SCHEMA = "repgenr.doctor/1"
 ENTRY_HINT = (
@@ -306,6 +324,8 @@ def _status_report(workdir: Path, cfg: Any) -> dict[str, Any]:
             detail = _ingest_note(rec.params) or None
         elif stage == "assemble" and not rec.interrupted:
             detail = _assemble_note(rec.params) or None
+        elif stage == "dereplicate" and not rec.interrupted:
+            detail = _derep_note(rec.params) or None
         elif stage == "reads_sketch" and not rec.interrupted:
             detail = _reads_sketch_note(workdir) or None
         elif stage == "reads_screen" and not rec.interrupted:
