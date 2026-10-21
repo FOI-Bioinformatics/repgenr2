@@ -8,12 +8,18 @@ refuses ``--mask`` for it with a message naming the alternatives).
 
 Command surface checked against ska 0.5.1 (bioconda ``ska2``): ``ska build -f
 <name TAB path list> -k K --threads N -o <prefix>`` writes ``<prefix>.skf``;
+``ska align --min-freq F --filter no-filter --threads N -o all_sites.fasta
+<prefix>.skf`` writes the middle base of every shared split k-mer, constant
+columns included; the snptype stage counts its constant A, C, G and T
+columns for the tree builder's ascertainment-bias correction (IQ-TREE
+``-fconst``, RAxML-NG ``+ASC_STAM``) and then removes it. The second call,
 ``ska align --min-freq F --filter no-ambig-or-const --threads N -o <out>
-<prefix>.skf`` writes the alignment. With ``lo=true`` the alignment comes
-from ``ska lo <prefix>.skf <out>`` instead (``<out>_snps.fas``), which
-recovers variants in more diverged samples through local assembly of the
-split k-mer graph (Horsfield et al. 2025); ``lo_missing`` is its maximum
-fraction of missing data per site (0.1).
+<prefix>.skf``, writes the variable-site alignment. With ``lo=true`` the
+alignment comes from ``ska lo <prefix>.skf <out>`` instead
+(``<out>_snps.fas``), which recovers variants in more diverged samples
+through local assembly of the split k-mer graph (Horsfield et al. 2025);
+``lo_missing`` is its maximum fraction of missing data per site (0.1).
+ska lo writes variants only, so that route has no constant-site counts.
 """
 
 from __future__ import annotations
@@ -26,7 +32,7 @@ from pathlib import Path
 from ..core.binaries import BinarySpec
 from ..core.containers import run_tool
 from ..core.contracts import record_name
-from ..core.errors import WorkdirError
+from ..core.errors import ToolExecutionError, WorkdirError
 from ..core.plugins import ToolCapabilities, parse_extra_bool, parse_extra_int
 from .base import SnpParams, SnpResult, SnpTyper
 
@@ -55,7 +61,8 @@ class Ska2Typer(SnpTyper):
         accepted_extras=frozenset({"ksize", "min_freq", "lo", "lo_missing"}),
     )
     requires_reference = False
-    # Split k-mers have no reference coordinates: only a variable-site alignment.
+    # Split k-mers have no reference coordinates: no whole-genome alignment to
+    # mask, only an all-sites alignment for constant-site counts.
     produces_full_alignment = False
     # Shared split k-mers shrink with divergence: the stage warns on a set
     # spanning more than one species.
@@ -138,12 +145,74 @@ class Ska2Typer(SnpTyper):
                 "ska lo: variants recovered by local assembly; the indels are published as "
                 "variants.vcf"
             )
+            logger.info(
+                "ska lo writes variants only; no constant-site counts, so the tree's branch "
+                "lengths are not corrected"
+            )
             return SnpResult(
                 core_snp_fasta=core,
                 vcf=indels if indels.exists() else None,
                 masked=False,
                 full_alignment=None,
             )
+        # Every shared split k-mer middle base, constant columns included: the
+        # source of the constant-site counts. Written first so the variable-site
+        # alignment, and its refusal below, are as without it.
+        # The counts are optional: a failure here (disk full, out of memory)
+        # costs the correction, not the typing.
+        all_sites = out_dir / "all_sites.fasta"
+        all_sites_failed = False
+        try:
+            self._align(skf, all_sites, "no-filter", min_freq, params, logger, out_dir)
+        except ToolExecutionError as exc:
+            logger.warning(
+                "ska align --filter no-filter failed: %s; no constant-site counts, so the "
+                "tree's branch lengths are not corrected",
+                exc,
+            )
+            all_sites.unlink(missing_ok=True)
+            all_sites_failed = True
+        self._align(skf, core, "no-ambig-or-const", min_freq, params, logger, out_dir)
+        if not core.exists() or core.stat().st_size == 0:
+            all_sites.unlink(missing_ok=True)
+            raise WorkdirError(
+                "ska align produced no variable-site alignment: the genomes may be "
+                "identical, or too divergent for split k-mers at this k (try a smaller "
+                "--tool-arg ksize, or lower min_freq)."
+            )
+        all_sites_alignment: Path | None = all_sites
+        if all_sites_failed:
+            all_sites_alignment = None
+        elif not all_sites.exists():
+            logger.warning(
+                "ska align --filter no-filter wrote no all_sites.fasta; no constant-site "
+                "counts, so the tree's branch lengths are not corrected"
+            )
+            all_sites_alignment = None
+        elif not _has_columns(all_sites):
+            logger.warning(
+                "ska align --filter no-filter wrote an all_sites.fasta without columns; no "
+                "constant-site counts, so the tree's branch lengths are not corrected"
+            )
+            all_sites_alignment = None
+        return SnpResult(
+            core_snp_fasta=core,
+            masked=False,
+            full_alignment=None,
+            all_sites_alignment=all_sites_alignment,
+        )
+
+    def _align(
+        self,
+        skf: Path,
+        out: Path,
+        filter_: str,
+        min_freq: str,
+        params: SnpParams,
+        logger: logging.Logger,
+        cwd: Path,
+    ) -> None:
+        """``ska align`` of ``skf`` into ``out`` with the given site filter."""
         run_tool(
             self.capabilities,
             [
@@ -152,21 +221,14 @@ class Ska2Typer(SnpTyper):
                 "--min-freq",
                 min_freq,
                 "--filter",
-                "no-ambig-or-const",
+                filter_,
                 "--threads",
                 str(params.threads),
                 "-o",
-                core,
+                out,
                 skf,
             ],
             logger=logger,
-            cwd=out_dir,
+            cwd=cwd,
             log_prefix="ska-align",
         )
-        if not core.exists() or core.stat().st_size == 0:
-            raise WorkdirError(
-                "ska align produced no variable-site alignment: the genomes may be "
-                "identical, or too divergent for split k-mers at this k (try a smaller "
-                "--tool-arg ksize, or lower min_freq)."
-            )
-        return SnpResult(core_snp_fasta=core, masked=False, full_alignment=None)

@@ -153,7 +153,7 @@ Items marked planned depend on ladder work that is not implemented.
 
 | Purpose | Span, ANI | Route for 100 to 500 genomes | Tree builder | Notes |
 |---|---|---|---|---|
-| Outbreak or clonal genotype tree | one lineage, ANI above 99.5 % | `--msa-source snptype --snptyper ska2` (reference-free) | iqtree with `--aligner-arg model=GTR+G` and `-B 1000` | Branch lengths are inflated until ska2 writes constant-site counts (planned, item C). The ska2 tree builder gives a quick look. |
+| Outbreak or clonal genotype tree | one lineage, ANI above 99.5 % | `--msa-source snptype --snptyper ska2` (reference-free) | iqtree with `--aligner-arg model=GTR+G` and `-B 1000` | ska2 writes constant-site counts (item C, shipped), except under `lo=true`. The ska2 tree builder gives a quick look. |
 | Genotype tree within a species | one species, ANI 95 to 99.5 % | `--msa-source snptype --snptyper simple` (medoid reference) or `parsnp`; `--mask gubbins` when recombination is expected and under 12 % of columns vary; `--core-fraction 0.95` | iqtree with `-fconst` (automatic) and `-B 1000`; fasttree as Gubbins' internal builder | ska2 with `--aligner-arg lo=true` is the reference-free alternative when no masking is wanted. |
 | Overview of species representatives in a genus | several species, ANI 80 to 95 % | `--msa-source coregene --coregene ppanggolin` (or `scarap`), `--core-threshold 0.95` | iqtree with `model=GTR+G` and `-B 1000`; skani NJ first for a quick check | Gene cap and ranking, partitions and a protein alphabet are planned (item A). Panaroo only with `--aligner-arg threshold=` lowered to about 0.90; its default core is empty here. |
 | Overview across a family or wider | ANI 75 to 85 % or below | protein core genes (planned, item A) or a marker-gene route (deferred, item F) | iqtree `-st AA`, `LG+G` (planned) | DNA alignments saturate; mash and Jaccard distances are unreliable; skani reaches about 80 %. Until then, skani gives an overview without supports. |
@@ -186,7 +186,10 @@ of this record.
   multi-species sets, a recommended IQ-TREE recipe for large alignments,
   `1 - ANI` as the sourmash builder's distance, and defects 4 and 5 above.
 - **C. ska2 constant sites.** Counting constant columns from an unfiltered ska2
-  alignment so that the reference-free route gets `-fconst`.
+  alignment so that the reference-free route gets `-fconst`. Shipped: the
+  typer writes an all-sites alignment with `ska align --filter no-filter`, the
+  snptype stage counts it into `alignment_stats.json` and removes it; not
+  under `lo=true`, where `ska lo` writes variants only.
 - **D. Advice and presets.** A `phylo-advise` command that reads a workdir and
   prints the matching row of the table above, and a `--preset` option that
   expands to it.

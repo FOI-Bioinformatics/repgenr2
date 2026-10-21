@@ -361,7 +361,8 @@ _MSA_STAMP_VERSION = 3
 # The typing pass writes alignment_stats.json (constant-site counts) beside
 # its alignment; the key of a snptype-source alignment carries this so one
 # typed earlier is typed once more, while aligner alignments are untouched.
-_SNPTYPE_STATS_VERSION = 1
+# 2: ska2 writes an all-sites alignment, so its alignments gain the counts.
+_SNPTYPE_STATS_VERSION = 2
 # Scratch subdirectory of the SNP typing pass; the snptype stage uses
 # scratch/snptype, and each stage clears its own at the start.
 _TYPING_SCRATCH = "phylo_snptype"
@@ -874,10 +875,10 @@ def build_tree(
             and params.msa_source == "snptype"
         ):
             logger.warning(
-                "No constant-site counts for %s (SNP typer '%s' writes no whole-genome "
-                "alignment, or alignment_stats.json is missing or describes another "
-                "file): the tree's branch lengths carry no ascertainment-bias correction "
-                "and are inflated",
+                "No constant-site counts for %s (SNP typer '%s' writes neither a "
+                "whole-genome nor an all-sites alignment, as ska2 with lo=true, or "
+                "alignment_stats.json is missing or describes another file): the tree's "
+                "branch lengths carry no ascertainment-bias correction and are inflated",
                 msa,
                 params.snptyper,
             )

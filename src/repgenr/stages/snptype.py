@@ -21,6 +21,7 @@ import shutil
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from ..core.context import WorkdirContext
 from ..core.contracts import (
@@ -49,6 +50,9 @@ from ..tree.alignment import (
     filter_columns_by_completeness,
     write_alignment_stats,
 )
+
+if TYPE_CHECKING:
+    from ..maskers.base import Masker
 
 
 @dataclass
@@ -184,6 +188,26 @@ def snptype_core(
     finally:
         remove_tree(inputs_dir)
 
+    try:
+        published = _publish_typed(result, snp_dir, scratch, params, masker, logger)
+    finally:
+        # An all-sites alignment (ska2) is never published: counted, or not
+        # reached because of a refusal or an error, it is removed from scratch.
+        if result.all_sites_alignment is not None:
+            result.all_sites_alignment.unlink(missing_ok=True)
+    return published, versions
+
+
+def _publish_typed(
+    result: SnpResult,
+    snp_dir: Path,
+    scratch: Path,
+    params: SnptypeParams,
+    masker: Masker | None,
+    logger: logging.Logger,
+) -> SnpResult:
+    """Mask, filter and publish the typer's outputs into ``snp_dir``, and
+    write the constant-site counts; return the published result."""
     core = snp_dir / CORE_SNP_FASTA
     # The sidecar describes the previous core; a failure between the two
     # writes must not leave it beside a new one.
@@ -282,47 +306,57 @@ def snptype_core(
             shutil.copy2(result.snp_distance_matrix, tmp)
     full_alignment_out: Path | None = None
     constant_sites: tuple[int, int, int, int] | None = None
+    # The alignment the constant columns are counted from: the published
+    # whole-genome alignment when the typer writes one, else an all-sites
+    # alignment without reference coordinates (ska2), which is counted here
+    # and removed by the caller, since it is as large as the core genome.
+    counted: Path | None = None
     if result.full_alignment is not None:
         full_alignment_out = snp_dir / "full_alignment.fasta"
         with atomic_path(full_alignment_out) as tmp:
             shutil.copy2(result.full_alignment, tmp)
+        counted = full_alignment_out
+    elif result.all_sites_alignment is not None and result.all_sites_alignment.is_file():
+        counted = result.all_sites_alignment
+    if counted is not None:
         # Constant columns of the whole-genome alignment: the tree builder
         # adds them back as counts, which keeps branch lengths on scale.
         # Counted before masking: masking turns bases into N, which cannot
         # make a constant column variable; a column it makes constant is
-        # missed, so after --mask the counts are a slight undercount.
+        # missed, so after --mask the counts are a slight undercount. The
+        # --core-fraction rule that filters the variable-site alignment
+        # applies to the counted columns as well.
+        source = counted.name
         constant_sites, variable = constant_site_counts(
-            full_alignment_out, logger, min_fraction=params.core_fraction
+            counted, logger, min_fraction=params.core_fraction
         )
         write_alignment_stats(
             core,
             constant_sites,
             variable,
-            source=full_alignment_out.name,
+            source=source,
             masked=masked,
             core_fraction=params.core_fraction,
         )
         logger.info(
-            "Constant sites in %s: A %d, C %d, G %d, T %d (%d variable columns)",
-            full_alignment_out.name,
+            "Constant sites in %s: A %d, C %d, G %d, T %d (%d variable columns)%s",
+            source,
             *constant_sites,
             variable,
+            "" if full_alignment_out is not None else "; the file is not published and is removed",
         )
     else:
         (snp_dir / ALIGNMENT_STATS).unlink(missing_ok=True)
 
-    return (
-        SnpResult(
-            core_snp_fasta=core,
-            vcf=(snp_dir / "variants.vcf") if result.vcf else None,
-            snp_distance_matrix=(snp_dir / "snp_distance_matrix.tsv")
-            if result.snp_distance_matrix
-            else None,
-            masked=masked,
-            full_alignment=full_alignment_out,
-            constant_sites=constant_sites,
-        ),
-        versions,
+    return SnpResult(
+        core_snp_fasta=core,
+        vcf=(snp_dir / "variants.vcf") if result.vcf else None,
+        snp_distance_matrix=(snp_dir / "snp_distance_matrix.tsv")
+        if result.snp_distance_matrix
+        else None,
+        masked=masked,
+        full_alignment=full_alignment_out,
+        constant_sites=constant_sites,
     )
 
 

@@ -358,6 +358,90 @@ def test_core_fraction_without_a_full_alignment_filters_and_writes_no_sidecar(
     )
 
 
+class _AllSitesTyper(_FakeTyper):
+    """No whole-genome alignment, but an all-sites one without coordinates (like ska2).
+
+    Column by column over the three genomes: A A A (constant A, in all),
+    C C C (constant C), G T N (variable), A N N (constant A in one genome only),
+    T T T (constant T).
+    """
+
+    seen: dict = {}
+
+    def call(self, genomes, reference, out_dir, params, logger) -> SnpResult:  # noqa: ANN001
+        names = [g.stem for g in genomes]
+        core = out_dir / "core.fasta"
+        core.write_text("".join(f">{n}\n{'GTN'[i % 3]}\n" for i, n in enumerate(names)))
+        rows = ["ACGAT", "ACTNT", "ACNNT"]
+        all_sites = out_dir / "all_sites.fasta"
+        all_sites.write_text("".join(f">{n}\n{rows[i % 3]}\n" for i, n in enumerate(names)))
+        _AllSitesTyper.seen = {"all_sites": all_sites}
+        return SnpResult(core_snp_fasta=core, all_sites_alignment=all_sites)
+
+
+def test_all_sites_alignment_gives_constant_site_counts(
+    workdir, genome_files, register_tool, caplog
+) -> None:
+    import json
+    import logging
+
+    from repgenr.tree.alignment import ALIGNMENT_STATS
+
+    assert len(genome_files) == 3
+    register_tool(registry, "allsites", _AllSitesTyper)
+    ctx = WorkdirContext(workdir, create=True, logger=logging.getLogger("test-snptype"))
+    with caplog.at_level(logging.INFO, logger="test-snptype"):
+        result = run(ctx, SnptypeParams(tool="allsites", all_genomes=True))
+    assert result.constant_sites == (2, 1, 0, 1)
+    assert result.full_alignment is None and result.all_sites_alignment is None
+    stats = json.loads((ctx.snp_dir / ALIGNMENT_STATS).read_text())
+    assert stats["source"] == "all_sites.fasta"
+    assert stats["constant_sites"] == {"A": 2, "C": 1, "G": 0, "T": 1}
+    assert stats["variable_sites"] == 1 and stats["masked"] is False
+    assert stats["alignment"] == CORE_SNP_FASTA
+    # Counted, then removed: it is not published, and not left in scratch.
+    assert not _AllSitesTyper.seen["all_sites"].exists()
+    assert not (ctx.snp_dir / "all_sites.fasta").exists()
+    assert not (ctx.snp_dir / "full_alignment.fasta").exists()
+    counted = [r.getMessage() for r in caplog.records if "all_sites.fasta" in r.getMessage()]
+    # One line with the counts, saying the file is removed.
+    assert counted == [
+        "Constant sites in all_sites.fasta: A 2, C 1, G 0, T 1 (1 variable columns); "
+        "the file is not published and is removed"
+    ]
+    # --core-fraction applies to the counted columns as it does to the core:
+    # at 0.6 the column called in one genome of three is not counted.
+    run(ctx, SnptypeParams(tool="allsites", all_genomes=True, core_fraction=0.6))
+    stats = json.loads((ctx.snp_dir / ALIGNMENT_STATS).read_text())
+    assert stats["constant_sites"] == {"A": 1, "C": 1, "G": 0, "T": 1}
+    assert stats["core_fraction"] == 0.6 and stats["variable_sites"] == 1
+
+
+def test_all_sites_alignment_is_removed_after_a_refusal(
+    workdir, genome_files, register_tool
+) -> None:
+    register_tool(registry, "allsites", _AllSitesTyper)
+    ctx = WorkdirContext(workdir, create=True)
+    # The core column is called in two genomes of three: 1.0 keeps none.
+    with pytest.raises(UserInputError, match="keeps none of the"):
+        run(ctx, SnptypeParams(tool="allsites", all_genomes=True, core_fraction=1.0))
+    assert not _AllSitesTyper.seen["all_sites"].exists()
+
+
+def test_neither_alignment_writes_no_stats(workdir, genome_files, register_tool) -> None:
+    from repgenr.tree.alignment import ALIGNMENT_STATS
+
+    register_tool(registry, "allsites", _AllSitesTyper)
+    register_tool(registry, "faketyper", _FakeTyper)
+    ctx = WorkdirContext(workdir, create=True)
+    run(ctx, SnptypeParams(tool="allsites", all_genomes=True))
+    assert (ctx.snp_dir / ALIGNMENT_STATS).exists()
+    # A typer with neither alignment leaves no sidecar from the earlier run.
+    result = run(ctx, SnptypeParams(tool="faketyper", all_genomes=True))
+    assert result.constant_sites is None
+    assert not (ctx.snp_dir / ALIGNMENT_STATS).exists()
+
+
 def test_ska2_warns_on_a_multi_species_set(workdir, register_tool, monkeypatch, caplog) -> None:
     """The stage warns before typing with ska2 when the names span species."""
     import logging

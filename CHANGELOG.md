@@ -7,6 +7,15 @@ All notable changes to RepGenR2 are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- ska2 typer: constant-site counts. A first `ska align --filter no-filter`
+  call writes every shared split k-mer middle base (`SnpResult.all_sites_alignment`,
+  an alignment without reference coordinates); the snptype stage counts its
+  constant A, C, G and T columns under the `--core-fraction` rule into
+  `alignment_stats.json` (`source` `all_sites.fasta`) and removes the file,
+  so IQ-TREE (`-fconst`) and RAxML-NG (`+ASC_STAM`) correct the branch
+  lengths of ska2 trees. Not under `lo=true`: `ska lo` writes variants only,
+  and the log says so. The phylo MSA reuse key's stats version is now 2, so
+  an existing snptype-source alignment is typed once more.
 - Core-gene route: `--partitioned` on `phylo`, `phylo-build` and `run` gives
   the tree builder an edge-linked partition model, one partition per core
   gene, from `partitions.json`. `iqtree` (`-p`) and `raxmlng`

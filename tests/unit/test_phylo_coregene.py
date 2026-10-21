@@ -232,6 +232,22 @@ def test_stamp_key_follows_the_core_gene_settings(tmp_path: Path) -> None:
     )
 
 
+def test_snptype_stamp_key_follows_the_stats_version(tmp_path: Path, monkeypatch) -> None:
+    genomes = [tmp_path / "a.fasta", tmp_path / "b.fasta"]
+    for g in genomes:
+        g.write_text(">x\nACGT\n", encoding="utf-8")
+    snp = PhyloParams(msa_source="snptype", snptyper="ska2")
+    aligner = PhyloParams(msa_source="aligner")
+    k_snp = phylo_mod._msa_key(genomes, None, snp)
+    k_aln = phylo_mod._msa_key(genomes, None, aligner)
+    # 2: ska2 alignments typed before the all-sites counts are typed once more.
+    assert phylo_mod._SNPTYPE_STATS_VERSION == 2
+    monkeypatch.setattr(phylo_mod, "_SNPTYPE_STATS_VERSION", 1)
+    assert k_snp != phylo_mod._msa_key(genomes, None, snp)
+    # An aligner alignment does not carry the stats version.
+    assert k_aln == phylo_mod._msa_key(genomes, None, aligner)
+
+
 def test_stamp_key_follows_the_gene_selection_and_layout(tmp_path: Path, monkeypatch) -> None:
     genomes = [tmp_path / "a.fasta", tmp_path / "b.fasta"]
     for g in genomes:
