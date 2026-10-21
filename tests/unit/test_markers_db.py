@@ -5,6 +5,7 @@ from __future__ import annotations
 import gzip
 import json
 import logging
+import re
 import threading
 from pathlib import Path
 
@@ -20,6 +21,13 @@ from repgenr.coregenes import markers_db as mdb
 
 _runner = CliRunner()
 _LOG = logging.getLogger("test_markers_db")
+_ANSI = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
+
+
+def _text(result) -> str:  # noqa: ANN001
+    """The output without ANSI codes and with wrapped lines joined: Rich colours and
+    wraps the usage box under CI, which can split a flag name."""
+    return " ".join(_ANSI.sub("", result.output + str(result.exception or "")).split())
 
 
 def _hmm_text(acc: str, *, version: int = 7, cutoffs: tuple[str, ...] = ("GA", "TC", "NC")) -> str:
@@ -246,7 +254,7 @@ def test_cli_refusals(tmp_path: Path, monkeypatch) -> None:
     result = _runner.invoke(app, ["markers-db", "fetch"])
     assert result.exit_code == 2
     result = _runner.invoke(app, ["markers-db", "download"])
-    assert result.exit_code == 2 and "--output" in result.output
+    assert result.exit_code == 2 and "--output" in _text(result)
     result = _runner.invoke(app, ["markers-db", "download", "--output", "x", "--set", "bac"])
     assert result.exit_code == 2
     result = _runner.invoke(app, ["markers-db", "info", str(tmp_path)])
@@ -355,5 +363,5 @@ def test_cli_info_refuses_download_only_flags(tmp_path: Path) -> None:
     for extra in (["--set", "ar53"], ["-t", "2"], ["--threads", "2"]):
         result = _runner.invoke(app, ["markers-db", "info", str(out), *extra])
         assert result.exit_code == 2, (extra, result.output)
-        assert "download only" in result.output
+        assert "download only" in _text(result)
     assert _runner.invoke(app, ["markers-db", "info", str(out)]).exit_code == 0
