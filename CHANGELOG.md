@@ -161,6 +161,17 @@ All notable changes to RepGenR2 are documented here. The format follows
   every run failed a warning instead of an error.
 
 ### Fixed
+- `iqtree` with `--partitioned`: the partition file is a NEXUS `sets` block
+  of charsets with no model, and the model of every partition is passed as
+  `-m`: `--aligner-arg model=` when given, else `GTR+G` (`LG+G` for a
+  protein alignment); `model=MFP` selects one per partition. The RAxML-style
+  lines written before (`DNA, <gene> = a-b`) made IQ-TREE 3.1.2 read the
+  first field as a model: a protein run stopped with "File not found AA"
+  (also `--preset family`), and a DNA run without `model=` fitted GTR+F to
+  every partition while the log said ModelFinder ran. On 24 Wolbachia genomes
+  (100 protein partitions, `-B 1000`) the partitioned protein run now
+  completes in 469 s, at a Robinson-Foulds distance of 2 (of 42) from the
+  unpartitioned DNA tree.
 - phylo MSA reuse key: only the extras the MSA source reads (the aligner,
   the SNP typer and, when masking, the masker, or the core-gene builder) are
   hashed, so a tree builder extra such as `alrt=`, `model=` or `gamma=` no
