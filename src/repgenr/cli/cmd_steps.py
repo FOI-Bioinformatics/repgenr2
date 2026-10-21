@@ -313,7 +313,12 @@ def phylo_build_cmd(
     from ..stages.phylo import PhyloBuildParams, PhyloParams, check_root_request, phylo_build
     from ..tree.rooting import ROOT_METHODS
     from ..treebuilders.base import registry as _tb_registry
-    from .param_builders import gene_selection_extra, require_gene_rank, require_mask
+    from .param_builders import (
+        gene_selection_extra,
+        refuse_outside_coregene,
+        require_gene_rank,
+        require_mask,
+    )
 
     logger = configure_logging(None, level=_RUN_STATE["log_level"])
     with stage_errors(logger):
@@ -332,21 +337,17 @@ def phylo_build_cmd(
 
             _require_choice(coregene, set(_cg_registry.names()), "--coregene")
             _require_choice(annotator, set(_annot_registry.names()), "--annotator")
-        coregene_settings = {
-            "--core-threshold": core_threshold,
-            "--clean-mode": clean_mode,
-            "--max-core-genes": max_core_genes,
-            "--gene-rank": gene_rank,
-            "--min-gene-length": min_gene_length,
-            "--max-gene-gaps": max_gene_gaps,
-        }
-        given = [flag for flag, value in coregene_settings.items() if value is not None]
-        if given and msa_source != "coregene":
-            raise UserInputError(
-                f"{', '.join(given)} applies only with --msa-source coregene."
-                if len(given) == 1
-                else f"{', '.join(given)} apply only with --msa-source coregene."
-            )
+        refuse_outside_coregene(
+            msa_source,
+            {
+                "--core-threshold": core_threshold,
+                "--clean-mode": clean_mode,
+                "--max-core-genes": max_core_genes,
+                "--gene-rank": gene_rank,
+                "--min-gene-length": min_gene_length,
+                "--max-gene-gaps": max_gene_gaps,
+            },
+        )
         if gene_rank is not None:
             require_gene_rank(gene_rank)
         if clean_mode is not None:

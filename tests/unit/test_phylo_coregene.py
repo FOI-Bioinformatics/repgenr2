@@ -14,7 +14,7 @@ from repgenr.core.context import WorkdirContext
 from repgenr.core.contracts import CORE_GENE_FASTA, CORE_GENE_STATS
 from repgenr.core.errors import UserInputError
 from repgenr.core.plugins import ToolCapabilities
-from repgenr.coregenes.base import CoreGeneBuilder, CoreGeneResult
+from repgenr.coregenes.base import CoreGeneBuilder, CoreGeneResult, GeneAlignment
 from repgenr.coregenes.base import registry as cg_registry
 from repgenr.stages import phylo as phylo_mod
 from repgenr.stages.annotate import AnnotateStageParams
@@ -93,8 +93,32 @@ class _GenomesTree(TreeBuilder):
         return tree
 
 
+class _PerGeneCoreGene(CoreGeneBuilder):
+    """Hands over four genes of 8, 6, 4 and 10 columns, present in every genome."""
+
+    capabilities = ToolCapabilities(name="fakecg_pergene")
+
+    def preflight(self):
+        return {"fakecg_pergene": "1.0"}
+
+    def call(self, gffs, out_dir, params, logger) -> CoreGeneResult:
+        out_dir.mkdir(parents=True, exist_ok=True)
+        genes = []
+        for name, length in (("g1", 8), ("g2", 6), ("g3", 4), ("g4", 10)):
+            path = out_dir / f"{name}.fasta"
+            path.write_text(
+                "".join(
+                    f">{g.stem}\n{'ACGT' * 3}"[: len(g.stem) + 2 + length] + "\n" for g in gffs
+                ),
+                encoding="utf-8",
+            )
+            genes.append(GeneAlignment(gene=name, path=path))
+        return CoreGeneResult(gene_alignments=genes, core_genes=4)
+
+
 @pytest.fixture
 def tools(register_tool):
+    register_tool(cg_registry, "fakecg_pergene", _PerGeneCoreGene)
     _FakeCoreGene.calls = []
     _MsaTree.seen = []
     register_tool(annot_registry, "fakeannot", _FakeAnnotator)
@@ -577,6 +601,25 @@ def test_record_carries_the_gene_selection(workdir: Path, tools) -> None:
     # A selection is refused for a builder that returns no per-gene alignments.
     with pytest.raises(UserInputError, match="no per-gene alignments"):
         phylo_run(ctx, _params(extra={"max_core_genes": 3, "gene_rank": "informative"}))
+
+
+def test_record_carries_a_non_default_selection(workdir: Path, tools) -> None:
+    _reps(workdir)
+    ctx = WorkdirContext(workdir, create=True, logger=_LOG)
+    annotate_run(ctx, AnnotateStageParams(tool="fakeannot"))
+    extra = {"max_core_genes": 2, "gene_rank": "length", "min_gene_length": 5, "max_gene_gaps": 0.5}
+    phylo_run(ctx, _params(coregene="fakecg_pergene", extra=extra))
+    rec = ctx.config.stages["phylo"].params["gene_selection"]
+    assert rec == {
+        "max_genes": 2,
+        "rank": "length",
+        "min_length": 5,
+        "max_gaps": 0.5,
+        "seed": 0,
+    }
+    table = (ctx.phylo_msa_dir / "core_genes.tsv").read_text(encoding="utf-8").splitlines()
+    kept = {ln.split("\t")[0] for ln in table[1:] if ln.split("\t")[1] == "true"}
+    assert kept == {"g1", "g4"}
 
 
 def test_fingerprint_drops_the_selection_when_no_coregene_pass_runs() -> None:

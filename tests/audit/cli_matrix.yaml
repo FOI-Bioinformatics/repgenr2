@@ -2032,7 +2032,7 @@ commands:
         - docs/usage.md
         - docs/audit/cli-matrix.md
         nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
-        live: 'n/a: covered offline in tests/unit/test_phylo_coregene.py (the live run needs bakta, panaroo and the bakta database)'
+        live: 'n/a: covered offline in tests/unit/test_cli_gene_selection.py (the live run needs bakta, panaroo and the bakta database)'
         with_args:
         - --msa-source
         - coregene
@@ -2046,7 +2046,7 @@ commands:
         - docs/usage.md
         - docs/audit/cli-matrix.md
         nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
-        live: 'n/a: covered offline in tests/unit/test_phylo_coregene.py (the live run needs bakta, panaroo and the bakta database)'
+        live: 'n/a: covered offline in tests/unit/test_cli_gene_selection.py (the live run needs bakta, panaroo and the bakta database)'
         with_args:
         - --msa-source
         - coregene
@@ -2060,7 +2060,7 @@ commands:
         - docs/usage.md
         - docs/audit/cli-matrix.md
         nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
-        live: 'n/a: covered offline in tests/unit/test_phylo_coregene.py (the live run needs bakta, panaroo and the bakta database)'
+        live: 'n/a: covered offline in tests/unit/test_cli_gene_selection.py (the live run needs bakta, panaroo and the bakta database)'
         with_args:
         - --msa-source
         - coregene
@@ -2074,7 +2074,7 @@ commands:
         - docs/usage.md
         - docs/audit/cli-matrix.md
         nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
-        live: 'n/a: covered offline in tests/unit/test_phylo_coregene.py (the live run needs bakta, panaroo and the bakta database)'
+        live: 'n/a: covered offline in tests/unit/test_cli_gene_selection.py (the live run needs bakta, panaroo and the bakta database)'
         with_args:
         - --msa-source
         - coregene
@@ -2365,7 +2365,7 @@ commands:
         - docs/usage.md
         - docs/audit/cli-matrix.md
         nextflow: 'params.phylo_args'
-        live: 'n/a: covered offline in tests/unit/test_phylo_coregene.py (the live run needs bakta, panaroo and the bakta database)'
+        live: 'n/a: covered offline in tests/unit/test_cli_gene_selection.py (the live run needs bakta, panaroo and the bakta database)'
         with_args:
         - --msa-source
         - coregene
@@ -2379,7 +2379,7 @@ commands:
         - docs/usage.md
         - docs/audit/cli-matrix.md
         nextflow: 'params.phylo_args'
-        live: 'n/a: covered offline in tests/unit/test_phylo_coregene.py (the live run needs bakta, panaroo and the bakta database)'
+        live: 'n/a: covered offline in tests/unit/test_cli_gene_selection.py (the live run needs bakta, panaroo and the bakta database)'
         with_args:
         - --msa-source
         - coregene
@@ -2393,7 +2393,7 @@ commands:
         - docs/usage.md
         - docs/audit/cli-matrix.md
         nextflow: 'params.phylo_args'
-        live: 'n/a: covered offline in tests/unit/test_phylo_coregene.py (the live run needs bakta, panaroo and the bakta database)'
+        live: 'n/a: covered offline in tests/unit/test_cli_gene_selection.py (the live run needs bakta, panaroo and the bakta database)'
         with_args:
         - --msa-source
         - coregene
@@ -2407,7 +2407,7 @@ commands:
         - docs/usage.md
         - docs/audit/cli-matrix.md
         nextflow: 'params.phylo_args'
-        live: 'n/a: covered offline in tests/unit/test_phylo_coregene.py (the live run needs bakta, panaroo and the bakta database)'
+        live: 'n/a: covered offline in tests/unit/test_cli_gene_selection.py (the live run needs bakta, panaroo and the bakta database)'
         with_args:
         - --msa-source
         - coregene
@@ -4254,7 +4254,7 @@ commands:
         - docs/usage.md
         - docs/audit/cli-matrix.md
         nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
-        live: 'n/a: covered offline in tests/unit/test_phylo_coregene.py (the live run needs bakta, panaroo and the bakta database)'
+        live: 'n/a: covered offline in tests/unit/test_cli_gene_selection.py (the live run needs bakta, panaroo and the bakta database)'
         with_args:
         - --msa-source
         - coregene
@@ -4268,7 +4268,7 @@ commands:
         - docs/usage.md
         - docs/audit/cli-matrix.md
         nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
-        live: 'n/a: covered offline in tests/unit/test_phylo_coregene.py (the live run needs bakta, panaroo and the bakta database)'
+        live: 'n/a: covered offline in tests/unit/test_cli_gene_selection.py (the live run needs bakta, panaroo and the bakta database)'
         with_args:
         - --msa-source
         - coregene
@@ -4282,7 +4282,7 @@ commands:
         - docs/usage.md
         - docs/audit/cli-matrix.md
         nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
-        live: 'n/a: covered offline in tests/unit/test_phylo_coregene.py (the live run needs bakta, panaroo and the bakta database)'
+        live: 'n/a: covered offline in tests/unit/test_cli_gene_selection.py (the live run needs bakta, panaroo and the bakta database)'
         with_args:
         - --msa-source
         - coregene
@@ -4296,7 +4296,7 @@ commands:
         - docs/usage.md
         - docs/audit/cli-matrix.md
         nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
-        live: 'n/a: covered offline in tests/unit/test_phylo_coregene.py (the live run needs bakta, panaroo and the bakta database)'
+        live: 'n/a: covered offline in tests/unit/test_cli_gene_selection.py (the live run needs bakta, panaroo and the bakta database)'
         with_args:
         - --msa-source
         - coregene
