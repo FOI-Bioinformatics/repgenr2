@@ -672,6 +672,40 @@ Not run: `--preset family` (it failed as run 4 did before the fix), RAxML-NG wit
 partitions, the other core-gene builders, the Nextflow route, and a
 comparison of support values.
 
+### GTDB marker genes on the same genomes (2026-10-21)
+
+* **Data and tools:** the 24 Wolbachia genomes and bakta annotations of the
+  section above, the marker database from `repgenr markers-db download`
+  (InterPro models, bac120 and ar53), HMMER 3.4 and IQ-TREE 3.1.2, on the
+  same laptop.
+* **Command:** `repgenr phylo-build --genomes-dir ... --annotations-dir ...
+  --msa-source coregene --coregene markers --markers-db ... --treebuilder
+  iqtree --partitioned -B 1000 --no-outgroup --root midpoint -t 8`.
+
+- **Markers found.** `--marker-set auto` kept bac120 (all 24 genomes above
+  its minimum of 12). Each genome had 105 to 111 of the 120 markers in a
+  single copy (median 110). Six markers were found in no genome and one
+  (TIGR00964) in two, which is plausible for these reduced genomes.
+  TIGR00382 had two different copies in 16 genomes and TIGR00456 in one,
+  so they count as absent there. Four genomes held a marker in two
+  identical copies (TIGR00020 in three, TIGR01087 in one), and the best
+  copy was kept.
+- **Alignment.** 99 markers were single-copy in at least 95 % of the genomes
+  (`--core-threshold` 0.95); 114 were found in at least one genome. The
+  alignment holds 32351 amino-acid columns, with 10309 variable and 8442
+  parsimony-informative sites. The search took 7 seconds and the alignment
+  2 seconds.
+- **Tree.** IQ-TREE fitted 99 LG+G partitions in about 290 seconds; the
+  whole run took 305 seconds. The tree is four splits (RF 8 of 42) from the
+  PPanGGOLiN baseline (run 1 above, 398 genes, 419047 nucleotide columns)
+  and from the partitioned protein tree of the 398 PPanGGOLiN genes. The
+  four splits found only in the markers tree have bootstrap supports of 45
+  to 93. Of the four baseline splits it lacks, three have support 100 in the
+  baseline. Within one genus the 99 markers resolve less than several
+  hundred core genes. The route is meant for sets that span a family or
+  more, where the clustering builders find few genes; such a set was not
+  run here.
+
 ### Gzipped genomes in the aligners and typers (2026-10-08)
 
 * **Data:** gzipped genomes from `pureclone_20` (three or four `.fasta.gz`

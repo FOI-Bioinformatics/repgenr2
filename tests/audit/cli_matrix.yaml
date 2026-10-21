@@ -2095,6 +2095,37 @@ commands:
         - coregene
         - --coregene
         - ppanggolin
+      --markers-db:
+        param: PhyloParams.markers_db
+        value: '{alt_dir}'
+        validated: stage
+        docs:
+        - docs/cli-reference.md
+        - docs/usage.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
+        live: 'n/a: covered offline in tests/unit/test_markers_builder.py (the live run needs bakta, the bakta database, hmmer and the marker database; see docs/verification.md)'
+        with_args:
+        - --msa-source
+        - coregene
+        - --coregene
+        - markers
+      --marker-set:
+        param: PhyloParams.extra
+        value: ar53
+        validated: choice
+        invalid: bac100
+        docs:
+        - docs/cli-reference.md
+        - docs/usage.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
+        live: 'n/a: covered offline in tests/unit/test_markers_builder.py (the live run needs bakta, the bakta database, hmmer and the marker database; see docs/verification.md)'
+        with_args:
+        - --msa-source
+        - coregene
+        - --coregene
+        - markers
       --gene-trim:
         param: PhyloParams.extra
         value: clipkit
@@ -2534,6 +2565,37 @@ commands:
         - coregene
         - --coregene
         - ppanggolin
+      --markers-db:
+        param: PhyloBuildParams.phylo.markers_db
+        value: '{alt_dir}'
+        validated: stage
+        docs:
+        - docs/cli-reference.md
+        - docs/usage.md
+        - docs/audit/cli-matrix.md
+        nextflow: params.markers_db
+        live: 'n/a: covered offline in tests/unit/test_markers_builder.py (the live run needs bakta, the bakta database, hmmer and the marker database; see docs/verification.md)'
+        with_args:
+        - --msa-source
+        - coregene
+        - --coregene
+        - markers
+      --marker-set:
+        param: PhyloBuildParams.phylo.extra
+        value: ar53
+        validated: choice
+        invalid: bac100
+        docs:
+        - docs/cli-reference.md
+        - docs/usage.md
+        - docs/audit/cli-matrix.md
+        nextflow: params.phylo_args
+        live: 'n/a: covered offline in tests/unit/test_markers_builder.py (the live run needs bakta, the bakta database, hmmer and the marker database; see docs/verification.md)'
+        with_args:
+        - --msa-source
+        - coregene
+        - --coregene
+        - markers
       --gene-trim:
         param: PhyloBuildParams.phylo.extra
         value: clipkit
@@ -4478,6 +4540,37 @@ commands:
         - coregene
         - --coregene
         - ppanggolin
+      --markers-db:
+        param: PhyloParams.markers_db
+        value: '{alt_dir}'
+        validated: stage
+        docs:
+        - docs/cli-reference.md
+        - docs/usage.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
+        live: 'n/a: covered offline in tests/unit/test_markers_builder.py (the live run needs bakta, the bakta database, hmmer and the marker database; see docs/verification.md)'
+        with_args:
+        - --msa-source
+        - coregene
+        - --coregene
+        - markers
+      --marker-set:
+        param: PhyloParams.extra
+        value: ar53
+        validated: choice
+        invalid: bac100
+        docs:
+        - docs/cli-reference.md
+        - docs/usage.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
+        live: 'n/a: covered offline in tests/unit/test_markers_builder.py (the live run needs bakta, the bakta database, hmmer and the marker database; see docs/verification.md)'
+        with_args:
+        - --msa-source
+        - coregene
+        - --coregene
+        - markers
       --gene-trim:
         param: PhyloParams.extra
         value: clipkit

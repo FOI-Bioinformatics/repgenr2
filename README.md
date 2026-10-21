@@ -111,7 +111,7 @@ is built from (`phylo`, `snptype`).
 | Aligners | `progressivemauve`, `sibeliaz`, `cactus` (whole-genome alignment) |
 | SNP typers | `simple` (samtools/bcftools), `snippy`, `parsnp`, `ska2` (reference-free) |
 | Maskers | `gubbins` (recombination masking of the SNP alignment, `--mask`) |
-| Core-gene builders | `panaroo` (with mafft), `ppanggolin`, `scarap`, `orthofinder` (`--msa-source coregene`) |
+| Core-gene builders | `panaroo` (with mafft), `ppanggolin`, `scarap`, `orthofinder`, `markers` (GTDB marker proteins with HMMER) (`--msa-source coregene`) |
 
 **Tree tools**: an alignment, or the genomes themselves, to a tree (`phylo`).
 

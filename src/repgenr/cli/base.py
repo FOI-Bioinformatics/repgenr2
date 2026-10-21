@@ -137,8 +137,9 @@ HELP_MSA_SOURCE = (
     "the annotate stage wrote)."
 )
 HELP_COREGENE = (
-    "Core-gene alignment builder for --msa-source coregene: panaroo, ppanggolin, scarap "
-    "or orthofinder. "
+    "Core-gene alignment builder for --msa-source coregene: panaroo, ppanggolin, scarap, "
+    "orthofinder or markers (GTDB's single-copy marker proteins, aligned as protein; "
+    "needs --markers-db). "
     "Tuning goes through --aligner-arg. panaroo: threshold= is the identity at which it "
     "groups genes (0.98; lower it, 0.95 then 0.90, when the core comes out small on a "
     "divergent set), and also filtered=false, merge_paralogs, remove_invalid_genes, "
@@ -148,6 +149,7 @@ HELP_COREGENE = (
     "translation_table. scarap: method (FH), seeds (100), "
     "core_prefilter (the smaller of 0.90 and --core-threshold). orthofinder: "
     "search=diamond|diamond_ultra_sens|blastp|mmseqs (diamond), inflation (MCL, 1.2). "
+    "markers: min_markers (10 % of the set), the fewest single-copy markers a genome needs. "
     "The number of core genes kept is set with --max-core-genes."
 )
 HELP_CORE_THRESHOLD = (
@@ -161,7 +163,15 @@ HELP_CLEAN_MODE = (
 HELP_COREGENE_ALPHABET = (
     "With --msa-source coregene: dna (default) or protein; protein suits genus and family "
     "overviews, where third codon positions saturate (ppanggolin, scarap and orthofinder; "
-    "refused with panaroo)."
+    "refused with panaroo). markers aligns protein only, which is its default."
+)
+HELP_MARKERS_DB = (
+    "With --coregene markers: the marker database directory (repgenr markers-db download "
+    "--output DIR); REPGENR_MARKERS_DB when unset."
+)
+HELP_MARKER_SET = (
+    "With --coregene markers: bac120, ar53 or auto (default: bac120, or ar53 when fewer than "
+    "half of the genomes reach the bac120 minimum and ar53 finds more of its markers)."
 )
 HELP_GENE_TRIM = (
     "With --msa-source coregene: none (default) or clipkit; clipkit trims each gene "

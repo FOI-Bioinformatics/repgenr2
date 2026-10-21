@@ -78,7 +78,10 @@ def test_genus_and_family_rows() -> None:
         "-B",
         "1000",
     ]
-    assert mod.preset_flags("family") == [*genus, "--coregene-alphabet", "protein"]
+    # The family row swaps PPanGGOLiN for the GTDB markers, which imply protein.
+    family = mod.preset_flags("family")
+    assert family == [("markers" if f == "ppanggolin" else f) for f in genus]
+    assert "--coregene-alphabet" not in family
     # Trimming stays an explicit choice.
     assert not any("--gene-trim" in mod.preset_flags(name) for name in mod.RECOMMENDATIONS)
     assert not any("planned" in e["summary"] for e in mod.RECOMMENDATIONS.values())
@@ -153,13 +156,19 @@ def test_genus_for_several_species_or_mid_ani() -> None:
     assert "--partitioned" in rec.expanded and "--coregene-alphabet" not in rec.expanded
 
 
-def test_family_for_low_ani_or_several_genera() -> None:
+def test_family_for_low_ani_or_several_genera(monkeypatch) -> None:
+    monkeypatch.delenv("REPGENR_MARKERS_DB", raising=False)
     assert mod.advise(_ev(n_species=5, n_genera=2)).preset == "family"
     rec = mod.advise(_ev(names_canonical=False, n_species=0, n_genera=0, ani_min=78.0))
     assert rec.preset == "family"
-    assert any("protein" in r for r in rec.reasons)
-    assert rec.expanded[-2:] == ("--coregene-alphabet", "protein")
+    assert any("single-copy marker proteins" in r for r in rec.reasons)
+    assert "markers" in rec.expanded and "--coregene-alphabet" not in rec.expanded
     assert "--partitioned" in rec.expanded
+    # Without REPGENR_MARKERS_DB the reasons name the download command.
+    assert any("repgenr markers-db download --output DIR" in r for r in rec.reasons)
+    monkeypatch.setenv("REPGENR_MARKERS_DB", "/db")
+    rec = mod.advise(_ev(n_species=5, n_genera=2))
+    assert not any("markers-db download" in r for r in rec.reasons)
 
 
 def test_unknown_pairs_count_as_below_80() -> None:

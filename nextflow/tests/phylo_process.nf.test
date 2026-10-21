@@ -19,6 +19,7 @@ nextflow_process {
                     []
                 )
                 input[1] = []
+                input[2] = []
                 """
             }
         }
@@ -50,12 +51,36 @@ nextflow_process {
                     ]
                 )
                 input[1] = []
+                input[2] = []
                 """
             }
         }
         then {
             assert process.success
             assert process.stdout.any { line -> line.contains('annotations: staged (2 records)') }
+            assert process.stdout.any { line -> line.contains('markers_db: none') }
+        }
+    }
+
+    test("a given marker database is staged") {
+        when {
+            process {
+                """
+                input[0] = tuple(
+                    [id: 'test', mode: 'bacterial'],
+                    file("${projectDir}/nextflow/tests/data/derep_out"),
+                    [ file("${projectDir}/nextflow/tests/data/outgroup/Fam_Out_grp_GCF_000009.1.fasta") ],
+                    file("${projectDir}/nextflow/tests/data/outgroup_accession.txt"),
+                    []
+                )
+                input[1] = []
+                input[2] = file("${projectDir}/nextflow/tests/data/sketches")
+                """
+            }
+        }
+        then {
+            assert process.success
+            assert process.stdout.any { line -> line.contains('markers_db: staged') }
         }
     }
 }

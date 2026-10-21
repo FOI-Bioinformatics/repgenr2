@@ -36,6 +36,7 @@ workflow {
           --derep_process_size N Genomes per dereplication chunk (large inputs)
           --phylo_args '<str>'   Aligner or tree builder for the phylogeny
           --annotator, --bakta_db  Annotation for phylo_args with --msa-source coregene
+          --markers_db <DIR>     Marker database for phylo_args with --coregene markers
         """.stripIndent()
         return
     }

@@ -44,6 +44,8 @@ from .base import (
     HELP_KEEPER,
     HELP_LEVEL,
     HELP_LIMIT,
+    HELP_MARKER_SET,
+    HELP_MARKERS_DB,
     HELP_MAX_CORE_GENES,
     HELP_MAX_GENE_GAPS,
     HELP_METADATA_PATH,
@@ -125,6 +127,7 @@ def _preflight_tools(
     coregene: str = "panaroo",
     annotator: str = "bakta",
     bakta_db: str | None = None,
+    markers_db: str | None = None,
 ) -> None:
     """Check every external tool the chain will need before the first stage runs.
 
@@ -178,6 +181,10 @@ def _preflight_tools(
         ann = annot_registry.create(annotator)
         ann.preflight()
         _database(annotator, ann, bakta_db)
+        if coregene == "markers":
+            from ..coregenes.markers_db import check_markers_db
+
+            check_markers_db(Path(markers_db).expanduser() if markers_db else None)
 
 
 def _check_rank_request(
@@ -414,6 +421,8 @@ def run(
         None, "--coregene-alphabet", help=HELP_COREGENE_ALPHABET
     ),
     gene_trim: str | None = typer.Option(None, "--gene-trim", help=HELP_GENE_TRIM),
+    markers_db: str | None = typer.Option(None, "--markers-db", help=HELP_MARKERS_DB),
+    marker_set: str | None = typer.Option(None, "--marker-set", help=HELP_MARKER_SET),
     max_core_genes: int | None = typer.Option(
         None, "--max-core-genes", min=0, help=HELP_MAX_CORE_GENES
     ),
@@ -526,6 +535,7 @@ def run(
             **({"clean_mode": clean_mode} if clean_mode is not None else {}),
             **({"coregene_alphabet": coregene_alphabet} if coregene_alphabet is not None else {}),
             **({"gene_trim": gene_trim} if gene_trim is not None else {}),
+            **({"marker_set": marker_set} if marker_set is not None else {}),
             **gene_selection_extra(
                 max_core_genes=max_core_genes,
                 gene_rank=gene_rank,
@@ -568,6 +578,7 @@ def run(
             no_outgroup=no_outgroup,
             root=root,
             extra=phylo_extra,
+            markers_db=markers_db,
             on_run=True,
         )
         local = genomes_dir is not None or bool(from_workdir)
@@ -658,6 +669,7 @@ def run(
             coregene=coregene,
             annotator=annotator,
             bakta_db=bakta_db,
+            markers_db=markers_db,
         )
 
     if reads:
@@ -814,6 +826,7 @@ def run(
             extra=phylo_extra,
             allow_incomplete=allow_incomplete,
             preset=preset,
+            markers_db=markers_db,
         ),
     )
     _run(

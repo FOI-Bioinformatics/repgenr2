@@ -87,6 +87,14 @@
                     "help_text": "Without it, bakta reads BAKTA_DB from the task environment. Not needed with --annotator prokka. The directory is linked into each task by default; under stageInMode 'copy', or on a cloud executor without a shared file system, it is copied or downloaded once per genome, which for the light database (about 4 GB) is costly; there, give a path the tasks can read directly through BAKTA_DB instead.",
                     "fa_icon": "fas fa-database"
                 },
+                "markers_db": {
+                    "type": ["string", "null"],
+                    "format": "directory-path",
+                    "default": null,
+                    "description": "Marker database directory (repgenr markers-db download --output DIR) for phylo_args with --coregene markers, staged into the phylo task as --markers-db.",
+                    "help_text": "Without it, phylo-build reads REPGENR_MARKERS_DB from the task environment. The database holds the GTDB bac120 and ar53 marker models (about 25 MB). Not read by the other core-gene builders.",
+                    "fa_icon": "fas fa-database"
+                },
                 "annotate_args": {
                     "type": "string",
                     "default": "",

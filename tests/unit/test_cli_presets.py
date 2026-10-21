@@ -112,7 +112,9 @@ def test_genus_and_family_presets_set_the_core_gene_route(built, tmp_path, comma
         "partitioned": True,
     }
     params = _invoke(built, [*COMMANDS[command](tmp_path), "--preset", "family"])
-    assert params.extra["coregene_alphabet"] == "protein"
+    # The GTDB markers in place of PPanGGOLiN; they imply the protein alphabet.
+    assert params.coregene == "markers"
+    assert "coregene_alphabet" not in params.extra
     assert "gene_trim" not in params.extra
 
 
