@@ -93,10 +93,11 @@ def _capabilities() -> list[ToolCapabilities]:
         for name in registry.names():
             if not registry.is_broken(name):
                 caps.append(registry.get(name).capabilities)
+    from repgenr.coregenes.trim import CLIPKIT
     from repgenr.stages.assemble_qc import CHECKM2_CAPS
     from repgenr.stages.genome import DATASETS_CAPS
 
-    caps.extend([CHECKM2_CAPS, DATASETS_CAPS])
+    caps.extend([CHECKM2_CAPS, DATASETS_CAPS, CLIPKIT])
     return caps
 
 

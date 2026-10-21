@@ -7,6 +7,20 @@ All notable changes to RepGenR2 are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- Core-gene route: `--gene-trim none|clipkit` (default `none`) on `phylo`,
+  `phylo-build` and `run` trims each per-gene alignment with ClipKIT
+  (smart-gap mode) before the genes are measured, ranked and concatenated,
+  for genus and wider sets where ragged ends and poorly aligned columns
+  inflate the site counts. A gene that loses every column is dropped.
+  `core_gene_stats.json` gains `trim`, `trim_mode`,
+  `trimmed_columns_removed` and `genes_dropped_by_trimming`; trimming is
+  part of the alignment reuse key and the phylo stage record gains
+  `gene_trim`. Refused outside `--msa-source coregene` and for a builder
+  that returns no per-gene alignments. New module `coregenes/trim.py`
+  (`clipkit` 2.1.2 or later, run with `-s nt -co` on codon alignments so
+  whole codons are removed and `-s aa` on protein ones; container
+  `clipkit:2.14.0`); `clipkit` added to `envs/core.yml` and to the
+  `--bin-dir` tool names.
 - Core-gene route: `--coregene-alphabet dna|protein` (default `dna`) on
   `phylo`, `phylo-build` and `run` gives a protein core-gene alignment, for
   genus and family overviews where third codon positions saturate.

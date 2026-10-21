@@ -2039,6 +2039,21 @@ commands:
         - coregene
         - --coregene
         - ppanggolin
+      --gene-trim:
+        param: PhyloParams.extra
+        value: clipkit
+        validated: choice
+        invalid: trimal
+        docs:
+        - docs/cli-reference.md
+        - docs/usage.md
+        - docs/choosing-tools.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
+        live: 'n/a: covered offline in tests/unit/test_coregene_trim.py, tests/unit/test_phylo_coregene.py and tests/unit/test_cli_gene_selection.py (the live run needs bakta, the bakta database, a core-gene builder and clipkit)'
+        with_args:
+        - --msa-source
+        - coregene
       --max-core-genes:
         param: PhyloParams.extra
         value: '5'
@@ -2452,6 +2467,21 @@ commands:
         - coregene
         - --coregene
         - ppanggolin
+      --gene-trim:
+        param: PhyloBuildParams.phylo.extra
+        value: clipkit
+        validated: choice
+        invalid: trimal
+        docs:
+        - docs/cli-reference.md
+        - docs/usage.md
+        - docs/choosing-tools.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'params.phylo_args'
+        live: 'n/a: covered offline in tests/unit/test_coregene_trim.py, tests/unit/test_phylo_coregene.py and tests/unit/test_cli_gene_selection.py (the live run needs bakta, the bakta database, a core-gene builder and clipkit)'
+        with_args:
+        - --msa-source
+        - coregene
       --max-core-genes:
         param: PhyloBuildParams.phylo.extra
         value: '5'
@@ -4370,6 +4400,21 @@ commands:
         - coregene
         - --coregene
         - ppanggolin
+      --gene-trim:
+        param: PhyloParams.extra
+        value: clipkit
+        validated: choice
+        invalid: trimal
+        docs:
+        - docs/cli-reference.md
+        - docs/usage.md
+        - docs/choosing-tools.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
+        live: 'n/a: covered offline in tests/unit/test_coregene_trim.py, tests/unit/test_phylo_coregene.py and tests/unit/test_cli_gene_selection.py (the live run needs bakta, the bakta database, a core-gene builder and clipkit)'
+        with_args:
+        - --msa-source
+        - coregene
       --max-core-genes:
         param: PhyloParams.extra
         value: '5'

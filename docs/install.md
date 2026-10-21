@@ -343,6 +343,7 @@ the `envs/` files, and the environment that holds each tool is listed in
 | Core-gene builder | ppanggolin | `ppanggolin`, `mafft` | yes | `ppanggolin:2.3.2` | none |
 | Core-gene builder | scarap | `scarap`, `mmseqs`, `mafft` | yes | `scarap:1.0.2` | none |
 | Core-gene builder | orthofinder | `orthofinder`, `diamond`, `mafft` | yes | `orthofinder:3.1.5` | none |
+| Core-gene trimming (`--gene-trim clipkit`) | clipkit | `clipkit` (in `envs/core.yml`) | yes | `clipkit:2.14.0` | none |
 | Tree builder | iqtree | `iqtree` | yes | `iqtree:3.1.3` | none |
 | Tree builder | fasttree | `fasttree` | yes | `fasttree:2.2.0` | none |
 | Tree builder | veryfasttree | `veryfasttree` | no record (offline contract test only) | `veryfasttree:4.0.5` | none |
@@ -354,6 +355,7 @@ the `envs/` files, and the environment that holds each tool is listed in
 | Tree builder | aster | `aster` | yes | `aster:1.25` | IQ-TREE or FastTree for the gene trees, which run in their own images under a container backend |
 
 The genome download steps also need `ncbi-datasets-cli`.
+`clipkit` is in `envs/core.yml` rather than in the core-gene builder environments: it is a noarch Python package, and RepGenR2 finds it by its own name (`--bin-dir clipkit=DIR`), not through a builder's environment.
 
 ## Cactus
 

@@ -37,5 +37,6 @@ dependencies:
   - iqtree>=2.0
   - raxml-ng>=1.0
   - aster>=1.19           # wastral, astral4, astral-pro3 for the aster tree builder
+  - clipkit>=2.1.2         # per-gene trimming of the core-gene route (--gene-trim clipkit)
   - pip:
       - -e ..

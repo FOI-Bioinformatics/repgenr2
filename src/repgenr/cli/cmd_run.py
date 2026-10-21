@@ -37,6 +37,7 @@ from .base import (
     HELP_DATASET,
     HELP_DEREP_TOOL_ARG,
     HELP_GENE_RANK,
+    HELP_GENE_TRIM,
     HELP_GTDB_RELEASE,
     HELP_GTDB_VERSION,
     HELP_INCLUDE_DEREPLICATED,
@@ -409,6 +410,7 @@ def run(
     coregene_alphabet: str | None = typer.Option(
         None, "--coregene-alphabet", help=HELP_COREGENE_ALPHABET
     ),
+    gene_trim: str | None = typer.Option(None, "--gene-trim", help=HELP_GENE_TRIM),
     max_core_genes: int | None = typer.Option(
         None, "--max-core-genes", min=0, help=HELP_MAX_CORE_GENES
     ),
@@ -510,6 +512,7 @@ def run(
             **({"core_threshold": core_threshold} if core_threshold is not None else {}),
             **({"clean_mode": clean_mode} if clean_mode is not None else {}),
             **({"coregene_alphabet": coregene_alphabet} if coregene_alphabet is not None else {}),
+            **({"gene_trim": gene_trim} if gene_trim is not None else {}),
             **gene_selection_extra(
                 max_core_genes=max_core_genes,
                 gene_rank=gene_rank,

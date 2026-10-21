@@ -163,6 +163,12 @@ HELP_COREGENE_ALPHABET = (
     "overviews, where third codon positions saturate (ppanggolin, scarap and orthofinder; "
     "refused with panaroo)."
 )
+HELP_GENE_TRIM = (
+    "With --msa-source coregene: none (default) or clipkit; clipkit trims each gene "
+    "alignment (ClipKIT smart-gap mode, the only mode offered) before the genes are "
+    "measured, ranked and concatenated. Suits genus and wider sets, where ragged ends "
+    "and poorly aligned columns inflate the site counts."
+)
 HELP_MAX_CORE_GENES = (
     "With --msa-source coregene: keep at most this many core genes in the alignment, "
     "chosen by --gene-rank (a count; 0 keeps every core gene; unset is 0)."

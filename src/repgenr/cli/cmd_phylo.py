@@ -26,6 +26,7 @@ from .base import (
     HELP_COREGENE,
     HELP_COREGENE_ALPHABET,
     HELP_GENE_RANK,
+    HELP_GENE_TRIM,
     HELP_INCLUDE_DEREPLICATED,
     HELP_MAX_CORE_GENES,
     HELP_MAX_GENE_GAPS,
@@ -188,6 +189,7 @@ def phylo(
     coregene_alphabet: str | None = typer.Option(
         None, "--coregene-alphabet", help=HELP_COREGENE_ALPHABET
     ),
+    gene_trim: str | None = typer.Option(None, "--gene-trim", help=HELP_GENE_TRIM),
     max_core_genes: int | None = typer.Option(
         None, "--max-core-genes", min=0, help=HELP_MAX_CORE_GENES
     ),
@@ -232,6 +234,7 @@ def phylo(
                     if coregene_alphabet is not None
                     else {}
                 ),
+                **({"gene_trim": gene_trim} if gene_trim is not None else {}),
                 **gene_selection_extra(
                     max_core_genes=max_core_genes,
                     gene_rank=gene_rank,

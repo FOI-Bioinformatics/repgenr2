@@ -983,3 +983,101 @@ def test_fingerprint_drops_the_alphabet_when_no_coregene_pass_runs() -> None:
         "extra": {"coregene_alphabet": "protein"},
     }
     assert phylo_mod.fingerprint_params(payload)["extra"] == {"coregene_alphabet": "protein"}
+
+
+# --gene-trim: per-gene trimming with ClipKIT on the core-gene route.
+
+
+def _fake_clipkit(monkeypatch) -> list[str]:
+    """clipkit drops the last column of each gene; returns the trimmed file stems."""
+    from repgenr.coregenes import trim
+    from repgenr.stages import coregene as stage
+
+    trimmed: list[str] = []
+
+    def run_chain(caps, steps, **k):
+        for _, argv in steps:
+            src, dst = Path(argv[1]), Path(argv[argv.index("-o") + 1])
+            trimmed.append(dst.stem)
+            lines = src.read_text(encoding="utf-8").splitlines()
+            out = [ln if ln.startswith(">") else ln[:-1] for ln in lines]
+            dst.write_text("\n".join(out) + "\n", encoding="utf-8")
+
+    monkeypatch.setattr(trim, "run_chain", run_chain)
+    monkeypatch.setattr(stage, "preflight_clipkit", lambda: {"clipkit": "2.14.0"})
+    return trimmed
+
+
+def test_gene_trim_is_part_of_the_msa_key_only_when_on(tmp_path: Path, monkeypatch) -> None:
+    genomes = [tmp_path / "a.fasta"]
+    genomes[0].write_text(">x\nACGT\n", encoding="utf-8")
+
+    def key(**extra) -> str:
+        return phylo_mod._msa_key(
+            genomes, None, PhyloParams(msa_source="coregene", extra=extra), None, "d"
+        )
+
+    assert key() == key(gene_trim="none")
+    assert key() != key(gene_trim="clipkit")
+    payloads: list[dict] = []
+    real = phylo_mod.json.dumps
+
+    def capture(obj, **kw):
+        payloads.append(obj)
+        return real(obj, **kw)
+
+    monkeypatch.setattr(phylo_mod.json, "dumps", capture)
+    for value, alphabet in (("none", "dna"), ("clipkit", "dna"), ("clipkit", "protein")):
+        extra = {"gene_trim": value, "coregene_alphabet": alphabet}
+        phylo_mod._msa_key(
+            genomes, None, PhyloParams(msa_source="coregene", extra=extra), None, "d"
+        )
+    off, dna, protein = (p["coregene"] for p in payloads)
+    # The codon-preserving trim is in the dna key, so an alignment trimmed
+    # column by column (before -co) is rebuilt.
+    assert "gene_trim" not in off and dna["gene_trim"] == "clipkit:smart-gap:codon"
+    assert protein["gene_trim"] == "clipkit:smart-gap"
+
+
+def test_record_carries_gene_trim_and_the_alignment_is_trimmed(
+    workdir: Path, part_tools, monkeypatch
+) -> None:
+    trimmed = _fake_clipkit(monkeypatch)
+    _reps(workdir)
+    ctx = WorkdirContext(workdir, create=True, logger=_LOG)
+    annotate_run(ctx, AnnotateStageParams(tool="fakeannot"))
+    phylo_run(ctx, _params(coregene="fakecg_genes", treebuilder="faketree_part"))
+    assert ctx.config.stages["phylo"].params["gene_trim"] == "none"
+    assert trimmed == []
+    calls = len(_TwoGeneCoreGene.calls)
+    phylo_run(
+        ctx,
+        _params(
+            coregene="fakecg_genes", treebuilder="faketree_part", extra={"gene_trim": "clipkit"}
+        ),
+    )
+    assert ctx.config.stages["phylo"].params["gene_trim"] == "clipkit"
+    # The alignment is rebuilt, from the trimmed genes (6 + 4 columns, less one each).
+    assert len(_TwoGeneCoreGene.calls) == calls + 1
+    assert sorted(trimmed) == ["gyrA", "rec_A"]
+    stats = json.loads((ctx.phylo_msa_dir / CORE_GENE_STATS).read_text(encoding="utf-8"))
+    assert stats["trim"] == "clipkit" and stats["trimmed_columns_removed"] == 2
+    assert stats["alignment_length"] == 8
+
+
+def test_gene_trim_is_refused_outside_coregene_and_validated(tools) -> None:
+    from repgenr.cli.param_builders import phylo_params
+
+    with pytest.raises(UserInputError, match="--gene-trim applies only"):
+        phylo_params(msa_source="aligner", extra={"gene_trim": "clipkit"})
+    with pytest.raises(UserInputError, match="--gene-trim"):
+        phylo_params(msa_source="coregene", coregene="fakecg", extra={"gene_trim": "trimal"})
+    params = phylo_params(msa_source="coregene", coregene="fakecg", extra={"gene_trim": "clipkit"})
+    assert params.extra["gene_trim"] == "clipkit"
+    with pytest.raises(UserInputError, match="--gene-trim"):
+        phylo_mod._gene_trim({"gene_trim": "trimal"})
+
+
+def test_fingerprint_drops_gene_trim_when_no_coregene_pass_runs() -> None:
+    payload = {"msa_source": "aligner", "extra": {"gene_trim": "clipkit"}}
+    assert phylo_mod.fingerprint_params(payload)["extra"] == {}
