@@ -1,7 +1,8 @@
 # Phylo and tree2tax gap analysis (2026-10)
 
-Status: analysis complete; the improvement ladder below is being implemented in
-batches A to D. Batch E needs cluster time and is deferred.
+Status: analysis complete. Batches A to D are merged. Of batch E, E2 to E4
+shipped as #15, #16 and #18 (with the skani tree builder, #17); E1, the
+benchmark sweep, needs cluster time and is deferred.
 
 This record compares the `phylo` and `tree2tax` stages at commit 43823e8 with
 current practice in bacterial phylogenomics and tree-based taxonomy, lists the
@@ -185,7 +186,7 @@ classes.
 | D3 | `--ranks`: a third column, non-empty on every row, with user-supplied divergence bands; off by default | 11, 17 | M |
 | D4 | `--naming lca`: a node is named by its two child-minimum leaf labels, so existing names survive the addition of later accessions; the leaf-set hash remains the default for one release | 16 | M |
 
-### Batch E: scale envelope (deferred; needs cluster time)
+### Batch E: scale envelope (E2 to E4 shipped; E1 deferred, needs cluster time)
 
 | Id | Change | Gap | Effort |
 |---|---|---|---|
