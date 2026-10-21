@@ -14,13 +14,11 @@ concatenated alignment, and they are the slow part.
 2. The adapter selects the orthogroups present in a single copy in at least
    ``--core-threshold`` of the genomes from ``Orthogroups.tsv``, aligns the
    proteins of each with mafft (``--auto``), and back-translates the
-   alignment to codons from the ``.ffn`` file, so the concatenation is a
-   DNA alignment for the DNA tree builders. A genome missing a gene, or
-   holding several copies, is a gap for it; a gene whose nucleotide length
-   does not match its protein is a gap too, and is counted in the log.
-
-The alignments run in batches, one ``mafft`` per orthogroup, each batch in
-one container when a container backend is active.
+   alignment to codons from the ``.ffn`` file (``codon.py``). It hands over
+   one DNA alignment per orthogroup, which the stage ranks, caps and
+   concatenates. A genome missing a gene, or holding several copies, is
+   absent from it; so is a gene whose nucleotide length does not match its
+   protein, which is counted in the log.
 
 With ``search=mmseqs`` OrthoFinder writes to fixed names under ``/tmp``, so
 two such runs on one host can collide. A path with a space is refused
@@ -41,24 +39,18 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from ..core.binaries import BinarySpec
-from ..core.containers import run_chain, run_tool
+from ..core.containers import run_tool
 from ..core.errors import UserInputError, WorkdirError
-from ..core.executors import parallel_map
 from ..core.plugins import ToolCapabilities
 from .base import CoreGeneBuilder, CoreGeneParams, CoreGeneResult, annotation_sidecars
+from .codon import align_orthogroups
 
 SEARCHES = ("diamond", "diamond_ultra_sens", "blastp", "mmseqs")
-SUPERMATRIX = "core_gene_alignment.fasta"
 SELECTED = "core_orthogroups.txt"
 # Below this a core-gene tree rests on very little.
 _SMALL_CORE = 100
-# Orthogroups aligned per container start.
-_BATCH = 50
 # OrthoFinder's own MCL inflation default, recorded when none is given.
 DEFAULT_INFLATION = 1.2
-# mafft refuses selenocysteine (U) and pyrrolysine (O), which bakta writes into
-# the protein of a recoded gene; X keeps the length, so the codons still map.
-_MAFFT_UNSAFE = str.maketrans({"U": "X", "O": "X", "u": "x", "o": "x"})
 
 
 class OrthoFinderBuilder(CoreGeneBuilder):
@@ -132,48 +124,16 @@ class OrthoFinderBuilder(CoreGeneBuilder):
             )
         (out_dir / SELECTED).write_text("".join(f"{og}\n" for og, _ in selected), "utf-8")
 
-        wanted: dict[str, set[str]] = {n: set() for n in names}
-        for _, members in selected:
-            for genome, gene in members.items():
-                wanted[genome].add(gene)
-        proteins = {n: _read_fasta(f, wanted[n]) for n, f in zip(names, faas, strict=True)}
-        genes = {n: _read_fasta(f, wanted[n]) for n, f in zip(names, ffns, strict=True)}
-
-        prot_dir = out_dir / "orthogroups"
-        aln_dir = out_dir / "alignments"
-        prot_dir.mkdir(exist_ok=True)
-        aln_dir.mkdir(exist_ok=True)
-        jobs: list[tuple[str, Path, Path]] = []
-        to_align: list[tuple[str, Path, Path]] = []
-        for og, members in selected:
-            src = prot_dir / f"{og}.faa"
-            dst = aln_dir / f"{og}.aln"
-            with open(src, "w", encoding="utf-8") as fo:
-                for genome, gene in members.items():
-                    protein = proteins[genome].get(gene)
-                    if protein is None:
-                        raise WorkdirError(
-                            f"orthofinder placed gene {gene!r} of {genome} in {og}, but the "
-                            f"protein file has no record of that name; the annotation's "
-                            "identifiers are probably not unique in their first word."
-                        )
-                    fo.write(f">{genome}\n{protein.translate(_MAFFT_UNSAFE)}\n")
-            jobs.append((og, src, dst))
-            if len(members) > 1:
-                to_align.append((og, src, dst))
-            else:
-                # One sequence is its own alignment (possible at a low threshold).
-                shutil.copyfile(src, dst)
-        self._align(to_align, out_dir, params.threads, logger)
-
-        alignment = out_dir / SUPERMATRIX
-        mismatched = _write_supermatrix(alignment, jobs, selected, genes, names)
-        if mismatched:
-            logger.info(
-                "%d gene(s) were left as gaps because their nucleotide length does not match "
-                "the protein (partial or frame-shifted genes)",
-                mismatched,
-            )
+        gene_alignments, _ = align_orthogroups(
+            selected,
+            dict(zip(names, faas, strict=True)),
+            dict(zip(names, ffns, strict=True)),
+            out_dir,
+            self.capabilities,
+            params.threads,
+            logger,
+            "orthofinder",
+        )
         if len(selected) < _SMALL_CORE:
             logger.warning(
                 "Only %d core genes in the orthofinder alignment. On a divergent set lower "
@@ -182,7 +142,6 @@ class OrthoFinderBuilder(CoreGeneBuilder):
             )
         tables = [table.parent / "Orthogroups.GeneCount.tsv", out_dir / SELECTED]
         return CoreGeneResult(
-            alignment=alignment,
             tables=[t for t in tables if t.is_file()],
             core_genes=len(selected),
             settings={
@@ -190,31 +149,8 @@ class OrthoFinderBuilder(CoreGeneBuilder):
                 "inflation": inflation if inflation is not None else DEFAULT_INFLATION,
                 "clustering_on": "protein, all against all",
             },
+            gene_alignments=gene_alignments,
         )
-
-    def _align(
-        self,
-        jobs: Sequence[tuple[str, Path, Path]],
-        out_dir: Path,
-        threads: int,
-        logger: logging.Logger,
-    ) -> None:
-        batches = [jobs[i : i + _BATCH] for i in range(0, len(jobs), _BATCH)]
-
-        def run(batch: Sequence[tuple[str, Path, Path]]) -> None:
-            run_chain(
-                self.capabilities,
-                [
-                    ("mafft", ["mafft", "--quiet", "--auto", "--thread", "1", "--out", dst, src])
-                    for _, src, dst in batch
-                ],
-                logger=logger,
-                cwd=out_dir,
-            )
-
-        logger.info("Aligning %d orthogroups with mafft", len(jobs))
-        # The first failure cancels the batches not yet started.
-        parallel_map(run, batches, max(1, threads), logger=logger)
 
 
 def _inflation(raw: object) -> float | None:
@@ -264,82 +200,3 @@ def _single_copy_core(
             if members and len(members) / len(names) >= threshold:
                 out.append((row[0], members))
     return out
-
-
-def _read_fasta(path: Path, wanted: set[str]) -> dict[str, str]:
-    """The records of ``path`` whose identifier is in ``wanted``."""
-    seqs: dict[str, list[str]] = {}
-    current: list[str] | None = None
-    with open(path, encoding="utf-8", errors="replace") as fh:
-        for line in fh:
-            if line.startswith(">"):
-                ident = line[1:].split(maxsplit=1)[0] if line[1:].strip() else ""
-                current = seqs.setdefault(ident, []) if ident in wanted else None
-            elif current is not None:
-                current.append(line.strip())
-    return {k: "".join(v) for k, v in seqs.items()}
-
-
-def _read_alignment(path: Path) -> dict[str, str]:
-    seqs: dict[str, list[str]] = {}
-    current: list[str] = []
-    with open(path, encoding="utf-8") as fh:
-        for line in fh:
-            if line.startswith(">"):
-                current = seqs.setdefault(line[1:].strip(), [])
-            else:
-                current.append(line.strip())
-    return {k: "".join(v) for k, v in seqs.items()}
-
-
-def _codons(aligned: str, nucleotides: str) -> str | None:
-    """``aligned`` (a gapped protein) as codons from ``nucleotides``.
-
-    None when the lengths do not match, allowing one trailing stop codon.
-    """
-    residues = len(aligned) - aligned.count("-")
-    nt = nucleotides.upper()
-    if len(nt) == 3 * residues + 3:
-        nt = nt[:-3]
-    if len(nt) != 3 * residues:
-        return None
-    out: list[str] = []
-    i = 0
-    for aa in aligned:
-        if aa == "-":
-            out.append("---")
-        else:
-            out.append(nt[i : i + 3])
-            i += 3
-    return "".join(out)
-
-
-def _write_supermatrix(
-    alignment: Path,
-    jobs: Sequence[tuple[str, Path, Path]],
-    selected: Sequence[tuple[str, dict[str, str]]],
-    genes: dict[str, dict[str, str]],
-    names: Sequence[str],
-) -> int:
-    """Concatenate the back-translated alignments; returns the genes left as gaps."""
-    blocks: dict[str, list[str]] = {n: [] for n in names}
-    mismatched = 0
-    for (og, _, dst), (_, members) in zip(jobs, selected, strict=True):
-        if not dst.is_file() or dst.stat().st_size == 0:
-            raise WorkdirError(f"mafft wrote no alignment for {og}")
-        aligned = _read_alignment(dst)
-        if not aligned:
-            raise WorkdirError(f"mafft wrote an empty alignment for {og}")
-        width = len(next(iter(aligned.values()))) * 3
-        for genome in names:
-            gene = members.get(genome)
-            codons = None
-            if gene is not None and genome in aligned and gene in genes[genome]:
-                codons = _codons(aligned[genome], genes[genome][gene])
-                if codons is None:
-                    mismatched += 1
-            blocks[genome].append(codons if codons is not None else "-" * width)
-    with open(alignment, "w", encoding="utf-8") as fo:
-        for genome in names:
-            fo.write(f">{genome}\n{''.join(blocks[genome])}\n")
-    return mismatched

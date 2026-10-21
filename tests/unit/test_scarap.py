@@ -8,13 +8,17 @@ from pathlib import Path
 import pytest
 
 from repgenr.core.errors import ToolExecutionError, UserInputError, WorkdirError
+from repgenr.coregenes import codon
 from repgenr.coregenes import scarap as mod
 from repgenr.coregenes.base import CoreGeneParams, registry
 
 _LOG = logging.getLogger("test-scarap")
 
 
-def _gffs(tmp_path: Path, n: int = 3, *, ffn: bool = True, shared_ids: bool = False) -> list[Path]:
+def _gffs(
+    tmp_path: Path, n: int = 3, *, ffn: bool = True, shared_ids: bool = False, genes: int = 150
+) -> list[Path]:
+    """``genes`` one-codon genes (MK, ATGAAA) per genome, ids unique per genome."""
     out = []
     for i in range(1, n + 1):
         name = f"Fam_Gen_sp_GCA_{i}.1"
@@ -22,45 +26,65 @@ def _gffs(tmp_path: Path, n: int = 3, *, ffn: bool = True, shared_ids: bool = Fa
         d.mkdir(parents=True, exist_ok=True)
         gff = d / f"{name}.gff3"
         gff.write_text(f"##gff-version 3\n##FASTA\n>{name}\nACGT\n", encoding="utf-8")
-        gene = "g1" if shared_ids else f"G{i}_00001"
-        (d / f"{name}.faa").write_text(f">{gene}\nMK\n", encoding="utf-8")
+        ids = [f"g{j}" if shared_ids else f"G{i}_{j:05d}" for j in range(genes)]
+        (d / f"{name}.faa").write_text("".join(f">{g}\nMK\n" for g in ids), encoding="utf-8")
         if ffn:
-            (d / f"{name}.ffn").write_text(f">{gene}\nATGAAA\n", encoding="utf-8")
+            (d / f"{name}.ffn").write_text(
+                "".join(f">{g}\nATGAAA\n" for g in ids), encoding="utf-8"
+            )
         out.append(gff)
     return out
 
 
-def _fake(calls: list[list[str]], *, orthogroups: int = 150, supermatrix: bool = True):
+def _fake(calls: list[list[str]], *, orthogroups: int = 150):
+    """scarap core puts the j-th gene of every genome in orthogroup F<j>."""
+
     def run_tool(caps, cmd, **k):
         cmd = [str(c) for c in cmd]
         calls.append(cmd)
-        names = [Path(p).stem for p in Path(cmd[2]).read_text(encoding="utf-8").split()]
+        faas = [Path(p) for p in Path(cmd[2]).read_text(encoding="utf-8").split()]
         if cmd[1] == "core":
             out = Path(cmd[3])
             out.mkdir(parents=True)
-            rows = [f"g{i}_{n}\t{n}\tF{i:04d}\n" for i in range(orthogroups) for n in names]
+            rows = []
+            for faa in faas:
+                ids = [
+                    line[1:].strip()
+                    for line in faa.read_text(encoding="utf-8").splitlines()
+                    if line.startswith(">")
+                ]
+                rows += [f"{g}\t{faa.stem}\tF{j:04d}\n" for j, g in enumerate(ids[:orthogroups])]
             (out / "genes.tsv").write_text("".join(rows), encoding="utf-8")
-        elif cmd[1] == "concat":
-            out = Path(cmd[4])
-            out.mkdir(parents=True)
-            (out / "supermatrix_aas.fasta").write_text(">x\nMK\n", encoding="utf-8")
-            if supermatrix:
-                (out / mod.SUPERMATRIX).write_text(
-                    "".join(f">{n}\nATGAAA\n" for n in names), encoding="utf-8"
-                )
         return 0
 
     return run_tool
 
 
-def test_argv_and_outputs(tmp_path: Path, monkeypatch) -> None:
+@pytest.fixture(autouse=True)
+def _mafft_copies(monkeypatch) -> list[list[list[str]]]:
+    """mafft copies its input: the proteins are already aligned."""
+    chains: list[list[list[str]]] = []
+
+    def run_chain(caps, steps, **k):
+        argvs = [[str(c) for c in argv] for _, argv in steps]
+        chains.append(argvs)
+        for argv in argvs:
+            src, dst = Path(argv[-1]), Path(argv[argv.index("--out") + 1])
+            dst.write_text(src.read_text(encoding="utf-8"), encoding="utf-8")
+
+    monkeypatch.setattr(codon, "run_chain", run_chain)
+    return chains
+
+
+def test_argv_and_outputs(tmp_path: Path, monkeypatch, _mafft_copies) -> None:
     calls: list[list[str]] = []
     monkeypatch.setattr(mod, "run_tool", _fake(calls))
     gffs = _gffs(tmp_path)
     result = mod.ScarapBuilder().call(
         gffs, tmp_path / "out", CoreGeneParams(threads=4, core_threshold=0.9), _LOG
     )
-    core, concat = calls
+    # One SCARAP call: its concat would delete the per-orthogroup alignments.
+    (core,) = calls
     assert core[:2] == ["scarap", "core"]
     faas = Path(core[2]).read_text(encoding="utf-8").split()
     # The file stem is the genome name SCARAP uses, which is the record name.
@@ -69,15 +93,19 @@ def test_argv_and_outputs(tmp_path: Path, monkeypatch) -> None:
     assert core[core.index("-d") + 1] == "FH"
     # SCARAP's 0.90 prefilter would cap a lower threshold; the smaller is passed.
     assert core[core.index("-p") + 1] == "0.9"
-    assert concat[:2] == ["scarap", "concat"] and concat[3].endswith("genes.tsv")
-    # The core is judged again over all genomes, not only the seeds.
-    assert concat[concat.index("-f") + 1] == "0.9" and concat[2] == core[2]
-    ffns = Path(concat[concat.index("-n") + 1]).read_text(encoding="utf-8").split()
-    assert [Path(p).suffix for p in ffns] == [".ffn"] * 3
-    assert result.alignment.name == mod.SUPERMATRIX and result.core_genes == 150
+    # The adapter aligns each orthogroup with mafft and hands over codon alignments.
+    assert result.alignment is None and result.core_genes == 150
+    assert len(result.gene_alignments) == 150
+    # Batches of at most 50 orthogroups per mafft chain.
+    assert [len(chain) for chain in _mafft_copies] == [50, 50, 50]
+    first = result.gene_alignments[0]
+    assert first.gene == "F0000" and first.path.name == "F0000.fasta"
+    records = first.path.read_text(encoding="utf-8").split(">")[1:]
+    assert {r.split("\n")[0]: r.split("\n")[1] for r in records} == {g.stem: "ATGAAA" for g in gffs}
     assert [t.name for t in result.tables] == ["genes.tsv"]
     assert result.clustering_identity is None
     assert result.settings["method"] == "FH" and result.settings["seeds"] == 100
+    assert result.settings["scarap_core_m"] == 0 and "max_core_genes" not in result.settings
 
 
 def test_extras_reach_the_core_call(tmp_path: Path, monkeypatch) -> None:
@@ -134,11 +162,7 @@ def test_small_empty_and_failed_cores(tmp_path: Path, monkeypatch, caplog) -> No
     monkeypatch.setattr(mod, "run_tool", _fake(calls, orthogroups=0))
     with pytest.raises(WorkdirError, match="no core gene"):
         mod.ScarapBuilder().call(_gffs(tmp_path), tmp_path / "o2", CoreGeneParams(), _LOG)
-    assert [c[1] for c in calls] == ["core"]  # no alignment pass over nothing
-
-    monkeypatch.setattr(mod, "run_tool", _fake([], supermatrix=False))
-    with pytest.raises(WorkdirError, match="wrote no supermatrix_nucs.fasta"):
-        mod.ScarapBuilder().call(_gffs(tmp_path), tmp_path / "o3", CoreGeneParams(), _LOG)
+    assert [c[1] for c in calls] == ["core"]
 
 
 def test_registered_never_auto_and_ignores_panaroo_settings() -> None:
@@ -171,18 +195,27 @@ def test_the_count_follows_scarap_single_copy_rule(tmp_path: Path) -> None:
         "c1\tG1\tC\n",
     ]
     genes.write_text("".join(rows), encoding="utf-8")
-    assert mod._core_orthogroups(genes, 1.0, 0) == ["A"]
-    assert mod._core_orthogroups(genes, 0.75, 0) == ["A", "B"]
-    assert mod._core_orthogroups(genes, 0.5, 0) == ["A", "B", "C"]
-    assert mod._core_orthogroups(genes, 0.5, 2) == ["A", "B"]
+
+    def groups(threshold: float, cap: int) -> list[str]:
+        return [g for g, _ in mod._core_orthogroups(genes, threshold, cap)]
+
+    assert groups(1.0, 0) == ["A"]
+    assert groups(0.75, 0) == ["A", "B"]
+    assert groups(0.5, 0) == ["A", "B", "C"]
+    assert groups(0.5, 2) == ["A", "B"]
     assert mod._core_orthogroups(tmp_path / "missing.tsv", 0.5, 0) == []
+    # The members are the genomes holding the orthogroup in exactly one copy.
+    members = dict(mod._core_orthogroups(genes, 0.5, 0))
+    assert members["A"] == {f"G{i}": f"a{i}" for i in range(4)}
+    assert members["B"] == {f"G{i}": f"b{i}" for i in range(1, 4)}
+    assert members["C"] == {"G0": "c0", "G1": "c1"}
 
 
 def test_gene_ids_shared_across_genomes_are_refused(tmp_path: Path, monkeypatch) -> None:
     calls: list[list[str]] = []
     monkeypatch.setattr(mod, "run_tool", _fake(calls))
-    gffs = _gffs(tmp_path, shared_ids=True)  # every .faa holds ">g1"
-    with pytest.raises(WorkdirError, match="g1 is in both"):
+    gffs = _gffs(tmp_path, shared_ids=True)  # every .faa holds ">g0", ">g1", ...
+    with pytest.raises(WorkdirError, match="g0 is in both"):
         mod.ScarapBuilder().call(gffs, tmp_path / "o", CoreGeneParams(), _LOG)
     assert calls == []
 
@@ -214,7 +247,7 @@ def test_orthofinder_methods_need_orthofinder_beside_scarap(tmp_path: Path, monk
         mod.ScarapBuilder().call(
             _gffs(tmp_path), tmp_path / "o4", CoreGeneParams(extra={"method": "O-D"}), _LOG
         )
-    assert len(calls) == 2  # core and concat of the first run only
+    assert len(calls) == 1  # the core call of the first run only
 
 
 def test_the_pandas_2_failure_is_explained(tmp_path: Path, monkeypatch) -> None:

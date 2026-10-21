@@ -14,6 +14,14 @@ header: ``summary_statistics.txt`` reports Panaroo's fixed 99 to 100 per
 cent bin, which is not the set kept at another ``--core_threshold``. mafft
 does the per-gene alignments.
 
+The adapter hands over Panaroo's per-gene alignments
+(``aligned_gene_sequences/``), the genes of the chosen alignment in the
+order its header lists them, so the stage ranks, caps and concatenates them
+itself; Panaroo's own concatenation stays in the result as well. Panaroo
+1.8 labels each header entry with the alignment file name less its last
+extension: ``<gene>.aln`` for ``<gene>.aln.fas``, and ``<gene>`` for the
+``<gene>.fasta`` it writes for a gene with a single sequence.
+
 ``-c`` (exposed as ``--aligner-arg threshold=``) sets the identity of the
 first clustering pass, 0.98 by default. It decides how many genes cluster
 at all, so on a divergent set it governs the size of the core far more
@@ -34,7 +42,7 @@ from ..core.binaries import BinarySpec
 from ..core.containers import run_tool
 from ..core.errors import UserInputError, WorkdirError
 from ..core.plugins import ToolCapabilities, parse_extra_bool
-from .base import CLEAN_MODES, CoreGeneBuilder, CoreGeneParams, CoreGeneResult
+from .base import CLEAN_MODES, CoreGeneBuilder, CoreGeneParams, CoreGeneResult, GeneAlignment
 
 TABLES = (
     "gene_presence_absence.csv",
@@ -44,6 +52,8 @@ TABLES = (
     "core_alignment_filtered_header.embl",
 )
 _FEATURE = re.compile(r"^FT\s+feature\s")
+# The /label= qualifier of a header entry; quotes are tolerated.
+_LABEL = re.compile(r'^FT\s+/label="?([^"\s]+)"?\s*$')
 # Panaroo's own -c default, named so the messages can quote it.
 DEFAULT_THRESHOLD = 0.98
 # Below this a core-gene tree rests on very little, and the identity gate
@@ -179,6 +189,7 @@ class PanarooBuilder(CoreGeneBuilder):
             tables=tables,
             core_genes=core_genes,
             clustering_identity=identity,
+            gene_alignments=_gene_alignments(header, out_dir, logger),
         )
 
 
@@ -219,3 +230,46 @@ def _core_genes(header: Path, out_dir: Path, logger: logging.Logger) -> int | No
             return genes
     logger.info("panaroo wrote no alignment header; the core-gene count is unknown")
     return None
+
+
+def _gene_alignments(
+    header: Path, out_dir: Path, logger: logging.Logger
+) -> list[GeneAlignment] | None:
+    """The per-gene alignments of the genes ``header`` lists, in its order.
+
+    None, with the concatenation then used as it is, when Panaroo wrote no
+    such header (an older Panaroo). Refuses a header whose gene entries carry
+    no ``/label=`` it can read, and a listed gene with no file under
+    ``aligned_gene_sequences/``.
+    """
+    if not header.is_file():
+        logger.info(
+            "panaroo wrote no %s, so its own concatenation is used and no gene selection applies",
+            header.name,
+        )
+        return None
+    genes_dir = out_dir / "aligned_gene_sequences"
+    out: list[GeneAlignment] = []
+    lines = header.read_text(encoding="utf-8").splitlines()
+    for line in lines:
+        match = _LABEL.match(line)
+        if match is None:
+            continue
+        label = match.group(1)
+        # The label is the file name less its last extension: <gene>.aln for
+        # <gene>.aln.fas, <gene> for the <gene>.fasta of a single sequence.
+        candidates = (f"{label}.fas", f"{label}.fasta")
+        path = next((genes_dir / c for c in candidates if (genes_dir / c).is_file()), None)
+        if path is None:
+            raise WorkdirError(
+                f"{header.name} lists gene {label}, but panaroo wrote no "
+                f"{genes_dir / (label + '.fas')}; the panaroo run is incomplete, and its log "
+                "says why."
+            )
+        out.append(GeneAlignment(label.removesuffix(".aln"), path))
+    if not out and any(_FEATURE.match(line) for line in lines):
+        raise WorkdirError(
+            f"{header}: header format not understood; its gene entries carry no /label= "
+            "qualifier this adapter can read, so the per-gene alignments cannot be found."
+        )
+    return out
