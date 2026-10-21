@@ -8,7 +8,12 @@ dereplicator), as ``sourmash compare --ani`` would report it. ``--ani``
 itself is not used: sourmash 4.9.4 reports an ANI of 0 for sketches of
 small genomes, identical ones included (10 kb and 30 kb genomes at k=31,
 scaled=1000), which would place identical genomes at the largest distance.
-A pair without a shared hash has ANI 0 and distance 1.0.
+With ``metric=ani`` the signature sizes from ``sourmash sig describe``
+enable sourmash's check for chance-level sharing: a pair whose shared hashes
+are compatible with chance (or that shares none) has an unknown ANI and
+distance 1.0, rather than the ANI of 0.80 to 0.87 a handful of hashes from
+conserved genes would give at k=31. For sets wider than a genus, ``ksize=21``
+is less biased than the default 31 (docs/choosing-tools.md).
 
 With ``TreeParams.sketches`` the genomes that have a workdir sketch are not
 sketched again: ``sourmash compare -k`` selects the signature at the
@@ -26,11 +31,11 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 
 from ..core.containers import run_tool
-from ..core.contracts import atomic_replace, record_name
+from ..core.contracts import atomic_replace, genus_spread, record_name
 from ..core.errors import UserInputError, WorkdirError
 from ..core.plugins import parse_extra_int, preflight, tool_available
 from ..core.process import write_fofn
-from ..core.sourmash import jaccard_to_ani_matrix, sourmash_capabilities
+from ..core.sourmash import jaccard_to_ani_matrix, signature_sizes, sourmash_capabilities
 from ..tree.nj import NJ_AUTO, NJ_RAPIDNJ, RAPIDNJ, choose_backend, nj_tree
 from .base import InputKind, TreeBuilder, TreeParams, as_genome_list
 
@@ -88,6 +93,14 @@ class SourmashBuilder(TreeBuilder):
         out_dir.mkdir(parents=True, exist_ok=True)
         ksize = parse_extra_int(params.extra, "ksize", self.capabilities.default_params["ksize"])
         scaled = parse_extra_int(params.extra, "scaled", self.capabilities.default_params["scaled"])
+        n_genera = genus_spread([record_name(g) for g in genomes])
+        if ksize == 31 and n_genera > 1:
+            logger.info(
+                "sourmash: the genome names span %d genera; for a set of this span "
+                "--aligner-arg ksize=21 is recommended: at 80 to 95 %% identity k=21 is less "
+                "biased than k=31 (measured +2.9 %% against +4.5 %% at 85 to 90 %%)",
+                n_genera,
+            )
 
         given = {
             g: Path(params.sketches[g]) for g in genomes if params.sketches and g in params.sketches
@@ -99,6 +112,8 @@ class SourmashBuilder(TreeBuilder):
 
         matrix_csv = out_dir / "compare.csv"
         compare_fofn = write_fofn(sigs, out_dir / "signatures.fofn")
+        # The given sketches live outside out_dir; their paths are inside the fofn.
+        mounts = sorted({os.path.dirname(os.path.abspath(p)) for p in given.values()})
         run_tool(
             self.capabilities,
             [
@@ -115,8 +130,7 @@ class SourmashBuilder(TreeBuilder):
             ],
             logger=logger,
             log_prefix="sourmash",
-            # The given sketches live outside out_dir; their paths are inside the fofn.
-            extra_mounts=sorted({os.path.dirname(os.path.abspath(p)) for p in given.values()}),
+            extra_mounts=mounts,
         )
 
         labels, similarity = _read_csv(matrix_csv)
@@ -128,17 +142,35 @@ class SourmashBuilder(TreeBuilder):
         if metric == METRIC_ANI:
             import numpy as np
 
-            similarity = jaccard_to_ani_matrix(np.asarray(similarity, dtype=float), ksize).tolist()
+            sizes = signature_sizes(
+                self.capabilities,
+                compare_fofn,
+                out_dir / "sizes.csv",
+                ksize,
+                labels,
+                logger,
+                run_tool,
+                extra_mounts=mounts,
+            )
+            sim = np.asarray(similarity, dtype=float)
+            if sizes is None:
+                ani, _unknown = jaccard_to_ani_matrix(sim, ksize)
+            else:
+                ani, _unknown = jaccard_to_ani_matrix(
+                    sim, ksize, scaled=sizes[1], n_hashes=sizes[0]
+                )
+            # An unknown ANI (NaN) is placed at distance 1.0.
+            similarity = np.nan_to_num(ani, nan=0.0).tolist()
         dist = [[1.0 - similarity[i][j] for j in order] for i in order]
         disjoint = sum(
             1 for a in range(len(dist)) for b in range(a + 1, len(dist)) if dist[a][b] >= 1.0
         )
         if disjoint:
             logger.warning(
-                "sourmash: %d of %d pairs share no hash at k=%d, scaled=%d; their distance "
-                "is set to 1.0, so their placement in the tree is not informed by the data. "
-                "A lower scaled= or ksize=, or a tree builder for divergent sets, is the "
-                "remedy.",
+                "sourmash: %d of %d pairs share no hash, or only hashes compatible with "
+                "chance, at k=%d, scaled=%d; their distance is set to 1.0, so their "
+                "placement in the tree is not informed by the data. A lower scaled= or "
+                "ksize=, or a tree builder for divergent sets, is the remedy.",
                 disjoint,
                 len(dist) * (len(dist) - 1) // 2,
                 ksize,

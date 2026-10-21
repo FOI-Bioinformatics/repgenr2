@@ -93,7 +93,7 @@ def test_the_tree_builder_shares_the_dereplicator_converter() -> None:
     from repgenr.dereplicators import sourmash as derep
 
     assert derep._jaccard_to_ani_matrix is jaccard_to_ani_matrix
-    ani = jaccard_to_ani_matrix(np.array([[1.0, 0.796, 0.0]]), 31)
+    ani, _unknown = jaccard_to_ani_matrix(np.array([[1.0, 0.796, 0.0]]), 31)
     assert ani[0, 0] == 1.0 and ani[0, 2] == 0.0  # identical stays 1.0, disjoint 0
     assert abs(ani[0, 1] - 0.9961) < 5e-4
     assert "metric" in sm.SourmashBuilder.capabilities.accepted_extras

@@ -209,7 +209,8 @@ def test_dense_thresholds_ani_derived_from_jaccard(tmp_path, monkeypatch) -> Non
 def test_jaccard_to_ani_matrix_values() -> None:
     from repgenr.dereplicators.sourmash import _jaccard_to_ani_matrix
 
-    ani = _jaccard_to_ani_matrix(np.array([[1.0, 0.796, 0.0]]), 31)
+    ani, n_unknown = _jaccard_to_ani_matrix(np.array([[1.0, 0.796, 0.0]]), 31)
+    assert n_unknown == 0  # no sizes: no chance check
     assert ani[0, 0] == 1.0  # identical content stays 1.0
     assert abs(ani[0, 1] - 0.9961) < 5e-4  # matches compare --ani
     assert ani[0, 2] == 0.0  # disjoint stays 0

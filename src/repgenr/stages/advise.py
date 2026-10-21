@@ -147,7 +147,8 @@ RECOMMENDATIONS: dict[str, dict[str, Any]] = {
         "flags": ("--treebuilder", "skani"),
         "summary": (
             "An alignment-free skani tree without supports; in tree2tax use "
-            "--collapse-diameter rather than --collapse-support."
+            "--collapse-diameter rather than --collapse-support. For a sourmash tree "
+            "of a set wider than a species, pass --aligner-arg ksize=21."
         ),
         "needs_annotation": False,
     },
@@ -251,8 +252,11 @@ class Evidence:
     ``n_genomes`` counts the representatives, or every genome with
     ``all_genomes``; ``n_species`` and ``n_genera`` count the canonical record
     names; ``ani_min`` and ``ani_median`` are percent over the pairs of the
-    set (None without sketches or sourmash); ``has_annotations`` is true when
-    the annotation index holds every genome of the tree, outgroup included.
+    set whose ANI is known (None without sketches or sourmash);
+    ``ani_unknown_pairs`` counts the pairs whose shared k-mers are compatible
+    with chance, so that no ANI can be estimated (below about 80 % at k=31);
+    ``has_annotations`` is true when the annotation index holds every genome
+    of the tree, outgroup included.
     """
 
     workdir: str
@@ -265,6 +269,7 @@ class Evidence:
     ani_median: float | None
     has_annotations: bool
     outgroup: bool
+    ani_unknown_pairs: int = 0
     notes: tuple[str, ...] = ()
 
 
@@ -290,7 +295,7 @@ def collect_evidence(ctx, all_genomes: bool, threads: int, logger: logging.Logge
         ctx.outgroup_dir, ctx.workdir / "outgroup_accession.txt", _SILENT
     )
     tree_names = names + ([record_name(outgroup_file)] if outgroup_file is not None else [])
-    ani_min, ani_median, ani_note = _ani_summary(ctx, genomes, threads, logger)
+    ani_min, ani_median, ani_unknown, ani_note = _ani_summary(ctx, genomes, threads, logger)
     if ani_note:
         notes.append(ani_note)
     return Evidence(
@@ -304,6 +309,7 @@ def collect_evidence(ctx, all_genomes: bool, threads: int, logger: logging.Logge
         ani_median=ani_median,
         has_annotations=bool(names) and _annotated(ctx.annotations_dir, tree_names),
         outgroup=outgroup_file is not None,
+        ani_unknown_pairs=ani_unknown,
         notes=tuple(notes),
     )
 
@@ -337,44 +343,49 @@ def _sourmash_missing() -> str | None:
 
 def _ani_summary(
     ctx, genomes: Sequence[Path], threads: int, logger: logging.Logger
-) -> tuple[float | None, float | None, str | None]:
+) -> tuple[float | None, float | None, int, str | None]:
     """Minimum and median pairwise ANI (percent) over the existing workdir
-    sketches, and a note when it could not be computed."""
+    sketches, taken over the pairs whose ANI is known; the number of pairs
+    whose shared k-mers are compatible with chance (unknown ANI); and a note
+    when the ANI could not be computed."""
     from ..core.errors import ToolExecutionError, WorkdirError
     from ..core.manifest import MANIFEST_FILENAME
 
     if len(genomes) < 2:
-        return None, None, None
+        return None, None, 0, None
     if len(genomes) > ANI_MAX_GENOMES:
-        return None, None, f"ANI not computed: {len(genomes)} genomes, above {ANI_MAX_GENOMES}"
+        return None, None, 0, f"ANI not computed: {len(genomes)} genomes, above {ANI_MAX_GENOMES}"
     hint = "run `repgenr sketch` to enable the ANI evidence"
     # Opening the manifest would create one; without it there are no sketches.
     if not (ctx.workdir / SKETCHES_DIR).is_dir() or not (ctx.workdir / MANIFEST_FILENAME).is_file():
-        return None, None, f"ANI not computed: no genome sketches ({hint})"
+        return None, None, 0, f"ANI not computed: no genome sketches ({hint})"
     sketches = workdir_provider(ctx, logger, threads, "phylo-advise", write=False)(genomes)
     missing = [g for g in genomes if g not in sketches]
     if missing:
         return (
             None,
             None,
+            0,
             f"ANI not computed: {len(missing)} of {len(genomes)} genomes have no current "
             f"sketch ({hint})",
         )
     reason = _sourmash_missing()
     if reason is not None:
-        return None, None, f"ANI not computed: {reason}"
+        return None, None, 0, f"ANI not computed: {reason}"
     work = Path(tempfile.mkdtemp(prefix="repgenr-advise-"))
     try:
         _names, ani = ani_matrix(genomes, sketches, work, threads, logger)
     except (ToolExecutionError, WorkdirError) as exc:
-        return None, None, f"ANI not computed: {exc}"
+        return None, None, 0, f"ANI not computed: {exc}"
     finally:
         shutil.rmtree(work, ignore_errors=True)
     matrix = np.asarray(ani, dtype=float)
     pairs = matrix[np.triu_indices(matrix.shape[0], k=1)] * 100.0
-    if pairs.size == 0:
-        return None, None, None
-    return float(pairs.min()), float(statistics.median(pairs.tolist())), None
+    known = pairs[~np.isnan(pairs)]
+    unknown = int(pairs.size - known.size)
+    if known.size == 0:
+        return None, None, unknown, None
+    return float(known.min()), float(statistics.median(known.tolist())), unknown, None
 
 
 def _iqtree_limit() -> int:
@@ -397,14 +408,22 @@ def _choose(ev: Evidence) -> tuple[str, list[str]]:
     reasons: list[str] = []
     ani = ev.ani_min
     canonical = ev.names_canonical
-    if ani is not None and ani >= OUTBREAK_MIN_ANI:
+    # A pair whose shared k-mers are compatible with chance has an ANI below
+    # about 80 %: it counts as below GENUS_MIN_ANI, whatever the known pairs give.
+    unknown = ev.ani_unknown_pairs
+    if unknown:
+        reasons.append(
+            f"{unknown} pairs share too few k-mers to estimate an ANI (below about 80 %)."
+        )
+    if not unknown and ani is not None and ani >= OUTBREAK_MIN_ANI:
         reasons.append(
             f"The minimum pairwise ANI is {_pct(ani)}, at or above {OUTBREAK_MIN_ANI:g} %: "
             "one lineage, where a reference-free SNP route resolves the most."
         )
         return "outbreak", reasons
-    if (canonical and ev.n_species == 1) or (
-        not canonical and ani is not None and ani >= SPECIES_MIN_ANI
+    if not unknown and (
+        (canonical and ev.n_species == 1)
+        or (not canonical and ani is not None and ani >= SPECIES_MIN_ANI)
     ):
         if canonical:
             reasons.append("The genome names give one species.")
@@ -433,7 +452,7 @@ def _choose(ev: Evidence) -> tuple[str, list[str]]:
             why = f"there are more than {MASK_MAX_GENOMES} genomes"
         reasons.append(f"Recombination masking is not suggested: {why}.")
         return "species", reasons
-    if (ani is not None and ani < GENUS_MIN_ANI) or (canonical and ev.n_genera > 1):
+    if unknown or (ani is not None and ani < GENUS_MIN_ANI) or (canonical and ev.n_genera > 1):
         if canonical and ev.n_genera > 1:
             reasons.append(f"The genome names span {ev.n_genera} genera.")
         if ani is not None and ani < GENUS_MIN_ANI:
@@ -462,12 +481,32 @@ def _choose(ev: Evidence) -> tuple[str, list[str]]:
     return "quick", reasons
 
 
+# Sketch ANI above skani at k=31 and k=21 on 24 Wolbachia genomes
+# (docs/audit/phylo-methods-2026-10.md, "Sketch ANI audit (2026-10-21)").
+SOURMASH_K21_REASON = (
+    "For a sourmash tree pass --aligner-arg ksize=21: at 80 to 95 % identity k=21 is "
+    "less biased than k=31 (measured +2.9 % against +4.5 % at 85 to 90 %)."
+)
+
+
+def _genus_or_wider(ev: Evidence) -> bool:
+    """Whether the evidence puts the set at a genus or wider: several genera
+    by name, a minimum ANI below SPECIES_MIN_ANI, or pairs of unknown ANI."""
+    return (
+        (ev.names_canonical and ev.n_genera > 1)
+        or (ev.ani_min is not None and ev.ani_min < SPECIES_MIN_ANI)
+        or ev.ani_unknown_pairs > 0
+    )
+
+
 def advise(evidence: Evidence) -> Recommendation:
     """The recommendation for ``evidence``: the preset, the reasons, the
     ``repgenr phylo --preset`` command and its expansion."""
     from .phylo import MIN_TREE_GENOMES
 
     preset, reasons = _choose(evidence)
+    if _genus_or_wider(evidence):
+        reasons.append(SOURMASH_K21_REASON)
     if evidence.n_genomes < MIN_TREE_GENOMES:
         # The command is still printed, so the output keeps one shape; this
         # reason comes first because phylo refuses the set as it is.
@@ -555,6 +594,8 @@ def format_text(rec: Recommendation, evidence: Evidence) -> str:
         names = "names are not canonical; species not counted"
     if evidence.ani_min is not None and evidence.ani_median is not None:
         ani = f"min {_pct(evidence.ani_min)}, median {_pct(evidence.ani_median)}"
+        if evidence.ani_unknown_pairs:
+            ani += f" over the known pairs; {evidence.ani_unknown_pairs} pairs unknown"
     else:
         ani = "unknown"
     lines = [

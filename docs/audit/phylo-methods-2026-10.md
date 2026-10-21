@@ -243,3 +243,48 @@ implemented; F is deferred and G is pending cluster time.
 Deferred: a marker-gene route for family-level sets (F). Pending cluster
 time: a benchmark of IQ-TREE and capped core-gene trees at 100 to 500 genomes
 on real data (G).
+
+## Sketch ANI audit (2026-10-21)
+
+The ANI that RepGenR2 computes from a `sourmash compare` Jaccard matrix,
+`(2j / (1 + j))^(1/k)`, is identical to sourmash's own estimate (maximum
+difference 0 on the 276 pairs of 24 Wolbachia genomes at k=21 and k=31).
+What it did not apply is sourmash's check for chance-level sharing
+(`get_exp_probability_nothing_common` in `sourmash/distance_utils.py`,
+threshold 1e-3), which `sourmash compare --ani` only reports as a warning.
+Against skani on the same genomes (scaled=1000; mean sourmash minus skani,
+percentage points; the last row is the range of the unchecked sourmash
+estimate for the 57 pairs skani does not align):
+
+| skani band | Pairs | k=31 | k=21 |
+|---|---|---|---|
+| 95 % and above | 70 | +0.77 | +0.47 |
+| 85 to 90 % | 70 | +4.46 | +2.86 |
+| 80 to 85 % | 65 | +4.93 | +3.90 |
+| below 80 % | 14 | +5.44 | +4.68 |
+| not aligned by skani | 57 | 79.9 to 87.3 % | 80.8 to 83.7 % |
+
+Two changes follow.
+
+- **Chance check.** `core/sourmash.py` ports the check (numpy, no sourmash
+  import); the dense conversion reads the signature sizes from `sourmash
+  sig describe --csv` and sets the ANI of a pair to unknown (NaN) when its
+  shared hashes are compatible with chance. The dereplicator never merges
+  such a pair, glance writes an empty cell, the medoid counts it as 0, the
+  sourmash tree places it at distance 1.0, and `phylo-advise` takes the
+  minimum and median over the known pairs, reports the unknown count
+  (`ani_unknown_pairs`) and treats an unknown pair as below 80 %, so the
+  Wolbachia set is advised as family rather than species or genus. Live
+  (`repgenr phylo-build --treebuilder sourmash --no-outgroup --root none
+  -t 8`): 27 of 276 pairs unknown at k=31, 21 of them among the 57 that skani
+  does not align and 6 at 80.0 to 80.5 % by skani; 0 at k=21 (`--aligner-arg
+  ksize=21`). The dereplicator's dense path gives the same 27 at k=31. The
+  check therefore removes part of the floor at k=31: the other 36 unaligned
+  pairs keep estimates of 84.7 to 87.3 %, since their shared hashes exceed
+  what chance would give.
+- **k=21 for genus-level sourmash trees.** `phylo-advise` adds, when the set
+  spans more than one genus by name, has a minimum ANI below 95 % or has
+  unknown pairs, that a sourmash tree should be built with `--aligner-arg
+  ksize=21`, and the quick row's summary says so; the sourmash tree builder
+  logs the same at k=31 when the genome names span more than one genus. The
+  default k stays 31.
