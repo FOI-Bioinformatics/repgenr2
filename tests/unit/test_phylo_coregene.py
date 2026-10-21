@@ -858,6 +858,8 @@ def test_aster_wastral_with_midpoint_root_is_refused_before_any_work(
         )
     assert chains == []
     assert _TwoGeneCoreGene.calls == []
+
+
 # --coregene-alphabet: protein core-gene alignments and the tree model.
 
 
