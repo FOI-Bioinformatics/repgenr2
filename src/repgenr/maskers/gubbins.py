@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-import re
 import shlex
 import shutil
 from pathlib import Path
@@ -11,10 +10,15 @@ from pathlib import Path
 from ..core.binaries import BinarySpec
 from ..core.bindirs import host_which, tool_path
 from ..core.containers import available_cpus, run_tool, runs_on_host
-from ..core.contracts import parse_genome_filename
+from ..core.contracts import canonical_taxon as canonical_taxon
+from ..core.contracts import genus_spread as genus_spread
+from ..core.contracts import species_spread as species_spread
 from ..core.errors import ToolExecutionError, UserInputError, WorkdirError
 from ..core.plugins import ToolCapabilities, parse_extra_bool
 from .base import Masker, MaskParams
+
+# canonical_taxon, genus_spread and species_spread live in core.contracts and
+# are re-exported above for the callers that import them from this module.
 
 _ALLOWED = set("ACGTNacgtn-")
 
@@ -192,37 +196,6 @@ MIN_COLUMNS_FOR_DIVERGENCE = 1000
 # on a genus-level set (docs/verification.md); a rapidnj first tree makes the
 # first iteration cheap, and the resolved builder still builds the later ones.
 DEFAULT_FIRST_TREE_BUILDER = ("rapidnj", "JC")
-
-
-# An NCBI assembly accession (GCA_/GCF_ with a version), a RefSeq/GenBank
-# nucleotide accession (NC_000001.1, CP012345.1, MN908947.3) or an ENA/SRA
-# run (SRR..., ERR..., DRR...): the forms repgenr itself names genomes by.
-_ACCESSION_LIKE = re.compile(r"^(GC[AF]_\d+\.\d+|[A-Z]{1,2}_?\d{5,}(\.\d+)?|[SED]RR\d+)$")
-
-
-def canonical_taxon(name: str) -> tuple[str, str] | None:
-    """(genus, species), lower case, of a record name of the canonical
-    ``Family_Genus_species_Accession`` form whose last token is an
-    accession; None for any other name."""
-    _family, genus, sp, acc = parse_genome_filename(name)
-    if genus and acc and _ACCESSION_LIKE.match(acc):
-        return genus.lower(), sp.lower()
-    return None
-
-
-def species_spread(names: list[str]) -> int:
-    """Distinct species among record names of the canonical
-    ``Family_Genus_species_Accession`` form, counted only where the last
-    token is an accession, so a user's own four-token names (such as
-    ``Francisella_tularensis_LVS_1``) are not read as taxonomy; 0 when no
-    name qualifies."""
-    return len({t for t in map(canonical_taxon, names) if t is not None})
-
-
-def genus_spread(names: list[str]) -> int:
-    """Distinct genera among the record names :func:`species_spread` reads;
-    0 when no name qualifies."""
-    return len({t[0] for t in map(canonical_taxon, names) if t is not None})
 
 
 def check_species_spread(names: list[str], extra: dict, logger: logging.Logger) -> None:

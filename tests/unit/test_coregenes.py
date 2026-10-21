@@ -807,6 +807,81 @@ def test_an_unknown_alphabet_is_refused(tmp_path: Path, register_tool) -> None:
         )
 
 
+_TWO_SPECIES = (
+    "Rickettsiaceae_Wolbachia_pipientis_GCF_000008025.1",
+    "Rickettsiaceae_Wolbachia_pipientis_GCA_000022285.1",
+    "Rickettsiaceae_Wolbachia_endosymbiont_GCA_014251295.1",
+)
+
+
+def test_panaroo_clusters_at_095_on_a_multi_species_set(
+    tmp_path: Path, monkeypatch, caplog
+) -> None:
+    """Canonical names spanning two species and no threshold= give -c 0.95,
+    one INFO line, and the identity in the result."""
+    calls: list[list[str]] = []
+    monkeypatch.setattr(mod, "run_tool", _fake_panaroo(calls, genes=150))
+    with caplog.at_level(logging.INFO, logger=_LOG.name):
+        result = mod.PanarooBuilder().call(
+            _gffs(tmp_path, _TWO_SPECIES), tmp_path / "o1", CoreGeneParams(), _LOG
+        )
+    (cmd,) = calls
+    assert cmd[cmd.index("-c") + 1] == "0.95"
+    assert result.clustering_identity == 0.95
+    lines = [r.getMessage() for r in caplog.records if "species" in r.getMessage()]
+    assert len(lines) == 1 and "2 species" in lines[0] and "0.95" in lines[0]
+
+    # The user's threshold= wins, and no line is logged.
+    calls.clear()
+    caplog.clear()
+    with caplog.at_level(logging.INFO, logger=_LOG.name):
+        result = mod.PanarooBuilder().call(
+            _gffs(tmp_path, _TWO_SPECIES),
+            tmp_path / "o2",
+            CoreGeneParams(extra={"threshold": "0.98"}),
+            _LOG,
+        )
+    (cmd,) = calls
+    assert cmd[cmd.index("-c") + 1] == "0.98"
+    assert "species" not in caplog.text
+
+
+def test_panaroo_keeps_098_on_one_species_or_non_canonical_names(
+    tmp_path: Path, monkeypatch
+) -> None:
+    calls: list[list[str]] = []
+    monkeypatch.setattr(mod, "run_tool", _fake_panaroo(calls, genes=150))
+    one_species = _TWO_SPECIES[:2]
+    own_names = ("Wolbachia_pipientis_wMel_1", "Wolbachia_endosymbiont_wRi_2", "sample3")
+    for i, names in enumerate((one_species, own_names)):
+        calls.clear()
+        result = mod.PanarooBuilder().call(
+            _gffs(tmp_path, names), tmp_path / f"o{i}", CoreGeneParams(), _LOG
+        )
+        (cmd,) = calls
+        assert cmd[cmd.index("-c") + 1] == "0.98"
+        assert result.clustering_identity == 0.98
+
+
+def test_a_small_core_on_a_multi_species_set_suggests_the_next_step(
+    tmp_path: Path, monkeypatch, caplog
+) -> None:
+    monkeypatch.setattr(mod, "run_tool", _fake_panaroo([]))  # 17 genes
+    with caplog.at_level(logging.WARNING, logger=_LOG.name):
+        mod.PanarooBuilder().call(
+            _gffs(tmp_path, _TWO_SPECIES), tmp_path / "o1", CoreGeneParams(), _LOG
+        )
+    assert "least 0.95 identical" in caplog.text
+    assert "threshold=0.9;" in caplog.text
+
+
+def test_species_spread_moved_to_contracts_and_is_re_exported() -> None:
+    from repgenr.core import contracts
+    from repgenr.maskers import gubbins
+
+    assert gubbins.species_spread is contracts.species_spread
+    assert gubbins.genus_spread is contracts.genus_spread
+    assert gubbins.canonical_taxon is contracts.canonical_taxon
 # --- per-gene trimming (--gene-trim clipkit) ----------------------------------
 
 

@@ -500,7 +500,7 @@ the other builders.
 
 | Builder | How it groups genes | Setting that governs the core | Measured on Wolbachia (`verification.md`) | Declared limit |
 |---|---|---|---|---|
-| `panaroo` (default) | Clusters genes in a first pass at a fixed identity, then cleans the pangenome graph. | `--aligner-arg threshold=`, the clustering identity, 0.98 by default. A wider set needs a lower value; lower it in steps. | Three genomes: the core went from 52 genes at 0.98 to 638 at 0.90. Four genomes across supergroups shared none at the default. | 500, not measured |
+| `panaroo` (default) | Clusters genes in a first pass at a fixed identity, then cleans the pangenome graph. | `--aligner-arg threshold=`, the clustering identity, 0.98 by default, and 0.95 when it is not set and the canonical genome names span more than one species. A wider set needs a lower value; lower it in steps. | Three genomes: the core went from 52 genes at 0.98 to 638 at 0.90. Four genomes across supergroups shared none at the default. | 500, not measured |
 | `ppanggolin` | Clusters proteins with MMseqs2 at 80% identity over 80% of their length, then partitions the pangenome graph. | `--aligner-arg identity=` and `coverage=`; `partition=` selects the soft core at `--core-threshold` (default), the strict core or the persistent partition. | 24 genomes: 398 single-copy families, where Panaroo's defaults gave none. | 5000, not measured |
 | `scarap` | Builds orthogroups on seed genomes, then searches every genome against their MMseqs2 profiles. | No fixed identity cut; `method=` and `seeds=` choose the inference. | 24 genomes: 577 genes; its tree shared 20 of 21 splits with the PPanGGOLiN tree. | 10000, not measured |
 | `orthofinder` | Compares all proteomes against all with DIAMOND and clusters the hits with MCL. | `search=` and `inflation=`. | 24 genomes: 585 genes; its tree shared 20 of 21 splits with the PPanGGOLiN tree and 19 with the SCARAP tree. | 200, not measured |
@@ -546,12 +546,12 @@ they need installed: bakta needs its database and prokka needs none (see
 
 | Builder | Input | Scaling | Resolution | Rooting by the builder |
 |---|---|---|---|---|
-| `iqtree` | MSA | Declared 500. Poor beyond that. Without `--aligner-arg model=...` it runs ModelFinder first; `model=GTR+G` skips that pass. With a SNP alignment the constant-site counts are passed as `-fconst`; `asc=lewis` selects `+ASC` instead. Accepts the core-gene partitions (`--partitioned`, `-p`). | Good on both diverse and clonal sets. Use at least 1000 ultrafast bootstrap replicates for supports; without `-B` the tree has none, and the stage says so. | Roots on the outgroup. |
+| `iqtree` | MSA | Declared 500. Poor beyond that. Without `--aligner-arg model=...` it runs ModelFinder first; `model=GTR+G` skips that pass. With a SNP alignment the constant-site counts are passed as `-fconst`; `asc=lewis` selects `+ASC` instead. Accepts the core-gene partitions (`--partitioned`, `-p`). | Good on both diverse and clonal sets. Use at least 1000 ultrafast bootstrap replicates for supports, or `--aligner-arg alrt=N` (N at least 1000) for SH-aLRT supports; with neither the tree has none, and the stage says so. Above 200 genomes without `model=` the log notes that `model=GTR+G` skips ModelFinder. | Roots on the outgroup. |
 | `raxmlng` | MSA | Declared 1000. Slow beyond that. | Supports from its own bootstrap procedure. With a SNP alignment the constant-site counts go on the model as `+ASC_STAM`; `asc=lewis` selects `+ASC_LEWIS` instead. Accepts the core-gene partitions (`--partitioned`, `--model partitions.txt`). | Roots on the outgroup. |
 | `fasttree` | MSA | Declared 5000. Good to about 5000. `--aligner-arg gamma=true` rescales the branch lengths under the Gamma20 likelihood. | Approximate. Weaker resolution on clonal sets. | Unrooted. |
 | `veryfasttree` | MSA | Declared 20000, not measured here; the same algorithm as `fasttree` with multi-core and vectorised arithmetic. `auto` picks it above 5000 leaves when an alignment is requested and never below, since `fasttree`'s tighter limit wins there; without an alignment request `auto` stays with the alignment-free builders once the set exceeds the aligner's limit. `-threads` follows `-t`; `--aligner-arg gamma=true` and `--aligner-arg double_precision=true` are extras. | As `fasttree`. | Unrooted. |
 | `mashtree` | Genomes | Declared 10000. 53 min and 7.6 GB measured at 5000. | Poor on clonal sets. No supports. | Unrooted. |
-| `sourmash` | Genomes | Declared 2000. The joining step runs rapidNJ when installed (`nj=auto`), else a cubic Python step refused above 5000. | Poor on clonal sets. No supports. | Unrooted. |
+| `sourmash` | Genomes | Declared 2000. The distance is one minus ANI (`metric=ani`, the default), the ANI estimated from the k-mer Jaccard similarity, or one minus Jaccard with `metric=jaccard`; pairs that share no hash get distance 1 and are counted in the log. The joining step runs rapidNJ when installed (`nj=auto`), else a cubic Python step refused above 5000. | Poor on clonal sets. No supports. | Unrooted. |
 | `skani` | Genomes | Declared 10000, not measured here. ANI from sparse chaining of k-mer sketches, reliable to about 80% identity; pairs below the screen (`screen=80`) get distance 1 and are counted in the log. `preset=fast|medium|slow|small-genomes`, `min_af`, `nj` as extras. Also provides the distance matrix of the viral outgroup selection, with the `small-genomes` preset by default there; when no candidate is within skani's reach no matrix is written and the run proceeds without an outgroup. | Expected to resolve closer pairs than mash distance and more distant ones than Jaccard (skani, Shaw and Yu 2023), not measured here; no supports, and a clonal set resolves only as well as ANI does. | Unrooted. |
 | `ska2` | Genomes | Declared 5000, as the typer. `ska distance` SNP counts (`metric=snps`) or k-mer mismatch fractions (`metric=mismatch`) over the split k-mers each pair shares, joined with rapidNJ when installed. | Good on clonal and outbreak sets, where it is reference-free; undercounts distances once pairs share few k-mers, so it warns on a set spanning several species. No supports. | Unrooted. |
 | `aster` | MSA with gene partitions | Declared 5000, not measured here. Needs `--msa-source coregene --partitioned`: one gene tree per partition (`iqtree --fast`, or `--aligner-arg gene_tree_builder=fasttree`), then a species tree with ASTER (`program=wastral`, the default, `astral4` or `astral-pro3`). Never chosen by `auto`. `rounds=`, `min_gene_length=` and `model=` (the gene-tree model) are extras. | A summary of the gene trees that allows for discordance among them; node labels are local posterior probabilities in [0, 1], so no bootstrap is needed. `wastral` branch lengths are in coalescent units with no terminal lengths, so `--root midpoint` is refused; `astral4` writes substitutions per site. | Unrooted. |
@@ -574,14 +574,15 @@ builder can root. Details are in [Rooting the tree](usage.md#rooting-the-tree).
 ### Collapsing weak splits in tree2tax
 
 The tree builder decides which collapsing options apply. `--collapse-support`
-needs supports: IQ-TREE writes them only with bootstrap replicates (`-B`),
+needs supports: IQ-TREE writes them only with bootstrap replicates (`-B`) or
+SH-aLRT replicates (`--aligner-arg alrt=N`),
 FastTree writes SH-like local supports and RAxML-NG bootstraps by default,
 while `mashtree`, the sourmash builder, `skani` and `ska2` write none.
 `--collapse-length` and `--collapse-diameter` use branch lengths and so work
 on every builder; the diameter maps a distance cutoff (for example about 95 %
 ANI) onto the taxonomy without supports. The units are those of the tree:
-mash distance for `mashtree`, one minus the Jaccard similarity for
-`sourmash`, one minus ANI as a fraction for `skani`, the SNP count
+mash distance for `mashtree`, one minus ANI as a fraction for `sourmash`
+(one minus the Jaccard similarity with `metric=jaccard`), one minus ANI as a fraction for `skani`, the SNP count
 (`metric=snps`, the default) or the fraction of mismatching k-mers
 (`metric=mismatch`) for `ska2`, and substitutions per site for the ML
 builders. Units and examples are in

@@ -26,8 +26,10 @@ extension: ``<gene>.aln`` for ``<gene>.aln.fas``, and ``<gene>`` for the
 first clustering pass, 0.98 by default. It decides how many genes cluster
 at all, so on a divergent set it governs the size of the core far more
 than ``--core_threshold`` does; see ``docs/verification.md`` for the
-measured effect. It is passed on every run, at its default when the user
-sets nothing, so the command and the stage record carry the value.
+measured effect. When the user sets nothing it is 0.98 for a set of one
+species and 0.95 when the canonical genome names span more than one; names
+that are not canonical keep 0.98. It is passed on every run, so the command
+and the stage record carry the value.
 """
 
 from __future__ import annotations
@@ -40,6 +42,7 @@ from pathlib import Path
 
 from ..core.binaries import BinarySpec
 from ..core.containers import run_tool
+from ..core.contracts import species_spread
 from ..core.errors import UserInputError, WorkdirError
 from ..core.plugins import ToolCapabilities, parse_extra_bool
 from .base import CLEAN_MODES, CoreGeneBuilder, CoreGeneParams, CoreGeneResult, GeneAlignment
@@ -56,6 +59,10 @@ _FEATURE = re.compile(r"^FT\s+feature\s")
 _LABEL = re.compile(r'^FT\s+/label="?([^"\s]+)"?\s*$')
 # Panaroo's own -c default, named so the messages can quote it.
 DEFAULT_THRESHOLD = 0.98
+# The -c used when threshold= is not set and the genome names span more than
+# one species: at 0.98 orthologues of different species mostly fall into
+# separate clusters (docs/verification.md, Wolbachia sweep).
+MULTISPECIES_THRESHOLD = 0.95
 # Below this a core-gene tree rests on very little, and the identity gate
 # is the first thing to look at.
 _SMALL_CORE = 100
@@ -108,7 +115,7 @@ class PanarooBuilder(CoreGeneBuilder):
         identity = (
             _unit(params.extra["threshold"], "threshold")
             if "threshold" in params.extra
-            else DEFAULT_THRESHOLD
+            else _default_identity(gffs, logger)
         )
         out_dir.mkdir(parents=True, exist_ok=True)
         listing = out_dir / "gff_list.txt"
@@ -158,7 +165,7 @@ class PanarooBuilder(CoreGeneBuilder):
                     "--aligner-arg filtered=false to use the unfiltered one"
                 )
             advice = (
-                "Lower it (0.95 and 0.90 are the usual steps) on a divergent set"
+                f"Try {_lower_steps(identity)} on a divergent set"
                 if "threshold" not in params.extra
                 else f"You already set it to {identity:g}, so what is left is a lower "
                 "--core-threshold, or leaving the most divergent genomes out"
@@ -182,11 +189,12 @@ class PanarooBuilder(CoreGeneBuilder):
             logger.warning(
                 "Only %d core genes: panaroo's first clustering pass groups only genes at "
                 "least %s identical, so on a divergent set most orthologues end up in "
-                "separate clusters. Try --aligner-arg threshold=0.95, then 0.90; on a "
-                "three-genome Wolbachia set that raised the core about fourfold and then "
-                "twelvefold (docs/verification.md).",
+                "separate clusters. Try %s; on a three-genome Wolbachia set 0.95 and then "
+                "0.90 raised the core about fourfold and then twelvefold "
+                "(docs/verification.md).",
                 core_genes,
-                f"{DEFAULT_THRESHOLD:g}",
+                f"{identity:g}",
+                _lower_steps(identity),
             )
         return CoreGeneResult(
             alignment=alignment,
@@ -195,6 +203,31 @@ class PanarooBuilder(CoreGeneBuilder):
             clustering_identity=identity,
             gene_alignments=_gene_alignments(header, out_dir, logger),
         )
+
+
+def _default_identity(gffs: Sequence[Path], logger: logging.Logger) -> float:
+    """The ``-c`` used when ``threshold=`` is not set: Panaroo's 0.98, or
+    :data:`MULTISPECIES_THRESHOLD` when the canonical record names of the
+    GFFs span more than one species. Names that are not canonical count as
+    no species, so a set of the user's own names keeps 0.98."""
+    n_species = species_spread([Path(g).stem for g in gffs])
+    if n_species <= 1:
+        return DEFAULT_THRESHOLD
+    logger.info(
+        "The genome names span %d species, so panaroo clusters at identity %s rather "
+        "than its default %s (set --aligner-arg threshold= to choose)",
+        n_species,
+        f"{MULTISPECIES_THRESHOLD:g}",
+        f"{DEFAULT_THRESHOLD:g}",
+    )
+    return MULTISPECIES_THRESHOLD
+
+
+def _lower_steps(identity: float) -> str:
+    """The usual lower ``threshold=`` steps below ``identity`` (the default
+    0.98 or the multi-species 0.95), as advice."""
+    steps = [f"{s:g}" for s in (0.95, 0.90) if s < identity]
+    return "--aligner-arg threshold=" + ", then ".join(steps)
 
 
 def _unit(raw: object, flag: str) -> float:

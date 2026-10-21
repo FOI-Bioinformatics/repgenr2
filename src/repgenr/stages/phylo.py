@@ -433,7 +433,16 @@ def _msa_key(
         "snptyper": params.snptyper if params.msa_source == "snptype" else None,
         # The genome the alignment is projected onto, not the rule that chose
         # it: a medoid that changes with the genome set rebuilds the alignment.
-        "reference": reference.name if reference is not None else params.reference,
+        # A route that uses no reference (the core-gene builders, a
+        # reference-free typer) leaves it out, so changing --reference does
+        # not rebuild an alignment it cannot affect.
+        "reference": (
+            reference.name
+            if reference is not None
+            else params.reference
+            if _source_uses_reference(params)
+            else None
+        ),
         "all_genomes": params.all_genomes,
         "no_outgroup": params.no_outgroup,
         "mask": str(params.extra.get("mask", "none")),
@@ -827,12 +836,17 @@ def build_tree(
     if (
         builder.input_kind != InputKind.GENOMES
         and params.bootstrap == 0
-        and not builder.supports_without_bootstrap
+        and not builder.writes_supports(
+            {**builder.capabilities.default_params, **_adapter_extra(params.extra)}
+        )
     ):
         logger.info(
             "No bootstrap replicates requested (-B not set): the %s tree will carry no "
-            "support values, so tree2tax --collapse-support has nothing to act on",
+            "support values, so tree2tax --collapse-support has nothing to act on%s",
             treebuilder,
+            "; --aligner-arg alrt=1000 gives SH-aLRT supports without -B"
+            if "alrt" in builder.capabilities.accepted_extras
+            else "",
         )
     versions = builder.preflight()
 
@@ -1506,13 +1520,8 @@ def run(ctx: WorkdirContext, params: PhyloParams) -> Path:
     if outgroup_file is not None:
         tree_inputs.append(record_name(outgroup_file))
     annotations_record = _annotations_record(ctx, params, tree_inputs) if is_msa else None
-    reference_choice = (
-        read_reference_choice(
-            ctx.phylo_msa_dir if params.msa_source == "snptype" else ctx.align_dir
-        )
-        if is_msa
-        else None
-    )
+    note_dir = _reference_note_dir(ctx, params) if is_msa else None
+    reference_choice = read_reference_choice(note_dir) if note_dir is not None else None
     ctx.config.record_stage(
         "phylo",
         tool=outcome.treebuilder,
@@ -1653,6 +1662,26 @@ def resolve_outgroup_files(
             return f, record_name(f)
     logger.warning("Outgroup accession %s not found in %s", accession, outgroup_dir)
     return None, None
+
+
+def _source_uses_reference(params: PhyloParams) -> bool:
+    """Whether the MSA source projects onto a reference: the aligner, or a
+    SNP typer that maps against one. The core-gene route and a
+    reference-free typer (ska2) use none."""
+    if params.msa_source == "aligner":
+        return True
+    if params.msa_source == "snptype":
+        return snp_registry_requires_reference(params.snptyper)
+    return False
+
+
+def _reference_note_dir(ctx: WorkdirContext, params: PhyloParams) -> Path | None:
+    """The directory whose reference note names this run's reference: the
+    one the current source wrote to, so a note an earlier run of another
+    source left behind is not read. None for a source without a reference."""
+    if not _source_uses_reference(params):
+        return None
+    return ctx.align_dir if params.msa_source == "aligner" else ctx.phylo_msa_dir
 
 
 def snp_registry_requires_reference(name: str) -> bool:

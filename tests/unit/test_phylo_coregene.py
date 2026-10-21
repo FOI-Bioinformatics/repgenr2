@@ -985,6 +985,44 @@ def test_fingerprint_drops_the_alphabet_when_no_coregene_pass_runs() -> None:
     assert phylo_mod.fingerprint_params(payload)["extra"] == {"coregene_alphabet": "protein"}
 
 
+def test_a_stale_aligner_reference_note_is_not_recorded_on_the_coregene_route(
+    workdir: Path, tools
+) -> None:
+    """An align/reference.txt left by an earlier aligner run names no
+    reference of a core-gene tree."""
+    from repgenr.tree.medoid import ReferenceChoice, note_reference
+
+    _reps(workdir)
+    ctx = WorkdirContext(workdir, create=True, logger=_LOG)
+    note_reference(ctx.align_dir, ReferenceChoice(Path("Fam_gen_sp_GCA_000001.fasta"), "medoid"))
+    annotate_run(ctx, AnnotateStageParams(tool="fakeannot"))
+    phylo_run(ctx, _params())
+    rec = ctx.config.stages["phylo"].params
+    assert rec["reference_genome"] is None and rec["reference_rule"] is None
+
+
+def test_reference_is_in_the_msa_key_only_where_the_source_uses_one(tmp_path: Path) -> None:
+    genomes = [tmp_path / "a.fasta", tmp_path / "b.fasta"]
+    for g in genomes:
+        g.write_text(">x\nACGT\n", encoding="utf-8")
+
+    def key(**kw) -> str:
+        return phylo_mod._msa_key(genomes, None, PhyloParams(**kw), None, "digest1")
+
+    # Routes that use no reference: the key ignores --reference.
+    for source in (
+        dict(msa_source="coregene"),
+        dict(msa_source="snptype", snptyper="ska2"),
+    ):
+        assert key(**source) == key(**source, reference="a")
+        assert key(**source, reference="a") == key(**source, reference="b")
+    # Routes that project onto one: the key follows it.
+    for source in (
+        dict(msa_source="snptype", snptyper="simple"),
+        dict(msa_source="aligner"),
+    ):
+        assert key(**source, reference="a") != key(**source, reference="b")
+        assert key(**source) != key(**source, reference="a")
 # --gene-trim: per-gene trimming with ClipKIT on the core-gene route.
 
 

@@ -1183,6 +1183,34 @@ def test_bootstrap_zero_warns_when_the_tree_would_carry_no_supports(
     assert not any("No bootstrap replicates requested" in r.getMessage() for r in caplog.records)
 
 
+class _AlrtMsaTreeBuilder(_NoSupportMsaTreeBuilder):
+    """Supports from a setting, as IQ-TREE's alrt= gives them."""
+
+    capabilities = ToolCapabilities(name="faketree_alrt", accepted_extras=frozenset({"alrt"}))
+
+    def writes_supports(self, extra) -> bool:
+        return "alrt" in extra
+
+
+def test_bootstrap_zero_does_not_warn_when_alrt_gives_supports(
+    workdir: Path, fake_phylo_tools, register_tool, caplog
+) -> None:
+    register_tool(tb_registry, "faketree_alrt", _AlrtMsaTreeBuilder)
+    _make_reps(workdir)
+    ctx = WorkdirContext(workdir, create=True, logger=logging.getLogger("test-phylo"))
+    base = dict(
+        treebuilder="faketree_alrt", msa_source="aligner", aligner="fakealigner", no_outgroup=True
+    )
+    with caplog.at_level(logging.INFO, logger="test-phylo"):
+        run(ctx, PhyloParams(**base))
+    (line,) = [r.getMessage() for r in caplog.records if "No bootstrap" in r.getMessage()]
+    assert "alrt=1000" in line
+    caplog.clear()
+    with caplog.at_level(logging.INFO, logger="test-phylo"):
+        run(ctx, PhyloParams(**base, extra={"alrt": "1000"}))
+    assert not any("No bootstrap replicates requested" in r.getMessage() for r in caplog.records)
+
+
 def test_split_alignment_refusal_names_the_builders_that_consume_one(
     workdir: Path, fake_phylo_tools
 ) -> None:

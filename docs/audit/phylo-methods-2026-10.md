@@ -113,7 +113,7 @@ builders have no partition support.
 
 Each item was checked against commit e5b66e5. Items 1 to 3 and 6 to 7 were
 corrected with this record. Items 4 and 5 are code defects and are listed under
-item B of the ladder below.
+item B of the ladder below; both have shipped.
 
 1. `docs/choosing-tools.md:131-136` said that `auto` picks raxmlng for 501 to
    1000 genomes and fasttree up to 5000 without an alignment request. The code
@@ -136,9 +136,14 @@ item B of the ladder below.
    earlier aligner run can therefore be recorded as the `reference_genome` of a
    core-gene tree. The core-gene path clears the note beside its own alignment
    (`stages/phylo.py:532`, `tree/msa/reference.txt`), not `align/reference.txt`.
+   Shipped: the note is read from the directory the current source writes
+   to (`align/` for the aligner, `tree/msa/` for a SNP typer), and a route
+   without a reference (coregene, a reference-free typer) records None.
 5. `_msa_key` (`stages/phylo.py:339`) falls back to the `--reference` string
    when no reference genome was resolved, which is the case for coregene and
    ska2. Changing a reference those routes ignore rebuilds the alignment.
+   Shipped: the key holds the reference only for the aligner and for a SNP
+   typer that maps against one.
 6. `docs/audit/phylo-tree2tax-gap-2026-10.md:3-4` still said batch E was
    deferred; E2 to E4 shipped as #15, #16 and #18 (with the skani builder, #17).
 7. `docs/verification.md` gave the PPanGGOLiN stage time on 24 Wolbachia
@@ -192,6 +197,16 @@ of this record.
 - **B. Default route and builder hygiene.** A lower Panaroo identity on
   multi-species sets, a recommended IQ-TREE recipe for large alignments,
   `1 - ANI` as the sourmash builder's distance, and defects 4 and 5 above.
+  Shipped: B1, Panaroo's `-c` is 0.95 instead of 0.98 when `threshold=` is
+  not set and the canonical genome names span more than one species; B2,
+  IQ-TREE's `alrt=N` extra (`-alrt`, SH-aLRT supports without `-B`) and a
+  log line above 200 genomes without `model=` that `model=GTR+G` skips
+  ModelFinder; B3, the sourmash builder's distance is `1 - ANI` by default
+  (`metric=ani`; `metric=jaccard` keeps `1 - Jaccard`). The ANI is estimated
+  from the Jaccard similarity as `(2j / (1 + j))^(1/k)` rather than with
+  `sourmash compare --ani`, which reports 0 for identical genomes of 10 kb
+  and 30 kb at k=31, scaled=1000 (sourmash 4.9.4). Defects 4 and 5 are
+  fixed.
 - **C. ska2 constant sites.** Counting constant columns from an unfiltered ska2
   alignment so that the reference-free route gets `-fconst`. Shipped: the
   typer writes an all-sites alignment with `ska align --filter no-filter`, the
