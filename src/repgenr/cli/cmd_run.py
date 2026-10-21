@@ -52,6 +52,7 @@ from .base import (
     HELP_NODE_BASENAME,
     HELP_NODOWNLOAD,
     HELP_OUTGROUP_ACCESSION,
+    HELP_PARTITIONED,
     HELP_PRE_PRIMARY_ANI,
     HELP_PRE_SECONDARY_ANI,
     HELP_PRIMARY_ANI,
@@ -414,6 +415,7 @@ def run(
     max_gene_gaps: float | None = typer.Option(
         None, "--max-gene-gaps", min=0.0, max=1.0, help=HELP_MAX_GENE_GAPS
     ),
+    partitioned: bool = typer.Option(False, "--partitioned", help=HELP_PARTITIONED),
     collapse_support: float | None = typer.Option(
         None,
         "--collapse-support",
@@ -509,6 +511,7 @@ def run(
                 min_gene_length=min_gene_length,
                 max_gene_gaps=max_gene_gaps,
             ),
+            **({"partitioned": True} if partitioned else {}),
         }
         if msa_source == "coregene":
             from ..annotators.base import registry as _annot_registry

@@ -21,6 +21,9 @@
                     
                 ],
                 "4": [
+                    
+                ],
+                "5": [
                     "versions.yml:md5,d41d8cd98f00b204e9800998ecf8427e"
                 ],
                 "align": [
@@ -35,6 +38,9 @@
                         "msa.fasta:md5,c00d06fefbe5112077928e8044d832fc"
                     ]
                 ],
+                "partitions": [
+                    
+                ],
                 "stats": [
                     
                 ],
@@ -46,10 +52,10 @@
                 ]
             }
         ],
-        "timestamp": "2026-10-15T10:40:56.864253",
+        "timestamp": "2026-10-21T07:59:54.422238",
         "meta": {
             "nf-test": "0.9.5",
-            "nextflow": "26.10.0"
+            "nextflow": "26.04.7"
         }
     }
 }

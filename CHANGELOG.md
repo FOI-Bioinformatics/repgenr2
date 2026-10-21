@@ -7,6 +7,18 @@ All notable changes to RepGenR2 are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- Core-gene route: `--partitioned` on `phylo`, `phylo-build` and `run` gives
+  the tree builder an edge-linked partition model, one partition per core
+  gene, from `partitions.json`. `iqtree` (`-p`) and `raxmlng`
+  (`--model partitions.txt`) honour it and write `tree/partitions.txt`; other
+  builders warn and fit one model. It is refused outside `--msa-source
+  coregene` (except `phylo-build --msa FILE`), without a matching
+  `partitions.json`, and together with an ascertainment-bias correction.
+  It is not part of the alignment reuse key, so the alignment is reused, and
+  the phylo stage record gains `partitioned`. `phylo-build --msa-only`
+  publishes `partitions.json` beside `msa.fasta`, and the Nextflow
+  `PHYLO_MSA` task emits it to `PHYLO_TREE`. `TreeParams` gains `partitions`
+  and `alphabet`, `TreeBuilder` gains `supports_partitions`.
 - Core-gene route: `--max-core-genes`, `--gene-rank` (occupancy, informative,
   variable, length, random), `--min-gene-length` and `--max-gene-gaps` on
   `phylo`, `phylo-build` and `run` set the per-gene selection. They are

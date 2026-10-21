@@ -22,6 +22,9 @@ process PHYLO_MSA {
     // Constant-site counts of a SNP-typer alignment, for the tree task's
     // ascertainment-bias correction; absent for an aligner alignment.
     tuple val(meta), path("alignment_stats.json"), optional: true, emit: stats
+    // Column ranges of the core genes in a core-gene alignment, for the tree
+    // task's --partitioned; absent for the other sources.
+    tuple val(meta), path("partitions.json"), optional: true, emit: partitions
     // The source directory the alignment was built in: the aligner's files
     // (align/) or the SNP typing pass's (tree/msa/), each with the reuse
     // stamp (msa_source.json).
@@ -79,6 +82,10 @@ process PHYLO_MSA {
         echo ">\${name}"
         echo "ACGT"
     done > msa.fasta
+    # A core-gene alignment (annotations staged) carries its partitions.
+    if [ -d annotations ]; then
+        echo '{"v": 1, "alignment": "msa.fasta", "alphabet": "dna", "partitions": [["g1", 1, 4]]}' > partitions.json
+    fi
     touch versions.yml
     """
 }

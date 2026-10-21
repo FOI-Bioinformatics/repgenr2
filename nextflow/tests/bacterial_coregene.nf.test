@@ -63,6 +63,25 @@ nextflow_pipeline {
             assert names.any { n -> n.contains('PHYLO_MSA (francisella)') }
             def annotated = names.count { n -> n.contains('ANNOTATE_SCATTER:ANNOTATE') }
             assert workflow.stdout.count { line -> line.contains("annotations: staged (${annotated} records)") } == 1
+            // The core-gene partitions travel from PHYLO_MSA to PHYLO_TREE.
+            assert names.any { n -> n.contains('PHYLO_TREE (francisella)') }
+            assert workflow.stdout.any { line -> line.contains('partitions: staged') }
+        }
+    }
+
+    test("with phylo_split_msa and another source PHYLO_TREE gets no partitions") {
+        when {
+            params {
+                outdir = "$outputDir"
+                phylo_split_msa = true
+                phylo_args = '--msa-source aligner --treebuilder fasttree'
+            }
+        }
+        then {
+            assert workflow.success
+            def names = workflow.trace.succeeded().collect { t -> t.name }
+            assert names.any { n -> n.contains('PHYLO_TREE (francisella)') }
+            assert workflow.stdout.any { line -> line.contains('partitions: none') }
         }
     }
 

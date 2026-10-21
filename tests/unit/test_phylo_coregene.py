@@ -630,3 +630,130 @@ def test_fingerprint_drops_the_selection_when_no_coregene_pass_runs() -> None:
         assert phylo_mod.fingerprint_params(payload)["extra"] == {"model": "GTR"}
     payload = {"msa_source": "coregene", "coregene": "fakecg", "extra": dict(selection)}
     assert phylo_mod.fingerprint_params(payload)["extra"] == selection
+
+
+# --partitioned: the tree builder reads the partitions.json of a core-gene alignment.
+
+
+class _TwoGeneCoreGene(_FakeCoreGene):
+    """Returns two per-gene alignments, so the stage writes partitions.json."""
+
+    capabilities = ToolCapabilities(name="fakecg_genes")
+
+    def call(self, gffs, out_dir, params, logger) -> CoreGeneResult:
+        from repgenr.coregenes.base import GeneAlignment
+
+        type(self).calls.append(sorted(g.stem for g in gffs))
+        out_dir.mkdir(parents=True, exist_ok=True)
+        genes = []
+        for gene, seq in (("gyrA", "ACGTAC"), ("rec/A", "TTGA")):
+            path = out_dir / f"{len(genes)}.fasta"
+            path.write_text("".join(f">{g.stem}\n{seq}\n" for g in gffs), encoding="utf-8")
+            genes.append(GeneAlignment(gene=gene, path=path))
+        return CoreGeneResult(tables=[], core_genes=2, gene_alignments=genes)
+
+
+class _PartTree(_MsaTree):
+    capabilities = ToolCapabilities(name="faketree_part", accepted_extras=frozenset({"asc"}))
+    supports_partitions = True
+    parts: list = []
+
+    def build(self, msa_or_genomes, out_dir, params, logger) -> Path:
+        type(self).parts.append((params.partitions, params.alphabet))
+        return super().build(msa_or_genomes, out_dir, params, logger)
+
+
+@pytest.fixture
+def part_tools(tools, register_tool):
+    _PartTree.parts = []
+    register_tool(cg_registry, "fakecg_genes", _TwoGeneCoreGene)
+    register_tool(tb_registry, "faketree_part", _PartTree)
+
+
+def _genomes_dir(tmp_path: Path) -> Path:
+    gdir = tmp_path / "genomes"
+    gdir.mkdir()
+    for i in range(1, 4):
+        (gdir / f"Fam_gen_sp_GCA_00000{i}.fasta").write_text(f">s{i}\nACGT\n", encoding="utf-8")
+    return gdir
+
+
+def _step(tmp_path: Path, **phylo) -> Path:
+    return phylo_build(
+        PhyloBuildParams(
+            genomes_dir=_genomes_dir(tmp_path),
+            out_dir=tmp_path / "out",
+            phylo=_params(**phylo),
+            annotator="fakeannot",
+        ),
+        _LOG,
+    )
+
+
+def test_partitioned_reaches_the_tree_params(tmp_path: Path, part_tools) -> None:
+    _step(
+        tmp_path,
+        coregene="fakecg_genes",
+        treebuilder="faketree_part",
+        extra={"partitioned": True},
+    )
+    assert _PartTree.parts == [((("gyrA", 1, 6), ("rec/A", 7, 10)), "dna")]
+
+
+def test_without_partitioned_the_builder_gets_no_partitions(tmp_path: Path, part_tools) -> None:
+    _step(tmp_path, coregene="fakecg_genes", treebuilder="faketree_part")
+    assert _PartTree.parts == [(None, "dna")]
+
+
+def test_a_builder_without_partition_support_warns(tmp_path: Path, part_tools, caplog) -> None:
+    with caplog.at_level(logging.WARNING):
+        _step(tmp_path, coregene="fakecg_genes", extra={"partitioned": True})
+    assert "faketree_cg ignores partitions" in caplog.text
+    assert _MsaTree.seen == [None]
+
+
+def test_partitioned_without_a_sidecar_is_refused(tmp_path: Path, part_tools) -> None:
+    # The fake builder returns its own concatenation: no partitions are known.
+    with pytest.raises(UserInputError, match="no partition sidecar"):
+        _step(tmp_path, treebuilder="faketree_part", extra={"partitioned": True})
+    assert _PartTree.parts == []
+
+
+def test_partitioned_with_asc_is_refused_before_the_alignment(tmp_path: Path, part_tools) -> None:
+    _FakeCoreGene.calls.clear()
+    with pytest.raises(UserInputError, match="partitioned model cannot be combined"):
+        _step(
+            tmp_path,
+            coregene="fakecg_genes",
+            treebuilder="faketree_part",
+            extra={"partitioned": True, "asc": "lewis"},
+        )
+    assert _FakeCoreGene.calls == []
+
+
+def test_partitioned_is_not_part_of_the_msa_key(tmp_path: Path) -> None:
+    genomes = [tmp_path / "a.fasta", tmp_path / "b.fasta"]
+    for g in genomes:
+        g.write_text(">x\nACGT\n", encoding="utf-8")
+    plain = PhyloParams(msa_source="coregene")
+    part = PhyloParams(msa_source="coregene", extra={"partitioned": True})
+    assert phylo_mod._msa_key(genomes, None, plain, None, "d") == phylo_mod._msa_key(
+        genomes, None, part, None, "d"
+    )
+
+
+def test_record_carries_partitioned(workdir: Path, part_tools) -> None:
+    _reps(workdir)
+    ctx = WorkdirContext(workdir, create=True, logger=_LOG)
+    annotate_run(ctx, AnnotateStageParams(tool="fakeannot"))
+    phylo_run(ctx, _params(coregene="fakecg_genes", treebuilder="faketree_part"))
+    assert ctx.config.stages["phylo"].params["partitioned"] is False
+    calls = len(_TwoGeneCoreGene.calls)
+    phylo_run(
+        ctx,
+        _params(coregene="fakecg_genes", treebuilder="faketree_part", extra={"partitioned": True}),
+    )
+    assert ctx.config.stages["phylo"].params["partitioned"] is True
+    # A tree-side setting: the alignment is reused.
+    assert len(_TwoGeneCoreGene.calls) == calls
+    assert _PartTree.parts[-1][0] == (("gyrA", 1, 6), ("rec/A", 7, 10))

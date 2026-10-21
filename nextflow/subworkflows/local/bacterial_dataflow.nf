@@ -77,7 +77,15 @@ workflow BACTERIAL_DATAFLOW {
             .map { m, _msa -> tuple(m, []) }
             .join(PHYLO_MSA.out.stats, by: 0, remainder: true)
             .map { m, _placeholder, st -> tuple(m, st == null ? [] : st) }
-        PHYLO_TREE(ch_phylo_in.join(PHYLO_MSA.out.msa, by: 0).join(ch_stats, by: 0), ch_sketches_dir)
+        // partitions.json exists for a core-gene alignment only (same pattern).
+        def ch_partitions = PHYLO_MSA.out.msa
+            .map { m, _msa -> tuple(m, []) }
+            .join(PHYLO_MSA.out.partitions, by: 0, remainder: true)
+            .map { m, _placeholder, pa -> tuple(m, pa == null ? [] : pa) }
+        PHYLO_TREE(
+            ch_phylo_in.join(PHYLO_MSA.out.msa, by: 0).join(ch_stats, by: 0).join(ch_partitions, by: 0),
+            ch_sketches_dir
+        )
         ch_versions = ch_versions.mix(PHYLO_TREE.out.versions)
         ch_tree = PHYLO_TREE.out.tree
     }

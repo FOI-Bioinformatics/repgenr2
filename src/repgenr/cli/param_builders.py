@@ -550,6 +550,7 @@ def phylo_params(
                 ("core_threshold", "--core-threshold"),
                 ("clean_mode", "--clean-mode"),
                 *GENE_SELECTION_FLAGS,
+                ("partitioned", "--partitioned"),
             )
         },
     )

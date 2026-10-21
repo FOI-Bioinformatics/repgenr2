@@ -13,7 +13,14 @@ from ..core.contracts import atomic_path
 from ..core.errors import UserInputError, WorkdirError
 from ..core.plugins import ToolCapabilities
 from ..tree.alignment import add_counts, format_counts, strip_invariant_columns
-from .base import InputKind, TreeBuilder, TreeParams, as_msa_path
+from .base import (
+    InputKind,
+    TreeBuilder,
+    TreeParams,
+    as_msa_path,
+    partition_names,
+    refuse_partitions_with_asc,
+)
 
 
 class RaxmlNgBuilder(TreeBuilder):
@@ -28,6 +35,9 @@ class RaxmlNgBuilder(TreeBuilder):
         recommended_max_genomes=1000,
     )
     input_kind = InputKind.MSA_FASTA
+    # --model FILE: one model per gene, branch lengths linked and scaled
+    # (--brlen scaled, RAxML-NG's default).
+    supports_partitions = True
 
     def build(
         self,
@@ -37,9 +47,20 @@ class RaxmlNgBuilder(TreeBuilder):
         logger: logging.Logger,
     ) -> Path:
         msa = as_msa_path(msa_or_genomes)
+        if params.partitions is not None:
+            refuse_partitions_with_asc(params.extra, params.constant_sites, "raxmlng")
         out_dir.mkdir(parents=True, exist_ok=True)
         prefix = out_dir / "raxml"
-        model = str(params.extra.get("model", "GTR+G")).strip() or "GTR+G"
+        default_model = "LG+G" if params.alphabet == "protein" else "GTR+G"
+        model = str(params.extra.get("model", default_model)).strip() or default_model
+        model_arg: str | Path = model
+        if params.partitions is not None:
+            model_arg = _write_partition_file(params, model, out_dir)
+            logger.info(
+                "raxml-ng: partition model over %d partitions (--model %s)",
+                len(params.partitions),
+                model_arg.name,
+            )
         asc = str(params.extra.get("asc", "")).strip().lower()
         if asc not in ("", "lewis"):
             raise UserInputError(f"asc={asc!r} is not supported; use asc=lewis or leave it unset.")
@@ -69,7 +90,8 @@ class RaxmlNgBuilder(TreeBuilder):
             "--msa",
             msa,
             "--model",
-            model,
+            # model may have gained +ASC_STAM above; the partition file never carries it.
+            model_arg if params.partitions is not None else model,
             # auto{N}: let RAxML-NG pick an efficient thread count up to the
             # budget, avoiding its core-oversubscription guard on small alignments.
             "--threads",
@@ -103,3 +125,17 @@ class RaxmlNgBuilder(TreeBuilder):
         with atomic_path(tree) as tmp:
             shutil.copy2(source, tmp)
         return tree
+
+
+def _write_partition_file(params: TreeParams, model: str, out_dir: Path) -> Path:
+    """Write ``out_dir/partitions.txt``: one ``model, name = start-end`` line per gene."""
+    assert params.partitions is not None
+    names = partition_names([gene for gene, _, _ in params.partitions])
+    lines = [
+        f"{model}, {name} = {start}-{end}"
+        for name, (_, start, end) in zip(names, params.partitions, strict=True)
+    ]
+    path = out_dir / "partitions.txt"
+    with atomic_path(path) as tmp:
+        tmp.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return path

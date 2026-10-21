@@ -280,3 +280,92 @@ def test_tree2tax_relations_refuses_a_missing_segments_table(tmp_path: Path) -> 
             ),
             _LOG,
         )
+
+
+def test_phylo_build_split_carries_the_partitions(
+    tmp_path: Path, register_tool, monkeypatch
+) -> None:
+    """--msa-only publishes partitions.json beside msa.fasta; --msa FILE --partitioned reads it."""
+    from repgenr.core.contracts import MSA_FASTA
+    from repgenr.core.plugins import ToolCapabilities
+    from repgenr.coregenes.select import Partition
+    from repgenr.stages import phylo as phylo_mod
+    from repgenr.stages.phylo import PhyloBuildParams, PhyloParams, phylo_build
+    from repgenr.tree.partitions import PARTITIONS, read_partitions, write_partitions
+    from repgenr.treebuilders.base import InputKind, TreeBuilder
+    from repgenr.treebuilders.base import registry as tb_registry
+
+    seen: list = []
+
+    class _Tree(TreeBuilder):
+        capabilities = ToolCapabilities(name="faketree_part_steps")
+        input_kind = InputKind.MSA_FASTA
+        supports_partitions = True
+
+        def preflight(self):
+            return {}
+
+        def build(self, msa_or_genomes, out_dir, params, logger) -> Path:
+            seen.append(params.partitions)
+            out_dir.mkdir(parents=True, exist_ok=True)
+            names = [
+                ln[1:]
+                for ln in Path(msa_or_genomes).read_text(encoding="utf-8").splitlines()
+                if ln[:1] == ">"
+            ]
+            tree = out_dir / "tree.nwk"
+            tree.write_text("(" + ",".join(names) + ");\n")
+            return tree
+
+    tb_registry._load()
+    register_tool(tb_registry, "faketree_part_steps", _Tree)
+    genomes = tmp_path / "genomes"
+    genomes.mkdir()
+    for i in range(3):
+        (genomes / f"g{i}.fasta").write_text(">s\nACGT\n")
+    # The alignment half as the core-gene pass leaves it: a concatenation
+    # with its partitions beside it.
+    built = tmp_path / "built" / "core_gene_alignment.fasta"
+    built.parent.mkdir()
+    built.write_text("".join(f">g{i}\nACGTAA\n" for i in range(3)))
+    write_partitions(built, [Partition("a", 1, 4), Partition("b", 5, 6)], "dna")
+    monkeypatch.setattr(phylo_mod, "build_msa", lambda *a, **k: (built, {}))
+
+    phylo = PhyloParams(
+        treebuilder="faketree_part_steps",
+        msa_source="coregene",
+        no_outgroup=True,
+        extra={"partitioned": True},
+    )
+    msa_out = tmp_path / "msa_task"
+    msa = phylo_build(
+        PhyloBuildParams(
+            genomes_dir=genomes,
+            out_dir=msa_out,
+            phylo=phylo,
+            annotations_dir=tmp_path,
+            msa_only=True,
+        ),
+        _LOG,
+    )
+    assert msa == msa_out / MSA_FASTA
+    assert (msa_out / PARTITIONS).is_file()
+    found = read_partitions(msa)
+    assert found is not None and [p.gene for p in found.partitions] == ["a", "b"]
+
+    tree = phylo_build(
+        PhyloBuildParams(genomes_dir=genomes, out_dir=tmp_path / "tree_task", phylo=phylo, msa=msa),
+        _LOG,
+    )
+    assert tree.is_file()
+    assert seen == [(("a", 1, 4), ("b", 5, 6))]
+
+    # An alignment without the sidecar is refused under --partitioned.
+    (msa_out / PARTITIONS).unlink()
+    with pytest.raises(UserInputError, match="no partition sidecar"):
+        phylo_build(
+            PhyloBuildParams(
+                genomes_dir=genomes, out_dir=tmp_path / "tree_task2", phylo=phylo, msa=msa
+            ),
+            _LOG,
+        )

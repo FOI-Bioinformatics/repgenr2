@@ -1,4 +1,5 @@
-"""The gene-selection options of the core-gene route on phylo, phylo-build and run."""
+"""The gene-selection options and --partitioned of the core-gene route on phylo,
+phylo-build and run."""
 
 from __future__ import annotations
 
@@ -124,3 +125,50 @@ def test_phylo_build_passes_the_selection_to_the_stage(monkeypatch, tmp_path) ->
     assert seen[0].phylo.extra["gene_rank"] == "random"
     assert seen[0].phylo.extra["min_gene_length"] == 90
     assert seen[0].phylo.extra["max_gene_gaps"] == 0.1
+
+
+# --partitioned: a tree-side option of the core-gene route.
+
+
+@pytest.mark.parametrize("command", sorted(COMMANDS))
+def test_partitioned_is_refused_outside_the_coregene_source(built, tmp_path, command) -> None:
+    result = _runner.invoke(app, [*COMMANDS[command](tmp_path), "--partitioned"])
+    assert result.exit_code != 0
+    text = _text(result)
+    assert "--partitioned" in text and "only with --msa-source coregene" in text
+
+
+@pytest.mark.parametrize("command", ["phylo", "run"])
+def test_partitioned_reaches_the_phylo_extra(built, tmp_path, command) -> None:
+    argv = [*COMMANDS[command](tmp_path), "--msa-source", "coregene", "--partitioned"]
+    result = _runner.invoke(app, argv)
+    assert result.exit_code == 0, _text(result)
+    assert _phylo(built).extra["partitioned"] is True
+
+
+@pytest.mark.parametrize("command", ["phylo", "run"])
+def test_unset_partitioned_adds_nothing(built, tmp_path, command) -> None:
+    result = _runner.invoke(app, [*COMMANDS[command](tmp_path), "--msa-source", "coregene"])
+    assert result.exit_code == 0, _text(result)
+    assert "partitioned" not in _phylo(built).extra
+
+
+def test_phylo_build_with_msa_leaves_the_decision_to_the_sidecar(monkeypatch, tmp_path) -> None:
+    seen: list[Any] = []
+    monkeypatch.setattr(phylo_stage, "phylo_build", lambda params, *a, **k: seen.append(params))
+    msa = tmp_path / "msa.fasta"
+    msa.write_text(">a\nACGT\n", encoding="utf-8")
+    # The default source is not coregene; with --msa the flag is accepted.
+    result = _runner.invoke(app, [*_build_args(tmp_path), "--msa", str(msa), "--partitioned"])
+    assert result.exit_code == 0, _text(result)
+    assert seen[0].phylo.extra["partitioned"] is True
+    assert seen[0].msa == msa
+
+
+def test_phylo_build_coregene_passes_partitioned(monkeypatch, tmp_path) -> None:
+    seen: list[Any] = []
+    monkeypatch.setattr(phylo_stage, "phylo_build", lambda params, *a, **k: seen.append(params))
+    argv = [*_build_args(tmp_path), "--msa-source", "coregene", "--partitioned"]
+    result = _runner.invoke(app, argv)
+    assert result.exit_code == 0, _text(result)
+    assert seen[0].phylo.extra["partitioned"] is True

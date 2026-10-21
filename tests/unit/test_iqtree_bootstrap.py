@@ -137,3 +137,49 @@ def test_a_model_with_its_own_asc_term_gets_neither_counts_nor_a_second_term(
         TreeParams(constant_sites=(1, 1, 1, 1), extra={"model": "GTR+G+ASC", "asc": "lewis"}),
     )
     assert cmd[cmd.index("-m") + 1] == "GTR+G+ASC" and "-fconst" not in cmd
+
+
+_PARTS = (("gyrA", 1, 2), ("rec A/1", 3, 4), ("rec_A_1", 5, 6), ("", 7, 8))
+
+
+def test_partitions_are_written_and_passed_as_p(tmp_path: Path, monkeypatch) -> None:
+    cmd = _run_capturing(tmp_path, monkeypatch, TreeParams(partitions=_PARTS))
+    part_file = Path(cmd[cmd.index("-p") + 1])
+    assert part_file == tmp_path / "out" / "partitions.txt"
+    assert cmd.index("-p") == cmd.index("-s") + 2
+    # Outputs keep the unpartitioned names.
+    assert cmd[cmd.index("-pre") + 1] == cmd[cmd.index("-s") + 1]
+    assert part_file.read_text(encoding="utf-8") == (
+        "DNA, gyrA = 1-2\nDNA, rec_A_1 = 3-4\nDNA, rec_A_1_2 = 5-6\nDNA, part = 7-8\n"
+    )
+
+
+def test_protein_partitions_are_named_aa(tmp_path: Path, monkeypatch) -> None:
+    cmd = _run_capturing(
+        tmp_path, monkeypatch, TreeParams(partitions=(("g", 1, 4),), alphabet="protein")
+    )
+    assert Path(cmd[cmd.index("-p") + 1]).read_text(encoding="utf-8") == "AA, g = 1-4\n"
+
+
+def test_without_partitions_no_partition_file(tmp_path: Path, monkeypatch) -> None:
+    cmd = _run_capturing(tmp_path, monkeypatch, TreeParams())
+    assert "-p" not in cmd and "-pre" not in cmd
+    assert not (tmp_path / "out" / "partitions.txt").exists()
+
+
+@pytest.mark.parametrize(
+    "params",
+    [
+        TreeParams(partitions=_PARTS, constant_sites=(1, 1, 1, 1)),
+        TreeParams(partitions=_PARTS, extra={"asc": "lewis"}),
+        TreeParams(partitions=_PARTS, extra={"model": "GTR+G+ASC"}),
+    ],
+    ids=["constant_sites", "asc_lewis", "asc_model"],
+)
+def test_partitions_with_asc_are_refused(tmp_path: Path, monkeypatch, params) -> None:
+    calls: list = []
+    monkeypatch.setattr(mod, "run_tool", lambda caps, cmd, **k: calls.append(cmd))
+    with pytest.raises(UserInputError, match="partition"):
+        mod.IqtreeBuilder().build(_msa(tmp_path), tmp_path / "out", params, _LOG)
+    assert calls == []
+    assert mod.IqtreeBuilder.supports_partitions

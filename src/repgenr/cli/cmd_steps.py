@@ -41,6 +41,7 @@ from .base import (
     HELP_NAMING,
     HELP_NO_OUTGROUP,
     HELP_NODE_BASENAME,
+    HELP_PARTITIONED,
     HELP_PRIMARY_ANI,
     HELP_RANK_RED,
     HELP_RANKS,
@@ -278,6 +279,7 @@ def phylo_build_cmd(
     max_gene_gaps: float | None = typer.Option(
         None, "--max-gene-gaps", min=0.0, max=1.0, help=HELP_MAX_GENE_GAPS
     ),
+    partitioned: bool = typer.Option(False, "--partitioned", help=HELP_PARTITIONED),
     annotations_dir: Path | None = typer.Option(
         None,
         "--annotations-dir",
@@ -348,6 +350,12 @@ def phylo_build_cmd(
                 "--max-gene-gaps": max_gene_gaps,
             },
         )
+        # With --msa the sidecar beside the file decides, whatever the source.
+        if partitioned and msa_source != "coregene" and msa is None:
+            raise UserInputError(
+                "--partitioned applies only with --msa-source coregene, or with --msa FILE "
+                "whose partitions.json lies beside it."
+            )
         if gene_rank is not None:
             require_gene_rank(gene_rank)
         if clean_mode is not None:
@@ -389,6 +397,7 @@ def phylo_build_cmd(
                     min_gene_length=min_gene_length,
                     max_gene_gaps=max_gene_gaps,
                 ),
+                **({"partitioned": True} if partitioned else {}),
             },
         )
         phylo_build(

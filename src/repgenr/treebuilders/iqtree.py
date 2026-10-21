@@ -13,7 +13,14 @@ from ..core.contracts import atomic_path
 from ..core.errors import UserInputError, WorkdirError
 from ..core.plugins import ToolCapabilities
 from ..tree.alignment import add_counts, format_counts, strip_invariant_columns
-from .base import InputKind, TreeBuilder, TreeParams, as_msa_path
+from .base import (
+    InputKind,
+    TreeBuilder,
+    TreeParams,
+    as_msa_path,
+    partition_names,
+    refuse_partitions_with_asc,
+)
 
 
 class IqtreeBuilder(TreeBuilder):
@@ -33,6 +40,8 @@ class IqtreeBuilder(TreeBuilder):
     input_kind = InputKind.MSA_FASTA
     # Without -B the tree carries no support values at all.
     supports_without_bootstrap = False
+    # -p: one partition per gene, edge-linked with proportional branch lengths.
+    supports_partitions = True
 
     # IQ-TREE's ultrafast bootstrap (-B) rejects fewer than 1000 replicates.
     MIN_BOOTSTRAP = 1000
@@ -51,6 +60,8 @@ class IqtreeBuilder(TreeBuilder):
                 f"replicates (-B); got {params.bootstrap}. Use --bootstrap "
                 f"{self.MIN_BOOTSTRAP} or more, or 0 for none."
             )
+        if params.partitions is not None:
+            refuse_partitions_with_asc(params.extra, params.constant_sites, "iqtree")
         out_dir.mkdir(parents=True, exist_ok=True)
         work_msa = out_dir / "msa.fasta"
         asc = str(params.extra.get("asc", "")).strip().lower()
@@ -73,6 +84,17 @@ class IqtreeBuilder(TreeBuilder):
         elif work_msa.resolve() != msa.resolve():
             shutil.copy2(msa, work_msa)
 
+        partition_args: list[str | Path] = []
+        if params.partitions is not None:
+            partition_file = _write_partition_file(params, out_dir)
+            # Given -p, IQ-TREE names its outputs after the partition file;
+            # -pre keeps them where an unpartitioned run writes them.
+            partition_args = ["-p", partition_file, "-pre", work_msa]
+            logger.info(
+                "iqtree: edge-linked partition model over %d partitions (-p %s)",
+                len(params.partitions),
+                partition_file.name,
+            )
         cmd: list[str | Path] = [
             "iqtree",
             "-T",
@@ -81,6 +103,7 @@ class IqtreeBuilder(TreeBuilder):
             str(params.threads),
             "-s",
             work_msa,
+            *partition_args,
             # Every alignment this pipeline produces is nucleotide. Left to
             # guess, IQ-TREE refuses a recombination-masked alignment, where
             # a fifth of the characters can be N ("Unknown sequence type").
@@ -117,3 +140,18 @@ class IqtreeBuilder(TreeBuilder):
         with atomic_path(tree) as tmp:
             shutil.copy2(treefile, tmp)
         return tree
+
+
+def _write_partition_file(params: TreeParams, out_dir: Path) -> Path:
+    """Write ``out_dir/partitions.txt`` in the RAxML-style form IQ-TREE reads."""
+    assert params.partitions is not None
+    kind = "AA" if params.alphabet == "protein" else "DNA"
+    names = partition_names([gene for gene, _, _ in params.partitions])
+    lines = [
+        f"{kind}, {name} = {start}-{end}"
+        for name, (_, start, end) in zip(names, params.partitions, strict=True)
+    ]
+    path = out_dir / "partitions.txt"
+    with atomic_path(path) as tmp:
+        tmp.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return path
