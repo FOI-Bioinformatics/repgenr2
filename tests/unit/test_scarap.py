@@ -266,3 +266,16 @@ def test_the_pandas_2_failure_is_explained(tmp_path: Path, monkeypatch) -> None:
     # Any other failure, and the same failure from another method, pass through.
     with pytest.raises(ToolExecutionError):
         mod.ScarapBuilder().call(_gffs(tmp_path), tmp_path / "o2", CoreGeneParams(), _LOG)
+
+
+def test_protein_alphabet_hands_over_the_protein_alignments(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setattr(mod, "run_tool", _fake([], orthogroups=3))
+    gffs = _gffs(tmp_path)
+    result = mod.ScarapBuilder().call(
+        gffs, tmp_path / "out", CoreGeneParams(core_threshold=0.9, alphabet="protein"), _LOG
+    )
+    assert len(result.gene_alignments) == 3
+    first = result.gene_alignments[0]
+    assert first.path == tmp_path / "out" / "alignments" / "F0000.aln"
+    records = first.path.read_text(encoding="utf-8").split(">")[1:]
+    assert {r.split("\n")[0]: r.split("\n")[1] for r in records} == {g.stem: "MK" for g in gffs}

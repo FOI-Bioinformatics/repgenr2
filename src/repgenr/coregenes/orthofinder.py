@@ -16,9 +16,11 @@ concatenated alignment, and they are the slow part.
    proteins of each with mafft (``--auto``), and back-translates the
    alignment to codons from the ``.ffn`` file (``codon.py``). It hands over
    one DNA alignment per orthogroup, which the stage ranks, caps and
-   concatenates. A genome missing a gene, or holding several copies, is
-   absent from it; so is a gene whose nucleotide length does not match its
-   protein, which is counted in the log.
+   concatenates; with the protein alphabet it hands over the mafft protein
+   alignments instead, without back-translation. A genome missing a gene,
+   or holding several copies, is absent from it; so is a gene whose
+   nucleotide length does not match its protein, which is counted in the
+   log (codon alignments only).
 
 With ``search=mmseqs`` OrthoFinder writes to fixed names under ``/tmp``, so
 two such runs on one host can collide. A path with a space is refused
@@ -133,6 +135,7 @@ class OrthoFinderBuilder(CoreGeneBuilder):
             params.threads,
             logger,
             "orthofinder",
+            alphabet=params.alphabet,
         )
         if len(selected) < _SMALL_CORE:
             logger.warning(

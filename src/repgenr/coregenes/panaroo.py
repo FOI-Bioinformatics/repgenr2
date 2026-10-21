@@ -84,6 +84,10 @@ class PanarooBuilder(CoreGeneBuilder):
                 "len_dif_percent",
             }
         ),
+        # Panaroo aligns genes as nucleotides only; the stage refuses a
+        # protein alphabet for it rather than warn, since the tree model
+        # depends on the alphabet.
+        ignored_params=frozenset({"alphabet"}),
     )
 
     def call(

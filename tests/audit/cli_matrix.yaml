@@ -2022,6 +2022,23 @@ commands:
         with_args:
         - --msa-source
         - coregene
+      --coregene-alphabet:
+        param: PhyloParams.extra
+        value: protein
+        validated: choice
+        invalid: rna
+        docs:
+        - docs/cli-reference.md
+        - docs/usage.md
+        - docs/choosing-tools.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
+        live: 'n/a: covered offline in tests/unit/test_phylo_coregene.py and tests/unit/test_cli_gene_selection.py (the live run needs bakta, the bakta database and ppanggolin, scarap or orthofinder)'
+        with_args:
+        - --msa-source
+        - coregene
+        - --coregene
+        - ppanggolin
       --max-core-genes:
         param: PhyloParams.extra
         value: '5'
@@ -2418,6 +2435,23 @@ commands:
         with_args:
         - --msa-source
         - coregene
+      --coregene-alphabet:
+        param: PhyloBuildParams.phylo.extra
+        value: protein
+        validated: choice
+        invalid: rna
+        docs:
+        - docs/cli-reference.md
+        - docs/usage.md
+        - docs/choosing-tools.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'params.phylo_args'
+        live: 'n/a: covered offline in tests/unit/test_phylo_coregene.py and tests/unit/test_cli_gene_selection.py (the live run needs bakta, the bakta database and ppanggolin, scarap or orthofinder)'
+        with_args:
+        - --msa-source
+        - coregene
+        - --coregene
+        - ppanggolin
       --max-core-genes:
         param: PhyloBuildParams.phylo.extra
         value: '5'
@@ -4319,6 +4353,23 @@ commands:
         with_args:
         - --msa-source
         - coregene
+      --coregene-alphabet:
+        param: PhyloParams.extra
+        value: protein
+        validated: choice
+        invalid: rna
+        docs:
+        - docs/cli-reference.md
+        - docs/usage.md
+        - docs/choosing-tools.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
+        live: 'n/a: covered offline in tests/unit/test_phylo_coregene.py and tests/unit/test_cli_gene_selection.py (the live run needs bakta, the bakta database and ppanggolin, scarap or orthofinder)'
+        with_args:
+        - --msa-source
+        - coregene
+        - --coregene
+        - ppanggolin
       --max-core-genes:
         param: PhyloParams.extra
         value: '5'

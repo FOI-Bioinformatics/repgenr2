@@ -727,3 +727,81 @@ def test_the_legacy_path_is_unchanged_and_refuses_a_selection(
             _LOG,
             selection=GeneSelection(max_genes=10),
         )
+
+
+# --- protein alphabet ---------------------------------------------------------
+
+
+def test_protein_alphabet_reaches_metrics_partitions_and_stats(
+    tmp_path: Path, register_tool
+) -> None:
+    from repgenr.core.contracts import CORE_GENE_STATS
+    from repgenr.core.plugins import ToolCapabilities
+    from repgenr.tree.partitions import read_partitions
+
+    # Column 2: K, K, R is variable; column 3: X, L, L is invariant once X is
+    # read as missing data, which it is for protein and not for dna.
+    genes = {"famP": {_G1: "MKX", _G2: "MKL", _G3: "MRL"}}
+
+    class _Protein(_gene_builder(genes)):  # type: ignore[misc]
+        capabilities = ToolCapabilities(name="fakeprot")
+
+    register_tool(registry, "fakeprot", _Protein)
+    msa = tmp_path / "msa"
+    result, _ = coregene_core(
+        _gffs(tmp_path),
+        msa,
+        tmp_path / "scratch",
+        CoreGeneParams(alphabet="protein"),
+        "fakeprot",
+        _LOG,
+    )
+    found = read_partitions(result.alignment)
+    assert found is not None and found.alphabet == "protein"
+    stats = json.loads((msa / CORE_GENE_STATS).read_text(encoding="utf-8"))
+    assert stats["alphabet"] == "protein"
+    assert stats["variable_sites_total"] == 1
+    # The same genes read as dna count the X column as variable.
+    coregene_core(_gffs(tmp_path), msa, tmp_path / "scratch", CoreGeneParams(), "fakeprot", _LOG)
+    stats = json.loads((msa / CORE_GENE_STATS).read_text(encoding="utf-8"))
+    assert stats["alphabet"] == "dna" and stats["variable_sites_total"] == 2
+    assert read_partitions(msa / "core_gene_alignment.fasta").alphabet == "dna"
+
+
+def test_panaroo_refuses_a_protein_alignment_before_running(tmp_path: Path, monkeypatch) -> None:
+    ran: list[object] = []
+    monkeypatch.setattr(mod.PanarooBuilder, "preflight", lambda self: ran.append("pre") or {})
+    monkeypatch.setattr(mod.PanarooBuilder, "call", lambda *a, **k: ran.append("call"))
+    with pytest.raises(UserInputError, match="nucleotides only") as err:
+        coregene_core(
+            _gffs(tmp_path),
+            tmp_path / "msa",
+            tmp_path / "scratch",
+            CoreGeneParams(alphabet="protein"),
+            "panaroo",
+            _LOG,
+        )
+    # The builders that can are named, from the registry.
+    assert "ppanggolin" in str(err.value) and "panaroo," not in str(err.value)
+    assert ran == []
+    assert "alphabet" in mod.PanarooBuilder.capabilities.ignored_params
+    for name in ("ppanggolin", "scarap", "orthofinder"):
+        assert "alphabet" not in registry.get(name).capabilities.ignored_params
+
+
+def test_an_unknown_alphabet_is_refused(tmp_path: Path, register_tool) -> None:
+    from repgenr.core.plugins import ToolCapabilities
+
+    class _Protein(_gene_builder(_GENES)):  # type: ignore[misc]
+        capabilities = ToolCapabilities(name="fakeprot2")
+
+    register_tool(registry, "fakeprot2", _Protein)
+    with pytest.raises(UserInputError, match="alphabet"):
+        coregene_core(
+            _gffs(tmp_path),
+            tmp_path / "msa",
+            tmp_path / "scratch",
+            CoreGeneParams(alphabet="rna"),
+            "fakeprot2",
+            _LOG,
+        )

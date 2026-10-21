@@ -46,7 +46,7 @@ def _fake(calls: list[list[str]], *, families: int = 150, columns: bool = True):
             h5 = Path(cmd[cmd.index("-p") + 1])
             names = [line.split("\t")[0] for line in h5.read_text(encoding="utf-8").splitlines()]
             part = cmd[cmd.index("--partition") + 1]
-            fam_dir = out / f"msa_{part}_dna"
+            fam_dir = out / f"msa_{part}_{cmd[cmd.index('--source') + 1]}"
             fam_dir.mkdir(exist_ok=True)
             for i in range(families):
                 (fam_dir / f"F{i:03d}.aln").write_text(
@@ -267,3 +267,24 @@ def _short(tmp_path: Path) -> Path:
     d = tmp_path / "r"
     d.mkdir()
     return d
+
+
+def test_protein_alphabet_takes_the_protein_alignments(tmp_path: Path, monkeypatch) -> None:
+    calls: list[list[str]] = []
+    monkeypatch.setattr(mod, "run_tool", _fake(calls))
+    result = mod.PPanGGOLiNBuilder().call(
+        _gffs(tmp_path), tmp_path / "out", CoreGeneParams(alphabet="protein"), _LOG
+    )
+    msa = calls[-1]
+    assert msa[msa.index("--source") + 1] == "protein"
+    assert len(result.gene_alignments) == 150
+    assert {ga.path.parent.name for ga in result.gene_alignments} == {"msa_softcore_protein"}
+
+
+def test_the_dna_alphabet_keeps_the_dna_source(tmp_path: Path, monkeypatch) -> None:
+    calls: list[list[str]] = []
+    monkeypatch.setattr(mod, "run_tool", _fake(calls))
+    result = mod.PPanGGOLiNBuilder().call(_gffs(tmp_path), tmp_path / "out", CoreGeneParams(), _LOG)
+    msa = calls[-1]
+    assert msa[msa.index("--source") + 1] == "dna"
+    assert {ga.path.parent.name for ga in result.gene_alignments} == {"msa_softcore_dna"}

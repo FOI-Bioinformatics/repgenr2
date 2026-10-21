@@ -320,3 +320,9 @@ def test_write_gene_table_format(tmp_path: Path) -> None:
         "",
         "",
     ]
+
+
+def test_a_stop_symbol_is_no_state_in_a_protein_alignment() -> None:
+    # PPanGGOLiN's protein alignments can hold "*", which no mapping removes.
+    prot = gene_metrics({"a": "M*", "b": "ML", "c": "ML"}, n_genomes=3, alphabet="protein")
+    assert prot.variable_sites == 0

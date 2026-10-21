@@ -8,6 +8,8 @@ module aligns the proteins of each selected orthogroup with mafft
 (``--auto``) and back-translates the alignment to codons from the ``.ffn``
 file the annotate stage wrote, so each core gene becomes one aligned DNA
 FASTA, named by genome, that the stage measures, ranks and concatenates.
+With ``alphabet="protein"`` the back-translation is skipped and the mafft
+protein alignments are handed over as they are.
 
 The alignments run in batches, one ``mafft`` per orthogroup, each batch in
 one container when a container backend is active. A genome whose gene's
@@ -44,6 +46,7 @@ def align_orthogroups(
     threads: int,
     logger: logging.Logger,
     tool: str,
+    alphabet: str = "dna",
 ) -> tuple[list[GeneAlignment], int]:
     """Align each orthogroup of ``selected`` and back-translate it to codons.
 
@@ -55,7 +58,13 @@ def align_orthogroups(
     orthogroup is its own alignment and is not sent to mafft. Returns the
     codon alignments in the order of ``selected`` and the number of genes
     left out because their nucleotide length does not match the protein.
+
+    With ``alphabet="protein"`` it stops after mafft and returns the protein
+    alignments under ``alignments/`` (records named by genome); no gene is
+    left out then, so the count is 0. The ``.ffn`` files are not read.
     """
+    if alphabet not in ("dna", "protein"):
+        raise ValueError(f"Unknown alphabet '{alphabet}'; expected dna or protein")
     wanted: dict[str, set[str]] = {genome: set() for genome in faas}
     for og, members in selected:
         for genome, gene in members.items():
@@ -66,7 +75,6 @@ def align_orthogroups(
                 )
             wanted[genome].add(gene)
     proteins = {g: _read_fasta(faas[g], ids) for g, ids in wanted.items() if ids}
-    nucleotides = {g: _read_fasta(ffns[g], ids) for g, ids in wanted.items() if ids}
 
     prot_dir = out_dir / "orthogroups"
     aln_dir = out_dir / "alignments"
@@ -95,12 +103,19 @@ def align_orthogroups(
             # One sequence is its own alignment (possible at a low threshold).
             shutil.copyfile(src, dst)
     _align(capabilities, to_align, out_dir, threads, logger)
+    for og, _, dst in jobs:
+        if not dst.is_file() or dst.stat().st_size == 0:
+            raise WorkdirError(f"mafft wrote no alignment for {og}")
+    if alphabet == "protein":
+        for og, _, dst in jobs:
+            if not _read_alignment(dst):
+                raise WorkdirError(f"mafft wrote an empty alignment for {og}")
+        return [GeneAlignment(og, dst) for og, _, dst in jobs], 0
 
+    nucleotides = {g: _read_fasta(ffns[g], ids) for g, ids in wanted.items() if ids}
     out: list[GeneAlignment] = []
     mismatched = 0
     for (og, _, dst), (_, members) in zip(jobs, selected, strict=True):
-        if not dst.is_file() or dst.stat().st_size == 0:
-            raise WorkdirError(f"mafft wrote no alignment for {og}")
         aligned = _read_alignment(dst)
         if not aligned:
             raise WorkdirError(f"mafft wrote an empty alignment for {og}")

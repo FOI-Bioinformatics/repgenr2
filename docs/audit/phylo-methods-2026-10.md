@@ -76,7 +76,10 @@ found no gene at 95 % occupancy.
   quality control.
 - (c) DNA only. A genus or family span saturates third codon positions, and no
   protein or codon alphabet is offered; IQ-TREE is always called with `-st DNA`
-  (`treebuilders/iqtree.py:87-88`).
+  (`treebuilders/iqtree.py:87-88`). Shipped (A5): `--coregene-alphabet
+  protein` gives a protein core-gene alignment with ppanggolin, scarap or
+  orthofinder, and the tree builders use `-st AA`, `LG+G` or `-lg`; codon
+  models remain deferred.
 - (d) Panaroo's default clustering identity (`-c 0.98`) gives an empty core on
   a divergent set: 0 genes at 95 % occupancy on 24 Wolbachia genomes, 52 genes
   in all three genomes of one supergroup (verification.md). The default
@@ -155,8 +158,8 @@ Items marked planned depend on ladder work that is not implemented.
 |---|---|---|---|---|
 | Outbreak or clonal genotype tree | one lineage, ANI above 99.5 % | `--msa-source snptype --snptyper ska2` (reference-free) | iqtree with `--aligner-arg model=GTR+G` and `-B 1000` | ska2 writes constant-site counts (item C, shipped), except under `lo=true`. The ska2 tree builder gives a quick look. |
 | Genotype tree within a species | one species, ANI 95 to 99.5 % | `--msa-source snptype --snptyper simple` (medoid reference) or `parsnp`; `--mask gubbins` when recombination is expected and under 12 % of columns vary; `--core-fraction 0.95` | iqtree with `-fconst` (automatic) and `-B 1000`; fasttree as Gubbins' internal builder | ska2 with `--aligner-arg lo=true` is the reference-free alternative when no masking is wanted. |
-| Overview of species representatives in a genus | several species, ANI 80 to 95 % | `--msa-source coregene --coregene ppanggolin` (or `scarap`), `--core-threshold 0.95` | iqtree with `model=GTR+G` and `-B 1000`; skani NJ first for a quick check | Gene cap and ranking, partitions and a protein alphabet are planned (item A). Panaroo only with `--aligner-arg threshold=` lowered to about 0.90; its default core is empty here. |
-| Overview across a family or wider | ANI 75 to 85 % or below | protein core genes (planned, item A) or a marker-gene route (deferred, item F) | iqtree `-st AA`, `LG+G` (planned) | DNA alignments saturate; mash and Jaccard distances are unreliable; skani reaches about 80 %. Until then, skani gives an overview without supports. |
+| Overview of species representatives in a genus | several species, ANI 80 to 95 % | `--msa-source coregene --coregene ppanggolin` (or `scarap`), `--core-threshold 0.95` | iqtree with `model=GTR+G` and `-B 1000`; skani NJ first for a quick check | Gene cap and ranking, partitions and a protein alphabet (`--coregene-alphabet protein`, A5, shipped) are available. Panaroo only with `--aligner-arg threshold=` lowered to about 0.90; its default core is empty here. |
+| Overview across a family or wider | ANI 75 to 85 % or below | protein core genes (`--coregene-alphabet protein`, A5, shipped) or a marker-gene route (deferred, item F) | iqtree `-st AA` (ModelFinder, or `model=LG+G`) | DNA alignments saturate; mash and Jaccard distances are unreliable; skani reaches about 80 %. Until then, skani gives an overview without supports. |
 | Quick look at any set | any | alignment-free | skani (genus or wider), mashtree (diverse or viral), ska2 (clonal) | No supports; use `--collapse-diameter` in tree2tax rather than `--collapse-support`. |
 
 Rules of thumb. A SNP route needs a genome every other genome maps to, so it
@@ -181,7 +184,8 @@ of this record.
 - **A. Core-gene selection and layout.** A gene cap with ranking (occupancy,
   informative sites, variable sites, length, random), per-gene alignments kept
   and reported, a partition file for IQ-TREE and RAxML-NG, a protein alphabet,
-  and optional trimming.
+  and optional trimming. The protein alphabet (A5) has shipped as
+  `--coregene-alphabet protein`.
 - **B. Default route and builder hygiene.** A lower Panaroo identity on
   multi-species sets, a recommended IQ-TREE recipe for large alignments,
   `1 - ANI` as the sourmash builder's distance, and defects 4 and 5 above.

@@ -99,6 +99,8 @@ _STAGE_EXTRA_KEYS = frozenset(
         "core_threshold",
         "clean_mode",
         "filtered",
+        # dna or protein core-gene alignments; read by _coregene_alphabet.
+        "coregene_alphabet",
         # The core-gene selection (coregenes/select.py); read by _gene_selection.
         "max_core_genes",
         "gene_rank",
@@ -111,7 +113,15 @@ _STAGE_EXTRA_KEYS = frozenset(
 )
 # Extras read by the core-gene pass only; the fingerprint drops them elsewhere.
 _COREGENE_ONLY_EXTRA = frozenset(
-    {"clean_mode", "filtered", "max_core_genes", "gene_rank", "min_gene_length", "max_gene_gaps"}
+    {
+        "clean_mode",
+        "filtered",
+        "coregene_alphabet",
+        "max_core_genes",
+        "gene_rank",
+        "min_gene_length",
+        "max_gene_gaps",
+    }
 )
 # Bump when the rule that lays the selected genes out in the core-gene
 # concatenation changes, so an alignment built by the old rule is rebuilt.
@@ -183,6 +193,18 @@ def _filtered(extra: Mapping[str, object]) -> bool:
     from ..core.plugins import parse_extra_bool
 
     return parse_extra_bool(extra, "filtered", True)
+
+
+def _coregene_alphabet(extra: Mapping[str, object]) -> str:
+    """The --coregene-alphabet carried in the stage extras: dna (default) or protein."""
+    from ..coregenes.select import ALPHABETS
+
+    value = str(extra.get("coregene_alphabet", "dna")).strip().lower() or "dna"
+    if value not in ALPHABETS:
+        raise UserInputError(
+            f"--coregene-alphabet must be one of {', '.join(ALPHABETS)}, not {value!r}"
+        )
+    return value
 
 
 def _partitioned(extra: Mapping[str, object]) -> bool:
@@ -417,7 +439,7 @@ def _msa_key(
         # before the core-gene route existed keeps its key and is reused.
         # It holds the builder, its settings and the annotations the pass
         # read (the index rows carry the GFF digests and the annotator).
-        payload["coregene"] = {
+        coregene: dict[str, object] = {
             "tool": params.coregene,
             "core_threshold": _core_threshold(params.extra),
             "clean_mode": _coregene_setting(params, "clean_mode"),
@@ -426,6 +448,12 @@ def _msa_key(
             "layout": _COREGENE_LAYOUT,
             "selection": asdict(_gene_selection(params.extra)),
         }
+        # Added for protein only, so a nucleotide alignment made before the
+        # alphabet existed keeps its key and is reused rather than rebuilt.
+        alphabet = _coregene_alphabet(params.extra)
+        if alphabet != "dna":
+            coregene["alphabet"] = alphabet
+        payload["coregene"] = coregene
     blob = json.dumps(payload, sort_keys=True, default=str)
     return hashlib.sha256(blob.encode("utf-8")).hexdigest()
 
@@ -876,6 +904,9 @@ def build_tree(
                 else sketch_provider,
             )
         versions = {**versions, **source_versions}
+        tree_params.alphabet = _tree_alphabet(msa, params)
+        if tree_params.alphabet == "protein":
+            logger.info("Protein alignment: the tree builder is given an amino-acid model")
         _warn_low_diversity(msa, logger)
         tree_params.constant_sites = read_constant_sites(msa)
         if (
@@ -925,6 +956,18 @@ def build_tree(
         outgroup_leaf=outgroup_leaf,
         root=root,
     )
+
+
+def _tree_alphabet(msa: Path, params: PhyloParams) -> str:
+    """The character type the tree builder is told: the partition sidecar's
+    when one describes ``msa``, else --coregene-alphabet on the core-gene
+    route, else dna."""
+    found = read_partitions(msa)
+    if found is not None:
+        return found.alphabet
+    if params.msa_source == "coregene":
+        return _coregene_alphabet(params.extra)
+    return "dna"
 
 
 def _apply_partitions(
@@ -1472,6 +1515,11 @@ def run(ctx: WorkdirContext, params: PhyloParams) -> Path:
                 if is_msa and params.msa_source == "coregene"
                 else None
             ),
+            "coregene_alphabet": (
+                _coregene_alphabet(params.extra)
+                if is_msa and params.msa_source == "coregene"
+                else None
+            ),
             "gene_selection": (
                 asdict(_gene_selection(params.extra))
                 if is_msa and params.msa_source == "coregene"
@@ -1744,6 +1792,7 @@ def _build_msa(
                 core_threshold=_core_threshold(params.extra),
                 clean_mode=str(params.extra.get("clean_mode", "strict")),
                 filtered=_filtered(params.extra),
+                alphabet=_coregene_alphabet(params.extra),
                 extra=_adapter_extra(params.extra),
             ),
             params.coregene,
@@ -1774,7 +1823,8 @@ def _warn_low_diversity(msa_path: Path, logger: logging.Logger) -> None:
     columns; every builder then emits a star-like tree with near-zero branch
     lengths, silently. Streams sequences one at a time and compares each to
     the first, stopping as soon as enough variable sites are seen, so the
-    diverse (common) case exits early.
+    diverse (common) case exits early. Characters are compared as they are,
+    so the check holds for a protein alignment as for a nucleotide one.
     """
     first: list[str] | None = None
     variable: set[int] = set()

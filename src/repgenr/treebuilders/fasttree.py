@@ -50,7 +50,9 @@ class FasttreeBuilder(TreeBuilder):
                 "this variable-site alignment are inflated; iqtree or raxmlng use the "
                 "constant-site counts"
             )
-        cmd: list = [binary, "-nt", "-gtr"]
+        # -nt -gtr on nucleotides; -lg (Le and Gascuel 2008) on a protein
+        # core-gene alignment, where FastTree's own default would be JTT.
+        cmd: list = [binary, "-lg"] if params.alphabet == "protein" else [binary, "-nt", "-gtr"]
         if parse_extra_bool(params.extra, "gamma", False):
             # Rescale the branch lengths under the Gamma20 likelihood after
             # the CAT search; FastTree's own recommendation for comparable lengths.

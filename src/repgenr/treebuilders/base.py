@@ -115,6 +115,22 @@ def refuse_partitions_with_asc(
         )
 
 
+def refuse_asc_on_protein(params: TreeParams, builder: str) -> None:
+    """Refuse an ascertainment-bias correction on a protein alignment.
+
+    The correction removes the invariant columns, and that step reads
+    nucleotides only: on a protein alignment it would drop nearly every
+    amino-acid column. A core-gene alignment keeps its invariant sites, so
+    no correction is needed.
+    """
+    if params.alphabet == "protein" and asc_requested(params.extra, params.constant_sites):
+        raise UserInputError(
+            f"{builder}: the ascertainment-bias correction (asc=, a +ASC model) applies to "
+            "nucleotide SNP alignments; a core-gene alignment keeps its invariant sites, and "
+            "this one is protein. Drop the correction."
+        )
+
+
 class TreeBuilder(ABC):
     capabilities: ToolCapabilities
     input_kind: InputKind = InputKind.MSA_FASTA

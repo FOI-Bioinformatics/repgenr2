@@ -246,3 +246,20 @@ def test_the_default_inflation_is_recorded(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setattr(codon, "run_chain", _fake_chain([]))
     result = mod.OrthoFinderBuilder().call(_gffs(tmp_path), tmp_path / "o", CoreGeneParams(), _LOG)
     assert result.settings["inflation"] == mod.DEFAULT_INFLATION
+
+
+def test_protein_alphabet_hands_over_the_protein_alignments(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setattr(mod, "run_tool", _fake([]))
+    monkeypatch.setattr(codon, "run_chain", _fake_chain([]))
+    gffs = _gffs(tmp_path)
+    result = mod.OrthoFinderBuilder().call(
+        gffs,
+        tmp_path / "out",
+        CoreGeneParams(core_threshold=0.6, alphabet="protein"),
+        _LOG,
+    )
+    assert [ga.gene for ga in result.gene_alignments] == ["OG0000000", "OG0000001"]
+    assert all(ga.path.parent.name == "alignments" for ga in result.gene_alignments)
+    first, second = (_records(ga.path) for ga in result.gene_alignments)
+    assert first == {g.stem: "MKLM" for g in gffs}
+    assert second == {g.stem: "AC" for g in gffs[1:]}

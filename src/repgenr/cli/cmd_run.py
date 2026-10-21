@@ -33,6 +33,7 @@ from .base import (
     HELP_CORE_FRACTION,
     HELP_CORE_THRESHOLD,
     HELP_COREGENE,
+    HELP_COREGENE_ALPHABET,
     HELP_DATASET,
     HELP_DEREP_TOOL_ARG,
     HELP_GENE_RANK,
@@ -405,6 +406,9 @@ def run(
         None, "--core-threshold", min=0.0, max=1.0, help=HELP_CORE_THRESHOLD
     ),
     clean_mode: str | None = typer.Option(None, "--clean-mode", help=HELP_CLEAN_MODE),
+    coregene_alphabet: str | None = typer.Option(
+        None, "--coregene-alphabet", help=HELP_COREGENE_ALPHABET
+    ),
     max_core_genes: int | None = typer.Option(
         None, "--max-core-genes", min=0, help=HELP_MAX_CORE_GENES
     ),
@@ -505,6 +509,7 @@ def run(
             **({"core_fraction": core_fraction} if core_for_phylo else {}),
             **({"core_threshold": core_threshold} if core_threshold is not None else {}),
             **({"clean_mode": clean_mode} if clean_mode is not None else {}),
+            **({"coregene_alphabet": coregene_alphabet} if coregene_alphabet is not None else {}),
             **gene_selection_extra(
                 max_core_genes=max_core_genes,
                 gene_rank=gene_rank,
