@@ -210,6 +210,11 @@ All notable changes to RepGenR2 are documented here. The format follows
   variables; the host runs the tool in it).
 
 ### Documentation
+- `docs/verification.md`: live run of gene selection, partitions, ClipKIT
+  trimming, the protein alphabet, ASTER and `--preset genus` on 24 Wolbachia
+  genomes (2026-10-21), with two defects recorded: the partitioned protein
+  IQ-TREE run fails, and without `model=` partitioned IQ-TREE fits GTR
+  without model selection.
 - New audit record `docs/audit/phylo-methods-2026-10.md`: the three MSA
   sources and the tree builders of `phylo` reviewed for 100 to 500 genomes,
   defects found, recommendations by purpose and divergence, and the planned
