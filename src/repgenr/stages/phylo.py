@@ -104,6 +104,10 @@ _STAGE_EXTRA_KEYS = frozenset(
         "max_gene_gaps",
     }
 )
+# Extras read by the core-gene pass only; the fingerprint drops them elsewhere.
+_COREGENE_ONLY_EXTRA = frozenset(
+    {"clean_mode", "filtered", "max_core_genes", "gene_rank", "min_gene_length", "max_gene_gaps"}
+)
 # Bump when the rule that lays the selected genes out in the core-gene
 # concatenation changes, so an alignment built by the old rule is rebuilt.
 _COREGENE_LAYOUT = 1
@@ -441,14 +445,14 @@ def fingerprint_params(payload: dict) -> dict:
     ``clean_mode`` and ``filtered`` are removed from ``extra`` when the
     core-gene builder ignores them (PPanGGOLiN, SCARAP, OrthoFinder) or when
     no core-gene pass runs, so a changed value reruns nothing it cannot
-    change.
+    change. The gene-selection keys are removed when no core-gene pass runs.
     """
     extra = payload.get("extra")
-    if not isinstance(extra, dict) or not ({"clean_mode", "filtered"} & extra.keys()):
+    if not isinstance(extra, dict) or not (_COREGENE_ONLY_EXTRA & extra.keys()):
         return payload
-    drop: set[str] = {"clean_mode", "filtered"}
+    drop: set[str] = set(_COREGENE_ONLY_EXTRA)
     if payload.get("msa_source") == "coregene":
-        drop &= _coregene_ignored(str(payload.get("coregene")))
+        drop = {"clean_mode", "filtered"} & _coregene_ignored(str(payload.get("coregene")))
     if not drop:
         return payload
     return {**payload, "extra": {k: v for k, v in extra.items() if k not in drop}}
@@ -1406,6 +1410,11 @@ def run(ctx: WorkdirContext, params: PhyloParams) -> Path:
             ),
             "clean_mode": (
                 _coregene_setting(params, "clean_mode")
+                if is_msa and params.msa_source == "coregene"
+                else None
+            ),
+            "gene_selection": (
+                asdict(_gene_selection(params.extra))
                 if is_msa and params.msa_source == "coregene"
                 else None
             ),

@@ -7,6 +7,13 @@ All notable changes to RepGenR2 are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- Core-gene route: `--max-core-genes`, `--gene-rank` (occupancy, informative,
+  variable, length, random), `--min-gene-length` and `--max-gene-gaps` on
+  `phylo`, `phylo-build` and `run` set the per-gene selection. They are
+  refused outside `--msa-source coregene`, the phylo stage record gains
+  `gene_selection`, and the resume fingerprint ignores them when no
+  core-gene pass runs. The dropped-genome messages now also name the cap and
+  the filters. `docs/usage.md` has a "Choosing the genes" subsection.
 - Core-gene route: a core-gene builder may return one alignment per gene
   (`CoreGeneResult.gene_alignments`) instead of its own concatenation. The
   stage then computes per-gene metrics (occupancy, gap fraction, variable
@@ -17,10 +24,9 @@ All notable changes to RepGenR2 are documented here. The format follows
   `core_gene_alignment.fasta`. `core_gene_stats.json` gains
   `core_genes_available`, `selection`, `variable_sites_total`,
   `informative_sites_total`, `gene_table` and `partitions`. The adapters
-  still return their own concatenation, which is published as before; the
-  selection settings have no command-line flags yet. The phylo MSA reuse
-  key now holds the selection and a layout version, so an existing
-  core-gene alignment is rebuilt once.
+  still return their own concatenation, which is published as before. The
+  phylo MSA reuse key now holds the selection and a layout version, so an
+  existing core-gene alignment is rebuilt once.
 
 ### Changed
 - Core-gene route: all four builders now return one alignment per gene, so

@@ -452,6 +452,54 @@ def derep_refine_params(
     return _build(DerepRefineParams, seeds=seeds, ani=ani, refine_file=refine_file, threads=threads)
 
 
+# The per-gene selection of the core-gene route (coregenes/select.py): the
+# stage extra each flag fills.
+GENE_SELECTION_FLAGS = (
+    ("max_core_genes", "--max-core-genes"),
+    ("gene_rank", "--gene-rank"),
+    ("min_gene_length", "--min-gene-length"),
+    ("max_gene_gaps", "--max-gene-gaps"),
+)
+
+
+def gene_selection_extra(
+    *,
+    max_core_genes: int | None,
+    gene_rank: str | None,
+    min_gene_length: int | None,
+    max_gene_gaps: float | None,
+) -> dict[str, Any]:
+    """The gene-selection options that were given, as phylo stage extras."""
+    given = {
+        "max_core_genes": max_core_genes,
+        "gene_rank": gene_rank,
+        "min_gene_length": min_gene_length,
+        "max_gene_gaps": max_gene_gaps,
+    }
+    return {key: value for key, value in given.items() if value is not None}
+
+
+def refuse_outside_coregene(msa_source: str, settings: dict[str, Any]) -> None:
+    """Refuse a core-gene setting that was given with another MSA source.
+
+    ``settings`` maps each flag to its value; the first one that is set is named.
+    """
+    if msa_source == "coregene":
+        return
+    from ..core.errors import UserInputError
+
+    for flag, value in settings.items():
+        if value is not None:
+            raise UserInputError(f"{flag} applies only with --msa-source coregene.")
+
+
+def require_gene_rank(rank: str) -> None:
+    """Refuse a --gene-rank that is not one of the ranking criteria."""
+    from ..coregenes.select import RANKS
+
+    _require_choice(rank, set(RANKS), "--gene-rank")
+
+
 def phylo_params(
     *,
     treebuilder: Any = _UNSET,
@@ -494,9 +542,19 @@ def phylo_params(
 
         _require_choice(coregene, set(_cg_registry.names()), "--coregene")
     # The core-gene settings are read by that pass only.
-    for key, flag in (("core_threshold", "--core-threshold"), ("clean_mode", "--clean-mode")):
-        if extra is not _UNSET and extra.get(key) is not None and effective_source != "coregene":
-            raise UserInputError(f"{flag} applies only with --msa-source coregene.")
+    refuse_outside_coregene(
+        effective_source,
+        {
+            flag: extra.get(key) if extra is not _UNSET else None
+            for key, flag in (
+                ("core_threshold", "--core-threshold"),
+                ("clean_mode", "--clean-mode"),
+                *GENE_SELECTION_FLAGS,
+            )
+        },
+    )
+    if extra is not _UNSET and extra.get("gene_rank") is not None:
+        require_gene_rank(str(extra["gene_rank"]))
     if extra is not _UNSET and extra.get("clean_mode") is not None:
         from ..coregenes.base import CLEAN_MODES
 

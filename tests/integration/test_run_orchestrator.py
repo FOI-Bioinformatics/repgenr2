@@ -458,6 +458,8 @@ def test_run_coregene_inserts_annotate_before_phylo(monkeypatch, tmp_path) -> No
             *("run", "-wd", str(tmp_path / "wd"), "-l", "genus", "-tg", "francisella"),
             *("--msa-source", "coregene", "--annotator", "prokka", "--all-genomes"),
             *("--core-threshold", "0.9", "--clean-mode", "moderate", "-p", "3"),
+            *("--max-core-genes", "5", "--gene-rank", "informative"),
+            *("--min-gene-length", "60", "--max-gene-gaps", "0.2"),
         ],
     )
     assert result.exit_code == 0, result.output
@@ -468,6 +470,8 @@ def test_run_coregene_inserts_annotate_before_phylo(monkeypatch, tmp_path) -> No
     phylo = built["phylo"]
     assert phylo.msa_source == "coregene" and phylo.coregene == "panaroo"
     assert phylo.extra["core_threshold"] == 0.9 and phylo.extra["clean_mode"] == "moderate"
+    assert phylo.extra["max_core_genes"] == 5 and phylo.extra["gene_rank"] == "informative"
+    assert phylo.extra["min_gene_length"] == 60 and phylo.extra["max_gene_gaps"] == 0.2
 
 
 def test_run_dry_run_shows_annotate_for_the_coregene_source(monkeypatch, tmp_path) -> None:

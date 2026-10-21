@@ -35,13 +35,17 @@ from .base import (
     HELP_COREGENE,
     HELP_DATASET,
     HELP_DEREP_TOOL_ARG,
+    HELP_GENE_RANK,
     HELP_GTDB_RELEASE,
     HELP_GTDB_VERSION,
     HELP_INCLUDE_DEREPLICATED,
     HELP_KEEPER,
     HELP_LEVEL,
     HELP_LIMIT,
+    HELP_MAX_CORE_GENES,
+    HELP_MAX_GENE_GAPS,
     HELP_METADATA_PATH,
+    HELP_MIN_GENE_LENGTH,
     HELP_MSA_SOURCE,
     HELP_NAMING,
     HELP_NO_OUTGROUP,
@@ -400,6 +404,16 @@ def run(
         None, "--core-threshold", min=0.0, max=1.0, help=HELP_CORE_THRESHOLD
     ),
     clean_mode: str | None = typer.Option(None, "--clean-mode", help=HELP_CLEAN_MODE),
+    max_core_genes: int | None = typer.Option(
+        None, "--max-core-genes", min=0, help=HELP_MAX_CORE_GENES
+    ),
+    gene_rank: str | None = typer.Option(None, "--gene-rank", help=HELP_GENE_RANK),
+    min_gene_length: int | None = typer.Option(
+        None, "--min-gene-length", min=0, help=HELP_MIN_GENE_LENGTH
+    ),
+    max_gene_gaps: float | None = typer.Option(
+        None, "--max-gene-gaps", min=0.0, max=1.0, help=HELP_MAX_GENE_GAPS
+    ),
     collapse_support: float | None = typer.Option(
         None,
         "--collapse-support",
@@ -449,6 +463,7 @@ def run(
         VIRAL_SOURCES,
         assemble_params,
         dereplicate_params,
+        gene_selection_extra,
         genome_params,
         ingest_params,
         metadata_params,
@@ -488,6 +503,12 @@ def run(
             **({"core_fraction": core_fraction} if core_for_phylo else {}),
             **({"core_threshold": core_threshold} if core_threshold is not None else {}),
             **({"clean_mode": clean_mode} if clean_mode is not None else {}),
+            **gene_selection_extra(
+                max_core_genes=max_core_genes,
+                gene_rank=gene_rank,
+                min_gene_length=min_gene_length,
+                max_gene_gaps=max_gene_gaps,
+            ),
         }
         if msa_source == "coregene":
             from ..annotators.base import registry as _annot_registry

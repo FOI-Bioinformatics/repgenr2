@@ -2022,6 +2022,62 @@ commands:
         with_args:
         - --msa-source
         - coregene
+      --max-core-genes:
+        param: PhyloParams.extra
+        value: '5'
+        validated: range
+        invalid: '-1'
+        docs:
+        - docs/cli-reference.md
+        - docs/usage.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
+        live: 'n/a: covered offline in tests/unit/test_cli_gene_selection.py (the live run needs bakta, panaroo and the bakta database)'
+        with_args:
+        - --msa-source
+        - coregene
+      --gene-rank:
+        param: PhyloParams.extra
+        value: informative
+        validated: choice
+        invalid: turbo
+        docs:
+        - docs/cli-reference.md
+        - docs/usage.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
+        live: 'n/a: covered offline in tests/unit/test_cli_gene_selection.py (the live run needs bakta, panaroo and the bakta database)'
+        with_args:
+        - --msa-source
+        - coregene
+      --min-gene-length:
+        param: PhyloParams.extra
+        value: '100'
+        validated: range
+        invalid: '-1'
+        docs:
+        - docs/cli-reference.md
+        - docs/usage.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
+        live: 'n/a: covered offline in tests/unit/test_cli_gene_selection.py (the live run needs bakta, panaroo and the bakta database)'
+        with_args:
+        - --msa-source
+        - coregene
+      --max-gene-gaps:
+        param: PhyloParams.extra
+        value: '0.5'
+        validated: range
+        invalid: '2'
+        docs:
+        - docs/cli-reference.md
+        - docs/usage.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
+        live: 'n/a: covered offline in tests/unit/test_cli_gene_selection.py (the live run needs bakta, panaroo and the bakta database)'
+        with_args:
+        - --msa-source
+        - coregene
   phylo-build:
     dispatch: step:repgenr.stages.phylo.phylo_build
     base_args:
@@ -2296,6 +2352,62 @@ commands:
         - docs/audit/cli-matrix.md
         nextflow: 'params.phylo_args'
         live: 'n/a: covered offline in tests/unit/test_phylo_coregene.py (the live run needs bakta, panaroo and the bakta database)'
+        with_args:
+        - --msa-source
+        - coregene
+      --max-core-genes:
+        param: PhyloBuildParams.phylo.extra
+        value: '5'
+        validated: range
+        invalid: '-1'
+        docs:
+        - docs/cli-reference.md
+        - docs/usage.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'params.phylo_args'
+        live: 'n/a: covered offline in tests/unit/test_cli_gene_selection.py (the live run needs bakta, panaroo and the bakta database)'
+        with_args:
+        - --msa-source
+        - coregene
+      --gene-rank:
+        param: PhyloBuildParams.phylo.extra
+        value: informative
+        validated: choice
+        invalid: turbo
+        docs:
+        - docs/cli-reference.md
+        - docs/usage.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'params.phylo_args'
+        live: 'n/a: covered offline in tests/unit/test_cli_gene_selection.py (the live run needs bakta, panaroo and the bakta database)'
+        with_args:
+        - --msa-source
+        - coregene
+      --min-gene-length:
+        param: PhyloBuildParams.phylo.extra
+        value: '100'
+        validated: range
+        invalid: '-1'
+        docs:
+        - docs/cli-reference.md
+        - docs/usage.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'params.phylo_args'
+        live: 'n/a: covered offline in tests/unit/test_cli_gene_selection.py (the live run needs bakta, panaroo and the bakta database)'
+        with_args:
+        - --msa-source
+        - coregene
+      --max-gene-gaps:
+        param: PhyloBuildParams.phylo.extra
+        value: '0.5'
+        validated: range
+        invalid: '2'
+        docs:
+        - docs/cli-reference.md
+        - docs/usage.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'params.phylo_args'
+        live: 'n/a: covered offline in tests/unit/test_cli_gene_selection.py (the live run needs bakta, panaroo and the bakta database)'
         with_args:
         - --msa-source
         - coregene
@@ -4129,6 +4241,62 @@ commands:
         - docs/audit/cli-matrix.md
         nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
         live: 'n/a: covered offline in tests/unit/test_phylo_coregene.py (the live run needs bakta, panaroo and the bakta database)'
+        with_args:
+        - --msa-source
+        - coregene
+      --max-core-genes:
+        param: PhyloParams.extra
+        value: '5'
+        validated: range
+        invalid: '-1'
+        docs:
+        - docs/cli-reference.md
+        - docs/usage.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
+        live: 'n/a: covered offline in tests/unit/test_cli_gene_selection.py (the live run needs bakta, panaroo and the bakta database)'
+        with_args:
+        - --msa-source
+        - coregene
+      --gene-rank:
+        param: PhyloParams.extra
+        value: informative
+        validated: choice
+        invalid: turbo
+        docs:
+        - docs/cli-reference.md
+        - docs/usage.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
+        live: 'n/a: covered offline in tests/unit/test_cli_gene_selection.py (the live run needs bakta, panaroo and the bakta database)'
+        with_args:
+        - --msa-source
+        - coregene
+      --min-gene-length:
+        param: PhyloParams.extra
+        value: '100'
+        validated: range
+        invalid: '-1'
+        docs:
+        - docs/cli-reference.md
+        - docs/usage.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
+        live: 'n/a: covered offline in tests/unit/test_cli_gene_selection.py (the live run needs bakta, panaroo and the bakta database)'
+        with_args:
+        - --msa-source
+        - coregene
+      --max-gene-gaps:
+        param: PhyloParams.extra
+        value: '0.5'
+        validated: range
+        invalid: '2'
+        docs:
+        - docs/cli-reference.md
+        - docs/usage.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
+        live: 'n/a: covered offline in tests/unit/test_cli_gene_selection.py (the live run needs bakta, panaroo and the bakta database)'
         with_args:
         - --msa-source
         - coregene
