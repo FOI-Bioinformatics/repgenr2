@@ -355,6 +355,7 @@ the `envs/` files, and the environment that holds each tool is listed in
 | Tree builder | aster | `aster` | yes | `aster:1.25` | IQ-TREE or FastTree for the gene trees, which run in their own images under a container backend |
 
 The genome download steps also need `ncbi-datasets-cli`.
+`clipkit` is in `envs/core.yml` rather than in the core-gene builder environments: it is a noarch Python package, and RepGenR2 finds it by its own name (`--bin-dir clipkit=DIR`), not through a builder's environment.
 
 ## Cactus
 
