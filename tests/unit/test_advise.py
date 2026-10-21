@@ -296,7 +296,23 @@ def test_no_genomes_is_reported(tmp_path: Path) -> None:
     ev = mod.collect_evidence(WorkdirContext(wd, logger=_LOG), False, 1, _LOG)
     assert ev.n_genomes == 0
     rec = mod.advise(ev)
-    assert any("no genomes" in r.lower() for r in rec.reasons)
+    assert "0 genome(s)" in rec.reasons[0] and "run dereplicate first" in rec.reasons[0]
+    # No pair to compare: no hint to sketch.
+    assert not any("repgenr sketch" in r for r in rec.reasons)
+
+
+def test_fewer_than_three_genomes_comes_first_and_keeps_the_command() -> None:
+    rec = mod.advise(_ev(n_genomes=2, all_genomes=True, ani_min=99.8))
+    assert rec.reasons[0].startswith("The set has 2 genome(s); phylo needs at least 3")
+    assert "dereplicate" not in rec.reasons[0]
+    assert rec.preset == "outbreak" and rec.command[:2] == ("repgenr", "phylo")
+    assert not mod.advise(_ev(n_genomes=3)).reasons[0].startswith("The set has")
+
+
+def test_iqtree_limit_is_read_from_the_registry() -> None:
+    from repgenr.treebuilders.base import registry
+
+    assert mod._iqtree_limit() == registry.get("iqtree").capabilities.recommended_max_genomes
 
 
 # --- command ------------------------------------------------------------------------

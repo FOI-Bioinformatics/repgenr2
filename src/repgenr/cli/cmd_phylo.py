@@ -251,8 +251,9 @@ def phylo_advise(
     Reads the genome names, the existing genome sketches (sourmash compare
     for the pairwise ANI), the annotations and the outgroup, applies the
     table in docs/choosing-tools.md and prints the reasons and the full
-    phylo command. Writes nothing to the workdir. A -wd that does not exist
-    exits 3.
+    phylo command. Writes nothing to the workdir, except that opening a
+    manifest of an older layout migrates its schema in place, as any
+    command does. A -wd that does not exist exits 3.
     """
     import logging
 

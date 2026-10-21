@@ -1999,7 +1999,9 @@ species and genera in canonical record names, the minimum and median
 pairwise ANI by `sourmash compare` over the existing genome sketches
 (`--threads` sets its threads), whether every genome is annotated and
 whether an outgroup is staged. It writes nothing to the working directory
-and sketches nothing; without sketches the ANI is reported as unknown and
+and sketches nothing; the one exception is a manifest of an older layout,
+which is migrated in place when it is opened, as by any other command.
+Without sketches the ANI is reported as unknown and
 the advice rests on the names. The rules, in order: a minimum ANI of 99.5 %
 or more gives `outbreak`; one species by name (or, with other names, a
 minimum ANI of 95 % or more) gives `species-masked` for up to 200 genomes

@@ -294,11 +294,12 @@ def _ani_summary(
 
 
 def _iqtree_limit() -> int:
-    try:
-        from ..treebuilders.base import registry
+    from ..core.errors import PluginError
+    from ..treebuilders.base import registry
 
-        limit = registry.create("iqtree").capabilities.recommended_max_genomes
-    except Exception:  # noqa: BLE001 - advice falls back to the documented figure
+    try:
+        limit = registry.get("iqtree").capabilities.recommended_max_genomes
+    except PluginError:
         return _IQTREE_LIMIT_FALLBACK
     return int(limit) if limit else _IQTREE_LIMIT_FALLBACK
 
@@ -312,10 +313,6 @@ def _choose(ev: Evidence) -> tuple[str, list[str]]:
     reasons: list[str] = []
     ani = ev.ani_min
     canonical = ev.names_canonical
-    if ev.n_genomes == 0:
-        reasons.append(
-            "No genomes were found in the set; run dereplicate first, or pass --all-genomes."
-        )
     if ani is not None and ani >= OUTBREAK_MIN_ANI:
         reasons.append(
             f"The minimum pairwise ANI is {_pct(ani)}, at or above {OUTBREAK_MIN_ANI:g} %: "
@@ -371,17 +368,33 @@ def _choose(ev: Evidence) -> tuple[str, list[str]]:
                 f"{SPECIES_MIN_ANI:g} %: past the reach of a SNP route."
             )
         return "genus", reasons
-    reasons.append(
-        "Nothing is known about the divergence: the names are not canonical and there is "
-        f"no ANI. Run `repgenr sketch -wd {ev.workdir}`, then phylo-advise again."
-    )
+    if ev.n_genomes < 2:
+        # No pair to compare: sketching would not give an ANI either.
+        reasons.append("Nothing is known about the divergence of the set.")
+    else:
+        reasons.append(
+            "Nothing is known about the divergence: the names are not canonical and there "
+            f"is no ANI. Run `repgenr sketch -wd {ev.workdir}`, then phylo-advise again."
+        )
     return "quick", reasons
 
 
 def advise(evidence: Evidence) -> Recommendation:
     """The recommendation for ``evidence``: the preset, the reasons and the
     full ``repgenr phylo`` command."""
+    from .phylo import MIN_TREE_GENOMES
+
     preset, reasons = _choose(evidence)
+    if evidence.n_genomes < MIN_TREE_GENOMES:
+        # The command is still printed, so the output keeps one shape; this
+        # reason comes first because phylo refuses the set as it is.
+        where = "" if evidence.all_genomes else " (run dereplicate first, or pass --all-genomes)"
+        reasons.insert(
+            0,
+            f"The set has {evidence.n_genomes} genome(s); phylo needs at least "
+            f"{MIN_TREE_GENOMES} and refuses it{where}. The command below applies once "
+            "there are enough.",
+        )
     entry = RECOMMENDATIONS[preset]
     flags = list(entry["flags"])
     if entry["needs_annotation"] and not evidence.has_annotations:
