@@ -267,6 +267,22 @@ def test_resolve_hashes_a_genome_again_only_when_its_size_or_mtime_changes(
     assert not (ctx.workdir / "sketches").exists()
 
 
+def test_resolve_without_write_leaves_the_workdir_unchanged(tmp_path, fake_sourmash) -> None:
+    """write=False reads the current sketches and writes nothing, the digest
+    cache included (phylo-advise and the reference choice only read)."""
+    ctx = _workdir(tmp_path / "wd", outgroup=False)
+    genomes = _genomes(ctx)
+    resolve_sketches(ctx, genomes, _LOG, 1, consumer="t")
+    cache = ctx.workdir / "sketches" / sketches.DIGESTS_JSON
+    before = {p: p.stat().st_mtime_ns for p in (ctx.workdir / "sketches").iterdir()}
+    cache.unlink()
+    got = resolve_sketches(ctx, genomes, _LOG, 1, consumer="t", write=False)
+    assert set(got) == set(genomes)
+    assert not cache.exists()
+    after = {p: p.stat().st_mtime_ns for p in (ctx.workdir / "sketches").iterdir()}
+    assert after == {p: m for p, m in before.items() if p != cache}
+
+
 def test_resolve_without_sourmash_returns_only_current_sketches(
     tmp_path, fake_sourmash, monkeypatch
 ) -> None:

@@ -7,7 +7,9 @@ from pathlib import Path
 import typer
 
 from .base import (
+    _RUN_STATE,
     DEFAULT_THREADS,
+    HELP_ADVISE_JSON,
     HELP_ALIGNER_ARG,
     HELP_ALL_GENOMES,
     HELP_ALLOW_INCOMPLETE,
@@ -41,7 +43,9 @@ from .base import (
     HELP_THREADS,
     HELP_WORKDIR,
     PANEL_CORE,
+    PANEL_PIPELINE,
     _aligner_help,
+    _echo_json,
     _mask_help,
     _mask_help_msa,
     _parse_key_values,
@@ -50,7 +54,9 @@ from .base import (
     _snp_help,
     _tree_help,
     app,
+    require_existing_workdir,
     resolve_threads,
+    stage_errors,
 )
 
 
@@ -229,6 +235,47 @@ def phylo(
         )
 
     _run("phylo", workdir, build)
+
+
+@app.command(name="phylo-advise", rich_help_panel=PANEL_PIPELINE)
+def phylo_advise(
+    workdir: Path = typer.Option(..., "-wd", "--workdir", help=HELP_WORKDIR),
+    all_genomes: bool = typer.Option(False, "--all-genomes", help=HELP_ALL_GENOMES),
+    threads: int = typer.Option(
+        DEFAULT_THREADS, "-t", "--threads", min=1, help=HELP_THREADS, callback=resolve_threads
+    ),
+    as_json: bool = typer.Option(False, "--json", help=HELP_ADVISE_JSON),
+) -> None:
+    """Suggest a phylo route and tree builder for the genome set of a workdir.
+
+    Reads the genome names, the existing genome sketches (sourmash compare
+    for the pairwise ANI), the annotations and the outgroup, applies the
+    table in docs/choosing-tools.md and prints the reasons and the full
+    phylo command. Writes nothing to the workdir, except that opening a
+    manifest of an older layout migrates its schema in place, as any
+    command does. A -wd that does not exist exits 3.
+    """
+    import logging
+
+    from ..core.context import WorkdirContext
+    from ..core.logging import configure_logging
+    from ..stages.advise import advise, collect_evidence, format_text, to_json
+
+    require_existing_workdir(workdir)
+    level = _RUN_STATE["log_level"]
+    # The advice is the output; INFO lines from the sketch lookup are not.
+    logger = configure_logging(None, level=logging.WARNING if level == logging.INFO else level)
+    with stage_errors(logger):
+        ctx = WorkdirContext(workdir, logger=logger)
+        try:
+            evidence = collect_evidence(ctx, all_genomes, threads, logger)
+        finally:
+            ctx.close()
+    rec = advise(evidence)
+    if as_json:
+        _echo_json(to_json(rec, evidence))
+    else:
+        typer.echo(format_text(rec, evidence))
 
 
 @app.command(rich_help_panel=PANEL_CORE)

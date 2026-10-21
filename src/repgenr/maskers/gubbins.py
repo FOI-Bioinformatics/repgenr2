@@ -200,18 +200,29 @@ DEFAULT_FIRST_TREE_BUILDER = ("rapidnj", "JC")
 _ACCESSION_LIKE = re.compile(r"^(GC[AF]_\d+\.\d+|[A-Z]{1,2}_?\d{5,}(\.\d+)?|[SED]RR\d+)$")
 
 
+def canonical_taxon(name: str) -> tuple[str, str] | None:
+    """(genus, species), lower case, of a record name of the canonical
+    ``Family_Genus_species_Accession`` form whose last token is an
+    accession; None for any other name."""
+    _family, genus, sp, acc = parse_genome_filename(name)
+    if genus and acc and _ACCESSION_LIKE.match(acc):
+        return genus.lower(), sp.lower()
+    return None
+
+
 def species_spread(names: list[str]) -> int:
     """Distinct species among record names of the canonical
     ``Family_Genus_species_Accession`` form, counted only where the last
     token is an accession, so a user's own four-token names (such as
     ``Francisella_tularensis_LVS_1``) are not read as taxonomy; 0 when no
     name qualifies."""
-    species: set[tuple[str, str]] = set()
-    for name in names:
-        _family, genus, sp, acc = parse_genome_filename(name)
-        if genus and acc and _ACCESSION_LIKE.match(acc):
-            species.add((genus.lower(), sp.lower()))
-    return len(species)
+    return len({t for t in map(canonical_taxon, names) if t is not None})
+
+
+def genus_spread(names: list[str]) -> int:
+    """Distinct genera among the record names :func:`species_spread` reads;
+    0 when no name qualifies."""
+    return len({t[0] for t in map(canonical_taxon, names) if t is not None})
 
 
 def check_species_spread(names: list[str], extra: dict, logger: logging.Logger) -> None:

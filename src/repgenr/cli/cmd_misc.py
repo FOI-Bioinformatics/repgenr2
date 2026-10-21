@@ -22,6 +22,7 @@ from .base import (
     PIPELINE_LOCAL,
     PIPELINE_READS,
     PIPELINE_VIRAL,
+    _echo_json,
     _require_choice,
     _run,
     app,
@@ -171,12 +172,6 @@ def _reads_screen_note(workdir: Path) -> str:
 
     found = describe_screens(workdir / READS_SCREEN_DIR)
     return "" if found == "none" else f"variants: {found}"
-
-
-def _echo_json(payload: dict[str, Any]) -> None:
-    import json
-
-    typer.echo(json.dumps(payload, indent=2, default=str))
 
 
 @app.command(rich_help_panel=PANEL_PIPELINE)

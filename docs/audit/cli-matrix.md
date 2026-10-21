@@ -3,7 +3,7 @@
 Generated from `tests/audit/cli_matrix.yaml` by `scripts/render_cli_matrix.py`;
 `tests/unit/test_cli_matrix.py` keeps both in step with the command tree.
 
-37 commands, 467 flags (467 with a live test or an n/a reason, 0 pending).
+38 commands, 471 flags (471 with a live test or an n/a reason, 0 pending).
 
 ## Global flags
 
@@ -304,6 +304,17 @@ dispatch: `stage`
 | `--min-gene-length` |  | PhyloParams.extra | range | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: covered offline in tests/unit/test_cli_gene_selection.py (the live run needs bakta, panaroo and the bakta database) | docs/cli-reference.md, docs/usage.md, docs/audit/cli-matrix.md |
 | `--max-gene-gaps` |  | PhyloParams.extra | range | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: covered offline in tests/unit/test_cli_gene_selection.py (the live run needs bakta, panaroo and the bakta database) | docs/cli-reference.md, docs/usage.md, docs/audit/cli-matrix.md |
 | `--partitioned` |  | PhyloParams.extra | none | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: covered offline in tests/unit/test_cli_gene_selection.py (the live run needs bakta, panaroo and the bakta database) | docs/cli-reference.md, docs/usage.md, docs/audit/cli-matrix.md |
+
+## phylo-advise
+
+dispatch: `query`
+
+| flag | aliases | param | validated | nextflow | live | docs |
+|---|---|---|---|---|---|---|
+| `--workdir` | -wd | n/a: query command, no stage parameters | none | n/a: read-only workdir query; the Nextflow layer takes its route from params | n/a: read-only workdir query; tests/unit/test_advise.py | docs/cli-reference.md, docs/usage.md, docs/audit/cli-matrix.md |
+| `--all-genomes` |  | n/a: query command, no stage parameters | none | n/a: read-only workdir query; the Nextflow layer takes its route from params | n/a: read-only workdir query; tests/unit/test_advise.py | docs/cli-reference.md, docs/usage.md, docs/audit/cli-matrix.md |
+| `--threads` | -t | n/a: query command, no stage parameters | range | n/a: read-only workdir query; the Nextflow layer takes its route from params | n/a: read-only workdir query; tests/unit/test_advise.py | docs/cli-reference.md, docs/usage.md, docs/audit/cli-matrix.md |
+| `--json` |  | n/a: query command, no stage parameters | none | n/a: read-only workdir query; the Nextflow layer takes its route from params | n/a: read-only workdir query; tests/unit/test_advise.py | docs/cli-reference.md, docs/usage.md, docs/audit/cli-matrix.md |
 
 ## phylo-build
 

@@ -1989,6 +1989,63 @@ every genome maps to one reference and Gubbins accepts the alignment (under
 genus (ANI about 80 to 95 %), where a single reference no longer serves every
 genome and Panaroo's default clustering identity leaves an empty core.
 
+#### Asking for a route: `phylo-advise`
+
+`repgenr phylo-advise -wd $WD` reads the working directory and prints which
+row of the [By purpose and divergence](choosing-tools.md#by-purpose-and-divergence)
+table applies, the reasons, and the full `repgenr phylo` command. It counts
+the genomes (the representatives, or every genome with `--all-genomes`), the
+species and genera in canonical record names, the minimum and median
+pairwise ANI by `sourmash compare` over the existing genome sketches
+(`--threads` sets its threads), whether every genome is annotated and
+whether an outgroup is staged. It writes nothing to the working directory
+and sketches nothing; the one exception is a manifest of an older layout,
+which is migrated in place when it is opened, as by any other command.
+Without sketches the ANI is reported as unknown and
+the advice rests on the names. The rules, in order: a minimum ANI of 99.5 %
+or more gives `outbreak`; one species by name (or, with other names, a
+minimum ANI of 95 % or more) gives `species-masked` for up to 200 genomes
+with a minimum ANI of 97 % or more, else `species`; a minimum ANI under
+80 % or several genera gives `family`; several species or a minimum ANI of
+80 to 95 % gives `genus`; with neither ANI nor canonical names the advice is
+`quick`, an alignment-free `skani` tree. Without an outgroup the command
+gains `--root midpoint`; above the declared IQ-TREE limit of 500 genomes it
+uses `--treebuilder fasttree`; a core-gene route without annotations adds a
+reason to run `repgenr annotate` first. `--json` prints the same as one
+`repgenr.phylo-advise/1` object. The advice follows a table of measured and
+declared figures and is a starting point, not a substitute for looking at
+the set.
+
+```text
+$ repgenr phylo-advise -wd $WD --all-genomes
+Working directory: /data/wd
+Genomes:      4 (all genomes)
+Taxonomy:     names are not canonical; species not counted
+Pairwise ANI: min 98.81 %, median 99.21 %
+Annotations:  missing or incomplete
+Outgroup:     none
+
+Preset: species-masked (Genotype tree within a species, recombination masked)
+Route:  snptype
+As the species row, with recombination masked by Gubbins before the tree is
+built.
+
+Reasons:
+  - The minimum pairwise ANI is 98.81 %, at or above 95 %: one species.
+  - With 4 genomes and a minimum ANI of 98.81 %, Gubbins can mask
+    recombination: it is for closely related isolates and is refused above
+    12 % variable columns.
+  - No outgroup is staged, so the tree is rooted at its midpoint (add `--root
+    midpoint`); with an outgroup the default roots on it.
+
+Command:
+  repgenr phylo -wd /data/wd --all-genomes --msa-source snptype --snptyper simple --core-fraction 0.95 --treebuilder iqtree -B 1000 --mask gubbins --root midpoint
+```
+
+The `genus` and `family` rows do not yet carry a partition file or a protein
+alphabet; both are planned (see the
+[phylo methods audit](audit/phylo-methods-2026-10.md)).
+
 ### Genome count, leaf check and record names
 
 `phylo` and `phylo-build` need at least three ingroup genomes (the outgroup is
