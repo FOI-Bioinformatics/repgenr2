@@ -2487,7 +2487,8 @@ maintained successor of ASTRAL). It reads the gene partitions, so it needs
    - `wastral` (default): weighted ASTRAL, which weights each gene-tree
      quartet by its support and branch length. Internal branch lengths are
      in coalescent units and terminal branches have none, so `--root
-     midpoint` is refused; root on the outgroup instead.
+     midpoint` is refused before any gene tree is built; root on the
+     outgroup instead.
    - `astral4`: unweighted ASTRAL-IV, with branch lengths in substitutions
      per site.
    - `astral-pro3`: ASTRAL-Pro3; with one record per genome it gives the

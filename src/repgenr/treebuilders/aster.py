@@ -29,7 +29,7 @@ from __future__ import annotations
 import logging
 import re
 import shutil
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -56,7 +56,7 @@ _CALLED_DNA = frozenset("ACGTUacgtu")
 _UNCALLED_PROTEIN = frozenset("Xx-?.*")
 # IQ-TREE 3 writes an aBayes-only support as "/0.95" after the closing
 # parenthesis, which ASTER cannot parse; the last field is the support.
-_SLASH_LABEL = re.compile(r"\)[^:,();/]*/([^:,();]*)")
+_SLASH_LABEL = re.compile(r"\)(?:[^:,();]*/)+([^:,();/]*)")
 
 
 @dataclass(frozen=True)
@@ -98,6 +98,10 @@ class AsterBuilder(TreeBuilder):
     # Local posterior probabilities are always written.
     supports_without_bootstrap = True
     supports_partitions = True
+
+    def writes_terminal_lengths(self, extra: Mapping[str, object]) -> bool:
+        """wastral leaves the terminal branches without a length."""
+        return str(extra.get("program", "wastral")).strip() != "wastral"
 
     def preflight(self) -> dict[str, str]:
         """ASTER, and the gene-tree builders that can run here.
@@ -287,7 +291,7 @@ def _write_genes(
     seqs = _read_alignment(msa)
     width = max((len(s) for s in seqs.values()), default=0)
     gene_dir.mkdir(parents=True, exist_ok=True)
-    names = partition_names([gene for gene, _, _ in partitions])
+    names = _casefold_unique(partition_names([gene for gene, _, _ in partitions]))
     genes: list[_Gene] = []
     short = few = 0
     for name, (gene, start, end) in zip(names, partitions, strict=True):
@@ -312,6 +316,24 @@ def _write_genes(
                 fo.write(f">{record}\n{segment}\n")
         genes.append(_Gene(name, path, len(kept)))
     return genes, short, few, len(seqs)
+
+
+def _casefold_unique(names: Sequence[str]) -> list[str]:
+    """``names`` made unique without regard to case.
+
+    The names become file names, and "dnaA" and "DnaA" would be one file on
+    a case-insensitive file system; a later one gains a numeric suffix.
+    """
+    taken: set[str] = set()
+    out: list[str] = []
+    for base in names:
+        name, n = base, 1
+        while name.casefold() in taken:
+            n += 1
+            name = f"{base}_{n}"
+        taken.add(name.casefold())
+        out.append(name)
+    return out
 
 
 def _iqtree_step(

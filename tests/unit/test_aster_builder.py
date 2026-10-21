@@ -230,3 +230,44 @@ def test_capabilities() -> None:
     assert {"program", "gene_tree_builder", "model", "rounds", "min_gene_length"} <= (
         caps.accepted_extras
     )
+
+
+@pytest.mark.parametrize(
+    ("newick", "expected"),
+    [
+        ("(a,b,(c,d)/0.9:1);", "(a,b,(c,d)0.9:1);"),
+        ("(a,b,(c,d)80/0.9:1);", "(a,b,(c,d)0.9:1);"),
+        ("(a,b,(c,d)80/0.9/95:1);", "(a,b,(c,d)95:1);"),
+        ("(a,b,(c,d)0.9:1);", "(a,b,(c,d)0.9:1);"),
+    ],
+)
+def test_the_last_support_field_is_kept(newick, expected) -> None:
+    assert mod._SLASH_LABEL.sub(r")\1", newick) == expected
+
+
+def test_gene_names_differing_by_case_get_separate_files(tmp_path: Path) -> None:
+    msa = tmp_path / "m.fasta"
+    msa.write_text("".join(f">{n}\nACGTACGT\n" for n in "abcd"), encoding="utf-8")
+    genes, *_ = mod._write_genes(msa, (("dnaA", 1, 4), ("DnaA", 5, 8)), 0, tmp_path / "genes")
+    assert [g.name for g in genes] == ["dnaA", "DnaA_2"]
+    assert len({g.fasta.name.casefold() for g in genes}) == 2
+
+
+def test_a_missing_gene_tree_builder_stops_before_any_gene_is_cut(
+    tmp_path: Path, fake: _Fake, monkeypatch
+) -> None:
+    from repgenr.core.errors import MissingBinaryError
+
+    def missing(caps):
+        raise MissingBinaryError(f"{caps.name} not found")
+
+    monkeypatch.setattr(mod, "preflight", missing)
+    with pytest.raises(MissingBinaryError, match="iqtree"):
+        _build(tmp_path)
+    assert not (tmp_path / "out" / "genes").exists()
+    assert fake.chains == [] and fake.tools == []
+
+
+@pytest.mark.parametrize(("program", "lengths"), [("wastral", False), ("astral4", True)])
+def test_terminal_lengths_depend_on_the_program(program, lengths) -> None:
+    assert mod.AsterBuilder().writes_terminal_lengths({"program": program}) is lengths

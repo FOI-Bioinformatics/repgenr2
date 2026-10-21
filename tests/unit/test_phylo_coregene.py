@@ -835,3 +835,25 @@ def test_aster_with_partitioned_reaches_the_builder(
     tree_dir = tmp_path / "out" / "tree"
     assert len((tree_dir / "gene_trees.nwk").read_text(encoding="utf-8").splitlines()) == 2
     assert out.is_file()
+
+
+def test_aster_wastral_with_midpoint_root_is_refused_before_any_work(
+    tmp_path: Path, part_tools, monkeypatch
+) -> None:
+    """wastral writes no terminal lengths: --root midpoint fails up front."""
+    from repgenr.treebuilders import aster as aster_mod
+
+    chains: list = []
+    monkeypatch.setattr(aster_mod, "run_chain", lambda *a, **k: chains.append(a))
+    monkeypatch.setattr(aster_mod, "preflight", lambda caps: {caps.name: "1.0"})
+    _TwoGeneCoreGene.calls.clear()
+    with pytest.raises(UserInputError, match="--root outgroup"):
+        _step(
+            tmp_path,
+            coregene="fakecg_genes",
+            treebuilder="aster",
+            root="midpoint",
+            extra={"partitioned": True},
+        )
+    assert chains == []
+    assert _TwoGeneCoreGene.calls == []

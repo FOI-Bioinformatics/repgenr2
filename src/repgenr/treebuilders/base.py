@@ -128,6 +128,15 @@ class TreeBuilder(ABC):
     def preflight(self) -> dict[str, str]:
         return preflight(self.capabilities)
 
+    def writes_terminal_lengths(self, extra: Mapping[str, object]) -> bool:
+        """Whether the tree carries a length on every branch, terminal ones included.
+
+        A tree without them has no midpoint, so the stage refuses ``--root
+        midpoint`` for such a builder before any tool runs. ``extra`` is the
+        builder's merged extras, for a builder where it depends on a setting.
+        """
+        return True
+
     def sketch_request(self, extra: Mapping[str, object]) -> tuple[int, int] | None:
         """The (ksize, scaled) of the sourmash sketches this builder compares at.
 
