@@ -30,9 +30,13 @@ from .base import (
     HELP_CORE_THRESHOLD,
     HELP_COREGENE,
     HELP_DEREP_TOOL_ARG,
+    HELP_GENE_RANK,
     HELP_INCLUDE_DEREPLICATED,
     HELP_KEEP_FILES,
     HELP_KEEP_ROOT,
+    HELP_MAX_CORE_GENES,
+    HELP_MAX_GENE_GAPS,
+    HELP_MIN_GENE_LENGTH,
     HELP_MSA_SOURCE,
     HELP_NAMING,
     HELP_NO_OUTGROUP,
@@ -264,6 +268,16 @@ def phylo_build_cmd(
         None, "--core-threshold", min=0.0, max=1.0, help=HELP_CORE_THRESHOLD
     ),
     clean_mode: str | None = typer.Option(None, "--clean-mode", help=HELP_CLEAN_MODE),
+    max_core_genes: int | None = typer.Option(
+        None, "--max-core-genes", min=0, help=HELP_MAX_CORE_GENES
+    ),
+    gene_rank: str | None = typer.Option(None, "--gene-rank", help=HELP_GENE_RANK),
+    min_gene_length: int | None = typer.Option(
+        None, "--min-gene-length", min=0, help=HELP_MIN_GENE_LENGTH
+    ),
+    max_gene_gaps: float | None = typer.Option(
+        None, "--max-gene-gaps", min=0.0, max=1.0, help=HELP_MAX_GENE_GAPS
+    ),
     annotations_dir: Path | None = typer.Option(
         None,
         "--annotations-dir",
@@ -299,7 +313,7 @@ def phylo_build_cmd(
     from ..stages.phylo import PhyloBuildParams, PhyloParams, check_root_request, phylo_build
     from ..tree.rooting import ROOT_METHODS
     from ..treebuilders.base import registry as _tb_registry
-    from .param_builders import require_mask
+    from .param_builders import gene_selection_extra, require_gene_rank, require_mask
 
     logger = configure_logging(None, level=_RUN_STATE["log_level"])
     with stage_errors(logger):
@@ -318,10 +332,23 @@ def phylo_build_cmd(
 
             _require_choice(coregene, set(_cg_registry.names()), "--coregene")
             _require_choice(annotator, set(_annot_registry.names()), "--annotator")
-        if (core_threshold is not None or clean_mode is not None) and msa_source != "coregene":
+        coregene_settings = {
+            "--core-threshold": core_threshold,
+            "--clean-mode": clean_mode,
+            "--max-core-genes": max_core_genes,
+            "--gene-rank": gene_rank,
+            "--min-gene-length": min_gene_length,
+            "--max-gene-gaps": max_gene_gaps,
+        }
+        given = [flag for flag, value in coregene_settings.items() if value is not None]
+        if given and msa_source != "coregene":
             raise UserInputError(
-                "--core-threshold and --clean-mode apply only with --msa-source coregene."
+                f"{', '.join(given)} applies only with --msa-source coregene."
+                if len(given) == 1
+                else f"{', '.join(given)} apply only with --msa-source coregene."
             )
+        if gene_rank is not None:
+            require_gene_rank(gene_rank)
         if clean_mode is not None:
             from ..coregenes.base import CLEAN_MODES
 
@@ -355,6 +382,12 @@ def phylo_build_cmd(
                 **({"core_fraction": core_fraction} if core_fraction is not None else {}),
                 **({"core_threshold": core_threshold} if core_threshold is not None else {}),
                 **({"clean_mode": clean_mode} if clean_mode is not None else {}),
+                **gene_selection_extra(
+                    max_core_genes=max_core_genes,
+                    gene_rank=gene_rank,
+                    min_gene_length=min_gene_length,
+                    max_gene_gaps=max_gene_gaps,
+                ),
             },
         )
         phylo_build(

@@ -204,14 +204,17 @@ def coregene_core(
         raise WorkdirError(
             f"The core-gene alignment does not hold {', '.join(missing_required)}, which the "
             "tree needs (it is the outgroup): it shares no core gene with the rest at "
-            f"--core-threshold {params.core_threshold:g}. Lower the threshold, or build the "
-            "tree without it (--no-outgroup --root midpoint)."
+            f"--core-threshold {params.core_threshold:g}, or it holds none of the genes kept after "
+            "the cap and filters (--max-core-genes, --min-gene-length, --max-gene-gaps). Lower the "
+            "threshold, relax the selection, or build the tree without it "
+            "(--no-outgroup --root midpoint)."
         )
     if dropped:
         logger.warning(
             "%d genome(s) are not in the core-gene alignment and will be missing from the "
-            "tree (%s): they share no core gene at this threshold; lower --core-threshold "
-            "or leave them out",
+            "tree (%s): they share no core gene at this threshold, or hold none of the genes kept "
+            "after the cap and filters; lower --core-threshold, relax --max-core-genes, "
+            "--min-gene-length or --max-gene-gaps, or leave them out",
             len(dropped),
             ", ".join(dropped[:5]) + (" ..." if len(dropped) > 5 else ""),
         )

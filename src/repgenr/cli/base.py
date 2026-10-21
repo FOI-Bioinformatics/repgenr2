@@ -145,7 +145,7 @@ HELP_COREGENE = (
     "translation_table. scarap: method (FH), seeds (100), "
     "core_prefilter (the smaller of 0.90 and --core-threshold). orthofinder: "
     "search=diamond|diamond_ultra_sens|blastp|mmseqs (diamond), inflation (MCL, 1.2). "
-    "Every builder: max_core_genes (0, no cap) caps the core genes kept."
+    "The number of core genes kept is set with --max-core-genes."
 )
 HELP_CORE_THRESHOLD = (
     "With --msa-source coregene: a gene is core when present in at least this fraction "
@@ -154,6 +154,23 @@ HELP_CORE_THRESHOLD = (
 HELP_CLEAN_MODE = (
     "With --msa-source coregene: Panaroo's cleaning of annotation errors, strict (default), "
     "moderate or sensitive."
+)
+HELP_MAX_CORE_GENES = (
+    "With --msa-source coregene: keep at most this many core genes in the alignment, "
+    "chosen by --gene-rank (a count; 0 keeps every core gene; unset is 0)."
+)
+HELP_GENE_RANK = (
+    "With --msa-source coregene: how genes are ranked when --max-core-genes caps them: "
+    "occupancy (fraction of genomes holding the gene), informative (parsimony-informative "
+    "sites), variable (variable sites), length, random (seeded). Unset is occupancy."
+)
+HELP_MIN_GENE_LENGTH = (
+    "With --msa-source coregene: drop genes whose alignment is shorter than this, in "
+    "columns, before ranking (0 keeps all; unset is 0)."
+)
+HELP_MAX_GENE_GAPS = (
+    "With --msa-source coregene: drop genes where more than this fraction of the "
+    "alignment is gap characters, before ranking (0 to 1; unset applies no limit)."
 )
 HELP_ALIGNER_ARG = (
     "Aligner, SNP typer, masker or tree builder tuning as key=value (repeatable), "

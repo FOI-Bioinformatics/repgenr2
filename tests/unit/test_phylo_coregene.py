@@ -559,3 +559,31 @@ def test_settings_outside_coregene_do_not_change_default_fingerprints() -> None:
     )
     masked = PhyloParams(msa_source="snptype", extra={"mask": "gubbins"})
     assert _stage_fingerprint("phylo", masked, {}, {}) != default
+
+
+def test_record_carries_the_gene_selection(workdir: Path, tools) -> None:
+    _reps(workdir)
+    ctx = WorkdirContext(workdir, create=True, logger=_LOG)
+    annotate_run(ctx, AnnotateStageParams(tool="fakeannot"))
+    phylo_run(ctx, _params())
+    default = ctx.config.stages["phylo"].params["gene_selection"]
+    assert default == {
+        "max_genes": 0,
+        "rank": "occupancy",
+        "min_length": 0,
+        "max_gaps": None,
+        "seed": 0,
+    }
+    # A selection is refused for a builder that returns no per-gene alignments.
+    with pytest.raises(UserInputError, match="no per-gene alignments"):
+        phylo_run(ctx, _params(extra={"max_core_genes": 3, "gene_rank": "informative"}))
+
+
+def test_fingerprint_drops_the_selection_when_no_coregene_pass_runs() -> None:
+    selection = {"max_core_genes": "5", "gene_rank": "length", "min_gene_length": "9"}
+    selection["max_gene_gaps"] = "0.5"
+    for source in ("aligner", "snptype"):
+        payload = {"msa_source": source, "extra": {**selection, "model": "GTR"}}
+        assert phylo_mod.fingerprint_params(payload)["extra"] == {"model": "GTR"}
+    payload = {"msa_source": "coregene", "coregene": "fakecg", "extra": dict(selection)}
+    assert phylo_mod.fingerprint_params(payload)["extra"] == selection

@@ -2312,6 +2312,45 @@ stamp holds the index digest). Outputs:
 `tree/msa/pangenome/` and `tree/msa/core_gene_stats.json` (see
 [output.md](output.md)).
 
+#### Choosing the genes
+
+By default every core gene goes into the alignment. On a large set that can
+be tens of thousands of genes, and a tree builder gains little from the
+slowly changing ones. Four options select the genes, on `phylo`, `phylo-build`
+and `run`:
+
+| Option | Meaning |
+|---|---|
+| `--max-core-genes N` | Keep at most N genes; 0 keeps all (the default). |
+| `--gene-rank` | The order in which the cap takes genes: `occupancy` (fraction of genomes holding the gene, the default), `informative` (parsimony-informative sites), `variable` (variable sites), `length` or `random` (seeded, so a rerun gives the same genes). |
+| `--min-gene-length N` | Drop genes with fewer than N alignment columns. |
+| `--max-gene-gaps F` | Drop genes where more than the fraction F of the alignment is gap characters. |
+
+The two filters act first, then the genes that remain are ranked and the cap
+is applied. Ties in the ranking are broken by gene length, then gene id. The kept genes are
+concatenated in gene-id order, not in rank order, so a different
+`--gene-rank` that keeps the same set of genes gives the same alignment.
+`tree/msa/core_genes.tsv` records the decision for every gene the builder
+aligned: its metrics, whether it was kept, its rank and its column range.
+`core_gene_stats.json` holds
+the settings and the counts, and `partitions.json` the column range of each
+kept gene.
+
+The options apply only with `--msa-source coregene` and are refused with the
+other sources. They also apply to the `--aligner-arg max_core_genes=` form
+used before, which the option replaces. A genome that holds none of the kept
+genes is missing from the alignment and the tree, and the stage says so.
+
+As a starting point for an overview of a genus, a cap of a few hundred genes
+ranked by `informative` is a reasonable choice. This is a recommendation, not
+a measurement from this repository: check that the tree is stable against a
+larger cap on your own set.
+
+```bash
+repgenr phylo -wd $WD --msa-source coregene \
+    --max-core-genes 300 --gene-rank informative --min-gene-length 300
+```
+
 #### Panaroo and its clustering identity
 
 Panaroo (`--coregene panaroo`, the default) clusters the genes into a
@@ -2390,7 +2429,7 @@ its per-orthogroup alignments.
 
 The orthogroups come from profile searches rather than a fixed identity cut,
 so there is no identity to lower. `method=` chooses the orthogroup inference
-(`FH`, the default); `max_core_genes=` caps the count, as for every builder.
+(`FH`, the default); `--max-core-genes` caps the count, as for every builder.
 The seed genomes are drawn at random with no fixed random seed, so on a set
 larger than `seeds` two runs can select slightly different cores; the final
 selection is checked over all the genomes, not only the seeds.

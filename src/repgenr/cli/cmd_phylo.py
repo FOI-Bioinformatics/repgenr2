@@ -22,7 +22,11 @@ from .base import (
     HELP_CORE_FRACTION,
     HELP_CORE_THRESHOLD,
     HELP_COREGENE,
+    HELP_GENE_RANK,
     HELP_INCLUDE_DEREPLICATED,
+    HELP_MAX_CORE_GENES,
+    HELP_MAX_GENE_GAPS,
+    HELP_MIN_GENE_LENGTH,
     HELP_MSA_SOURCE,
     HELP_NAMING,
     HELP_NO_OUTGROUP,
@@ -173,6 +177,16 @@ def phylo(
         None, "--core-threshold", min=0.0, max=1.0, help=HELP_CORE_THRESHOLD
     ),
     clean_mode: str | None = typer.Option(None, "--clean-mode", help=HELP_CLEAN_MODE),
+    max_core_genes: int | None = typer.Option(
+        None, "--max-core-genes", min=0, help=HELP_MAX_CORE_GENES
+    ),
+    gene_rank: str | None = typer.Option(None, "--gene-rank", help=HELP_GENE_RANK),
+    min_gene_length: int | None = typer.Option(
+        None, "--min-gene-length", min=0, help=HELP_MIN_GENE_LENGTH
+    ),
+    max_gene_gaps: float | None = typer.Option(
+        None, "--max-gene-gaps", min=0.0, max=1.0, help=HELP_MAX_GENE_GAPS
+    ),
     allow_incomplete: bool = typer.Option(
         False,
         "--allow-incomplete",
@@ -180,7 +194,7 @@ def phylo(
     ),
 ) -> None:
     """Build a phylogenetic tree from an alignment, SNP alignment, or directly."""
-    from .param_builders import phylo_params
+    from .param_builders import gene_selection_extra, phylo_params
 
     def build():
         return phylo_params(
@@ -201,6 +215,12 @@ def phylo(
                 **({"core_fraction": core_fraction} if core_fraction is not None else {}),
                 **({"core_threshold": core_threshold} if core_threshold is not None else {}),
                 **({"clean_mode": clean_mode} if clean_mode is not None else {}),
+                **gene_selection_extra(
+                    max_core_genes=max_core_genes,
+                    gene_rank=gene_rank,
+                    min_gene_length=min_gene_length,
+                    max_gene_gaps=max_gene_gaps,
+                ),
             },
             allow_incomplete=allow_incomplete,
         )
