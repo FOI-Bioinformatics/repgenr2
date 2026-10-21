@@ -12,7 +12,10 @@ Command surface checked against PPanGGOLiN 2.3.2 (bioconda). Three calls:
 3. ``ppanggolin msa -p pangenome.h5 --partition P --source dna --phylo
    --single_copy`` aligns each selected family with mafft and concatenates
    them into ``<partition>[_<soft core>]_genome_alignment.aln``, one record
-   per genome, gaps where a genome lacks the family.
+   per genome, gaps where a genome lacks the family. The per-family
+   alignments it keeps under ``msa_<partition>_dna/`` (records named by
+   genome) are what the adapter hands over; the stage ranks, caps and
+   concatenates them itself, and the concatenation stays in the result.
 
 The partition defaults to ``softcore`` at ``--core-threshold``, so the gene
 set means the same as with Panaroo. ``partition=persistent`` selects
@@ -44,7 +47,7 @@ from ..core.binaries import BinarySpec
 from ..core.containers import run_tool
 from ..core.errors import UserInputError, WorkdirError
 from ..core.plugins import ToolCapabilities, parse_extra_bool
-from .base import CoreGeneBuilder, CoreGeneParams, CoreGeneResult
+from .base import CoreGeneBuilder, CoreGeneParams, CoreGeneResult, GeneAlignment
 
 PARTITIONS = ("softcore", "core", "persistent")
 TABLES = (
@@ -182,6 +185,7 @@ class PPanGGOLiNBuilder(CoreGeneBuilder):
             tables=tables,
             core_genes=core_genes,
             clustering_identity=identity,
+            gene_alignments=[GeneAlignment(p.stem, p) for p in sorted(families)],
             settings={
                 "partition": partition,
                 "coverage": coverage,

@@ -23,6 +23,17 @@ All notable changes to RepGenR2 are documented here. The format follows
   core-gene alignment is rebuilt once.
 
 ### Changed
+- Core-gene route: all four builders now return one alignment per gene, so
+  the stage's gene selection applies to each. panaroo hands over its
+  `aligned_gene_sequences/` files for the genes its alignment header lists,
+  and ppanggolin its `msa_<partition>_dna/` family alignments; both still
+  return their own concatenation as well. orthofinder and scarap align each
+  orthogroup's proteins with mafft and back-translate them to codons through
+  a shared `coregenes/codon.py`; scarap no longer calls `scarap concat`,
+  which deletes its per-orthogroup alignments, and selects the core
+  orthogroups from `genes.tsv` itself. A gene whose nucleotide length does
+  not match its protein is now left out of its orthogroup instead of being
+  written as gaps (the concatenation is the same).
 - Nextflow: `READS_SKETCH` runs one task per chunk of `--reads_sketch_chunk`
   runs of `reads.tsv` (default 25) instead of one task per batch, so a time
   limit or a retry costs one chunk, and the new `READS_SKETCH_MERGE` joins

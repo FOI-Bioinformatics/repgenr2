@@ -9,6 +9,7 @@ import pytest
 
 from repgenr.core.binaries import _parse_version
 from repgenr.core.errors import UserInputError, WorkdirError
+from repgenr.coregenes import codon
 from repgenr.coregenes import orthofinder as mod
 from repgenr.coregenes.base import CoreGeneParams, registry
 
@@ -63,6 +64,11 @@ def _fake(calls: list[list[str]], rows: list[list[str]] | None = None):
     return run_tool
 
 
+def _records(path: Path) -> dict[str, str]:
+    parts = path.read_text(encoding="utf-8").split(">")[1:]
+    return {p.split("\n")[0]: p.split("\n")[1] for p in parts}
+
+
 def _fake_chain(chains: list[list[list[str]]]):
     def run_chain(caps, steps, **k):
         argvs = [[str(c) for c in argv] for _, argv in steps]
@@ -78,7 +84,7 @@ def test_argv_selection_and_back_translation(tmp_path: Path, monkeypatch) -> Non
     calls: list[list[str]] = []
     chains: list[list[list[str]]] = []
     monkeypatch.setattr(mod, "run_tool", _fake(calls))
-    monkeypatch.setattr(mod, "run_chain", _fake_chain(chains))
+    monkeypatch.setattr(codon, "run_chain", _fake_chain(chains))
     gffs = _gffs(tmp_path)
     result = mod.OrthoFinderBuilder().call(
         gffs, tmp_path / "out", CoreGeneParams(threads=4, core_threshold=0.6), _LOG
@@ -93,12 +99,13 @@ def test_argv_selection_and_back_translation(tmp_path: Path, monkeypatch) -> Non
     assert result.core_genes == 2
     aligned = [argv for chain in chains for argv in chain]
     assert len(aligned) == 2 and all(a[0] == "mafft" and "--auto" in a for a in aligned)
-    records = result.alignment.read_text(encoding="utf-8").split(">")[1:]
-    seqs = {r.split("\n")[0]: r.split("\n")[1] for r in records}
-    assert list(seqs) == [g.stem for g in gffs]
-    # Codons, the stop codon dropped; the duplicated genome is a gap for OG0000001.
-    assert seqs[gffs[1].stem] == "ATGAAACTGATG" + "GCTTGT"
-    assert seqs[gffs[0].stem] == "ATGAAACTGATG" + "------"
+    # One codon alignment per orthogroup, no concatenation of its own.
+    assert result.alignment is None
+    assert [ga.gene for ga in result.gene_alignments] == ["OG0000000", "OG0000001"]
+    first, second = (_records(ga.path) for ga in result.gene_alignments)
+    # Codons, the stop codon dropped; the duplicated genome is absent from OG0000001.
+    assert first == {g.stem: "ATGAAACTGATG" for g in gffs}
+    assert second == {g.stem: "GCTTGT" for g in gffs[1:]}
     assert result.settings["search"] == "diamond"
     assert {t.name for t in result.tables} == {"Orthogroups.GeneCount.tsv", mod.SELECTED}
 
@@ -106,7 +113,7 @@ def test_argv_selection_and_back_translation(tmp_path: Path, monkeypatch) -> Non
 def test_threshold_and_extras(tmp_path: Path, monkeypatch) -> None:
     calls: list[list[str]] = []
     monkeypatch.setattr(mod, "run_tool", _fake(calls))
-    monkeypatch.setattr(mod, "run_chain", _fake_chain([]))
+    monkeypatch.setattr(codon, "run_chain", _fake_chain([]))
     result = mod.OrthoFinderBuilder().call(
         _gffs(tmp_path),
         tmp_path / "out",
@@ -139,7 +146,7 @@ def test_refusals_before_any_call(tmp_path: Path, monkeypatch) -> None:
 
 def test_no_core_and_mismatched_genes(tmp_path: Path, monkeypatch, caplog) -> None:
     monkeypatch.setattr(mod, "run_tool", _fake([], rows=[["OG0000000", "a1", "", ""]]))
-    monkeypatch.setattr(mod, "run_chain", _fake_chain([]))
+    monkeypatch.setattr(codon, "run_chain", _fake_chain([]))
     with pytest.raises(WorkdirError, match="no orthogroup"):
         mod.OrthoFinderBuilder().call(_gffs(tmp_path), tmp_path / "o1", CoreGeneParams(), _LOG)
 
@@ -150,15 +157,14 @@ def test_no_core_and_mismatched_genes(tmp_path: Path, monkeypatch, caplog) -> No
     monkeypatch.setattr(mod, "run_tool", _fake([]))
     with caplog.at_level(logging.INFO, logger=_LOG.name):
         result = mod.OrthoFinderBuilder().call(gffs, tmp_path / "o2", CoreGeneParams(), _LOG)
-    assert "1 gene(s) were left as gaps" in caplog.text
-    tail = result.alignment.read_text(encoding="utf-8").split(">")[3]
-    assert tail.split("\n")[1].startswith("------------")
+    assert "1 gene(s) were left out" in caplog.text
+    assert gffs[2].stem not in _records(result.gene_alignments[0].path)
 
 
 def test_a_single_sequence_group_is_not_sent_to_mafft(tmp_path: Path, monkeypatch) -> None:
     chains: list[list[list[str]]] = []
     monkeypatch.setattr(mod, "run_tool", _fake([], rows=[["OG0000000", "a1", "", ""]]))
-    monkeypatch.setattr(mod, "run_chain", _fake_chain(chains))
+    monkeypatch.setattr(codon, "run_chain", _fake_chain(chains))
     result = mod.OrthoFinderBuilder().call(
         _gffs(tmp_path), tmp_path / "o", CoreGeneParams(core_threshold=0.3), _LOG
     )
@@ -194,18 +200,17 @@ def test_selenocysteine_is_aligned_as_x(tmp_path: Path, monkeypatch) -> None:
     faa = gffs[0].with_suffix(".faa")
     faa.write_text(faa.read_text(encoding="utf-8").replace("MKLM", "MKUM"), "utf-8")
     monkeypatch.setattr(mod, "run_tool", _fake([]))
-    monkeypatch.setattr(mod, "run_chain", chain)
+    monkeypatch.setattr(codon, "run_chain", chain)
     result = mod.OrthoFinderBuilder().call(gffs, tmp_path / "o", CoreGeneParams(), _LOG)
     assert any("MKXM" in t for t in sent) and not any("U" in t.split("\n", 1)[1] for t in sent)
     # The codons still map: X keeps the protein length.
-    first = result.alignment.read_text(encoding="utf-8").split(">")[1].split("\n")[1]
-    assert first.startswith("ATGAAACTGATG")
+    assert _records(result.gene_alignments[0].path)[gffs[0].stem] == "ATGAAACTGATG"
 
 
 def test_failures_inside_the_run(tmp_path: Path, monkeypatch) -> None:
     # A gene OrthoFinder names that the protein file lacks.
     monkeypatch.setattr(mod, "run_tool", _fake([], rows=[["OG0000000", "zz1", "a2", "a3"]]))
-    monkeypatch.setattr(mod, "run_chain", _fake_chain([]))
+    monkeypatch.setattr(codon, "run_chain", _fake_chain([]))
     with pytest.raises(WorkdirError, match="'zz1'"):
         mod.OrthoFinderBuilder().call(_gffs(tmp_path), tmp_path / "o1", CoreGeneParams(), _LOG)
 
@@ -219,7 +224,7 @@ def test_failures_inside_the_run(tmp_path: Path, monkeypatch) -> None:
         raise WorkdirError("mafft failed")
 
     monkeypatch.setattr(mod, "run_tool", _fake([]))
-    monkeypatch.setattr(mod, "run_chain", broken)
+    monkeypatch.setattr(codon, "run_chain", broken)
     with pytest.raises(WorkdirError, match="mafft failed"):
         mod.OrthoFinderBuilder().call(
             _gffs(tmp_path), tmp_path / "o3", CoreGeneParams(threads=4), _LOG
@@ -238,6 +243,6 @@ def test_a_path_with_a_space_is_refused(tmp_path: Path, monkeypatch) -> None:
 
 def test_the_default_inflation_is_recorded(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setattr(mod, "run_tool", _fake([]))
-    monkeypatch.setattr(mod, "run_chain", _fake_chain([]))
+    monkeypatch.setattr(codon, "run_chain", _fake_chain([]))
     result = mod.OrthoFinderBuilder().call(_gffs(tmp_path), tmp_path / "o", CoreGeneParams(), _LOG)
     assert result.settings["inflation"] == mod.DEFAULT_INFLATION

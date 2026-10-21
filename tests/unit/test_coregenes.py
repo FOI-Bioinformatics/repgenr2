@@ -31,7 +31,9 @@ def _header(genes: int) -> str:
     out = "ID   Genome standard; DNA; PRO; 1234 BP.\nFH   Key             Location/Qualifiers\n"
     for i in range(genes):
         out += f"FT   feature         {i * 100 + 1}..{(i + 1) * 100}\n"
-        out += f'FT                   /label="gene_{i}"\n'
+        # Panaroo 1.8 labels the entry with the file name less its last extension.
+        out += f"FT                   /label=gene_{i}.aln\n"
+        out += f"FT                   /locus_tag=gene_{i}.aln\n"
     return out
 
 
@@ -61,6 +63,14 @@ def _fake_panaroo(
         summary = "Core genes\t(99% <= strains <= 100%)\t1234\n"
         summary += "Total genes\t(0% <= strains <= 100%)\t2000\n"
         (out / "summary_statistics.txt").write_text(summary, encoding="utf-8")
+        genes_dir = out / "aligned_gene_sequences"
+        genes_dir.mkdir(exist_ok=True)
+        for i in range(genes):
+            # <isolate>;<gene id>, one record reverse-complemented by mafft.
+            body = "".join(
+                f">{'_R_' if j == 0 else ''}{n};{n}_{i:05d}\nACGT\n" for j, n in enumerate(names)
+            )
+            (genes_dir / f"gene_{i}.aln.fas").write_text(body, encoding="utf-8")
         if header:
             # Panaroo's own 99-100% bin above; the alignment holds fewer genes.
             (out / "core_alignment_header.embl").write_text(_header(genes), encoding="utf-8")
@@ -99,6 +109,11 @@ def test_panaroo_argv_outputs_and_summary(tmp_path: Path, monkeypatch) -> None:
     assert result.alignment.name == "core_gene_alignment_filtered.aln"
     # The genes of the filtered alignment, not the 1234 of Panaroo's 99% bin.
     assert result.core_genes == 17 and len(result.tables) == 5
+    # Panaroo's per-gene alignments of the filtered genes, in header order.
+    assert [ga.gene for ga in result.gene_alignments] == [f"gene_{i}" for i in range(17)]
+    assert result.gene_alignments[0].path == (
+        tmp_path / "out" / "aligned_gene_sequences" / "gene_0.aln.fas"
+    )
 
 
 def test_panaroo_unfiltered_choice_and_errors(tmp_path: Path, monkeypatch) -> None:
@@ -108,6 +123,7 @@ def test_panaroo_unfiltered_choice_and_errors(tmp_path: Path, monkeypatch) -> No
         _gffs(tmp_path), tmp_path / "o1", CoreGeneParams(filtered=False), _LOG
     )
     assert result.alignment.name == "core_gene_alignment.aln" and result.core_genes == 20
+    assert len(result.gene_alignments) == 20
     with pytest.raises(UserInputError, match="clean-mode"):
         mod.PanarooBuilder().call(
             _gffs(tmp_path), tmp_path / "o2", CoreGeneParams(clean_mode="x"), _LOG
@@ -195,6 +211,79 @@ def test_no_core_at_all_refuses_and_names_the_identity_gate(tmp_path: Path, monk
         )
     # The value is normalised, so the message and the command agree.
     assert "0.90" not in str(caught.value)
+
+
+def test_panaroo_header_labels_map_to_per_gene_files(tmp_path: Path) -> None:
+    """Both label forms Panaroo 1.8 writes, and a quoted one, in header order."""
+    genes_dir = tmp_path / "aligned_gene_sequences"
+    genes_dir.mkdir()
+    for name in ("g1.aln.fas", "g2.fasta", "g3.aln.fas"):
+        (genes_dir / name).write_text(">a;x\nACGT\n", encoding="utf-8")
+    header = tmp_path / "core_alignment_header.embl"
+    header.write_text(
+        "ID   Genome standard; DNA; PRO; 1234 BP.\nXX\nFH   Key             Location/Qualifiers\n"
+        "FH\n"
+        "FT   feature         1..4\nFT                   /label=g3.aln\n"
+        "FT                   /locus_tag=g3.aln\n"
+        "FT   feature         5..8\nFT                   /label=g2\n"
+        "FT                   /locus_tag=g2\n"
+        'FT   feature         9..12\nFT                   /label="g1.aln"\n'
+        "XX\nSQ   \n//\n",
+        encoding="utf-8",
+    )
+    found = mod._gene_alignments(header, tmp_path, _LOG)
+    assert [(ga.gene, ga.path.name) for ga in found] == [
+        ("g3", "g3.aln.fas"),
+        ("g2", "g2.fasta"),
+        ("g1", "g1.aln.fas"),
+    ]
+    # A gene the header lists without its file is refused, naming both.
+    (genes_dir / "g2.fasta").unlink()
+    named = r"core_alignment_header.embl lists gene g2.*g2\.aln\.fas"
+    with pytest.raises(WorkdirError, match=named):
+        mod._gene_alignments(header, tmp_path, _LOG)
+    # Without the header (an older Panaroo) the concatenation is used.
+    assert mod._gene_alignments(tmp_path / "absent.embl", tmp_path, _LOG) is None
+
+
+def test_panaroo_refuses_a_missing_per_gene_file(tmp_path: Path, monkeypatch) -> None:
+    fake = _fake_panaroo([])
+
+    def run_tool(caps, cmd, **k):
+        fake(caps, cmd, **k)
+        out = Path(str(cmd[cmd.index("-o") + 1]))
+        (out / "aligned_gene_sequences" / "gene_5.aln.fas").unlink()
+        return 0
+
+    monkeypatch.setattr(mod, "run_tool", run_tool)
+    with pytest.raises(WorkdirError, match="lists gene gene_5.aln"):
+        mod.PanarooBuilder().call(_gffs(tmp_path), tmp_path / "o", CoreGeneParams(), _LOG)
+
+
+def test_panaroo_genes_reach_the_stage_selection(
+    tmp_path: Path, monkeypatch, register_tool
+) -> None:
+    """Records named <isolate>;<gene id>, one with mafft's _R_, are read by genome."""
+    from repgenr.core.contracts import CORE_GENES_TSV
+    from repgenr.coregenes.select import GeneSelection
+
+    class _Panaroo(mod.PanarooBuilder):
+        def preflight(self) -> dict[str, str]:
+            return {"panaroo": "1.8.0"}
+
+    register_tool(registry, "fakepanaroo", _Panaroo)
+    monkeypatch.setattr(mod, "run_tool", _fake_panaroo([], genes=150))
+    gffs = _gffs(tmp_path)
+    result, _ = coregene_core(
+        gffs, tmp_path / "msa", tmp_path / "s", CoreGeneParams(), "fakepanaroo", _LOG,
+        selection=GeneSelection(max_genes=5),
+    )  # fmt: skip
+    records = result.alignment.read_text(encoding="utf-8").split(">")[1:]
+    assert {r.split("\n")[0] for r in records} == {g.stem for g in gffs}
+    assert all(r.split("\n")[1] == "ACGT" * 5 for r in records)
+    assert result.core_genes == 5
+    rows = (tmp_path / "msa" / CORE_GENES_TSV).read_text(encoding="utf-8").splitlines()
+    assert len(rows) == 1 + 147  # the 147 genes of the filtered header
 
 
 def test_panaroo_is_registered_and_never_auto() -> None:

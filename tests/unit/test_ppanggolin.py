@@ -49,7 +49,9 @@ def _fake(calls: list[list[str]], *, families: int = 150, columns: bool = True):
             fam_dir = out / f"msa_{part}_dna"
             fam_dir.mkdir(exist_ok=True)
             for i in range(families):
-                (fam_dir / f"F{i}.aln").write_text(">x\nAC\n", encoding="utf-8")
+                (fam_dir / f"F{i:03d}.aln").write_text(
+                    "".join(f">{n}\nAC\n" for n in names), encoding="utf-8"
+                )
             prefix = part
             if part == "softcore":
                 prefix = f"softcore_{cmd[cmd.index('--soft_core') + 1]}"
@@ -92,6 +94,9 @@ def test_argv_outputs_and_default_softcore(tmp_path: Path, monkeypatch) -> None:
     }
     assert result.alignment.name == "softcore_0.9_genome_alignment.aln"
     assert result.core_genes == 150
+    # The per-family alignments PPanGGOLiN wrote, sorted by family name.
+    assert [ga.gene for ga in result.gene_alignments] == [f"F{i:03d}" for i in range(150)]
+    assert all(ga.path.parent.name == "msa_softcore_dna" for ga in result.gene_alignments)
     assert {t.name for t in result.tables} >= {"gene_presence_absence.Rtab", "persistent.txt"}
 
 

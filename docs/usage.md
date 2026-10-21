@@ -2291,6 +2291,15 @@ keeps its invariant sites, so the tree builder applies no
 ascertainment-bias correction and the branch lengths are substitutions per
 site of the core.
 
+**Per-gene alignments.** Every builder hands over one alignment per core
+gene, and the stage ranks, caps and concatenates them in the same way for
+all four. Panaroo's come from the per-gene alignments it writes itself
+(`aligned_gene_sequences/`), the genes of its filtered (or, with
+`filtered=false`, unfiltered) alignment. PPanGGOLiN's come from the
+per-family alignments it writes itself (`msa_<partition>_dna/`). For
+OrthoFinder and SCARAP the adapter aligns each orthogroup's proteins with
+mafft and back-translates them to codons from the `.ffn` files.
+
 **The outgroup.** The outgroup is annotated and included. Being another
 species, it lowers the core, so on fewer than about twenty genomes lower
 `--core-threshold` or leave the outgroup out with
@@ -2374,16 +2383,17 @@ SCARAP builds orthogroups on a set of seed genomes (`--aligner-arg seeds=`,
 100), turns them into MMseqs2 profiles and searches every genome against
 them; a gene is core when it is present in a single copy in at least
 `--core-threshold` of the genomes. It reads the protein and gene files the
-annotate stage writes beside each GFF3, not the GFF3 itself, and aligns each
-orthogroup with mafft.
+annotate stage writes beside each GFF3, not the GFF3 itself. The adapter
+aligns the proteins of each orthogroup with mafft and back-translates them to
+codons, as for OrthoFinder; `scarap concat` is not used, because it deletes
+its per-orthogroup alignments.
 
 The orthogroups come from profile searches rather than a fixed identity cut,
 so there is no identity to lower. `method=` chooses the orthogroup inference
-(`FH`, the default) and `max_core_genes=` caps the count. The seed genomes are
+(`FH`, the default); `max_core_genes=` caps the count, as for every builder. The seed genomes are
 drawn at random with no fixed random seed, so on a set larger than `seeds`
 two runs can select slightly different cores; the final selection is checked
-over all the genomes, not only the seeds. SCARAP aligns with as many
-processes as the machine has CPUs, whatever `-t` says.
+over all the genomes, not only the seeds.
 
 On the same 24 Wolbachia genomes it found 577 single-copy core genes, and its
 IQ-TREE tree shared 20 of 21 splits with the PPanGGOLiN one. It took about
@@ -2410,9 +2420,10 @@ trees it would build next are not needed.
 
 The adapter keeps the orthogroups present in a single copy in at least
 `--core-threshold` of the genomes, aligns each one's proteins with mafft and
-back-translates the alignment to codons from the `.ffn` files, so the result
-is a DNA alignment like the other builders'. A gene whose length does not
-match its protein is a gap, and the log counts them; selenocysteine and
+back-translates the alignment to codons from the `.ffn` files, so each
+orthogroup becomes a DNA alignment like the other builders' genes. A gene
+whose length does not match its protein is left out of its orthogroup (a gap
+in the concatenation), and the log counts them; selenocysteine and
 pyrrolysine, which mafft does not accept, are aligned as X. With
 `search=mmseqs` OrthoFinder uses fixed file names under `/tmp`, so two such
 runs on one host can collide.

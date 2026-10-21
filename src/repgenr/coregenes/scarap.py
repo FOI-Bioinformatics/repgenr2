@@ -1,8 +1,9 @@
 """SCARAP core-gene alignment builder.
 
-Command surface checked against SCARAP 1.0.2 (bioconda). Two calls:
+Command surface checked against SCARAP 1.0.2 (bioconda). One SCARAP call
+and the adapter's own alignment step:
 
-1. ``scarap core FAA_LIST OUT -p P -f F -e SEEDS -t N`` infers the core
+1. ``scarap core FAA_LIST OUT -p P -f F -m M -e SEEDS -t N`` infers the core
    genome directly, without the full pangenome. It draws ``SEEDS`` genomes
    at random (100 by default, with no fixed random seed, so two runs on a
    larger set can differ), builds their pangenome, keeps the families that
@@ -12,14 +13,14 @@ Command surface checked against SCARAP 1.0.2 (bioconda). Two calls:
    SCARAP's own ``P`` default is 0.90, which would cap how far a lower
    ``--core-threshold`` reaches, so the adapter passes the smaller of 0.90
    and ``F`` unless ``core_prefilter=`` is set.
-2. ``scarap concat FAA_LIST genes.tsv OUT -f F -n FFN_LIST -t N`` keeps the
-   orthogroups single-copy in at least ``F`` of all the genomes, not only
-   the seeds, aligns each with mafft and concatenates them; with ``-n`` it
-   writes the nucleotide supermatrix ``supermatrix_nucs.fasta``. A genome
-   missing a gene, or holding several copies, is a gap for it.
-
-SCARAP aligns with as many processes as the machine has CPUs, whatever
-``-t`` says, and mafft writes its temporary files to ``$TMPDIR``.
+2. The adapter keeps, from ``genes.tsv``, the orthogroups single-copy in at
+   least ``F`` of all the genomes, not only the seeds (SCARAP's own
+   ``concat`` rule), aligns the proteins of each with mafft and
+   back-translates them to codons from the ``.ffn`` files (``codon.py``).
+   It hands over one DNA alignment per orthogroup, which the stage ranks,
+   caps and concatenates. ``scarap concat`` is not used: it deletes its
+   per-orthogroup alignments once it has written the supermatrix. A genome
+   missing a gene, or holding several copies, is absent from it.
 
 SCARAP reads proteins, not GFF3: the adapter takes the ``.faa`` and ``.ffn``
 files the annotate stage writes beside each GFF3, and SCARAP names each
@@ -41,6 +42,7 @@ from ..core.containers import run_tool, runs_on_host
 from ..core.errors import ToolExecutionError, UserInputError, WorkdirError
 from ..core.plugins import ToolCapabilities, parse_extra_int
 from .base import CoreGeneBuilder, CoreGeneParams, CoreGeneResult, annotation_sidecars
+from .codon import align_orthogroups
 
 METHODS = ("H", "FH", "FT", "H-nl", "T-nl", "P", "S", "O-B", "O-D")
 # These build the seed pangenome with OrthoFinder (BLAST or DIAMOND search).
@@ -48,7 +50,6 @@ METHODS = ("H", "FH", "FT", "H-nl", "T-nl", "P", "S", "O-B", "O-D")
 # result with a pandas call removed in pandas 2; envs/scarap.yml provides
 # both OrthoFinder and pandas older than 2, so they run natively from it.
 ORTHOFINDER_METHODS = ("O-B", "O-D")
-SUPERMATRIX = "supermatrix_nucs.fasta"
 TABLES = ("genes.tsv",)
 # Below this a core-gene tree rests on very little.
 _SMALL_CORE = 100
@@ -71,6 +72,8 @@ class ScarapBuilder(CoreGeneBuilder):
         # genomes; the per-orthogroup alignments are the part that grows.
         recommended_max_genomes=10000,
         auto_eligible=False,
+        # max_core_genes is scarap core's -m, which limits the profiles SCARAP
+        # builds; the stage's own gene cap is the general one.
         accepted_extras=frozenset({"method", "core_prefilter", "max_core_genes", "seeds"}),
         # Panaroo's graph cleaning and entropy filter have no counterpart.
         ignored_params=frozenset({"clean_mode", "filtered"}),
@@ -111,12 +114,9 @@ class ScarapBuilder(CoreGeneBuilder):
 
         out_dir.mkdir(parents=True, exist_ok=True)
         faa_list = out_dir / "faa_files.txt"
-        ffn_list = out_dir / "ffn_files.txt"
         faa_list.write_text("".join(f"{os.path.abspath(p)}\n" for p in faas), encoding="utf-8")
-        ffn_list.write_text("".join(f"{os.path.abspath(p)}\n" for p in ffns), encoding="utf-8")
         mounts = sorted({os.path.dirname(os.path.abspath(g)) for g in gffs})
         core_dir = out_dir / "core"
-        concat_dir = out_dir / "concat"
 
         core: list[str | Path] = [
             "scarap", "core", faa_list, core_dir,
@@ -145,20 +145,22 @@ class ScarapBuilder(CoreGeneBuilder):
                 f"{params.core_threshold:g} of the genomes (--core-threshold). Lower it, or "
                 "leave the most divergent genomes out."
             )
-        run_tool(
+        names = [g.stem for g in gffs]
+        gene_alignments, mismatched = align_orthogroups(
+            orthogroups,
+            dict(zip(names, faas, strict=True)),
+            dict(zip(names, ffns, strict=True)),
+            out_dir,
             self.capabilities,
-            [
-                "scarap", "concat", faa_list, genes, concat_dir,
-                # Over all the genomes; the core step judged only the seeds.
-                "-f", f"{params.core_threshold:g}", "-m", str(max_core),
-                "-n", ffn_list, "-t", str(params.threads),
-            ],
-            logger=logger, cwd=out_dir, log_prefix="scarap", extra_mounts=mounts,
-        )  # fmt: skip
-        alignment = concat_dir / SUPERMATRIX
-        if not alignment.is_file() or alignment.stat().st_size == 0:
-            raise WorkdirError(
-                f"scarap concat wrote no {SUPERMATRIX}; its log under {concat_dir} says why."
+            params.threads,
+            logger,
+            "scarap",
+        )
+        if mismatched:
+            logger.info(
+                "%d gene(s) were left out because their nucleotide length does not match "
+                "the protein (partial or frame-shifted genes)",
+                mismatched,
             )
         if len(orthogroups) < _SMALL_CORE:
             logger.warning(
@@ -168,7 +170,6 @@ class ScarapBuilder(CoreGeneBuilder):
             )
         tables = [core_dir / t for t in TABLES if (core_dir / t).is_file()]
         return CoreGeneResult(
-            alignment=alignment,
             tables=tables,
             core_genes=len(orthogroups),
             settings={
@@ -180,6 +181,7 @@ class ScarapBuilder(CoreGeneBuilder):
                 # with no fixed identity cut.
                 "clustering_on": "protein profiles",
             },
+            gene_alignments=gene_alignments,
         )
 
 
@@ -200,37 +202,44 @@ def _check_orthofinder_method(caps: ToolCapabilities, method: str) -> None:
         )
 
 
-def _core_orthogroups(genes: Path, threshold: float, max_core: int) -> list[str]:
-    """The orthogroups ``scarap concat -f threshold -m max_core`` keeps.
+def _core_orthogroups(
+    genes: Path, threshold: float, max_core: int
+) -> list[tuple[str, dict[str, str]]]:
+    """The core orthogroups of ``genes.tsv``, each with its member per genome.
 
-    Mirrors SCARAP's ``determine_corefams``: an orthogroup is kept when the
+    Follows SCARAP's ``determine_corefams``: an orthogroup is kept when the
     genomes holding it in exactly one copy are at least ``threshold`` of the
-    genomes in the table; with ``max_core`` the most frequent are kept.
+    genomes in the table; with ``max_core`` the most frequent are kept. Only
+    the genomes holding it in exactly one copy are members. Returns
+    (orthogroup, {genome: gene}) by frequency, then orthogroup id.
     """
     if not genes.is_file():
         return []
-    copies: dict[tuple[str, str], int] = {}
+    members: dict[str, dict[str, list[str]]] = {}
     genomes: set[str] = set()
     with open(genes, encoding="utf-8") as fh:
         for line in fh:
             fields = line.rstrip("\n").split("\t")
             if len(fields) < 3 or not fields[2]:
                 continue
-            genomes.add(fields[1])
-            key = (fields[2], fields[1])
-            copies[key] = copies.get(key, 0) + 1
+            gene, genome, group = fields[0], fields[1], fields[2]
+            genomes.add(genome)
+            members.setdefault(group, {}).setdefault(genome, []).append(gene)
     if not genomes:
         return []
-    single: dict[str, int] = {}
-    for (group, _genome), n in copies.items():
-        single.setdefault(group, 0)
-        if n == 1:
-            single[group] += 1
-    kept = [(g, c / len(genomes)) for g, c in single.items() if c / len(genomes) >= threshold]
+    single = {
+        group: {genome: ids[0] for genome, ids in by_genome.items() if len(ids) == 1}
+        for group, by_genome in members.items()
+    }
+    kept = [
+        (group, len(m) / len(genomes))
+        for group, m in single.items()
+        if len(m) / len(genomes) >= threshold
+    ]
     kept.sort(key=lambda item: (-item[1], item[0]))
     if max_core > 0:
         kept = kept[:max_core]
-    return [g for g, _ in kept]
+    return [(group, single[group]) for group, _ in kept]
 
 
 def _refuse_shared_gene_ids(faas: Sequence[Path]) -> None:

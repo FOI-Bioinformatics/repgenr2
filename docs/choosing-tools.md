@@ -475,8 +475,7 @@ build when given more than one thread; see
 
 The core-gene route first annotates each genome (`annotate`, with `bakta` or
 `prokka`). A core-gene builder then groups the genes into orthologues and
-writes a concatenated alignment of those present in at least
-`--core-threshold` of the genomes. The four builders differ in how they group
+aligns each of those present in at least `--core-threshold` of the genomes. The four builders differ in how they group
 genes, and that grouping, together with how wide the set is, decides how
 many core genes a set retains. Panaroo's graph cleaning (`--clean-mode`) and
 entropy filter remove annotation errors and badly aligned genes. Both
@@ -488,6 +487,16 @@ options are Panaroo's and have no effect with the other builders.
 | `ppanggolin` | Clusters proteins with MMseqs2 at 80% identity over 80% of their length, then partitions the pangenome graph. | `--aligner-arg identity=` and `coverage=`; `partition=` selects the soft core at `--core-threshold` (default), the strict core or the persistent partition. | 24 genomes: 398 single-copy families, where Panaroo's defaults gave none. | 5000, not measured |
 | `scarap` | Builds orthogroups on seed genomes, then searches every genome against their MMseqs2 profiles. | No fixed identity cut; `method=` and `seeds=` choose the inference. | 24 genomes: 577 genes; its tree shared 20 of 21 splits with the PPanGGOLiN tree. | 10000, not measured |
 | `orthofinder` | Compares all proteomes against all with DIAMOND and clusters the hits with MCL. | `search=` and `inflation=`. | 24 genomes: 585 genes; its tree shared 20 of 21 splits with the PPanGGOLiN tree and 19 with the SCARAP tree. | 200, not measured |
+
+Where the per-gene alignments come from:
+
+- `panaroo` and `ppanggolin` write them themselves (mafft), and the adapter
+  hands them over.
+- `orthofinder` and `scarap` only group the genes; the adapter aligns each
+  orthogroup's proteins with mafft and back-translates them to codons.
+
+The stage then ranks, caps and concatenates the genes in the same way for
+all four builders.
 
 Which builder to use:
 
