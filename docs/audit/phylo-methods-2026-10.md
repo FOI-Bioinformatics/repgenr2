@@ -3,8 +3,9 @@
 Status: audit complete (2026-10-21); this record is #43. The documentation
 fixes listed under "Other defects" were made with it. The improvement items A
 to E and H under "What this audit changes" are implemented (#42 to #53; the
-pull request of each item is named there). F is deferred, and G is pending
-cluster time. The findings below describe the code at the audited commit.
+pull request of each item is named there). F has shipped since (the marker
+database and the `markers` core-gene builder), and G is pending cluster
+time. The findings below describe the code at the audited commit.
 
 This record reviews the three MSA sources and the tree builders of the `phylo`
 stage at commit e5b66e5, with one question in view: which route and which
@@ -158,14 +159,14 @@ item B of the ladder below; both have shipped.
 
 ### By purpose, span and ANI
 
-The items named in this table (A5, C) have shipped; F is deferred.
+The items named in this table (A5, C, F) have shipped.
 
 | Purpose | Span, ANI | Route for 100 to 500 genomes | Tree builder | Notes |
 |---|---|---|---|---|
 | Outbreak or clonal genotype tree | one lineage, ANI above 99.5 % | `--msa-source snptype --snptyper ska2` (reference-free) | iqtree with `--aligner-arg model=GTR+G` and `-B 1000` | ska2 writes constant-site counts (item C, shipped), except under `lo=true`. The ska2 tree builder gives a quick look. |
 | Genotype tree within a species | one species, ANI 95 to 99.5 % | `--msa-source snptype --snptyper simple` (medoid reference) or `parsnp`; `--mask gubbins` when recombination is expected and under 12 % of columns vary; `--core-fraction 0.95` | iqtree with `-fconst` (automatic) and `-B 1000`; fasttree as Gubbins' internal builder | ska2 with `--aligner-arg lo=true` is the reference-free alternative when no masking is wanted. |
 | Overview of species representatives in a genus | several species, ANI 80 to 95 % | `--msa-source coregene --coregene ppanggolin` (or `scarap`), `--core-threshold 0.95` | iqtree with `model=GTR+G` and `-B 1000`; skani NJ first for a quick check | Gene cap and ranking, partitions and a protein alphabet (`--coregene-alphabet protein`, A5, shipped) are available. Panaroo only with `--aligner-arg threshold=` lowered to about 0.90; its default core is empty here. |
-| Overview across a family or wider | ANI 75 to 85 % or below | protein core genes (`--coregene-alphabet protein`, A5, shipped) or a marker-gene route (deferred, item F) | iqtree `-st AA` (ModelFinder, or `model=LG+G`) | DNA alignments saturate; mash and Jaccard distances are unreliable; skani reaches about 80 %. Until then, skani gives an overview without supports. |
+| Overview across a family or wider | ANI 75 to 85 % or below | GTDB marker proteins (`--coregene markers`, item F, shipped; `--preset family`) or protein core genes (`--coregene-alphabet protein`, A5, shipped) | iqtree `-st AA` (ModelFinder, or `model=LG+G`) | DNA alignments saturate; mash and Jaccard distances are unreliable; skani reaches about 80 % and gives an overview without supports. |
 | Quick look at any set | any | alignment-free | skani (genus or wider), mashtree (diverse or viral), ska2 (clonal) | No supports; use `--collapse-diameter` in tree2tax rather than `--collapse-support`. |
 
 Rules of thumb. A SNP route needs a genome every other genome maps to, so it
@@ -184,8 +185,8 @@ is for sets under about 30 genomes.
 
 ## What this audit changes
 
-One pull request per item, or per part of an item. A to E and H are
-implemented; F is deferred and G is pending cluster time.
+One pull request per item, or per part of an item. A to F and H are
+implemented; G is pending cluster time.
 
 - **A. Core-gene selection and layout.** A gene cap with ranking (occupancy,
   informative sites, variable sites, length, random), per-gene alignments kept
@@ -240,7 +241,11 @@ implemented; F is deferred and G is pending cluster time.
   coregene --partitioned`); gene trees by IQ-TREE (`--fast`, aBayes) or
   FastTree, summarised by `wastral` (default), `astral4` or `astral-pro3`.
 
-Deferred: a marker-gene route for family-level sets (F). Pending cluster
+Shipped after the audit: a marker-gene route for family-level sets (F),
+`repgenr markers-db download` (GTDB's bac120 and ar53 marker models from
+InterPro) and the `markers` core-gene builder (`--coregene markers`, HMMER
+search and alignment with GTDB-Tk's rules; the builder of `--preset
+family`). Pending cluster
 time: a benchmark of IQ-TREE and capped core-gene trees at 100 to 500 genomes
 on real data (G).
 

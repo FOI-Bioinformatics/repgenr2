@@ -81,7 +81,8 @@ Need branch supports or a model-based (ML) tree?
                            or a whole-genome MSA for small sets
            no  -> core-gene route (annotate, then a core-gene builder);
                   the wider the set, the lower the clustering identity it
-                  needs, or use ppanggolin, scarap or orthofinder
+                  needs, or use ppanggolin, scarap or orthofinder;
+                  across a family or wider, the GTDB markers (markers)
 ```
 
 ## Decision table
@@ -146,7 +147,7 @@ tree builder of the row; its flags and the override rule are listed in
 | Outbreak or clonal genotype tree | `outbreak` | One lineage, ANI above 99.5 % | `--msa-source snptype --snptyper ska2` (reference-free) | `iqtree` with `--aligner-arg model=GTR+G` and `-B 1000` (constant sites from ska2's all-sites alignment passed as `-fconst` automatically) | Not with `--aligner-arg lo=true`: `ska lo` writes variants only, so that tree has no constant-site counts and `phylo` warns. The `ska2` tree builder gives a quick look. |
 | Genotype tree within a species | `species`, or `species-masked` with `--mask gubbins` | One species, ANI 95 to 99.5 % | `--msa-source snptype --snptyper simple` (medoid reference) or `parsnp`; `--mask gubbins` when recombination is expected and under 12 % of columns vary; `--core-fraction 0.95` | `iqtree` with `-B 1000` (constant sites passed as `-fconst` automatically); `fasttree` as Gubbins' internal builder | `ska2` with `--aligner-arg lo=true` is the reference-free alternative when no masking is wanted. |
 | Overview of species representatives in a genus | `genus` (PPanGGOLiN, at most 300 genes ranked by informative sites, `--partitioned`) | Several species, ANI 80 to 95 % | `annotate`, then `--msa-source coregene --coregene ppanggolin` (or `scarap`), `--core-threshold 0.95` | `iqtree -B 1000`, one model per gene with `--partitioned`; a `skani` tree first as a quick check | A gene cap with ranking (`--max-core-genes`, `--gene-rank`), a partitioned model (`--partitioned`) and a protein alignment (`--coregene-alphabet protein`) are available. Panaroo only with `--aligner-arg threshold=` lowered to about 0.90; at 0.98 (Panaroo's own default) no gene was in 95 % of 24 Wolbachia genomes. |
-| Overview across a family or wider | `family` (`genus` with `--coregene-alphabet protein`) | ANI 75 to 85 % or below | `annotate`, then `--msa-source coregene --coregene ppanggolin` (or `scarap`, `orthofinder`) with `--coregene-alphabet protein`; a marker-gene route is deferred | `iqtree` (run with `-st AA`; `LG+G` on every partition with `--partitioned`, ModelFinder without it, or `--aligner-arg model=` to choose) and `-B 1000` | DNA alignments saturate, and mash and Jaccard distances are unreliable at this span; a protein alignment avoids the first. Panaroo aligns nucleotides only and is refused with the protein alphabet. `skani` (reliable to about 80 % ANI) gives a quick overview without supports. |
+| Overview across a family or wider | `family` (`genus` with `--coregene markers`) | ANI 75 to 85 % or below, or pairs too distant for a sketch ANI | `annotate`, then `--msa-source coregene --coregene markers` (GTDB's bac120 or ar53 single-copy marker proteins, aligned as protein; needs the marker database, `repgenr markers-db download`); `ppanggolin`, `scarap` or `orthofinder` with `--coregene-alphabet protein` remain available | `iqtree` (run with `-st AA`; `LG+G` on every partition with `--partitioned`, ModelFinder without it, or `--aligner-arg model=` to choose) and `-B 1000` | DNA alignments saturate, orthology clustering finds few core genes, and mash and Jaccard distances are unreliable at this span. The markers need no clustering and are the genes of GTDB's reference tree. `skani` (reliable to about 80 % ANI) gives a quick overview without supports. |
 | Quick look at any set | `quick` (`skani`) | Any | Alignment-free | `skani` (genus or wider), `mashtree` (diverse or viral), `ska2` (clonal) | No supports, so use `--collapse-diameter` in tree2tax rather than `--collapse-support`. |
 
 Rules of thumb:
@@ -495,7 +496,7 @@ builders.
 |---|---|---|---|
 | Alignment-free | `--treebuilder mashtree`, `sourmash`, `skani` or `ska2` | Diverse sets, large sets, a quick tree; `skani` for a genus or wider, `ska2` for a clonal set. | `mashtree` and `sourmash` distances compress near identity, so clonal sets resolve poorly; `ska2` undercounts past a few per cent divergence. Neighbour joining only. No bootstrap supports. |
 | Whole-genome MSA | `--aligner progressivemauve`, `sibeliaz` or `cactus`, then an MSA tree builder | Small sets of related genomes when a whole-genome alignment is wanted. | Declared limits 500, 2000 and 2000. progressiveMauve about 10 to 22 minutes per build at 20 to 50 genomes. SibeliaZ timed out at 20 genomes in the audit. Cactus needs its container and is for same-species sets. |
-| Core-gene | `--msa-source coregene` after `annotate` (bakta or prokka), with `--coregene panaroo`, `ppanggolin`, `scarap` or `orthofinder` | A set where a supported, model-based tree is wanted and the reference biases a SNP tree. How much of the core survives depends on the builder's clustering setting and on how wide the set is (see [Core-gene builders](#core-gene-builders)). | Orthologous genes present in `--core-threshold` of the genomes, each aligned with mafft and concatenated. Invariant sites kept, no ascertainment correction. Slow at hundreds of genomes (not measured here); the annotation is cached per genome. Within a species a SNP tree draws on far more positions. |
+| Core-gene | `--msa-source coregene` after `annotate` (bakta or prokka), with `--coregene panaroo`, `ppanggolin`, `scarap`, `orthofinder` or `markers` (GTDB marker proteins) | A set where a supported, model-based tree is wanted and the reference biases a SNP tree. How much of the core survives depends on the builder's clustering setting and on how wide the set is (see [Core-gene builders](#core-gene-builders)). | Orthologous genes present in `--core-threshold` of the genomes, each aligned with mafft and concatenated. Invariant sites kept, no ascertainment correction. Slow at hundreds of genomes (not measured here); the annotation is cached per genome. Within a species a SNP tree draws on far more positions. |
 | Core-SNP | `--msa-source snptype` with `--snptyper simple`, `snippy`, `parsnp` or `ska2` | One species or a clonal set. | `simple`, `snippy` and `parsnp` map every genome to one reference, so the reference biases the result. `simple` maps with minimap2 `-x asm20` and records reference positions a genome does not cover as N, so a divergent outgroup is largely N (its coverage is in the log). `ska2` is reference-free. |
 
 ### Reference bias
@@ -547,8 +548,10 @@ build when given more than one thread; see
 The core-gene route first annotates each genome (`annotate`, with `bakta` or
 `prokka`). A core-gene builder then groups the genes into orthologues and
 aligns each of those present in at least `--core-threshold` of the genomes.
-The four builders differ in how they group genes, and that grouping, together
-with how wide the set is, decides how many core genes a set retains. Panaroo's
+The four clustering builders differ in how they group genes, and that
+grouping, together with how wide the set is, decides how many core genes a
+set retains. The fifth, `markers`, takes a fixed set of 120 (or 53) marker
+genes and does not group genes at all. Panaroo's
 graph cleaning (`--clean-mode`) and entropy filter remove annotation errors
 and badly aligned genes. Both options are Panaroo's and have no effect with
 the other builders.
@@ -559,6 +562,7 @@ the other builders.
 | `ppanggolin` | Clusters proteins with MMseqs2 at 80% identity over 80% of their length, then partitions the pangenome graph. | `--aligner-arg identity=` and `coverage=`; `partition=` selects the soft core at `--core-threshold` (default), the strict core or the persistent partition. | 24 genomes: 398 single-copy families, where Panaroo's defaults gave none. | 5000, not measured |
 | `scarap` | Builds orthogroups on seed genomes, then searches every genome against their MMseqs2 profiles. | No fixed identity cut; `method=` and `seeds=` choose the inference. | 24 genomes: 577 genes; its tree shared 20 of 21 splits with the PPanGGOLiN tree. | 10000, not measured |
 | `orthofinder` | Compares all proteomes against all with DIAMOND and clusters the hits with MCL. | `search=` and `inflation=`. | 24 genomes: 585 genes; its tree shared 20 of 21 splits with the PPanGGOLiN tree and 19 with the SCARAP tree. | 200, not measured |
+| `markers` | Does not cluster: searches each genome for GTDB's single-copy marker families (bac120 or ar53) with HMMER and aligns each marker's proteins to its model. Protein only. | `--marker-set` and `--core-threshold`; `min_markers=` sets the genome guard. | 24 genomes: 105 to 111 of the 120 bac120 markers per genome, 99 kept at a 0.95 threshold; its tree was four splits from the PPanGGOLiN tree, all four with supports below 95. | 20000, not measured |
 
 Where the per-gene alignments come from:
 
@@ -566,9 +570,11 @@ Where the per-gene alignments come from:
   hands them over.
 - `orthofinder` and `scarap` only group the genes; the adapter aligns each
   orthogroup's proteins with mafft and back-translates them to codons.
+- `markers` aligns each marker's proteins to its HMM with `hmmalign` and
+  keeps the match-state columns.
 
 The stage then ranks, caps and concatenates the genes in the same way for
-all four builders.
+all five builders.
 
 Trimming (`--gene-trim clipkit`) runs ClipKIT on each per-gene alignment
 before the genes are measured and ranked. It may help on genus and wider
@@ -591,6 +597,9 @@ Which builder to use:
   identity to lower.
 - `orthofinder` runs an all-against-all search whose cost grows roughly with
   the square of the genome count, so it suits small and medium sets.
+- `markers` suits a set that spans a family or more. Its search is linear
+  in the genome count. It gives at most 120 genes, so within a genus the
+  clustering builders draw on more of the genome.
 
 The settings, measurements and caveats of each builder are in
 [usage.md](usage.md#core-gene-phylogeny). The two annotators differ in what
@@ -734,6 +743,7 @@ lists what each adapter declares, not what was measured.
 | coregene | ppanggolin | 5000 |
 | coregene | scarap | 10000 |
 | coregene | orthofinder | 200 |
+| coregene | markers | 20000 |
 
 How the declared limits relate to the measurements on this page:
 

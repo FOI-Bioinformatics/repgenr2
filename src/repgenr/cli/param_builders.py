@@ -493,6 +493,25 @@ def refuse_outside_coregene(msa_source: str, settings: dict[str, Any]) -> None:
             raise UserInputError(f"{flag} applies only with --msa-source coregene.")
 
 
+def check_markers_options(
+    msa_source: str, coregene: str, markers_db: str | None, marker_set: str | None
+) -> None:
+    """Refuse a --marker-set outside its choices, and --markers-db or
+    --marker-set without --msa-source coregene --coregene markers."""
+    from ..core.errors import UserInputError
+    from ..coregenes.markers import MARKER_SET_CHOICES
+
+    if marker_set is not None:
+        _require_choice(marker_set, set(MARKER_SET_CHOICES), "--marker-set")
+    if msa_source == "coregene" and coregene == "markers":
+        return
+    for flag, value in (("--markers-db", markers_db), ("--marker-set", marker_set)):
+        if value is not None:
+            raise UserInputError(
+                f"{flag} applies only with --msa-source coregene --coregene markers."
+            )
+
+
 def require_gene_rank(rank: str) -> None:
     """Refuse a --gene-rank that is not one of the ranking criteria."""
     from ..coregenes.select import RANKS
@@ -602,6 +621,7 @@ def phylo_params(
     extra: Any = _UNSET,
     allow_incomplete: Any = _UNSET,
     preset: Any = _UNSET,
+    markers_db: Any = _UNSET,
     on_run: bool = False,
 ) -> PhyloParams:
     from ..aligners.base import registry as _aln_registry
@@ -642,6 +662,12 @@ def phylo_params(
                 ("partitioned", "--partitioned"),
             )
         },
+    )
+    check_markers_options(
+        effective_source,
+        coregene if coregene is not _UNSET else PhyloParams.coregene,
+        markers_db if markers_db is not _UNSET else None,
+        str(extra["marker_set"]) if extra is not _UNSET and "marker_set" in extra else None,
     )
     if extra is not _UNSET and extra.get("gene_rank") is not None:
         require_gene_rank(str(extra["gene_rank"]))
@@ -693,6 +719,7 @@ def phylo_params(
         extra=extra,
         allow_incomplete=allow_incomplete,
         preset=preset,
+        markers_db=markers_db,
     )
 
 

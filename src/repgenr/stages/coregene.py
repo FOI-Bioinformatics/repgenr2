@@ -120,8 +120,9 @@ def annotated_set(annotations_dir: Path, names: Sequence[str]) -> AnnotatedSet:
 
 
 def check_alphabet(tool: str, alphabet: str) -> None:
-    """Refuse an unknown alphabet, or a non-dna one for a builder that lists
-    ``alphabet`` in its ignored_params.
+    """Refuse an unknown alphabet, one other than the builder's
+    ``required_alphabet`` (the markers builder: protein), or a non-dna one for
+    a builder that lists ``alphabet`` in its ignored_params.
 
     A refusal rather than a warning: the tree model follows the alphabet, so
     an alignment of the other character type would be fitted with the wrong
@@ -131,7 +132,16 @@ def check_alphabet(tool: str, alphabet: str) -> None:
         raise UserInputError(
             f"Unknown core-gene alphabet '{alphabet}'. Choose from: {', '.join(ALPHABETS)}."
         )
-    if alphabet == "dna" or tool not in coregene_registry.names():
+    if tool not in coregene_registry.names():
+        return
+    required = getattr(coregene_registry.get(tool), "required_alphabet", None)
+    if required is not None and alphabet != required:
+        raise UserInputError(
+            f"The core-gene builder '{tool}' aligns genes as {required} only, so "
+            f"--coregene-alphabet {alphabet} cannot apply; leave the alphabet out (it is "
+            f"{required} for this builder) or set it to {required}."
+        )
+    if alphabet == "dna":
         return
     if "alphabet" not in coregene_registry.get(tool).capabilities.ignored_params:
         return
@@ -146,6 +156,15 @@ def check_alphabet(tool: str, alphabet: str) -> None:
         f"{', '.join(able) or 'another builder'} for a protein alignment, or leave the "
         "alphabet at dna."
     )
+
+
+def default_alphabet(tool: str) -> str:
+    """The alphabet of ``tool`` when none is given: the one it requires, else dna."""
+    if tool in coregene_registry.names():
+        required = getattr(coregene_registry.get(tool), "required_alphabet", None)
+        if required is not None:
+            return required
+    return "dna"
 
 
 def coregene_core(

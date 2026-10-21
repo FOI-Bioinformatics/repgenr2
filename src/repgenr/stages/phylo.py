@@ -40,6 +40,7 @@ from ..core.context import WorkdirContext
 from ..core.contracts import (
     CLUSTERS_TSV,
     CORE_GENE_FASTA,
+    CORE_GENE_STATS,
     CORE_SNP_FASTA,
     MSA_FASTA,
     PHYLO_MSA_DIR,
@@ -129,6 +130,8 @@ _COREGENE_ONLY_EXTRA = frozenset(
 # Bump when the rule that lays the selected genes out in the core-gene
 # concatenation changes, so an alignment built by the old rule is rebuilt.
 _COREGENE_LAYOUT = 1
+# The core-gene builder that reads the marker database (--markers-db).
+MARKERS_BUILDER = "markers"
 
 
 def _core_fraction(extra: Mapping[str, object]) -> float | None:
@@ -198,11 +201,16 @@ def _filtered(extra: Mapping[str, object]) -> bool:
     return parse_extra_bool(extra, "filtered", True)
 
 
-def _coregene_alphabet(extra: Mapping[str, object]) -> str:
-    """The --coregene-alphabet carried in the stage extras: dna (default) or protein."""
-    from ..coregenes.select import ALPHABETS
+def _coregene_alphabet(extra: Mapping[str, object], tool: str | None = None) -> str:
+    """The --coregene-alphabet carried in the stage extras: dna or protein.
 
-    value = str(extra.get("coregene_alphabet", "dna")).strip().lower() or "dna"
+    When none is given it is the alphabet the builder ``tool`` requires
+    (protein for markers), else dna."""
+    from ..coregenes.select import ALPHABETS
+    from .coregene import default_alphabet
+
+    default = default_alphabet(tool) if tool else "dna"
+    value = str(extra.get("coregene_alphabet", default)).strip().lower() or default
     if value not in ALPHABETS:
         raise UserInputError(
             f"--coregene-alphabet must be one of {', '.join(ALPHABETS)}, not {value!r}"
@@ -289,6 +297,10 @@ class PhyloParams:
     # None. A label for the record: the expanded settings are what the MSA
     # key and the resume fingerprint read.
     preset: str | None = None
+    # The marker database of --coregene markers (--markers-db), or None to
+    # read REPGENR_MARKERS_DB. The fingerprint hashes the database version,
+    # not this path, so a moved database with the same models resumes.
+    markers_db: str | None = None
 
 
 @dataclass
@@ -502,7 +514,7 @@ def _msa_key(
         }
         # Added for protein only, so a nucleotide alignment made before the
         # alphabet existed keeps its key and is reused rather than rebuilt.
-        alphabet = _coregene_alphabet(params.extra)
+        alphabet = _coregene_alphabet(params.extra, params.coregene)
         if alphabet != "dna":
             coregene["alphabet"] = alphabet
         # Likewise trimming: added only when on, so an untrimmed alignment
@@ -515,9 +527,39 @@ def _msa_key(
 
             frame = ":codon" if alphabet == "dna" else ""
             coregene["gene_trim"] = f"{gene_trim}:{DEFAULT_TRIM_MODE}{frame}"
+        if params.coregene == MARKERS_BUILDER:
+            # The models searched with and the set asked for; the database
+            # path is left out, so a moved copy of it reuses the alignment.
+            coregene["markers_db_version"] = _markers_db_version(params)
+            coregene["marker_set"] = _marker_set(params.extra)
         payload["coregene"] = coregene
     blob = json.dumps(payload, sort_keys=True, default=str)
     return hashlib.sha256(blob.encode("utf-8")).hexdigest()
+
+
+def _marker_set(extra: Mapping[str, object]) -> str:
+    """The marker_set of the markers builder: bac120, ar53 or auto (default)."""
+    return str(extra.get("marker_set", "auto")).strip().lower() or "auto"
+
+
+def _markers_db(params: PhyloParams) -> Path:
+    """The marker database of --coregene markers, from --markers-db or
+    REPGENR_MARKERS_DB; UserInputError naming the download command when absent."""
+    from ..coregenes.markers_db import check_markers_db
+
+    return check_markers_db(Path(params.markers_db).expanduser() if params.markers_db else None)
+
+
+def _markers_db_version(params: PhyloParams) -> str:
+    """The version of the marker set asked for; with ``auto``, of every set
+    the database holds, since auto may use either."""
+    return _set_version(_markers_db(params), _marker_set(params.extra))
+
+
+def _set_version(db: Path, marker_set: str) -> str:
+    from ..coregenes.markers_db import markers_db_version
+
+    return markers_db_version(db, sets=None if marker_set == "auto" else (marker_set,))
 
 
 def _coregene_ignored(tool: str) -> frozenset[str]:
@@ -549,10 +591,14 @@ def fingerprint_params(payload: dict) -> dict:
     no core-gene pass runs, so a changed value reruns nothing it cannot
     change. The gene-selection keys are removed when no core-gene pass runs.
     The preset name is removed: the settings it expanded to are hashed, so
-    a preset and the same flags written out resume each other.
+    a preset and the same flags written out resume each other. The marker
+    database path is replaced by the database version (markers builder) or
+    removed (any other route), so newer models rerun the stage and a moved
+    copy of the same database does not.
     """
     # The preset name only labels the expanded settings, which are hashed.
     payload = {k: v for k, v in payload.items() if k != "preset"}
+    payload = _markers_db_fingerprint(payload)
     extra = payload.get("extra")
     if not isinstance(extra, dict) or not (_COREGENE_ONLY_EXTRA & extra.keys()):
         return payload
@@ -562,6 +608,31 @@ def fingerprint_params(payload: dict) -> dict:
     if not drop:
         return payload
     return {**payload, "extra": {k: v for k, v in extra.items() if k not in drop}}
+
+
+def _markers_db_fingerprint(payload: dict) -> dict:
+    """``markers_db`` in the fingerprint payload: the version of the database
+    the markers builder reads, or removed when that builder does not run.
+    An unresolvable database hashes as such; the precheck refuses it."""
+    out = {k: v for k, v in payload.items() if k != "markers_db"}
+    if not _markers_route(
+        str(payload.get("msa_source")),
+        str(payload.get("coregene")),
+        str(payload.get("treebuilder")),
+    ):
+        return out
+    from ..core.errors import RepGenRError
+    from ..coregenes.markers_db import check_markers_db
+
+    raw = payload.get("markers_db")
+    extra = payload.get("extra")
+    marker_set = _marker_set(extra if isinstance(extra, dict) else {})
+    try:
+        db = check_markers_db(Path(str(raw)).expanduser() if raw else None)
+        out["markers_db_version"] = _set_version(db, marker_set)
+    except RepGenRError:
+        out["markers_db_version"] = None
+    return out
 
 
 def _read_msa_stamp(artifact: Path, key: str) -> dict | None:
@@ -1037,7 +1108,7 @@ def _tree_alphabet(msa: Path, params: PhyloParams) -> str:
     if found is not None:
         return found.alphabet
     if params.msa_source == "coregene":
-        return _coregene_alphabet(params.extra)
+        return _coregene_alphabet(params.extra, params.coregene)
     return "dna"
 
 
@@ -1319,6 +1390,8 @@ def phylo_build(params: PhyloBuildParams, logger: logging.Logger) -> Path:
     if params.sketches_dir is not None and not params.sketches_dir.is_dir():
         raise WorkdirError(f"phylo-build: --sketches-dir {params.sketches_dir} is not a directory.")
     _require_tree_size(genomes, f"in {params.genomes_dir}")
+    if params.msa is None and _runs_markers(params.phylo):
+        _markers_db(params.phylo)  # refused before the genomes are annotated
 
     outgroup_file: Path | None = None
     outgroup_leaf: str | None = None
@@ -1585,7 +1658,7 @@ def run(ctx: WorkdirContext, params: PhyloParams) -> Path:
                 else None
             ),
             "coregene_alphabet": (
-                _coregene_alphabet(params.extra)
+                _coregene_alphabet(params.extra, params.coregene)
                 if is_msa and params.msa_source == "coregene"
                 else None
             ),
@@ -1598,6 +1671,9 @@ def run(ctx: WorkdirContext, params: PhyloParams) -> Path:
                 _gene_trim(params.extra) if is_msa and params.msa_source == "coregene" else None
             ),
             "annotations": annotations_record,
+            # The marker database of --coregene markers and its version, which
+            # doctor compares with the database at that path.
+            **_markers_record(params, is_msa, ctx.phylo_msa_dir),
             # A tree-side setting: the alignment is reused when only this changes.
             "partitioned": _partitioned(params.extra) if is_msa else None,
             "all_genomes": params.all_genomes,
@@ -1631,6 +1707,44 @@ def run(ctx: WorkdirContext, params: PhyloParams) -> Path:
     return outcome.tree
 
 
+def _runs_markers(params: PhyloParams) -> bool:
+    """Whether the markers core-gene builder will run: --msa-source coregene
+    with --coregene markers and a tree builder that reads an alignment (or
+    auto, which may pick one)."""
+    return _markers_route(params.msa_source, params.coregene, params.treebuilder)
+
+
+def _markers_route(msa_source: str, coregene: str, treebuilder: str) -> bool:
+    if msa_source != "coregene" or coregene != MARKERS_BUILDER:
+        return False
+    if treebuilder == "auto":
+        return True
+    try:
+        return treebuilder_registry.get(treebuilder).input_kind == InputKind.MSA_FASTA
+    except Exception:  # noqa: BLE001 - an unknown builder is refused by the stage
+        return False
+
+
+def _markers_record(
+    params: PhyloParams, is_msa: bool, msa_dir: Path | None = None
+) -> dict[str, str | None]:
+    """``markers_db`` (the resolved path, also when it came from
+    REPGENR_MARKERS_DB) and ``markers_db_version`` (of the marker set the
+    alignment was built with, read from core_gene_stats.json) for the record
+    of a markers tree; both None otherwise."""
+    if not (is_msa and params.msa_source == "coregene" and params.coregene == MARKERS_BUILDER):
+        return {"markers_db": None, "markers_db_version": None}
+    db = _markers_db(params)
+    used = _marker_set(params.extra)
+    if msa_dir is not None:
+        try:
+            stats = json.loads((msa_dir / CORE_GENE_STATS).read_text(encoding="utf-8"))
+            used = str(stats.get("builder_settings", {}).get("marker_set") or used)
+        except (OSError, ValueError):
+            pass
+    return {"markers_db": str(db.absolute()), "markers_db_version": _set_version(db, used)}
+
+
 _SILENT = logging.getLogger(__name__ + ".precheck")
 _SILENT.addHandler(logging.NullHandler())
 _SILENT.propagate = False
@@ -1642,7 +1756,8 @@ def precheck(ctx: WorkdirContext, params: PhyloParams) -> None:
     With ``--msa-source coregene`` and a builder that reads an alignment, a
     genome of the set (or the outgroup) without an annotation, or a set that
     mixes annotators, is refused here, before any tool runs, so the record of
-    the last finished tree stays complete. The core-gene pass repeats the
+    the last finished tree stays complete; so is a missing marker database
+    with --coregene markers. The core-gene pass repeats the
     check for callers that bypass the harness.
     """
     if params.msa_source != "coregene":
@@ -1656,6 +1771,8 @@ def precheck(ctx: WorkdirContext, params: PhyloParams) -> None:
             return
     from .coregene import annotated_set
 
+    if _runs_markers(params):
+        _markers_db(params)  # refuses a missing database before any work
     names = [record_name(g) for g in _genome_set(ctx, params.all_genomes)]
     if len(names) < MIN_TREE_GENOMES:
         return  # the stage body names the missing genomes or the size limit first
@@ -1882,6 +1999,14 @@ def _build_msa(
             )
         names = [record_name(g) for g in inputs]
         annotated = annotated_set(dirs.annotations_dir, names)
+        alphabet = _coregene_alphabet(params.extra, params.coregene)
+        if "coregene_alphabet" not in params.extra and alphabet != "dna":
+            logger.info(
+                "The core-gene builder '%s' aligns %s only; --coregene-alphabet %s is implied",
+                params.coregene,
+                alphabet,
+                alphabet,
+            )
         cg_result, versions = coregene_core(
             annotated.gffs,
             dirs.msa_dir,
@@ -1891,8 +2016,9 @@ def _build_msa(
                 core_threshold=_core_threshold(params.extra),
                 clean_mode=str(params.extra.get("clean_mode", "strict")),
                 filtered=_filtered(params.extra),
-                alphabet=_coregene_alphabet(params.extra),
+                alphabet=alphabet,
                 extra=_adapter_extra(params.extra),
+                markers_db=_markers_db(params) if params.coregene == MARKERS_BUILDER else None,
             ),
             params.coregene,
             logger,

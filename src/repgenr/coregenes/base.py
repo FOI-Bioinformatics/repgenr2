@@ -40,6 +40,10 @@ class CoreGeneParams:
     # alignments lists "alphabet" in ignored_params and the stage refuses it.
     alphabet: str = "dna"
     extra: dict = field(default_factory=dict)
+    # The marker database directory of the markers builder (``repgenr
+    # markers-db download``); None lets it read REPGENR_MARKERS_DB. The other
+    # builders do not read it.
+    markers_db: Path | None = None
 
 
 @dataclass(frozen=True)
@@ -83,6 +87,9 @@ class CoreGeneBuilder(ABC):
     capabilities: ToolCapabilities
     # Annotator names this builder accepts; empty means any GFF3 with sequences.
     accepted_annotators: tuple[str, ...] = ()
+    # The one alphabet a builder can hand over, or None for either. The
+    # stage refuses another value and uses this one when none is given.
+    required_alphabet: str | None = None
 
     def preflight(self) -> dict[str, str]:
         return preflight(self.capabilities)

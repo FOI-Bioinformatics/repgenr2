@@ -2027,7 +2027,8 @@ gains `--root midpoint`; above the declared IQ-TREE limit of 500 genomes it
 adds `--treebuilder fasttree` (with `--aligner-arg gamma=true` in place of an
 IQ-TREE model; `-B` stays, as the number of resamples behind FastTree's
 SH-like supports); a core-gene route without annotations adds a reason to
-run `repgenr annotate` first. `--json` prints the same as one
+run `repgenr annotate` first, and `family` without `REPGENR_MARKERS_DB` set
+adds a reason to download the marker database. `--json` prints the same as one
 `repgenr.phylo-advise/1` object. The advice follows a table of measured and
 declared figures and is a starting point, not a substitute for looking at
 the set.
@@ -2073,7 +2074,7 @@ one row of the table that `phylo-advise` applies (`RECOMMENDATIONS` in
 | `species` | `--msa-source snptype --snptyper simple --core-fraction 0.95 --treebuilder iqtree -B 1000` |
 | `species-masked` | the `species` flags and `--mask gubbins` |
 | `genus` | `--msa-source coregene --coregene ppanggolin --core-threshold 0.95 --max-core-genes 300 --gene-rank informative --partitioned --treebuilder iqtree -B 1000` |
-| `family` | the `genus` flags and `--coregene-alphabet protein` |
+| `family` | the `genus` flags with `--coregene markers` in place of `--coregene ppanggolin` (protein is implied) |
 | `quick` | `--treebuilder skani` |
 
 The preset is read as if its flags were given before the user's own:
@@ -2423,20 +2424,23 @@ inputs itself.
 
 The genomes are annotated (the [annotate](#annotation) stage), a core-gene
 builder (`--coregene`) clusters the genes, and the core genes are aligned and
-concatenated. Four builders are available: `panaroo` (the default),
-`ppanggolin`, `scarap` and `orthofinder`, described below. The alignment
+concatenated. Five builders are available: `panaroo` (the default),
+`ppanggolin`, `scarap`, `orthofinder` and `markers`, described below. The
+`markers` builder clusters nothing: it takes GTDB's single-copy marker
+proteins (see [GTDB marker genes](#gtdb-marker-genes)). The alignment
 keeps its invariant sites, so the tree builder applies no
 ascertainment-bias correction and the branch lengths are substitutions per
 site of the core.
 
 **Per-gene alignments.** Every builder hands over one alignment per core
 gene, and the stage ranks, caps and concatenates them in the same way for
-all four. Panaroo's come from the per-gene alignments it writes itself
+all five. Panaroo's come from the per-gene alignments it writes itself
 (`aligned_gene_sequences/`), the genes of its filtered (or, with
 `filtered=false`, unfiltered) alignment. PPanGGOLiN's come from the
 per-family alignments it writes itself (`msa_<partition>_dna/`). For
 OrthoFinder and SCARAP the adapter aligns each orthogroup's proteins with
-mafft and back-translates them to codons from the `.ffn` files.
+mafft and back-translates them to codons from the `.ffn` files. The
+markers builder aligns each marker's proteins to its HMM with `hmmalign`.
 
 **The outgroup.** The outgroup is annotated and included. Being another
 species, it lowers the core, so on fewer than about twenty genomes lower
@@ -2637,6 +2641,9 @@ Which builders support it:
 - `panaroo` aligns nucleotides only, so a protein alphabet with
   `--coregene panaroo` (the default builder) is refused when the command
   starts, before any stage runs.
+- `markers` aligns protein only: its models are protein profiles. Without
+  `--coregene-alphabet` it uses protein (the log says so), and
+  `--coregene-alphabet dna` is refused when the command starts.
 
 The gene selection reads `X` as missing data in a protein alignment (`N` in
 a nucleotide one) when it counts variable and informative sites.
@@ -2795,6 +2802,85 @@ splits with the PPanGGOLiN tree and 19 with the SCARAP one. Its core-gene
 step took about six minutes, most of it the search, close to SCARAP's. The
 search is all against all, so its cost grows roughly with the square of the
 genome count; the declared limit of 200 genomes is not measured.
+
+#### GTDB marker genes
+
+`--coregene markers` builds the alignment from the single-copy marker
+proteins of GTDB's reference trees: the 120 bacterial families (`bac120`)
+or the 53 archaeal ones (`ar53`). It clusters nothing, so it is not limited
+by how far orthology clustering reaches, and it suits a set that spans a
+family or more, where the clustering builders find few core genes and DNA
+alignments saturate. It is the builder of `--preset family`. It reads the
+`.faa` files of the annotation and needs the marker database (see below):
+
+```bash
+repgenr markers-db download --output ~/db/repgenr_markers --set all
+repgenr annotate -wd $WD
+repgenr phylo -wd $WD --msa-source coregene --coregene markers \
+    --markers-db ~/db/repgenr_markers --partitioned -B 1000
+```
+
+The builder follows GTDB-Tk's rules:
+
+- **Search.** Each genome's proteins are searched with `hmmsearch`, the
+  Pfam families with their gathering cutoff (`--cut_ga`) and the TIGRFAM
+  families with their noise cutoff (`--cut_nc`): two calls per genome, run
+  in parallel over the genomes. The set's HMM file is split by cutoff in
+  scratch for this.
+- **One model per gene.** A protein that several marker models hit is
+  assigned to the model with the highest bit score.
+- **One gene per marker.** A marker found once in a genome is *unique*.
+  Found several times with identical protein sequences it is *multiple
+  unique*, and the best hit is kept. Found several times with different
+  sequences it is *multiple* and treated as absent from that genome, as
+  GTDB-Tk does. Otherwise it is *missing*.
+- **Alignment.** The proteins of each marker are aligned to its model with
+  `hmmalign`, all genomes in one call, and only the match-state columns (the
+  `x` columns of the `#=GC RF` line) are kept, so each marker contributes as
+  many columns as its model has match states. GTDB-Tk aligns one sequence at
+  a time; the match-state columns are the same.
+
+A marker enters the alignment when it is single-copy in at least
+`--core-threshold` of the genomes (0.95 by default); `--max-core-genes`,
+`--gene-rank`, `--gene-trim` and `--partitioned` (one `LG+G` partition per
+marker) then apply as for the other builders. The alignment is protein
+(see [Protein alignments](#protein-alignments)).
+
+**The genome guard.** A genome with fewer single-copy markers than
+`min_markers` (`--aligner-arg min_markers=N`; 10 % of the set by default, 12
+for bac120 and 6 for ar53, the marker form of GTDB-Tk's `--min_perc_aa 10`)
+is refused by name before any alignment, with the hint that the set may be
+the wrong domain or the annotation incomplete. A genome with fewer than half
+of the set's markers is named in a warning.
+
+**The domain.** `--marker-set` is `bac120`, `ar53` or `auto` (the default).
+With `auto` the genomes are searched with bac120 first; when fewer than half
+of them reach its minimum they are searched with ar53 as well, and the set
+with the higher median fraction of its markers found is used. The fraction
+rather than the count is compared, since the sets differ in size. The set
+used is recorded in `core_gene_stats.json` (`builder_settings.marker_set`).
+
+**Tables.** `tree/msa/pangenome/markers_summary.tsv` counts each genome's
+unique, multiple-unique, multiple and missing markers, and
+`markers_per_genome.tsv` holds the call for every genome and marker.
+
+**Reuse and records.** The reuse key of the alignment holds the database
+version (the sets and a digest of `markers.tsv`, which names every model
+version) and the marker set, but not the database path, so a moved copy of
+the same database reuses the alignment. The resume fingerprint hashes the
+version in the same way. The phylo record names the database path
+(`markers_db`) and its version (`markers_db_version`), which `repgenr
+doctor` compares with the database found there.
+
+**Differences from GTDB-Tk.** The proteins are those of the annotation
+(bakta or prokka); GTDB-Tk calls genes with Prodigal, so a protein can
+differ at its ends. The marker models are InterPro's current versions,
+which can be newer than the ones GTDB-Tk pins. The alignment is not masked
+with GTDB's column mask; `--gene-trim clipkit` trims each marker instead.
+The genome guard counts markers, where GTDB-Tk counts alignment columns.
+On the 24 Wolbachia genomes of [verification.md](verification.md) the
+builder found 105 to 111 of the 120 bac120 markers in a single copy per
+genome (see there for the tree).
 
 #### Marker database
 
@@ -3109,6 +3195,7 @@ selection target (`francisella` for `-tg francisella`), `mode` is
 | `--sketch` | `false` | Bacterial mode: sketch the genomes and the outgroup with sourmash, publish `sketches/`, and stage them into the dereplication and tree tasks. |
 | `--annotator` | `bakta` | With `--msa-source coregene` (or `--preset genus` or `family`) in `--phylo_args`: the annotator `ANNOTATE` runs on each representative and the outgroup (`bakta` or `prokka`). |
 | `--bakta_db` | `null` | bakta database directory, staged into each `ANNOTATE` task; without it bakta reads `BAKTA_DB` from the task environment. |
+| `--markers_db` | `null` | Marker database directory for `--coregene markers` in `--phylo_args`, staged into the `PHYLO` (or `PHYLO_MSA`) task as `--markers-db`; without it `phylo-build` reads `REPGENR_MARKERS_DB` from the task environment. |
 | `--annotate_args` | (empty) | Extra `annotate-build` arguments (`--tool-arg key=value`). |
 | `--tree2tax_args` | (empty) | tree-to-taxonomy (FlexTaxD) arguments; redundant genomes are listed by default (`--no-include-dereplicated` to omit them). `--no-outgroup` is added when `phylo_args` contains it, and `--keep-root` when it contains `--root midpoint`. |
 

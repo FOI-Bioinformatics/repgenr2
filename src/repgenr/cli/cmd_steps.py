@@ -36,6 +36,8 @@ from .base import (
     HELP_INCLUDE_DEREPLICATED,
     HELP_KEEP_FILES,
     HELP_KEEP_ROOT,
+    HELP_MARKER_SET,
+    HELP_MARKERS_DB,
     HELP_MAX_CORE_GENES,
     HELP_MAX_GENE_GAPS,
     HELP_MIN_GENE_LENGTH,
@@ -278,6 +280,8 @@ def phylo_build_cmd(
         None, "--coregene-alphabet", help=HELP_COREGENE_ALPHABET
     ),
     gene_trim: str | None = typer.Option(None, "--gene-trim", help=HELP_GENE_TRIM),
+    markers_db: str | None = typer.Option(None, "--markers-db", help=HELP_MARKERS_DB),
+    marker_set: str | None = typer.Option(None, "--marker-set", help=HELP_MARKER_SET),
     max_core_genes: int | None = typer.Option(
         None, "--max-core-genes", min=0, help=HELP_MAX_CORE_GENES
     ),
@@ -326,6 +330,7 @@ def phylo_build_cmd(
     from ..treebuilders.base import registry as _tb_registry
     from .param_builders import (
         apply_preset,
+        check_markers_options,
         gene_selection_extra,
         refuse_outside_coregene,
         require_gene_rank,
@@ -369,6 +374,7 @@ def phylo_build_cmd(
                 "--max-gene-gaps": max_gene_gaps,
             },
         )
+        check_markers_options(msa_source, coregene, markers_db, marker_set)
         # With --msa the sidecar beside the file decides, whatever the source.
         if partitioned and msa_source != "coregene" and msa is None:
             raise UserInputError(
@@ -428,6 +434,7 @@ def phylo_build_cmd(
                     else {}
                 ),
                 **({"gene_trim": gene_trim} if gene_trim is not None else {}),
+                **({"marker_set": marker_set} if marker_set is not None else {}),
                 **gene_selection_extra(
                     max_core_genes=max_core_genes,
                     gene_rank=gene_rank,
@@ -437,6 +444,7 @@ def phylo_build_cmd(
                 **({"partitioned": True} if partitioned else {}),
             },
             preset=preset,
+            markers_db=markers_db,
         )
         phylo_build(
             PhyloBuildParams(

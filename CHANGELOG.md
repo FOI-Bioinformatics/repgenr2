@@ -7,6 +7,31 @@ All notable changes to RepGenR2 are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- Core-gene builder `markers` (`--msa-source coregene --coregene markers`):
+  GTDB's single-copy marker proteins (bac120 or ar53) found with HMMER
+  3.4 and aligned to their models, with GTDB-Tk's rules: Pfam families
+  searched with GA and TIGRFAM families with NC, each protein assigned to
+  its best model, a marker found several times with different sequences
+  treated as absent (identical copies keep the best hit), and only the
+  match-state columns of `hmmalign` kept. No orthology clustering, so it
+  reaches across families and orders. A genome with fewer than
+  `min_markers` single-copy markers (10 % of the set by default) is
+  refused by name, one below half of the set is named in a warning, and
+  `--marker-set auto` (default) takes ar53 when fewer than half the
+  genomes reach the bac120 minimum and ar53 finds a higher median
+  fraction of its markers. New flags on `phylo`, `phylo-build` and `run`:
+  `--markers-db DIR` (or `REPGENR_MARKERS_DB`) and `--marker-set
+  bac120|ar53|auto`. The builder aligns protein only: without
+  `--coregene-alphabet` protein is implied, and `dna` is refused. Tables
+  `markers_summary.tsv` and `markers_per_genome.tsv` under
+  `tree/msa/pangenome/`. The database version and the marker set enter
+  the alignment's reuse key and the resume fingerprint (the path does
+  not), and the phylo record names `markers_db` and
+  `markers_db_version` for `doctor`. `--preset family` now uses
+  `--coregene markers` in place of PPanGGOLiN with the protein alphabet,
+  and `phylo-advise` gives the reason. Nextflow: `params.markers_db` is
+  staged into PHYLO and PHYLO_MSA and passed as `--markers-db`.
+  Container `hmmer:3.4--h7d74f8d_5`.
 - Marker database: `repgenr markers-db download --output DIR [--set
   bac120|ar53|all] [-t N]` fetches GTDB-Tk's single-copy marker families
   (bac120 and ar53, 168 distinct families; lists from GTDB-Tk's
@@ -22,7 +47,7 @@ All notable changes to RepGenR2 are documented here. The format follows
   the given sets, so adding ar53 leaves the bac120 version unchanged.
   `repgenr markers-db info DIR` prints its summary, `REPGENR_MARKERS_DB`
   names it, and `doctor` reports a recorded marker database that has moved
-  or changed version. It is used by the markers core-gene builder.
+  or changed version. It is read by the markers core-gene builder.
   `envs/core.yml` gains `hmmer>=3.3`.
 - Sketch ANI: wherever a dense `sourmash compare` matrix is converted to
   ANI, the signature sizes from `sourmash sig describe --csv` give each
@@ -168,6 +193,11 @@ All notable changes to RepGenR2 are documented here. The format follows
   existing core-gene alignment is rebuilt once.
 
 ### Changed
+- `--preset family` (and the `family` advice of `phylo-advise`) now builds
+  from GTDB's marker proteins with `--coregene markers` instead of
+  PPanGGOLiN core genes with `--coregene-alphabet protein`; it needs the
+  marker database (`--markers-db` or `REPGENR_MARKERS_DB`). For the earlier
+  behaviour, write out the genus flags with `--coregene-alphabet protein`.
 - `phylo-advise` recommends `--aligner-arg ksize=21` for a sourmash tree when
   the set spans more than one genus by name, has a minimum ANI below 95 % or
   has pairs of unknown ANI, and the quick row's summary says so; the sourmash

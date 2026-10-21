@@ -438,7 +438,7 @@ def _check_external_databases(workdir: Path, config: Config) -> list[Finding]:
     from ..coregenes.markers_db import check_markers_db, markers_db_version
     from .errors import RepGenRError
 
-    resolvers: dict[str, tuple[Callable[[Path | None], Path], Callable[[Path], str]]] = {
+    resolvers: dict[str, tuple[Callable[[Path | None], Path], Callable[..., str]]] = {
         "markers_db": (check_markers_db, markers_db_version),
     }
     out: list[Finding] = []
@@ -452,6 +452,11 @@ def _check_external_databases(workdir: Path, config: Config) -> list[Finding]:
             try:
                 db = check(Path(str(raw)))
                 current = version_of(db)
+                # A version recorded for the sets a stage used ("bac120:<digest>")
+                # is compared with the version of those sets only.
+                if recorded and current != recorded and ":" in recorded:
+                    sets = recorded.split(":", 1)[0].split("+")
+                    current = version_of(db, sets=sets)
             except RepGenRError as exc:
                 out.append(
                     Finding(

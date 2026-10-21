@@ -16,6 +16,7 @@ process PHYLO {
     input:
     tuple val(meta), path(reps_dir), path(outgroup, stageAs: 'outgroup/*'), path(outgroup_accession), path(annotations, stageAs: 'annotations/*')
     path sketches, stageAs: 'sketches'
+    path markers_db, stageAs: 'markers_db'
 
     output:
     tuple val(meta), path("tree/tree.nwk")            , emit: tree
@@ -40,6 +41,10 @@ process PHYLO {
 
     sk=""
     [ -d sketches ] && sk="--sketches-dir sketches"
+    # The marker database of --coregene markers (params.markers_db); without
+    # one, phylo-build reads REPGENR_MARKERS_DB from the task environment.
+    mk=""
+    [ -d markers_db ] && mk="--markers-db markers_db"
 
     # The ANNOTATE record directories (--msa-source coregene), gathered here:
     # index them so phylo-build reads them instead of annotating every genome.
@@ -53,7 +58,7 @@ process PHYLO {
         --genomes-dir ${reps_dir}/representatives \\
         --outgroup-dir outgroup \\
         --outgroup-accession ${outgroup_accession} \\
-        -o . -t ${task.cpus} ${args} \$sk \$an \\
+        -o . -t ${task.cpus} ${args} \$sk \$an \$mk \\
         --versions-out tool_versions.yml
 
     repgenr_versions_fragment "${task.process}" tool_versions.yml
@@ -66,6 +71,7 @@ process PHYLO {
     echo "ext.args: ${args}"
     echo "ext.repgenr_opts: ${opts}"
     if [ -d sketches ]; then echo "sketches: staged"; else echo "sketches: none"; fi
+    if [ -d markers_db ]; then echo "markers_db: staged"; else echo "markers_db: none"; fi
     if [ -d annotations ]; then
         echo "annotations: staged (\$(ls annotations | wc -l | tr -d ' ') records)"
     else

@@ -12,6 +12,7 @@ phylo, phylo-build and run expands the same rows.
 from __future__ import annotations
 
 import logging
+import os
 import shlex
 import shutil
 import statistics
@@ -27,6 +28,7 @@ import numpy as np
 from ..core.contracts import record_name
 from ..core.sketches import SKETCHES_DIR, workdir_provider
 from ..core.sourmash import MIN_SHARED_HASHES
+from ..coregenes.markers_db import MARKERS_DB_ENV
 from ..maskers.gubbins import canonical_taxon, genus_spread, species_spread
 from ..tree.medoid import ani_matrix
 
@@ -65,6 +67,28 @@ _GENUS_FLAGS = (
     "coregene",
     "--coregene",
     "ppanggolin",
+    "--core-threshold",
+    "0.95",
+    "--max-core-genes",
+    "300",
+    "--gene-rank",
+    "informative",
+    "--partitioned",
+    "--treebuilder",
+    "iqtree",
+    "-B",
+    "1000",
+)
+
+# The genus route with GTDB's marker proteins (bac120 or ar53) in place of
+# PPanGGOLiN's core genes: no orthology clustering, so it reaches across
+# families and orders. The markers builder aligns protein only, which it
+# implies without --coregene-alphabet.
+_FAMILY_FLAGS = (
+    "--msa-source",
+    "coregene",
+    "--coregene",
+    "markers",
     "--core-threshold",
     "0.95",
     "--max-core-genes",
@@ -134,11 +158,12 @@ RECOMMENDATIONS: dict[str, dict[str, Any]] = {
     "family": {
         "purpose": "Overview across a family or wider",
         "route": "coregene",
-        "flags": (*_GENUS_FLAGS, "--coregene-alphabet", "protein"),
+        "flags": _FAMILY_FLAGS,
         "summary": (
-            "The genus route on protein core genes: DNA alignments saturate at this "
-            "span. A skani tree (reliable to about 80 % ANI) gives an overview without "
-            "supports."
+            "GTDB's single-copy marker proteins (bac120, or ar53 for archaea) found with "
+            "HMMER and aligned to their models, and an IQ-TREE tree with one model per "
+            "marker; needs the marker database (repgenr markers-db download). A skani "
+            "tree (reliable to about 80 % ANI) gives an overview without supports."
         ),
         "needs_annotation": True,
     },
@@ -463,7 +488,8 @@ def _choose(ev: Evidence) -> tuple[str, list[str]]:
         if ani is not None and ani < GENUS_MIN_ANI:
             reasons.append(f"The minimum pairwise ANI is {_pct(ani)}, below {GENUS_MIN_ANI:g} %.")
         reasons.append(
-            "DNA alignments saturate at this span, so the core genes are aligned as protein."
+            "At this span orthology clustering finds few core genes and DNA alignments "
+            "saturate, so GTDB's single-copy marker proteins are used (aligned as protein)."
         )
         return "family", reasons
     if (canonical and ev.n_species > 1) or (ani is not None and ani >= GENUS_MIN_ANI):
@@ -529,6 +555,12 @@ def advise(evidence: Evidence) -> Recommendation:
             annotate += " --all-genomes"
         reasons.append(
             f"The core-gene route needs an annotation of every genome; run `{annotate}` first."
+        )
+    if preset == "family" and not os.environ.get(MARKERS_DB_ENV):
+        reasons.append(
+            "The markers builder needs the marker database: run `repgenr markers-db "
+            "download --output DIR` and pass --markers-db DIR (or set "
+            f"{MARKERS_DB_ENV})."
         )
     # The flags the evidence adds after --preset NAME.
     added: list[str] = []

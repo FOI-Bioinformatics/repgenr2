@@ -28,6 +28,8 @@ from .base import (
     HELP_GENE_RANK,
     HELP_GENE_TRIM,
     HELP_INCLUDE_DEREPLICATED,
+    HELP_MARKER_SET,
+    HELP_MARKERS_DB,
     HELP_MAX_CORE_GENES,
     HELP_MAX_GENE_GAPS,
     HELP_MIN_GENE_LENGTH,
@@ -193,6 +195,8 @@ def phylo(
         None, "--coregene-alphabet", help=HELP_COREGENE_ALPHABET
     ),
     gene_trim: str | None = typer.Option(None, "--gene-trim", help=HELP_GENE_TRIM),
+    markers_db: str | None = typer.Option(None, "--markers-db", help=HELP_MARKERS_DB),
+    marker_set: str | None = typer.Option(None, "--marker-set", help=HELP_MARKER_SET),
     max_core_genes: int | None = typer.Option(
         None, "--max-core-genes", min=0, help=HELP_MAX_CORE_GENES
     ),
@@ -243,6 +247,7 @@ def phylo(
                     else {}
                 ),
                 **({"gene_trim": gene_trim} if gene_trim is not None else {}),
+                **({"marker_set": marker_set} if marker_set is not None else {}),
                 **gene_selection_extra(
                     max_core_genes=p["max_core_genes"],
                     gene_rank=p["gene_rank"],
@@ -253,6 +258,7 @@ def phylo(
             },
             allow_incomplete=allow_incomplete,
             preset=preset,
+            markers_db=markers_db,
         )
 
     _run("phylo", workdir, build)

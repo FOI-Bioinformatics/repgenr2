@@ -343,7 +343,7 @@ the `envs/` files, and the environment that holds each tool is listed in
 | Core-gene builder | ppanggolin | `ppanggolin`, `mafft` | yes | `ppanggolin:2.3.2` | none |
 | Core-gene builder | scarap | `scarap`, `mmseqs`, `mafft` | yes | `scarap:1.0.2` | none |
 | Core-gene builder | orthofinder | `orthofinder`, `diamond`, `mafft` | yes | `orthofinder:3.1.5` | none |
-| Marker search (markers core-gene builder) | hmmer | `hmmer` (in `envs/core.yml`) | yes | set by the markers core-gene builder | marker database: `repgenr markers-db download --output DIR`, then `REPGENR_MARKERS_DB` |
+| Core-gene builder | markers | `hmmsearch`, `hmmalign` (hmmer, in `envs/core.yml`) | yes | `hmmer:3.4` | marker database: `repgenr markers-db download --output DIR`, then `REPGENR_MARKERS_DB` |
 | Core-gene trimming (`--gene-trim clipkit`) | clipkit | `clipkit` (in `envs/core.yml`) | yes | `clipkit:2.14.0` | none |
 | Tree builder | iqtree | `iqtree` | yes | `iqtree:3.1.3` | none |
 | Tree builder | fasttree | `fasttree` | yes | `fasttree:2.2.0` | none |
