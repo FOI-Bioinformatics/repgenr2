@@ -2078,6 +2078,18 @@ commands:
         with_args:
         - --msa-source
         - coregene
+      --partitioned:
+        param: PhyloParams.extra
+        validated: none
+        docs:
+        - docs/cli-reference.md
+        - docs/usage.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
+        live: 'n/a: covered offline in tests/unit/test_cli_gene_selection.py (the live run needs bakta, panaroo and the bakta database)'
+        with_args:
+        - --msa-source
+        - coregene
   phylo-build:
     dispatch: step:repgenr.stages.phylo.phylo_build
     base_args:
@@ -2407,6 +2419,18 @@ commands:
         - docs/usage.md
         - docs/audit/cli-matrix.md
         nextflow: 'params.phylo_args'
+        live: 'n/a: covered offline in tests/unit/test_cli_gene_selection.py (the live run needs bakta, panaroo and the bakta database)'
+        with_args:
+        - --msa-source
+        - coregene
+      --partitioned:
+        param: PhyloBuildParams.phylo.extra
+        validated: none
+        docs:
+        - docs/cli-reference.md
+        - docs/usage.md
+        - docs/audit/cli-matrix.md
+        nextflow: params.phylo_args
         live: 'n/a: covered offline in tests/unit/test_cli_gene_selection.py (the live run needs bakta, panaroo and the bakta database)'
         with_args:
         - --msa-source
@@ -4291,6 +4315,18 @@ commands:
         value: '0.5'
         validated: range
         invalid: '2'
+        docs:
+        - docs/cli-reference.md
+        - docs/usage.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
+        live: 'n/a: covered offline in tests/unit/test_cli_gene_selection.py (the live run needs bakta, panaroo and the bakta database)'
+        with_args:
+        - --msa-source
+        - coregene
+      --partitioned:
+        param: PhyloParams.extra
+        validated: none
         docs:
         - docs/cli-reference.md
         - docs/usage.md

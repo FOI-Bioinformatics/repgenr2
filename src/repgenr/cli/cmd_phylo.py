@@ -31,6 +31,7 @@ from .base import (
     HELP_NAMING,
     HELP_NO_OUTGROUP,
     HELP_NODE_BASENAME,
+    HELP_PARTITIONED,
     HELP_RANK_RED,
     HELP_RANKS,
     HELP_REFERENCE,
@@ -187,6 +188,7 @@ def phylo(
     max_gene_gaps: float | None = typer.Option(
         None, "--max-gene-gaps", min=0.0, max=1.0, help=HELP_MAX_GENE_GAPS
     ),
+    partitioned: bool = typer.Option(False, "--partitioned", help=HELP_PARTITIONED),
     allow_incomplete: bool = typer.Option(
         False,
         "--allow-incomplete",
@@ -221,6 +223,7 @@ def phylo(
                     min_gene_length=min_gene_length,
                     max_gene_gaps=max_gene_gaps,
                 ),
+                **({"partitioned": True} if partitioned else {}),
             },
             allow_incomplete=allow_incomplete,
         )

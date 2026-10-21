@@ -2351,6 +2351,47 @@ repgenr phylo -wd $WD --msa-source coregene \
     --max-core-genes 300 --gene-rank informative --min-gene-length 300
 ```
 
+#### Partitioned models
+
+By default the tree builder fits one substitution model to the whole
+concatenation. With `--partitioned` (on `phylo`, `phylo-build` and `run`) it
+fits one model per core gene instead, from the column ranges in
+`tree/msa/partitions.json`. The partitions are edge-linked: the genes share
+one tree and one set of branch lengths, scaled per gene. Genes evolve at
+different rates and under different substitution patterns, so this can
+describe a concatenation better than a single model; it also adds
+parameters and run time.
+
+- `iqtree` writes `tree/partitions.txt` (`DNA, <gene> = <start>-<end>` per
+  gene) and is run with `-p` (proportional branch lengths). Without
+  `--aligner-arg model=` ModelFinder selects a model for each partition.
+- `raxmlng` writes `tree/partitions.txt` with the model on every line
+  (`GTR+G, <gene> = <start>-<end>`, or the `--aligner-arg model=` given) and is
+  run with `--model partitions.txt`; branch lengths are scaled per partition,
+  RAxML-NG's default.
+- Other tree builders read no partitions: the stage warns that the builder
+  ignores them and fits one model.
+
+Gene names that the tools would not parse are rewritten (characters other
+than letters, digits, `_` and `-` become `_`, and a repeated name gains a
+numeric suffix). The partitions exist only for a core-gene builder that
+hands over one alignment per gene; without `partitions.json` beside the
+alignment (or when it describes another file) `--partitioned` is refused.
+It is also refused together with an ascertainment-bias correction
+(`--aligner-arg asc=`, a model with `+ASC`): that correction removes the
+invariant columns, which would shift the partition coordinates. Outside
+`--msa-source coregene` the option is refused, except on `phylo-build --msa
+FILE`, where the `partitions.json` beside the file decides.
+
+`--partitioned` changes the tree, not the alignment: a rerun that only adds
+or removes it reuses the core-gene alignment and rebuilds the tree. The phylo
+stage record holds `partitioned`.
+
+```bash
+repgenr phylo -wd $WD --msa-source coregene --max-core-genes 300 \
+    --gene-rank informative --treebuilder iqtree --partitioned -B 1000
+```
+
 #### Panaroo and its clustering identity
 
 Panaroo (`--coregene panaroo`, the default) clusters the genes into a
@@ -2538,7 +2579,9 @@ The same split is available to the stateless step: `phylo-build --msa-only`
 builds the alignment and writes `msa.fasta` without a tree, and
 `phylo-build --msa <file>` builds a tree from an alignment an earlier call
 produced. The Nextflow layer uses these to run the alignment and the tree as
-separate tasks. `--msa-only` leaves the SNP typing pass's `tree/msa/`
+separate tasks. `--msa-only` writes the `alignment_stats.json` and
+`partitions.json` of the alignment beside `msa.fasta`, under that file's name
+and digest, and `--msa <file>` reads them from beside the file it is given. `--msa-only` leaves the SNP typing pass's `tree/msa/`
 directory (and `scratch/`) in the step's output directory beside
 `msa.fasta`; they are left in place.
 

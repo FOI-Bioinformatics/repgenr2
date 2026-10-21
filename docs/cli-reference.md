@@ -115,6 +115,7 @@ is 'vmetadata --source'. --platform filters the sequencing platform with
 | `--gene-rank` |  | With --msa-source coregene: how genes are ranked when --max-core-genes caps them: occupancy (fraction of genomes holding the gene), informative (parsimony-informative sites), variable (variable sites), length, random (seeded). Unset is occupancy. |
 | `--min-gene-length` |  | With --msa-source coregene: drop genes whose alignment is shorter than this, in columns, before ranking (0 keeps all; unset is 0). |
 | `--max-gene-gaps` |  | With --msa-source coregene: drop genes where more than this fraction of the alignment is gap characters, before ranking (0 to 1; unset applies no limit). |
+| `--partitioned` | off | With --msa-source coregene: fit one substitution model per core gene (an edge-linked partition model, from the alignment's partitions.json). Honoured by iqtree and raxmlng; other builders warn and fit one model. Refused together with an ascertainment-bias correction (asc=, a +ASC model). Changes the tree, not the alignment. |
 | `--collapse-support` |  | Merge nodes whose support is below this fraction into their parent. |
 | `--collapse-length` |  | Merge nodes whose branch is shorter than this length into their parent. |
 | `--collapse-diameter` |  | Merge every clade whose leaf-to-leaf distance is within this value into one node, keeping the fewest such clades (in the tree's own units). |
@@ -434,6 +435,7 @@ Build a phylogenetic tree from an alignment, SNP alignment, or directly.
 | `--gene-rank` |  | With --msa-source coregene: how genes are ranked when --max-core-genes caps them: occupancy (fraction of genomes holding the gene), informative (parsimony-informative sites), variable (variable sites), length, random (seeded). Unset is occupancy. |
 | `--min-gene-length` |  | With --msa-source coregene: drop genes whose alignment is shorter than this, in columns, before ranking (0 keeps all; unset is 0). |
 | `--max-gene-gaps` |  | With --msa-source coregene: drop genes where more than this fraction of the alignment is gap characters, before ranking (0 to 1; unset applies no limit). |
+| `--partitioned` | off | With --msa-source coregene: fit one substitution model per core gene (an edge-linked partition model, from the alignment's partitions.json). Honoured by iqtree and raxmlng; other builders warn and fit one model. Refused together with an ascertainment-bias correction (asc=, a +ASC model). Changes the tree, not the alignment. |
 | `--allow-incomplete` | off | Proceed with a warning when the input genome set is incomplete. |
 
 ### tree2tax
@@ -754,6 +756,7 @@ Here --outgroup-accession takes a file that names the accession, not the accessi
 | `--gene-rank` |  | With --msa-source coregene: how genes are ranked when --max-core-genes caps them: occupancy (fraction of genomes holding the gene), informative (parsimony-informative sites), variable (variable sites), length, random (seeded). Unset is occupancy. |
 | `--min-gene-length` |  | With --msa-source coregene: drop genes whose alignment is shorter than this, in columns, before ranking (0 keeps all; unset is 0). |
 | `--max-gene-gaps` |  | With --msa-source coregene: drop genes where more than this fraction of the alignment is gap characters, before ranking (0 to 1; unset applies no limit). |
+| `--partitioned` | off | With --msa-source coregene: fit one substitution model per core gene (an edge-linked partition model, from the alignment's partitions.json). Honoured by iqtree and raxmlng; other builders warn and fit one model. Refused together with an ascertainment-bias correction (asc=, a +ASC model). Changes the tree, not the alignment. |
 | `--annotations-dir` |  | With --msa-source coregene: an annotations/ directory the annotate stage or annotate-build wrote (its index names the records); without it the step annotates the genomes itself with --annotator. |
 | `--annotator` | `bakta` | Annotator: bakta (default; needs its database, --bakta-db or BAKTA_DB) or prokka. |
 | `--bakta-db` |  | bakta database directory (bakta_db download --output DIR --type light\|full); BAKTA_DB when unset. |

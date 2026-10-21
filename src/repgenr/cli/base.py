@@ -172,6 +172,12 @@ HELP_MAX_GENE_GAPS = (
     "With --msa-source coregene: drop genes where more than this fraction of the "
     "alignment is gap characters, before ranking (0 to 1; unset applies no limit)."
 )
+HELP_PARTITIONED = (
+    "With --msa-source coregene: fit one substitution model per core gene (an edge-linked "
+    "partition model, from the alignment's partitions.json). Honoured by iqtree and raxmlng; "
+    "other builders warn and fit one model. Refused together with an ascertainment-bias "
+    "correction (asc=, a +ASC model). Changes the tree, not the alignment."
+)
 HELP_ALIGNER_ARG = (
     "Aligner, SNP typer, masker or tree builder tuning as key=value (repeatable), "
     "e.g. kmer=15 (sibeliaz), seed_weight=11 (progressivemauve) or model=GTR+G "

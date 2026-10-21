@@ -74,6 +74,7 @@ from ..tree.medoid import (
     read_reference_choice,
     resolve_reference,
 )
+from ..tree.partitions import PARTITIONS, copy_partitions, read_partitions
 from ..tree.rooting import (
     ROOT_METHODS,
     ROOT_NONE,
@@ -83,7 +84,7 @@ from ..tree.rooting import (
     root_on_outgroup,
     write_newick,
 )
-from ..treebuilders.base import InputKind, TreeParams
+from ..treebuilders.base import InputKind, TreeParams, refuse_partitions_with_asc
 from ..treebuilders.base import registry as treebuilder_registry
 
 # Re-exported so the data-channel step helpers stay importable from this module.
@@ -102,6 +103,9 @@ _STAGE_EXTRA_KEYS = frozenset(
         "gene_rank",
         "min_gene_length",
         "max_gene_gaps",
+        # --partitioned: the tree builder fits one model per gene from the
+        # alignment's partitions.json. Tree-side only; not in the MSA key.
+        "partitioned",
     }
 )
 # Extras read by the core-gene pass only; the fingerprint drops them elsewhere.
@@ -178,6 +182,12 @@ def _filtered(extra: Mapping[str, object]) -> bool:
     from ..core.plugins import parse_extra_bool
 
     return parse_extra_bool(extra, "filtered", True)
+
+
+def _partitioned(extra: Mapping[str, object]) -> bool:
+    from ..core.plugins import parse_extra_bool
+
+    return parse_extra_bool(extra, "partitioned", False)
 
 
 def _adapter_extra(extra: dict) -> dict:
@@ -789,6 +799,12 @@ def build_tree(
         extra={**builder.capabilities.default_params, **_adapter_extra(params.extra)},
     )
     warn_ignored_params(builder.capabilities, tree_params, logger, family="Tree builder")
+    partitioned = _partitioned(params.extra)
+    if partitioned and builder.supports_partitions:
+        # Refused here, before the alignment is built, rather than by the
+        # builder once it has been: an ascertainment-bias correction and a
+        # partition model exclude each other.
+        refuse_partitions_with_asc(TreeParams(extra=tree_params.extra, partitions=()), treebuilder)
     dirs.tree_dir.mkdir(parents=True, exist_ok=True)
 
     if builder.input_kind == InputKind.GENOMES:
@@ -801,6 +817,8 @@ def build_tree(
             unused.append(f"--mask {params.extra['mask']}")
         if _core_fraction(params.extra) is not None:
             unused.append(f"--core-fraction {params.extra['core_fraction']}")
+        if partitioned:
+            unused.append("--partitioned")
         if unused:
             logger.warning(
                 "Tree builder '%s' builds from the genomes without an alignment; %s has no effect.",
@@ -872,6 +890,8 @@ def build_tree(
                 "Constant sites given to the tree builder: A %d, C %d, G %d, T %d",
                 *tree_params.constant_sites,
             )
+        if partitioned:
+            _apply_partitions(msa, builder.supports_partitions, treebuilder, tree_params, logger)
         logger.info("Building tree with %s from MSA %s", treebuilder, msa)
         _clear_previous_builder_files(dirs.tree_dir)
         tree = builder.build(msa, dirs.tree_dir, tree_params, logger)
@@ -895,6 +915,32 @@ def build_tree(
         outgroup_leaf=outgroup_leaf,
         root=root,
     )
+
+
+def _apply_partitions(
+    msa: Path,
+    supported: bool,
+    treebuilder: str,
+    tree_params: TreeParams,
+    logger: logging.Logger,
+) -> None:
+    """Give the tree builder the partitions recorded beside ``msa`` (--partitioned)."""
+    found = read_partitions(msa)
+    if found is None:
+        raise UserInputError(
+            f"--partitioned: the alignment has no partition sidecar ({PARTITIONS} beside "
+            f"{msa.name}, describing that file); partitions come from --msa-source coregene."
+        )
+    tree_params.alphabet = found.alphabet
+    if not supported:
+        logger.warning(
+            "Tree builder %s ignores partitions; the tree is built with one model over the "
+            "whole alignment",
+            treebuilder,
+        )
+        return
+    tree_params.partitions = tuple((p.gene, p.start, p.end) for p in found.partitions)
+    logger.info("Partitioned model: %d partitions from %s", len(found.partitions), PARTITIONS)
 
 
 _LEAF_UNSAFE = re.compile(r"[^A-Za-z0-9_-]")
@@ -1188,6 +1234,9 @@ def phylo_build(params: PhyloBuildParams, logger: logging.Logger) -> Path:
             # The counts travel with the copy, under the copy's name and digest.
             (published.parent / ALIGNMENT_STATS).unlink(missing_ok=True)
             copy_alignment_stats(msa, published)
+            # So are the core-gene partitions, for the tree half's --partitioned.
+            (published.parent / PARTITIONS).unlink(missing_ok=True)
+            copy_partitions(msa, published)
         _write_versions(params.versions_out, versions)
         return published
 
@@ -1419,6 +1468,8 @@ def run(ctx: WorkdirContext, params: PhyloParams) -> Path:
                 else None
             ),
             "annotations": annotations_record,
+            # A tree-side setting: the alignment is reused when only this changes.
+            "partitioned": _partitioned(params.extra) if is_msa else None,
             "all_genomes": params.all_genomes,
             "bootstrap": params.bootstrap,
             "outgroup": None if params.no_outgroup else outcome.outgroup_leaf,

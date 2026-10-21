@@ -5,7 +5,10 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
+import pytest
+
 import repgenr.treebuilders.raxmlng as mod
+from repgenr.core.errors import UserInputError
 from repgenr.treebuilders.base import TreeParams
 
 _BEST = "((a,b),(c,d));"
@@ -97,3 +100,48 @@ def test_unknown_asc_value_is_refused(monkeypatch, tmp_path) -> None:
         mod.RaxmlNgBuilder().build(
             msa, tmp_path / "out", TreeParams(extra={"asc": "x"}), logging.getLogger()
         )
+
+
+_PARTS = (("gyrA", 1, 1), ("gyr.A", 2, 2))
+
+
+def test_partitions_replace_the_model_with_a_file(monkeypatch, tmp_path) -> None:
+    model, _ = _model_of(monkeypatch, tmp_path, TreeParams(partitions=_PARTS))
+    assert Path(model) == tmp_path / "out" / "partitions.txt"
+    assert Path(model).read_text(encoding="utf-8") == "GTR+G, gyrA = 1-1\nGTR+G, gyr_A = 2-2\n"
+
+
+def test_partitions_carry_the_given_model(monkeypatch, tmp_path) -> None:
+    model, msa = _model_of(
+        monkeypatch, tmp_path, TreeParams(partitions=_PARTS, extra={"model": "HKY+G"})
+    )
+    assert Path(model).read_text(encoding="utf-8") == "HKY+G, gyrA = 1-1\nHKY+G, gyr_A = 2-2\n"
+    # The alignment is used as given: no invariant-column strip.
+    assert Path(msa).name == "msa.fasta"
+
+
+def test_protein_partitions_default_to_lg(monkeypatch, tmp_path) -> None:
+    model, _ = _model_of(
+        monkeypatch, tmp_path, TreeParams(partitions=(("g", 1, 2),), alphabet="protein")
+    )
+    assert Path(model).read_text(encoding="utf-8") == "LG+G, g = 1-2\n"
+
+
+@pytest.mark.parametrize(
+    "params",
+    [
+        TreeParams(partitions=_PARTS, constant_sites=(1, 1, 1, 1)),
+        TreeParams(partitions=_PARTS, extra={"asc": "lewis"}),
+        TreeParams(partitions=_PARTS, extra={"model": "GTR+G+ASC_LEWIS"}),
+    ],
+    ids=["constant_sites", "asc_lewis", "asc_model"],
+)
+def test_partitions_with_asc_are_refused(monkeypatch, tmp_path, params) -> None:
+    calls: list = []
+    monkeypatch.setattr(mod, "run_tool", lambda caps, cmd, **k: calls.append(cmd))
+    msa = tmp_path / "msa.fasta"
+    msa.write_text(">a\nAC\n>b\nAG\n", encoding="utf-8")
+    with pytest.raises(UserInputError, match="partition"):
+        mod.RaxmlNgBuilder().build(msa, tmp_path / "out", params, logging.getLogger())
+    assert calls == []
+    assert mod.RaxmlNgBuilder.supports_partitions

@@ -4,14 +4,16 @@
 // produced, so changing the tree builder or the bootstrap re-runs this task
 // alone. The genome set is still staged: the tree builder roots on the
 // outgroup named in the accession file. A staged sketches/ directory is
-// passed as --sketches-dir, as in PHYLO.
+// passed as --sketches-dir, as in PHYLO. alignment_stats.json and
+// partitions.json, when PHYLO_MSA wrote them, are staged beside the
+// alignment, where phylo-build --msa reads them.
 
 process PHYLO_TREE {
     tag "${meta.id}"
     label 'process_medium'
 
     input:
-    tuple val(meta), path(reps_dir), path(outgroup, stageAs: 'outgroup/*'), path(outgroup_accession), path(msa), path(stats)
+    tuple val(meta), path(reps_dir), path(outgroup, stageAs: 'outgroup/*'), path(outgroup_accession), path(msa), path(stats), path(partitions)
     path sketches, stageAs: 'sketches'
 
     output:
@@ -50,6 +52,7 @@ process PHYLO_TREE {
     echo "ext.args: ${args}"
     echo "ext.repgenr_opts: ${opts}"
     echo "msa: ${msa}"
+    if [ -e partitions.json ]; then echo "partitions: staged"; else echo "partitions: none"; fi
     if [ -d sketches ]; then echo "sketches: staged"; else echo "sketches: none"; fi
     mkdir -p tree
     names=\$(grep '^>' ${msa} | sed 's/^>//' | paste -sd, -)
