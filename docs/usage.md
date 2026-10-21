@@ -2850,8 +2850,10 @@ TreeCluster). D is in the tree's own units:
 - mash distance for mashtree (about 0.05 at 95 % ANI for closely related
   genomes);
 - one minus ANI as a fraction for the sourmash builder (0.05 at 95 % ANI),
-  the ANI estimated from the k-mer Jaccard similarity as sourmash's own
-  `compare --ani` does; with `metric=jaccard`, one minus the Jaccard
+  the ANI being the k-mer model estimate from the Jaccard index, as
+  `sourmash compare --ani` would report it (`--ani` itself is not used: it
+  reports 0 for sketches of small genomes, identical ones included); with
+  `metric=jaccard`, one minus the Jaccard
   similarity at the chosen k (about 0.88 at 95 % ANI with k = 31, so a
   mash-scale value is far too strict there);
 - one minus ANI as a fraction for skani (0.05 at 95 % ANI);

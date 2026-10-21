@@ -202,9 +202,9 @@ of this record.
   IQ-TREE's `alrt=N` extra (`-alrt`, SH-aLRT supports without `-B`) and a
   log line above 200 genomes without `model=` that `model=GTR+G` skips
   ModelFinder; B3, the sourmash builder's distance is `1 - ANI` by default
-  (`metric=ani`; `metric=jaccard` keeps `1 - Jaccard`). The ANI is estimated
-  from the Jaccard similarity as `(2j / (1 + j))^(1/k)` rather than with
-  `sourmash compare --ani`, which reports 0 for identical genomes of 10 kb
+  (`metric=ani`; `metric=jaccard` keeps `1 - Jaccard`). The ANI is the k-mer
+  model estimate from the Jaccard index, `(2j / (1 + j))^(1/k)`, shared with
+  the dereplicator, rather than `sourmash compare --ani`, which reports 0 for identical genomes of 10 kb
   and 30 kb at k=31, scaled=1000 (sourmash 4.9.4). Defects 4 and 5 are
   fixed.
 - **C. ska2 constant sites.** Counting constant columns from an unfiltered ska2

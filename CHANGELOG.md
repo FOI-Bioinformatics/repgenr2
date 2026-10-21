@@ -15,10 +15,12 @@ All notable changes to RepGenR2 are documented here. The format follows
   ModelFinder. Tree builders gain `writes_supports(extra)`.
 - `sourmash` tree builder: `--aligner-arg metric=ani|jaccard` (default
   `ani`). With `ani` the distance is `1 - ANI`, on the scale of skani and
-  mashtree, the ANI estimated from the k-mer Jaccard similarity as
-  `(2j / (1 + j))^(1/k)`, the quantity `sourmash compare --ani` reports; it
-  is computed here because `compare --ani` reports 0 for small sketches of
-  identical genomes. `jaccard` keeps the former `1 - Jaccard`. Pairs that
+  mashtree. The ANI is the k-mer model estimate from the Jaccard index,
+  `(2j / (1 + j))^(1/k)`, as `sourmash compare --ani` would report it,
+  computed by the converter the dereplicator already used (now
+  `core.sourmash.jaccard_to_ani_matrix`, re-exported in the dereplicator).
+  `--ani` itself is not used: it reports 0 for sketches of small genomes,
+  identical ones included. `jaccard` keeps the former `1 - Jaccard`. Pairs that
   share no hash get distance 1.0 and are counted in one log line.
 - Core-gene route: `--gene-trim none|clipkit` (default `none`) on `phylo`,
   `phylo-build` and `run` trims each per-gene alignment with ClipKIT

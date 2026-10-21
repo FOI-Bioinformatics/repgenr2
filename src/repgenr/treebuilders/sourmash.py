@@ -2,13 +2,13 @@
 
 The distance is ``1 - ANI`` by default (``metric=ani``), on the scale of
 skani and mashtree, or ``1 - Jaccard`` with ``metric=jaccard``. The ANI is
-estimated from the k-mer Jaccard of ``sourmash compare`` as
-``(2j / (1 + j)) ** (1 / k)``, the quantity ``sourmash compare --ani``
-reports (within 1e-4 on genomes of bacterial size). It is computed here
-rather than with ``--ani`` because sourmash 4.9.4 reports an ANI of 0 for
-small sketches, identical genomes included (measured on 10 kb and 30 kb
-genomes at k=31, scaled=1000), which would place identical genomes at the
-largest distance. A pair without a shared hash has ANI 0 and distance 1.0.
+the k-mer model estimate from the Jaccard index of ``sourmash compare``
+(:func:`repgenr.core.sourmash.jaccard_to_ani_matrix`, shared with the
+dereplicator), as ``sourmash compare --ani`` would report it. ``--ani``
+itself is not used: sourmash 4.9.4 reports an ANI of 0 for sketches of
+small genomes, identical ones included (10 kb and 30 kb genomes at k=31,
+scaled=1000), which would place identical genomes at the largest distance.
+A pair without a shared hash has ANI 0 and distance 1.0.
 
 With ``TreeParams.sketches`` the genomes that have a workdir sketch are not
 sketched again: ``sourmash compare -k`` selects the signature at the
@@ -30,7 +30,7 @@ from ..core.contracts import atomic_replace, record_name
 from ..core.errors import UserInputError, WorkdirError
 from ..core.plugins import parse_extra_int, preflight, tool_available
 from ..core.process import write_fofn
-from ..core.sourmash import sourmash_capabilities
+from ..core.sourmash import jaccard_to_ani_matrix, sourmash_capabilities
 from ..tree.nj import NJ_AUTO, NJ_RAPIDNJ, RAPIDNJ, choose_backend, nj_tree
 from .base import InputKind, TreeBuilder, TreeParams, as_genome_list
 
@@ -126,7 +126,9 @@ class SourmashBuilder(TreeBuilder):
         order = sorted(range(len(labels)), key=lambda i: (named[i], i))
         clean_labels = [named[i] for i in order]
         if metric == METRIC_ANI:
-            similarity = [[jaccard_to_ani(j, ksize) for j in row] for row in similarity]
+            import numpy as np
+
+            similarity = jaccard_to_ani_matrix(np.asarray(similarity, dtype=float), ksize).tolist()
         dist = [[1.0 - similarity[i][j] for j in order] for i in order]
         disjoint = sum(
             1 for a in range(len(dist)) for b in range(a + 1, len(dist)) if dist[a][b] >= 1.0
@@ -206,15 +208,6 @@ def _metric(extra: Mapping[str, object], default: str) -> str:
             f"sourmash metric= must be one of {', '.join(METRICS)}, got {extra.get('metric')!r}"
         )
     return value
-
-
-def jaccard_to_ani(jaccard: float, ksize: int) -> float:
-    """The ANI estimate of a k-mer Jaccard similarity: ``(2j / (1 + j)) **
-    (1 / k)``, the containment equivalent of Jaccard to the k-th root, as
-    ``sourmash compare --ani`` reports it; 0 stays 0."""
-    if jaccard <= 0.0:
-        return 0.0
-    return float((2.0 * jaccard / (1.0 + jaccard)) ** (1.0 / ksize))
 
 
 def _read_csv(path: Path) -> tuple[list[str], list[list[float]]]:
