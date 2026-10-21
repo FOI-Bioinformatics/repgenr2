@@ -176,9 +176,9 @@ def gene_metrics(seqs: dict[str, str], n_genomes: int, alphabet: str = "dna") ->
     _check_alphabet(alphabet)
     if not seqs:
         return GeneMetrics(0, 0, 0.0, 0.0, 0, 0, 1.0)
-    arr = np.frombuffer("".join(seqs.values()).encode("ascii", "replace"), dtype=np.uint8)
+    flat = np.frombuffer("".join(seqs.values()).encode("ascii", "replace"), dtype=np.uint8)
     length = len(next(iter(seqs.values())))
-    arr = arr.reshape(len(seqs), length)
+    arr = flat.reshape(len(seqs), length)
 
     not_state = np.zeros(256, dtype=bool)
     not_state[list(_NOT_STATE[alphabet])] = True
