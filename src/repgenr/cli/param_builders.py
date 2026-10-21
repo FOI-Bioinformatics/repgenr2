@@ -550,6 +550,7 @@ def phylo_params(
                 ("core_threshold", "--core-threshold"),
                 ("clean_mode", "--clean-mode"),
                 ("coregene_alphabet", "--coregene-alphabet"),
+                ("gene_trim", "--gene-trim"),
                 *GENE_SELECTION_FLAGS,
                 ("partitioned", "--partitioned"),
             )
@@ -561,6 +562,10 @@ def phylo_params(
         from ..coregenes.base import CLEAN_MODES
 
         _require_choice(str(extra["clean_mode"]), set(CLEAN_MODES), "--clean-mode")
+    if extra is not _UNSET and extra.get("gene_trim") is not None:
+        from ..coregenes.trim import GENE_TRIMS
+
+        _require_choice(str(extra["gene_trim"]), set(GENE_TRIMS), "--gene-trim")
     if extra is not _UNSET and extra.get("coregene_alphabet") is not None:
         from ..coregenes.select import ALPHABETS
         from ..stages.coregene import check_alphabet

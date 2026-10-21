@@ -21,6 +21,11 @@ that returns only its own concatenation has it published as it is.
 a builder that declares it does not read the alphabet is refused a protein
 alignment rather than warned, because the tree would be fitted with a
 model for the wrong character type.
+
+``trim="clipkit"`` trims each per-gene alignment with ClipKIT
+(:mod:`repgenr.coregenes.trim`) before the genes are measured, ranked and
+concatenated; a builder that returns only its own concatenation is refused
+it. Off by default.
 """
 
 from __future__ import annotations
@@ -57,6 +62,13 @@ from ..coregenes.select import (
     load_gene,
     rank_genes,
     write_gene_table,
+)
+from ..coregenes.trim import (
+    DEFAULT_TRIM_MODE,
+    alignment_width,
+    check_gene_trim,
+    preflight_clipkit,
+    trim_gene_alignments,
 )
 from ..tree.partitions import PARTITIONS, write_partitions
 
@@ -147,6 +159,7 @@ def coregene_core(
     warn_extras: bool = True,
     required: Sequence[str] = (),
     selection: GeneSelection = _DEFAULT_SELECTION,
+    trim: str = "none",
 ) -> tuple[CoreGeneResult, dict[str, str]]:
     """Run the core-gene builder ``tool`` over ``gffs`` into ``msa_dir``.
 
@@ -154,7 +167,9 @@ def coregene_core(
     one missing from the alignment is an error here rather than a rooting
     failure two steps later. ``selection`` chooses the genes when the
     builder returns per-gene alignments; on a builder that returns only its
-    own concatenation anything but the default is refused.
+    own concatenation anything but the default is refused. ``trim`` is
+    ``none`` or ``clipkit``: with clipkit the per-gene alignments are trimmed
+    before the selection (refused for a builder without per-gene output).
     """
     if tool not in coregene_registry.names():
         raise UserInputError(
@@ -163,6 +178,7 @@ def coregene_core(
         )
     builder = coregene_registry.create(tool)
     check_alphabet(tool, params.alphabet)
+    check_gene_trim(trim)
     warn = scale_warning(coregene_registry, tool, len(gffs))
     if warn:
         limit, alts = warn
@@ -180,6 +196,8 @@ def coregene_core(
         )
     warn_ignored_params(builder.capabilities, params, logger, family="Core-gene builder")
     versions = builder.preflight()
+    if trim != "none":
+        versions.update(preflight_clipkit())
     # Builders pass paths under scratch to tools that run with cwd inside it,
     # so a relative scratch (phylo-build -o .) would not resolve.
     scratch = Path(os.path.abspath(scratch))
@@ -197,9 +215,15 @@ def coregene_core(
     (msa_dir / CORE_GENES_TSV).unlink(missing_ok=True)
     (msa_dir / PARTITIONS).unlink(missing_ok=True)
     chosen: _Chosen | None = None
+    trimming: dict[str, int] | None = None
     if result.gene_alignments is not None:
+        gene_alignments = result.gene_alignments
+        if trim != "none":
+            gene_alignments, trimming = _trim(
+                gene_alignments, scratch / "trim", params.threads, tool, logger
+            )
         chosen = _choose_genes(
-            result.gene_alignments,
+            gene_alignments,
             expected_names,
             selection,
             scratch,
@@ -209,6 +233,11 @@ def coregene_core(
         )
         source = chosen.concatenation
     else:
+        if trim != "none":
+            raise UserInputError(
+                f"The core-gene builder '{tool}' returns no per-gene alignments, so "
+                f"--gene-trim {trim} cannot apply; leave it at none."
+            )
         if selection != _DEFAULT_SELECTION:
             raise UserInputError(
                 f"The core-gene builder '{tool}' returns no per-gene alignments, so a gene "
@@ -276,6 +305,13 @@ def coregene_core(
         # over only its own concatenation.
         "core_genes_available": len(chosen.metrics) if chosen is not None else None,
         "selection": asdict(selection),
+        # Per-gene trimming before the selection: none or clipkit, the ClipKIT
+        # mode, the columns it removed over all genes (a dropped gene counts
+        # all of its columns) and the genes it emptied. None when not trimmed.
+        "trim": trim,
+        "trim_mode": DEFAULT_TRIM_MODE if trimming is not None else None,
+        "trimmed_columns_removed": trimming["columns_removed"] if trimming else None,
+        "genes_dropped_by_trimming": trimming["genes_dropped"] if trimming else None,
         "variable_sites_total": chosen.variable_sites if chosen is not None else None,
         "informative_sites_total": chosen.informative_sites if chosen is not None else None,
         "gene_table": CORE_GENES_TSV if chosen is not None else None,
@@ -326,6 +362,37 @@ def _refuse_unknown(names: Sequence[str] | set[str], expected: set[str]) -> None
             f"genomes ({', '.join(unknown[:5])}): the builder did not name its samples after "
             "the annotation files, so the tree leaves would not match the genome set."
         )
+
+
+def _trim(
+    gene_alignments: Sequence[GeneAlignment],
+    out_dir: Path,
+    threads: int,
+    tool: str,
+    logger: logging.Logger,
+) -> tuple[list[GeneAlignment], dict[str, int]]:
+    """Trim the per-gene alignments with ClipKIT; return them with the counts
+    for the stats file (columns removed, genes dropped)."""
+    before = sum(alignment_width(ga.path) for ga in gene_alignments)
+    trimmed = trim_gene_alignments(gene_alignments, out_dir, threads, logger)
+    after = sum(alignment_width(ga.path) for ga in trimmed)
+    counts = {
+        "columns_removed": before - after,
+        "genes_dropped": len(gene_alignments) - len(trimmed),
+    }
+    if gene_alignments and not trimmed:
+        raise WorkdirError(
+            f"ClipKIT removed every column of all {len(gene_alignments)} core gene alignments "
+            f"of '{tool}'; build the alignment without --gene-trim."
+        )
+    logger.info(
+        "Gene trimming: %d of %d columns removed over %d genes; %d gene(s) dropped",
+        counts["columns_removed"],
+        before,
+        len(gene_alignments),
+        counts["genes_dropped"],
+    )
+    return trimmed, counts
 
 
 @dataclass

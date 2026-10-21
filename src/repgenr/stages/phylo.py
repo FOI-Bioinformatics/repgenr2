@@ -101,6 +101,8 @@ _STAGE_EXTRA_KEYS = frozenset(
         "filtered",
         # dna or protein core-gene alignments; read by _coregene_alphabet.
         "coregene_alphabet",
+        # none or clipkit: per-gene trimming; read by _gene_trim.
+        "gene_trim",
         # The core-gene selection (coregenes/select.py); read by _gene_selection.
         "max_core_genes",
         "gene_rank",
@@ -117,6 +119,7 @@ _COREGENE_ONLY_EXTRA = frozenset(
         "clean_mode",
         "filtered",
         "coregene_alphabet",
+        "gene_trim",
         "max_core_genes",
         "gene_rank",
         "min_gene_length",
@@ -205,6 +208,13 @@ def _coregene_alphabet(extra: Mapping[str, object]) -> str:
             f"--coregene-alphabet must be one of {', '.join(ALPHABETS)}, not {value!r}"
         )
     return value
+
+
+def _gene_trim(extra: Mapping[str, object]) -> str:
+    """The --gene-trim carried in the stage extras: none (default) or clipkit."""
+    from ..coregenes.trim import check_gene_trim
+
+    return check_gene_trim(str(extra.get("gene_trim", "none")).strip().lower() or "none")
 
 
 def _partitioned(extra: Mapping[str, object]) -> bool:
@@ -453,6 +463,13 @@ def _msa_key(
         alphabet = _coregene_alphabet(params.extra)
         if alphabet != "dna":
             coregene["alphabet"] = alphabet
+        # Likewise trimming: added only when on, so an untrimmed alignment
+        # keeps its key. The ClipKIT mode is part of it.
+        gene_trim = _gene_trim(params.extra)
+        if gene_trim != "none":
+            from ..coregenes.trim import DEFAULT_TRIM_MODE
+
+            coregene["gene_trim"] = f"{gene_trim}:{DEFAULT_TRIM_MODE}"
         payload["coregene"] = coregene
     blob = json.dumps(payload, sort_keys=True, default=str)
     return hashlib.sha256(blob.encode("utf-8")).hexdigest()
@@ -1525,6 +1542,9 @@ def run(ctx: WorkdirContext, params: PhyloParams) -> Path:
                 if is_msa and params.msa_source == "coregene"
                 else None
             ),
+            "gene_trim": (
+                _gene_trim(params.extra) if is_msa and params.msa_source == "coregene" else None
+            ),
             "annotations": annotations_record,
             # A tree-side setting: the alignment is reused when only this changes.
             "partitioned": _partitioned(params.extra) if is_msa else None,
@@ -1800,6 +1820,7 @@ def _build_msa(
             warn_extras=False,
             required=(record_name(outgroup_file),) if outgroup_file is not None else (),
             selection=_gene_selection(params.extra),
+            trim=_gene_trim(params.extra),
         )
         assert cg_result.alignment is not None  # coregene_core always publishes one
         return cg_result.alignment, versions

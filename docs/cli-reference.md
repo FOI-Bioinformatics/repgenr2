@@ -112,6 +112,7 @@ is 'vmetadata --source'. --platform filters the sequencing platform with
 | `--core-threshold` |  | With --msa-source coregene: a gene is core when present in at least this fraction of the genomes (0.95). |
 | `--clean-mode` |  | With --msa-source coregene: Panaroo's cleaning of annotation errors, strict (default), moderate or sensitive. |
 | `--coregene-alphabet` |  | With --msa-source coregene: dna (default) or protein; protein suits genus and family overviews, where third codon positions saturate (ppanggolin, scarap and orthofinder; refused with panaroo). |
+| `--gene-trim` |  | With --msa-source coregene: none (default) or clipkit; clipkit trims each gene alignment (ClipKIT smart-gap mode, the only mode offered) before the genes are measured, ranked and concatenated. Suits genus and wider sets, where ragged ends and poorly aligned columns inflate the site counts. |
 | `--max-core-genes` |  | With --msa-source coregene: keep at most this many core genes in the alignment, chosen by --gene-rank (a count; 0 keeps every core gene; unset is 0). |
 | `--gene-rank` |  | With --msa-source coregene: how genes are ranked when --max-core-genes caps them: occupancy (fraction of genomes holding the gene), informative (parsimony-informative sites), variable (variable sites), length, random (seeded). Unset is occupancy. |
 | `--min-gene-length` |  | With --msa-source coregene: drop genes whose alignment is shorter than this, in columns, before ranking (0 keeps all; unset is 0). |
@@ -451,6 +452,7 @@ Build a phylogenetic tree from an alignment, SNP alignment, or directly.
 | `--core-threshold` |  | With --msa-source coregene: a gene is core when present in at least this fraction of the genomes (0.95). |
 | `--clean-mode` |  | With --msa-source coregene: Panaroo's cleaning of annotation errors, strict (default), moderate or sensitive. |
 | `--coregene-alphabet` |  | With --msa-source coregene: dna (default) or protein; protein suits genus and family overviews, where third codon positions saturate (ppanggolin, scarap and orthofinder; refused with panaroo). |
+| `--gene-trim` |  | With --msa-source coregene: none (default) or clipkit; clipkit trims each gene alignment (ClipKIT smart-gap mode, the only mode offered) before the genes are measured, ranked and concatenated. Suits genus and wider sets, where ragged ends and poorly aligned columns inflate the site counts. |
 | `--max-core-genes` |  | With --msa-source coregene: keep at most this many core genes in the alignment, chosen by --gene-rank (a count; 0 keeps every core gene; unset is 0). |
 | `--gene-rank` |  | With --msa-source coregene: how genes are ranked when --max-core-genes caps them: occupancy (fraction of genomes holding the gene), informative (parsimony-informative sites), variable (variable sites), length, random (seeded). Unset is occupancy. |
 | `--min-gene-length` |  | With --msa-source coregene: drop genes whose alignment is shorter than this, in columns, before ranking (0 keeps all; unset is 0). |
@@ -773,6 +775,7 @@ Here --outgroup-accession takes a file that names the accession, not the accessi
 | `--core-threshold` |  | With --msa-source coregene: a gene is core when present in at least this fraction of the genomes (0.95). |
 | `--clean-mode` |  | With --msa-source coregene: Panaroo's cleaning of annotation errors, strict (default), moderate or sensitive. |
 | `--coregene-alphabet` |  | With --msa-source coregene: dna (default) or protein; protein suits genus and family overviews, where third codon positions saturate (ppanggolin, scarap and orthofinder; refused with panaroo). |
+| `--gene-trim` |  | With --msa-source coregene: none (default) or clipkit; clipkit trims each gene alignment (ClipKIT smart-gap mode, the only mode offered) before the genes are measured, ranked and concatenated. Suits genus and wider sets, where ragged ends and poorly aligned columns inflate the site counts. |
 | `--max-core-genes` |  | With --msa-source coregene: keep at most this many core genes in the alignment, chosen by --gene-rank (a count; 0 keeps every core gene; unset is 0). |
 | `--gene-rank` |  | With --msa-source coregene: how genes are ranked when --max-core-genes caps them: occupancy (fraction of genomes holding the gene), informative (parsimony-informative sites), variable (variable sites), length, random (seeded). Unset is occupancy. |
 | `--min-gene-length` |  | With --msa-source coregene: drop genes whose alignment is shorter than this, in columns, before ranking (0 keeps all; unset is 0). |

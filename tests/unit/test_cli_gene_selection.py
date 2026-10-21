@@ -1,5 +1,5 @@
-"""The gene-selection options, --partitioned and --coregene-alphabet of the core-gene
-route on phylo, phylo-build and run."""
+"""The gene-selection options, --partitioned, --coregene-alphabet and --gene-trim of
+the core-gene route on phylo, phylo-build and run."""
 
 from __future__ import annotations
 
@@ -226,3 +226,42 @@ def test_panaroo_with_protein_is_refused_before_any_stage(built, tmp_path, comma
     assert result.exit_code != 0
     assert "nucleotides only" in _text(result) and "ppanggolin" in _text(result)
     assert not [o for o in built if isinstance(o, PhyloParams)]
+
+
+# --gene-trim: none or clipkit per-gene trimming.
+
+
+@pytest.mark.parametrize("command", sorted(COMMANDS))
+def test_gene_trim_is_refused_outside_the_coregene_source(built, tmp_path, command) -> None:
+    result = _runner.invoke(app, [*COMMANDS[command](tmp_path), "--gene-trim", "clipkit"])
+    assert result.exit_code != 0
+    text = _text(result)
+    assert "--gene-trim" in text and "only with --msa-source coregene" in text
+
+
+@pytest.mark.parametrize("command", sorted(COMMANDS))
+def test_an_unknown_gene_trim_is_refused(built, tmp_path, command) -> None:
+    argv = [*COMMANDS[command](tmp_path), "--msa-source", "coregene"]
+    result = _runner.invoke(app, [*argv, "--gene-trim", "trimal"])
+    assert result.exit_code != 0
+    assert "--gene-trim" in _text(result) and "clipkit" in _text(result)
+
+
+@pytest.mark.parametrize("command", ["phylo", "run"])
+def test_gene_trim_reaches_the_phylo_extra(built, tmp_path, command) -> None:
+    argv = [*COMMANDS[command](tmp_path), "--msa-source", "coregene"]
+    result = _runner.invoke(app, [*argv, "--gene-trim", "clipkit"])
+    assert result.exit_code == 0, _text(result)
+    assert _phylo(built).extra["gene_trim"] == "clipkit"
+    result = _runner.invoke(app, argv)
+    assert result.exit_code == 0, _text(result)
+    assert "gene_trim" not in _phylo(built).extra
+
+
+def test_phylo_build_passes_gene_trim(monkeypatch, tmp_path) -> None:
+    seen: list[Any] = []
+    monkeypatch.setattr(phylo_stage, "phylo_build", lambda params, *a, **k: seen.append(params))
+    argv = [*_build_args(tmp_path), "--msa-source", "coregene", "--gene-trim", "clipkit"]
+    result = _runner.invoke(app, argv)
+    assert result.exit_code == 0, _text(result)
+    assert seen[0].phylo.extra["gene_trim"] == "clipkit"

@@ -805,3 +805,103 @@ def test_an_unknown_alphabet_is_refused(tmp_path: Path, register_tool) -> None:
             "fakeprot2",
             _LOG,
         )
+
+
+# --- per-gene trimming (--gene-trim clipkit) ----------------------------------
+
+
+def _fake_clipkit(monkeypatch, calls: list[str], *, empty: tuple[str, ...] = ()) -> None:
+    """clipkit drops the last column of each gene, or every column of the
+    genes named in ``empty``; the preflight answers without a binary."""
+    from repgenr.coregenes import trim
+    from repgenr.stages import coregene as stage
+
+    def run_chain(caps, steps, **k):
+        for _, argv in steps:
+            src, dst = Path(argv[1]), Path(argv[argv.index("-o") + 1])
+            calls.append(dst.stem)
+            lines = src.read_text(encoding="utf-8").splitlines()
+            cut = 0 if dst.stem in empty else -1
+            out = [ln if ln.startswith(">") else ln[:cut] for ln in lines]
+            dst.write_text("\n".join(out) + "\n", encoding="utf-8")
+
+    monkeypatch.setattr(trim, "run_chain", run_chain)
+    monkeypatch.setattr(stage, "preflight_clipkit", lambda: {"clipkit": "2.14.0"})
+
+
+def test_trimming_runs_before_the_selection_and_reaches_the_stats(
+    tmp_path: Path, register_tool, monkeypatch
+) -> None:
+    from repgenr.core.contracts import CORE_GENE_STATS
+
+    calls: list[str] = []
+    _fake_clipkit(monkeypatch, calls, empty=("famC",))
+    register_tool(registry, "fakegenes", _gene_builder(_GENES))
+    msa = tmp_path / "msa"
+    result, versions = coregene_core(
+        _gffs(tmp_path),
+        msa,
+        tmp_path / "scratch",
+        CoreGeneParams(),
+        "fakegenes",
+        _LOG,
+        trim="clipkit",
+    )
+    assert sorted(calls) == ["famA", "famB", "famC"]
+    assert versions["clipkit"] == "2.14.0"
+    # famA 3 -> 2 columns, famB 4 -> 3, famC 2 -> 0 and dropped.
+    assert _read_fasta(result.alignment) == {_G1: "GGACG", _G2: "GGATG", _G3: "--ACG"}
+    stats = json.loads((msa / CORE_GENE_STATS).read_text(encoding="utf-8"))
+    assert stats["trim"] == "clipkit" and stats["trim_mode"] == "smart-gap"
+    assert stats["trimmed_columns_removed"] == 4
+    assert stats["genes_dropped_by_trimming"] == 1
+    assert stats["core_genes_available"] == 2 and stats["core_genes"] == 2
+    # Without trimming the fields say so.
+    coregene_core(_gffs(tmp_path), msa, tmp_path / "scratch", CoreGeneParams(), "fakegenes", _LOG)
+    stats = json.loads((msa / CORE_GENE_STATS).read_text(encoding="utf-8"))
+    assert stats["trim"] == "none" and stats["trim_mode"] is None
+    assert stats["trimmed_columns_removed"] is None and stats["genes_dropped_by_trimming"] is None
+
+
+def test_trimming_every_gene_to_nothing_is_refused(
+    tmp_path: Path, register_tool, monkeypatch
+) -> None:
+    _fake_clipkit(monkeypatch, [], empty=("famA", "famB", "famC"))
+    register_tool(registry, "fakegenes", _gene_builder(_GENES))
+    with pytest.raises(WorkdirError, match="removed every column of all 3"):
+        coregene_core(
+            _gffs(tmp_path),
+            tmp_path / "msa",
+            tmp_path / "scratch",
+            CoreGeneParams(),
+            "fakegenes",
+            _LOG,
+            trim="clipkit",
+        )
+
+
+def test_trimming_is_refused_for_a_legacy_builder_and_an_unknown_value(
+    tmp_path: Path, register_tool, monkeypatch
+) -> None:
+    _fake_clipkit(monkeypatch, [])
+    register_tool(registry, "fakecg", _FakeBuilder)
+    with pytest.raises(UserInputError, match="--gene-trim clipkit cannot apply"):
+        coregene_core(
+            _gffs(tmp_path),
+            tmp_path / "msa",
+            tmp_path / "scratch",
+            CoreGeneParams(),
+            "fakecg",
+            _LOG,
+            trim="clipkit",
+        )
+    with pytest.raises(UserInputError, match="--gene-trim must be one of"):
+        coregene_core(
+            _gffs(tmp_path),
+            tmp_path / "msa",
+            tmp_path / "scratch",
+            CoreGeneParams(),
+            "fakecg",
+            _LOG,
+            trim="trimal",
+        )

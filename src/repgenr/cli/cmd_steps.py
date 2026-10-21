@@ -32,6 +32,7 @@ from .base import (
     HELP_COREGENE_ALPHABET,
     HELP_DEREP_TOOL_ARG,
     HELP_GENE_RANK,
+    HELP_GENE_TRIM,
     HELP_INCLUDE_DEREPLICATED,
     HELP_KEEP_FILES,
     HELP_KEEP_ROOT,
@@ -273,6 +274,7 @@ def phylo_build_cmd(
     coregene_alphabet: str | None = typer.Option(
         None, "--coregene-alphabet", help=HELP_COREGENE_ALPHABET
     ),
+    gene_trim: str | None = typer.Option(None, "--gene-trim", help=HELP_GENE_TRIM),
     max_core_genes: int | None = typer.Option(
         None, "--max-core-genes", min=0, help=HELP_MAX_CORE_GENES
     ),
@@ -349,6 +351,7 @@ def phylo_build_cmd(
                 "--core-threshold": core_threshold,
                 "--clean-mode": clean_mode,
                 "--coregene-alphabet": coregene_alphabet,
+                "--gene-trim": gene_trim,
                 "--max-core-genes": max_core_genes,
                 "--gene-rank": gene_rank,
                 "--min-gene-length": min_gene_length,
@@ -367,6 +370,10 @@ def phylo_build_cmd(
             from ..coregenes.base import CLEAN_MODES
 
             _require_choice(clean_mode, set(CLEAN_MODES), "--clean-mode")
+        if gene_trim is not None:
+            from ..coregenes.trim import GENE_TRIMS
+
+            _require_choice(gene_trim, set(GENE_TRIMS), "--gene-trim")
         if coregene_alphabet is not None:
             from ..coregenes.select import ALPHABETS
 
@@ -409,6 +416,7 @@ def phylo_build_cmd(
                     if coregene_alphabet is not None
                     else {}
                 ),
+                **({"gene_trim": gene_trim} if gene_trim is not None else {}),
                 **gene_selection_extra(
                     max_core_genes=max_core_genes,
                     gene_rank=gene_rank,

@@ -2422,6 +2422,40 @@ repgenr phylo -wd $WD --msa-source coregene \
     --max-core-genes 300 --gene-rank informative --min-gene-length 300
 ```
 
+#### Trimming
+
+`--gene-trim clipkit` (on `phylo`, `phylo-build` and `run`; `none` is the
+default) trims each per-gene alignment with
+[ClipKIT](https://github.com/JLSteenwyk/ClipKIT) before the genes are
+measured, ranked and concatenated. Across a genus or wider set the ends of a
+gene alignment are often ragged and some columns poorly aligned; trimming
+removes them so they do not inflate the variable and informative site counts
+that the gene filters and `--gene-rank` read.
+
+- ClipKIT runs in its `smart-gap` mode (`clipkit IN -o OUT -m smart-gap`).
+  It is the only mode offered on the command line.
+- ClipKIT removes single columns, so a codon alignment no longer keeps its
+  reading frame. The tree models applied here (one model per gene, no
+  codon-position partitions) do not depend on the frame.
+- A gene whose alignment loses every column is dropped, and the log says
+  how many. When every gene is dropped the stage stops.
+- It needs per-gene alignments, which all four builders hand over; a builder
+  that returns only its own concatenation is refused it.
+- `core_gene_stats.json` records `trim` (`none` or `clipkit`), `trim_mode`,
+  `trimmed_columns_removed` (columns before minus after, summed over the
+  genes) and `genes_dropped_by_trimming`.
+- Trimming is part of the reuse key of the core-gene alignment, so turning
+  it on or off rebuilds the alignment. The phylo stage record holds
+  `gene_trim`.
+
+`clipkit` is in `envs/core.yml`; under a container backend it runs from
+`quay.io/biocontainers/clipkit:2.14.0--pyhdfd78af_0`.
+
+```bash
+repgenr phylo -wd $WD --msa-source coregene --coregene ppanggolin \
+    --gene-trim clipkit --max-core-genes 300 --gene-rank informative
+```
+
 #### Partitioned models
 
 By default the tree builder fits one substitution model to the whole

@@ -185,7 +185,10 @@ of this record.
   informative sites, variable sites, length, random), per-gene alignments kept
   and reported, a partition file for IQ-TREE and RAxML-NG, a protein alphabet,
   and optional trimming. The protein alphabet (A5) has shipped as
-  `--coregene-alphabet protein`.
+  `--coregene-alphabet protein`. Optional trimming (A6) has shipped as
+  `--gene-trim clipkit`: ClipKIT in smart-gap mode trims each per-gene
+  alignment before the genes are measured, ranked and concatenated; off by
+  default, and other ClipKIT modes are not offered on the command line.
 - **B. Default route and builder hygiene.** A lower Panaroo identity on
   multi-species sets, a recommended IQ-TREE recipe for large alignments,
   `1 - ANI` as the sourmash builder's distance, and defects 4 and 5 above.

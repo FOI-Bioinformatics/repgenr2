@@ -343,6 +343,7 @@ the `envs/` files, and the environment that holds each tool is listed in
 | Core-gene builder | ppanggolin | `ppanggolin`, `mafft` | yes | `ppanggolin:2.3.2` | none |
 | Core-gene builder | scarap | `scarap`, `mmseqs`, `mafft` | yes | `scarap:1.0.2` | none |
 | Core-gene builder | orthofinder | `orthofinder`, `diamond`, `mafft` | yes | `orthofinder:3.1.5` | none |
+| Core-gene trimming (`--gene-trim clipkit`) | clipkit | `clipkit` (in `envs/core.yml`) | yes | `clipkit:2.14.0` | none |
 | Tree builder | iqtree | `iqtree` | yes | `iqtree:3.1.3` | none |
 | Tree builder | fasttree | `fasttree` | yes | `fasttree:2.2.0` | none |
 | Tree builder | veryfasttree | `veryfasttree` | no record (offline contract test only) | `veryfasttree:4.0.5` | none |

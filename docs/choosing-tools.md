@@ -515,6 +515,16 @@ Where the per-gene alignments come from:
 The stage then ranks, caps and concatenates the genes in the same way for
 all four builders.
 
+Trimming (`--gene-trim clipkit`) runs ClipKIT on each per-gene alignment
+before the genes are measured and ranked. It may help on genus and wider
+sets, where partial genes leave ragged ends and some columns are poorly
+aligned; those columns add variable and informative sites that carry little
+signal, and the ranking reads them as signal. Within a species the
+alignments are rarely ragged and trimming is expected to change little. It
+is off by default. It changes the alignment, so turning it on or off
+rebuilds the core-gene alignment rather than reusing it. Its effect on tree
+topology has not been measured in this repository.
+
 Which builder to use:
 
 - `panaroo` is the default. How much of the core survives depends on
