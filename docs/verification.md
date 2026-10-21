@@ -578,6 +578,93 @@ satellite environments given through `--repgenr_opts '--bin-dir ...'`.
   task. A fresh run without `-resume`, all six tasks executed, gave the
   same 611 genes through the link, which was removed afterwards.
 
+### Gene selection, partitions, trimming, protein and ASTER on the same genomes (2026-10-21)
+
+* **Data:** the 24 complete Wolbachia genomes of the section above. The
+  earlier copies had been removed, so the genomes were downloaded again from
+  NCBI with `datasets` by accession, annotated with `annotate-build` (bakta,
+  light database v6.0, three genomes at a time with three threads each, 68
+  to 119 seconds per genome; 1270 CDS for wMel, as before) and indexed with
+  `annotate-index`.
+* **Tools and versions:** bakta 1.12.2, PPanGGOLiN 2.3.2, IQ-TREE 3.1.2
+  (osx-arm64), ClipKIT 2.14.0, ASTER 1.25 (wastral 1.25.3, astral4 1.25.4);
+  PPanGGOLiN and ASTER from satellite environments through `--bin-dir
+  ppanggolin=...` and `--bin-dir aster=...`. Trees were compared with
+  dendropy 5.0.8 (unrooted Robinson-Foulds distance on the 24 leaves, 21
+  non-trivial splits per tree).
+* **Conditions:** an Apple Silicon laptop, one run at a time, each `repgenr
+  phylo-build --genomes-dir ... --annotations-dir ... --msa-source coregene
+  --coregene ppanggolin --no-outgroup -t 8` with the flags below, and
+  `--root midpoint` except for ASTER (`--root none`).
+
+| run | flags added | genes kept of 398 | columns | wall time | RF to run 1 |
+|---|---|---|---|---|---|
+| 1 baseline | `--treebuilder iqtree --aligner-arg model=GTR+G -B 1000` | 398 | 419047 | 146 s | 0 |
+| 2 capped | run 1 and `--max-core-genes 100 --gene-rank informative --partitioned` | 100 | 192041 | 195 s | 2 |
+| 3 trimmed | run 2 and `--gene-trim clipkit` | 100 | 189408 | 198 s | 2 |
+| 4 protein, partitioned | `--treebuilder iqtree -B 1000 --coregene-alphabet protein --partitioned` | 398 | 139275 | failed in IQ-TREE | none |
+| 4c protein, one model | `--treebuilder iqtree -B 1000 --coregene-alphabet protein --aligner-arg model=LG+G` | 398 | 139275 | 345 s | 0 |
+| 5 ASTER, wastral | run 2 with `--treebuilder aster --root none` | 100 | 192041 | 49 s | 0 |
+| 5b ASTER, astral4 | run 5 and `--aligner-arg program=astral4` | 100 | 192041 | 49 s | 2 |
+| 6 preset | `--preset genus` | 300 | 379134 | 211 s | 2 |
+| 6b written out | the genus flags without `--preset` | 300 | 379134 | 221 s | 2 |
+
+- **The baseline reproduces the earlier run:** 398 single-copy soft-core
+  genes and 419047 columns, as on 2026-10-15. PPanGGOLiN took 14 seconds,
+  its alignments and the selection 34, IQ-TREE 93.
+- **Selection and partitions.** Ranked by parsimony-informative sites, the
+  100 kept genes hold 192041 columns and 53610 of the 115436 informative
+  sites of the full set. IQ-TREE received 100 partitions (`-p`, one GTR+G
+  per gene, edge-linked). In every run the kept rows of `core_genes.tsv`,
+  the entries of `partitions.json` and `core_genes` in
+  `core_gene_stats.json` agree, and the last partition ends at the
+  alignment length. The partitioned tree differs from the baseline by one
+  split and its total branch length is 0.914 against 0.869.
+- **Trimming.** ClipKIT (smart-gap) removed 6376 of 419047 columns over
+  all 398 genes in 15 seconds and dropped no gene (`trim`,
+  `trimmed_columns_removed` and `genes_dropped_by_trimming` in
+  `core_gene_stats.json`). The ranking chose the same 100 genes as run 2,
+  and the tree has the topology of run 2 (RF 0).
+- **The partitioned protein tree failed** (run 4, exit 6). IQ-TREE stopped
+  with `ERROR: File not found AA`: the partition file `partitions.txt`
+  names the data type in the model field (`AA, AFLFKL_00030 = 1-393`).
+  IQ-TREE reads that field as a model; it accepts `DNA` there but reads
+  `AA` as a file name. Passing `--aligner-arg model=LG+G` gave the same
+  error. With `LG+G,` in place of `AA,`, IQ-TREE run directly on the same
+  alignment and 398 partitions finished in 977 seconds, with a tree that
+  differs from the baseline by one split (RF 2). `--preset family` takes this path and was not
+  run.
+- **Protein without partitions** (run 4c, LG+G): 139275 amino-acid
+  columns and the topology of the baseline (RF 0). The total branch length
+  is 0.590 substitutions per site against 0.869 for DNA (0.68); over the
+  21 internal branches the median ratio of protein to DNA length is 0.90.
+- **ASTER.** Run 5 wrote 100 gene trees (IQ-TREE `--fast`, about 0.1
+  seconds each) over all 24 genomes to `gene_trees.nwk`, one per entry of
+  `partitions.json`. The wastral tree has the baseline topology (RF 0); its
+  branch lengths are in coalescent units on internal branches only.
+  astral4, which gives lengths in substitutions per site, differs from both
+  the baseline and the wastral tree by one split (RF 2). `-B 1000` was
+  ignored with a warning, as ASTER gives local posterior probabilities.
+- **The preset expands as documented.** `--preset genus` and the same flags
+  written out produced the same IQ-TREE command, the same 300 genes in the
+  same order and the same topology (RF 0 between them; log-likelihoods
+  -1463428.03 and -1463428.10). The two alignments differ in one gene,
+  where one base sits one column apart in 19 genomes; the alignment inside
+  PPanGGOLiN differed between the two runs, not the selection.
+- **Without `model=` the partitioned IQ-TREE run does not select models.**
+  RepGenR2 logs that IQ-TREE runs ModelFinder, but with a partition file
+  IQ-TREE takes each partition's model from the file's first field, and
+  `DNA` stands for GTR without rate heterogeneity. The `.iqtree` report of
+  run 6 lists `GTR+F` for all 300 partitions and no model selection was
+  run. This is the configuration of `--preset genus`; its tree is shorter
+  than the GTR+G trees (0.663 against 0.869 for the baseline). With
+  `model=` given (runs 2 and 3) the command-line model applies to every
+  partition (`GTR+F+G4` in the report).
+
+Not run: `--preset family` (it fails as run 4 does), RAxML-NG with
+partitions, the other core-gene builders, the Nextflow route, and a
+comparison of support values.
+
 ### Gzipped genomes in the aligners and typers (2026-10-08)
 
 * **Data:** gzipped genomes from `pureclone_20` (three or four `.fasta.gz`
