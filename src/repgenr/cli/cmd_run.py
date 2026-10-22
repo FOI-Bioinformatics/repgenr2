@@ -311,7 +311,11 @@ def run(
     ),
     release: str | None = typer.Option(None, "-r", "--release", help=HELP_GTDB_RELEASE),
     gtdb_version: str | None = typer.Option(None, "--gtdb-version", help=HELP_GTDB_VERSION),
-    metadata_source: str = typer.Option("tsv", "--metadata-source", help="tsv or api."),
+    metadata_source: str = typer.Option(
+        "tsv",
+        "--metadata-source",
+        help="Source of the GTDB metadata: tsv (the metadata table) or api (the GTDB API).",
+    ),
     metadata_path: str | None = typer.Option(None, "--metadata-path", help=HELP_METADATA_PATH),
     nodownload: bool = typer.Option(False, "--nodownload", help=HELP_NODOWNLOAD),
     outgroup_accession: str | None = typer.Option(
@@ -324,7 +328,9 @@ def run(
         help=HELP_LIMIT,
     ),
     # --- selection: viral (NCBI Virus) ---
-    target: str | None = typer.Option(None, "--target", help="Virus taxon (viral)."),
+    target: str | None = typer.Option(
+        None, "--target", help="Virus taxon to select (viral), as vmetadata --target takes it."
+    ),
     viral_source: str = typer.Option("ncbi_virus", "--viral-source", help="ncbi_virus or bvbrc."),
     complete_only: bool = typer.Option(
         False, "--complete-only", help="ncbi_virus: only COMPLETE sequences (viral)."
@@ -338,7 +344,11 @@ def run(
         callback=_validate_released_after,
         help="ncbi_virus: MM/DD/YYYY (viral).",
     ),
-    group_segments: bool = typer.Option(False, "--group-segments", help="Group viral segments."),
+    group_segments: bool = typer.Option(
+        False,
+        "--group-segments",
+        help="ncbi_virus: combine an isolate's segments into one genome (viral).",
+    ),
     # --- genome download ---
     keep_files: bool = typer.Option(
         False, "--keep-files", help="Keep the genome-download intermediates (bacterial chain)."

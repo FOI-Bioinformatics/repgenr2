@@ -66,7 +66,7 @@ DEFAULT_THREADS = 16
 # Help texts shared by several commands, so the same flag reads the same
 # everywhere and the CLI matrix (tests/audit/cli_matrix.yaml) can hold one
 # sentence per flag.
-HELP_THREADS = "Threads for the external tool (default 16, or the CPU limit when lower)."
+HELP_THREADS = "Threads for the external tool. Default: 16, or the CPU limit when lower."
 HELP_PRIMARY_ANI = "Primary (pre-clustering) ANI threshold in (0, 1]."
 HELP_SECONDARY_ANI = "Secondary (final cluster) ANI threshold in (0, 1]."
 HELP_ALIGNED_FRACTION = "Minimum aligned fraction in (0, 1] for a pair to be compared."
@@ -90,19 +90,19 @@ HELP_KEEP_ROOT = (
 HELP_KEEP_FILES = "Keep download and scratch intermediates."
 HELP_SKETCH = (
     "Write a sourmash sketch of each genome to sketches/ (k=21,31,51, scaled=1000). "
-    "Default: when sourmash can run; --sketch requires it, --no-sketch skips it."
+    "--sketch requires sourmash and --no-sketch skips it. Default: when sourmash can run."
 )
 HELP_READS_SKETCH = (
     "Sketch each run's reads with sourmash (k=21,31,51, scaled=1000, with abundances) "
     "into assemblies/<run>/reads.sig.zip while the run is assembled; never in sketches/. "
-    "Default: when sourmash can run; --reads-sketch requires it, --no-reads-sketch skips it."
+    "--reads-sketch requires sourmash and --no-reads-sketch skips it. "
+    "Default: when sourmash can run."
 )
 HELP_SCREEN_READS = (
-    "Screen each run's reads sketch before assembling it: a run is excused when its GTDB "
-    "genus differs from the submitted genus (taxon_mismatch), when the top species holds "
-    "less than --screen-min-fraction of the reads (low_match_fraction), or when an accepted "
-    "run of the same biosample contains it (duplicate_isolate). Needs sourmash, "
-    "--gtdb-sketch and --gtdb-lineages."
+    "Screen each run's reads sketch before assembly. A run is excused on a GTDB genus "
+    "mismatch (taxon_mismatch), a top species below --screen-min-fraction "
+    "(low_match_fraction) or containment in an accepted run of its biosample "
+    "(duplicate_isolate). Needs sourmash, --gtdb-sketch and --gtdb-lineages."
 )
 HELP_SCREEN_MIN_FRACTION = (
     "With --screen-reads: minimum abundance-weighted fraction of the reads in the top GTDB species."
@@ -118,18 +118,19 @@ HELP_METADATA_PATH = (
 HELP_NODOWNLOAD = "Reuse a GTDB table already present in the workdir."
 HELP_LIMIT = "Keep at most N GTDB genomes, round-robin over species by CheckM quality."
 HELP_DATASET = "GTDB dataset: all or rep."
-HELP_LEVEL = "family, genus or species."
+HELP_LEVEL = "Taxonomic rank of the target: family, genus or species."
 HELP_ALL_GENOMES = "Use all genomes, not only the representatives."
 HELP_BOOTSTRAP = (
     "Bootstrap replicates. 0 turns bootstrapping off; IQ-TREE needs at least 1000 when it is on."
 )
 HELP_REFERENCE = (
-    "Reference genome: a filename, 'medoid' (the default: the genome nearest to all others by "
-    "sketch ANI, when the genomes are sketched and sourmash is at hand) or 'first'."
+    "Reference genome: a filename, 'medoid' (the genome nearest to all others by sketch "
+    "ANI) or 'first'. Default: medoid when the genomes are sketched and sourmash is at "
+    "hand, else first."
 )
 HELP_CORE_FRACTION = (
     "Keep only the variable columns where at least this fraction of the genomes have a called "
-    "base (a soft core, 0 to 1). Unset keeps every variable column and the log reports what "
+    "base (a soft core, 0 to 1). Default: every variable column, and the log reports what "
     "0.95 would keep."
 )
 HELP_MSA_SOURCE = (
@@ -139,78 +140,63 @@ HELP_MSA_SOURCE = (
 HELP_COREGENE = (
     "Core-gene alignment builder for --msa-source coregene: panaroo, ppanggolin, scarap, "
     "orthofinder or markers (GTDB's single-copy marker proteins, aligned as protein; "
-    "needs --markers-db). "
-    "Tuning goes through --aligner-arg. panaroo: threshold= is the identity at which it "
-    "groups genes (0.98; lower it, 0.95 then 0.90, when the core comes out small on a "
-    "divergent set), and also filtered=false, merge_paralogs, remove_invalid_genes, "
-    "family_threshold, len_dif_percent. ppanggolin: identity= and coverage= of its "
-    "protein clustering (0.8 each), partition=softcore|core|persistent (softcore, at "
-    "--core-threshold), single_copy=false, dup_margin, mode, nb_of_partitions, "
-    "translation_table. scarap: method (FH), seeds (100), "
-    "core_prefilter (the smaller of 0.90 and --core-threshold). orthofinder: "
-    "search=diamond|diamond_ultra_sens|blastp|mmseqs (diamond), inflation (MCL, 1.2). "
-    "markers: min_markers (10 % of the set), the fewest single-copy markers a genome needs. "
-    "The number of core genes kept is set with --max-core-genes."
+    "needs --markers-db). Its settings are --aligner-arg keys, listed in docs/phylogeny.md "
+    "(Core-gene builders)."
 )
 HELP_CORE_THRESHOLD = (
     "With --msa-source coregene: a gene is core when present in at least this fraction "
-    "of the genomes (0.95)."
+    "of the genomes. Default: 0.95."
 )
 HELP_CLEAN_MODE = (
-    "With --msa-source coregene: Panaroo's cleaning of annotation errors, strict (default), "
-    "moderate or sensitive."
+    "With --msa-source coregene: Panaroo's cleaning of annotation errors: strict, "
+    "moderate or sensitive. Default: strict."
 )
 HELP_COREGENE_ALPHABET = (
-    "With --msa-source coregene: dna (default) or protein; protein suits genus and family "
-    "overviews, where third codon positions saturate (ppanggolin, scarap and orthofinder; "
-    "refused with panaroo). markers aligns protein only, which is its default."
+    "With --msa-source coregene: dna or protein. protein is read by ppanggolin, scarap "
+    "and orthofinder and refused with panaroo; markers aligns protein only. "
+    "Default: dna, or protein with --coregene markers."
 )
 HELP_MARKERS_DB = (
     "With --coregene markers: the marker database directory (repgenr markers-db download "
-    "--output DIR); REPGENR_MARKERS_DB when unset."
+    "--output DIR). Default: $REPGENR_MARKERS_DB."
 )
 HELP_MARKER_SET = (
-    "With --coregene markers: bac120, ar53 or auto (default: bac120, or ar53 when fewer than "
-    "half of the genomes reach the bac120 minimum and ar53 finds more of its markers)."
+    "With --coregene markers: bac120, ar53 or auto. auto takes bac120, or ar53 when fewer "
+    "than half of the genomes reach the bac120 minimum and ar53 finds more of its markers. "
+    "Default: auto."
 )
 HELP_GENE_TRIM = (
-    "With --msa-source coregene: none (default) or clipkit; clipkit trims each gene "
-    "alignment (ClipKIT smart-gap mode, the only mode offered) before the genes are "
-    "measured, ranked and concatenated. Suits genus and wider sets, where ragged ends "
-    "and poorly aligned columns inflate the site counts."
+    "With --msa-source coregene: none or clipkit. clipkit trims each gene alignment "
+    "(ClipKIT smart-gap mode, the only mode offered) before the genes are measured, "
+    "ranked and concatenated. Default: none."
 )
 HELP_MAX_CORE_GENES = (
     "With --msa-source coregene: keep at most this many core genes in the alignment, "
-    "chosen by --gene-rank (a count; 0 keeps every core gene; unset is 0)."
+    "chosen by --gene-rank; 0 keeps every core gene. Default: 0."
 )
 HELP_GENE_RANK = (
     "With --msa-source coregene: how genes are ranked when --max-core-genes caps them: "
     "occupancy (fraction of genomes holding the gene), informative (parsimony-informative "
-    "sites), variable (variable sites), length, random (seeded). Unset is occupancy."
+    "sites), variable (variable sites), length, random (seeded). Default: occupancy."
 )
 HELP_MIN_GENE_LENGTH = (
     "With --msa-source coregene: drop genes whose alignment is shorter than this, in "
-    "columns, before ranking (0 keeps all; unset is 0)."
+    "columns, before ranking; 0 keeps all. Default: 0."
 )
 HELP_MAX_GENE_GAPS = (
-    "With --msa-source coregene: drop genes where more than this fraction of the "
-    "alignment is gap characters, before ranking (0 to 1; unset applies no limit)."
+    "With --msa-source coregene: drop genes where more than this fraction (0 to 1) of "
+    "the alignment is gap characters, before ranking. Default: no limit."
 )
 HELP_PRESET = (
-    "A recommended configuration from the table phylo-advise applies: outbreak, species, "
-    "species-masked, genus, family or quick (flags listed in docs/phylogeny.md, Presets). It "
-    "sets the MSA source, tree builder and their settings. An option given on the command "
-    "line overrides the preset, also at its default value; --aligner-arg values add to the "
-    "preset's. A --treebuilder other than the preset's drops the preset's --aligner-arg and "
-    "--partitioned where that builder does not read them, and a different --msa-source is "
-    "refused. A preset setting cannot be removed; write the flags out without --preset then."
+    "A recommended configuration from phylo-advise: outbreak, species, species-masked, "
+    "genus, family or quick. It sets the MSA source, tree builder and their settings; an "
+    "option on the command line overrides it. Flags and rules: docs/phylogeny.md, Presets."
 )
 HELP_PARTITIONED = (
-    "With --msa-source coregene: fit one substitution model per core gene (an edge-linked "
-    "partition model, from the alignment's partitions.json). Honoured by iqtree, raxmlng "
-    "and aster (which requires it); other builders warn and fit one model. Refused "
-    "together with an ascertainment-bias correction (asc=, a +ASC model). Changes the "
-    "tree, not the alignment."
+    "With --msa-source coregene: fit one substitution model per core gene (edge-linked, "
+    "from partitions.json). Read by iqtree, raxmlng and aster (which "
+    "requires it); other builders warn and fit one model. Refused with an "
+    "ascertainment-bias correction (asc=, a +ASC model)."
 )
 HELP_ALIGNER_ARG = (
     "Aligner, SNP typer, masker or tree builder tuning as key=value (repeatable), "
@@ -226,15 +212,16 @@ HELP_KEEPER = (
 HELP_PROCESS_SIZE = "Chunk size; when set and exceeded, two-stage chunking runs for any tool."
 HELP_NUM_PROCESSES = (
     "Parallel stage-1 chunk workers (threads split across them). "
-    "0 = auto (~threads/4, capped by cores)."
+    "0 picks about threads/4, capped by the cores."
 )
 HELP_ANNOTATE_PROCESSES = (
-    "Genomes annotated at once (threads split across them). 0 = auto (~threads/4, capped by cores)."
+    "Genomes annotated at once (threads split across them). "
+    "0 picks about threads/4, capped by the cores."
 )
 HELP_RUN_NUM_PROCESSES = (
     "Parallel workers, threads split across them: dereplicate's stage-1 chunk "
     "workers and, with --msa-source coregene, the genomes annotated at once. "
-    "0 = auto (~threads/4, capped by cores)."
+    "0 picks about threads/4, capped by the cores."
 )
 HELP_REFINE = (
     "Seed of a lineage to keep at finer resolution (filename, stem or accession; "
@@ -245,8 +232,8 @@ HELP_REFINE_FILE = (
     "TSV with the columns seed and ani: several lineages, each refined at its own ANI "
     "(the seeds of one ANI form one lineage)."
 )
-HELP_PRE_PRIMARY_ANI = "Stage-1 (intra-chunk) primary ANI; defaults to --primary-ani."
-HELP_PRE_SECONDARY_ANI = "Stage-1 (intra-chunk) secondary ANI; defaults to --secondary-ani."
+HELP_PRE_PRIMARY_ANI = "Stage-1 (intra-chunk) primary ANI. Default: --primary-ani."
+HELP_PRE_SECONDARY_ANI = "Stage-1 (intra-chunk) secondary ANI. Default: --secondary-ani."
 HELP_REDUCE = (
     "Taxonomy-aware reduction after ANI: none, species, or genus (one representative per taxon)."
 )
@@ -269,10 +256,10 @@ HELP_ROOT_NAME = "Label of the top node. FlexTaxD expects 'root'."
 HELP_REMOVE_OUTGROUP = "Leave the outgroup out of the taxonomy after rooting."
 HELP_INCLUDE_DEREPLICATED = "List redundant genomes under their representative in the taxonomy."
 HELP_COLLAPSE_SUPPORT = "Merge nodes whose support is below this fraction into their parent."
-HELP_ANNOTATOR = "Annotator: bakta (default; needs its database, --bakta-db or BAKTA_DB) or prokka."
+HELP_ANNOTATOR = "Annotator: bakta (needs its database, --bakta-db or BAKTA_DB) or prokka."
 HELP_BAKTA_DB = (
-    "bakta database directory (bakta_db download --output DIR --type light|full); "
-    "BAKTA_DB when unset."
+    "bakta database directory (bakta_db download --output DIR --type light|full). "
+    "Default: $BAKTA_DB."
 )
 HELP_COLLAPSE_LENGTH = "Merge nodes whose branch is shorter than this length into their parent."
 HELP_COLLAPSE_DIAMETER = (
@@ -301,13 +288,12 @@ HELP_SKETCHES_DIR = (
 
 HELP_MAX_SPOTS = (
     "Stream only the first N spots of each run (fastq-dump -X; a paired-end spot gives "
-    "two reads). Default: the whole run. Each cap is its own variant directory, "
-    "spots_N/ beside all/. The first spots are not a random sample; for a species-level "
-    "gather on an isolate this is expected to matter little."
+    "two reads). Each cap writes its own variant, spots_N/ beside all/. The first "
+    "spots are not a random sample. Default: the whole run."
 )
 HELP_SKETCH_JOBS = (
-    "Runs streamed at once, each a fastq-dump and a sourmash process (default 4, or "
-    "the usable CPUs when fewer)."
+    "Runs streamed at once, each a fastq-dump and a sourmash process. "
+    "Default: 4, or the usable CPUs when fewer."
 )
 HELP_SKETCH_OUT = (
     "Standalone form: sketch the runs named by --accession/--accession-file into "
@@ -1019,7 +1005,7 @@ def _derep_help(*, auto: bool = True) -> str:
     from ..core.plugins import tool_choices_help
     from ..dereplicators.base import registry
 
-    return tool_choices_help(registry, auto=auto)
+    return tool_choices_help(registry, auto=auto, prefix="Dereplicator: ")
 
 
 def _tree_help(*, auto: bool = True) -> str:

@@ -36,14 +36,16 @@ def _validate_released_after(value: str | None) -> str | None:
 @app.command(rich_help_panel=PANEL_ENTRY)
 def vmetadata(
     workdir: Path = typer.Option(..., "-wd", "--workdir", help=HELP_WORKDIR_CREATED),
-    target: str | None = typer.Option(None, "--target", help="Virus taxon/group/family."),
+    target: str | None = typer.Option(
+        None, "--target", help="Virus taxon to select: a taxon, group or family name."
+    ),
     source: str = typer.Option(
         "ncbi_virus", "--source", help="ncbi_virus (NCBI Virus via datasets) or bvbrc."
     ),
     filter: str | None = typer.Option(
         None,
         "--filter",
-        help="bvbrc: keep records whose header carries this tag (default: complete genome).",
+        help="bvbrc: keep records whose header carries this tag. Default: complete genome.",
     ),
     host: str | None = typer.Option(None, "--host", help="ncbi_virus: restrict to a host species."),
     complete_only: bool = typer.Option(
@@ -100,9 +102,9 @@ def vgenome(
     length_method: str = typer.Option(
         "median_of_medians",
         "--length-method",
-        help="Center of the length window: median_of_medians (default) gives "
+        help="Center of the length window: median_of_medians gives "
         "one vote per species, so an over-sequenced outbreak species cannot "
-        "shift the window; mean averages every record and loses that defense.",
+        "shift the window; mean averages every record.",
     ),
     length_range: str | None = typer.Option(None, "--length-range", help="e.g. 25000-35000."),
     discard: str | None = typer.Option(None, "--discard", help="Comma-separated header tags."),

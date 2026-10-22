@@ -44,10 +44,9 @@ def versions(
     different versions (an image in one, the host binary in another) is listed
     once per stage as 'tool (stage): version'. A containerized tool's version
     is its image reference. A stage that did not finish is named on stderr.
-
-    Lets the Nextflow bridge modules (which run a full stage in a scratch
-    workdir) surface the resolved tool versions into versions.yml.
     """
+    # The Nextflow bridge modules, which run a full stage in a scratch workdir,
+    # call this to put the resolved tool versions into versions.yml.
     from ..core.config import CONFIG_FILENAME, Config
     from ..core.errors import WorkdirError
     from ..core.logging import configure_logging
@@ -525,7 +524,7 @@ def markers_db(
     directory: Path | None = typer.Argument(
         None,
         metavar="[DIRECTORY]",
-        help="With info: the database directory (default: $REPGENR_MARKERS_DB).",
+        help="With info: the database directory. Default: $REPGENR_MARKERS_DB.",
     ),
     output: Path | None = typer.Option(
         None,
@@ -537,7 +536,7 @@ def markers_db(
         "all",
         "--set",
         callback=_markers_db_set,
-        help="With download: bac120, ar53 or all (default) GTDB marker families.",
+        help="With download: the GTDB marker families, bac120, ar53 or all.",
     ),
     threads: int = typer.Option(
         8,
@@ -545,7 +544,7 @@ def markers_db(
         "--threads",
         min=1,
         callback=resolve_threads,
-        help="With download: concurrent requests (default 8, or the CPU limit when lower).",
+        help="With download: concurrent requests. Default: 8, or the CPU limit when lower.",
     ),
 ) -> None:
     """Download or describe the GTDB marker-gene database (HMMER3 models).
@@ -655,14 +654,17 @@ def census(
         None,
         "--source",
         callback=_census_source,
-        help="api (GTDB API, default) or table (GTDB metadata table, also 'tsv'); with "
-        "--viral, ncbi_virus (default). bvbrc is counted only from a vmetadata workdir.",
+        help="api (GTDB API) or table (GTDB metadata table, also 'tsv'); with --viral, "
+        "ncbi_virus. bvbrc is counted only from a vmetadata workdir. Default: api, or "
+        "ncbi_virus with --viral.",
     ),
     release: str | None = typer.Option(
         None, "-r", "--release", help="GTDB release of the table source, e.g. 232.0."
     ),
     gtdb_version: str | None = typer.Option(
-        None, "--gtdb-version", help="GTDB table of the table source: bac120 (default) or ar53."
+        None,
+        "--gtdb-version",
+        help="GTDB table of the table source: bac120 or ar53. Default: bac120.",
     ),
     metadata_path: str | None = typer.Option(
         None,
@@ -936,11 +938,12 @@ def list_tools(
     (secondary ones such as racon's minimap2 included) are present
     locally. A version query that does not answer within 8 s is stopped,
     and the version is shown as unknown unless the tool's conda package
-    record names one. --check alone
-    always exits 0, since a host that has only some families installed is
-    normal; --check --strict exits 4 when any adapter is missing or errored,
-    or 5 when any plugin failed to load, so a script can verify an
-    environment.
+    record names one.
+
+    --check alone always exits 0, since a host that has only some families
+    installed is normal. --check --strict exits 4 when any adapter is
+    missing or errored, or 5 when any plugin failed to load, so a script can
+    verify an environment.
     """
     from ..core.binaries import version_timeout
     from ..core.errors import MissingBinaryError, PluginError

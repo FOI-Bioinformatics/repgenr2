@@ -55,33 +55,33 @@ is 'vmetadata --source'. --platform filters the sequencing platform with
 | `--max-runs` |  | With --reads: keep at most N runs, the largest by bases. |
 | `--assembler` | `auto` | Assembler: auto, flye, shovill, skesa. |
 | `-d`, `--dataset` | `rep` | GTDB dataset: all or rep. |
-| `-l`, `--level` |  | family, genus or species. |
+| `-l`, `--level` |  | Taxonomic rank of the target: family, genus or species. |
 | `-tf`, `--target-family` |  | Restrict the selection to this family. |
 | `-tg`, `--target-genus` |  | Restrict the selection to this genus. |
 | `-ts`, `--target-species` |  | Restrict the selection to this species. |
 | `-r`, `--release` |  | GTDB release (tsv source). |
 | `--gtdb-version` |  | GTDB table: bac120 or ar53 (tsv source). |
-| `--metadata-source` | `tsv` | tsv or api. |
+| `--metadata-source` | `tsv` | Source of the GTDB metadata: tsv (the metadata table) or api (the GTDB API). |
 | `--metadata-path` |  | Use this GTDB metadata table instead of downloading. With --source tsv, -r/--release and --gtdb-version are still required. |
 | `--nodownload` | off | Reuse a GTDB table already present in the workdir. |
 | `--outgroup-accession` |  | Accession to fetch and set aside as the outgroup. |
 | `--limit` |  | Keep at most N GTDB genomes, round-robin over species by CheckM quality. |
-| `--target` |  | Virus taxon (viral). |
+| `--target` |  | Virus taxon to select (viral), as vmetadata --target takes it. |
 | `--viral-source` | `ncbi_virus` | ncbi_virus or bvbrc. |
 | `--complete-only` | off | ncbi_virus: only COMPLETE sequences (viral). |
 | `--host` |  | ncbi_virus: restrict to a host species (viral). |
 | `--released-after` |  | ncbi_virus: MM/DD/YYYY (viral). |
-| `--group-segments` | off | Group viral segments. |
+| `--group-segments` | off | ncbi_virus: combine an isolate's segments into one genome (viral). |
 | `--keep-files` | off | Keep the genome-download intermediates (bacterial chain). |
-| `--tool` | `skder` | auto, drep, galah, skder, sourmash. |
+| `--tool` | `skder` | Dereplicator: auto, drep, galah, skder, sourmash. |
 | `--primary-ani` | `0.9` | Primary (pre-clustering) ANI threshold in (0, 1]. |
 | `--secondary-ani` | `0.99` | Secondary (final cluster) ANI threshold in (0, 1]. |
 | `--aligned-fraction` | `0.5` | Minimum aligned fraction in (0, 1] for a pair to be compared. |
 | `--keeper` | `quality` | Representative choice per cluster: quality (manifest CheckM values and genome N50), gtdb (a GTDB species representative first, then quality) or tool (adapter's own). |
 | `-s`, `--process-size` |  | Chunk size; when set and exceeded, two-stage chunking runs for any tool. |
-| `-p`, `--num-processes` | `0` | Parallel workers, threads split across them: dereplicate's stage-1 chunk workers and, with --msa-source coregene, the genomes annotated at once. 0 = auto (~threads/4, capped by cores). |
-| `--pre-primary-ani` |  | Stage-1 (intra-chunk) primary ANI; defaults to --primary-ani. |
-| `--pre-secondary-ani` |  | Stage-1 (intra-chunk) secondary ANI; defaults to --secondary-ani. |
+| `-p`, `--num-processes` | `0` | Parallel workers, threads split across them: dereplicate's stage-1 chunk workers and, with --msa-source coregene, the genomes annotated at once. 0 picks about threads/4, capped by the cores. |
+| `--pre-primary-ani` |  | Stage-1 (intra-chunk) primary ANI. Default: --primary-ani. |
+| `--pre-secondary-ani` |  | Stage-1 (intra-chunk) secondary ANI. Default: --secondary-ani. |
 | `--reduce` | `none` | Taxonomy-aware reduction after ANI: none, species, or genus (one representative per taxon). |
 | `--target-reps` | `0` | Target representative count: search --secondary-ani to land near it (0 = off; re-runs dereplication per search step). |
 | `--refine` |  | Seed of a lineage to keep at finer resolution (filename, stem or accession; repeatable): every cluster holding a seed is dereplicated again at --refine-ani. |
@@ -89,7 +89,7 @@ is 'vmetadata --source'. --platform filters the sequencing platform with
 | `--refine-file` |  | TSV with the columns seed and ani: several lineages, each refined at its own ANI (the seeds of one ANI form one lineage). |
 | `--tool-arg` |  | Tool tuning as key=value (repeatable), e.g. mode=greedy. |
 | `--with-snptype` | off | Run the standalone snptype stage (with --snptyper, --mask, --reference) after dereplication, so the SNP tables are produced whatever builds the tree. |
-| `--preset` |  | A recommended configuration from the table phylo-advise applies: outbreak, species, species-masked, genus, family or quick (flags listed in docs/phylogeny.md, Presets). It sets the MSA source, tree builder and their settings. An option given on the command line overrides the preset, also at its default value; --aligner-arg values add to the preset's. A --treebuilder other than the preset's drops the preset's --aligner-arg and --partitioned where that builder does not read them, and a different --msa-source is refused. A preset setting cannot be removed; write the flags out without --preset then. |
+| `--preset` |  | A recommended configuration from phylo-advise: outbreak, species, species-masked, genus, family or quick. It sets the MSA source, tree builder and their settings; an option on the command line overrides it. Flags and rules: docs/phylogeny.md, Presets. |
 | `--treebuilder` | `iqtree` | auto, aster, fasttree, iqtree, mashtree, raxmlng, ska2, skani, sourmash, veryfasttree. |
 | `--msa-source` | `aligner` | aligner, snptype or coregene (a concatenated core-gene alignment from the annotations the annotate stage wrote). |
 | `--aligner` | `progressivemauve` | cactus, progressivemauve, sibeliaz. |
@@ -98,7 +98,7 @@ is 'vmetadata --source'. --platform filters the sequencing platform with
 | `--root` |  | How phylo roots tree/tree.nwk: outgroup (on the branch to the outgroup), midpoint, or none (as the tree builder wrote it). Default: outgroup when an outgroup is staged and --no-outgroup is not given, else none. |
 | `--all-genomes` | off | Use all genomes, not only the representatives. |
 | `-B`, `--bootstrap` | `0` | Bootstrap replicates. 0 turns bootstrapping off; IQ-TREE needs at least 1000 when it is on. |
-| `--reference` |  | Reference genome: a filename, 'medoid' (the default: the genome nearest to all others by sketch ANI, when the genomes are sketched and sourmash is at hand) or 'first'. |
+| `--reference` |  | Reference genome: a filename, 'medoid' (the genome nearest to all others by sketch ANI) or 'first'. Default: medoid when the genomes are sketched and sourmash is at hand, else first. |
 | `--aligner-arg` |  | Aligner, SNP typer, masker or tree builder tuning as key=value (repeatable), e.g. kmer=15 (sibeliaz), seed_weight=11 (progressivemauve) or model=GTR+G (iqtree, raxmlng). |
 | `--mask` | `none` | Recombination masking of the SNP alignment: none, gubbins. Needs --msa-source snptype or --with-snptype. |
 | `--node-basename` |  | Name internal nodes <basename><n>. Without it, internal nodes receive names derived from a hash of their descendant leaves. |
@@ -106,27 +106,27 @@ is 'vmetadata --source'. --platform filters the sequencing platform with
 | `--root-name` | `root` | Label of the top node. FlexTaxD expects 'root'. |
 | `--remove-outgroup` | off | Leave the outgroup out of the taxonomy after rooting. |
 | `--include-dereplicated`, `--no-include-dereplicated` | on | List redundant genomes under their representative in the taxonomy. |
-| `--core-fraction` |  | Keep only the variable columns where at least this fraction of the genomes have a called base (a soft core, 0 to 1). Unset keeps every variable column and the log reports what 0.95 would keep. |
-| `--coregene` | `panaroo` | Core-gene alignment builder for --msa-source coregene: panaroo, ppanggolin, scarap, orthofinder or markers (GTDB's single-copy marker proteins, aligned as protein; needs --markers-db). Tuning goes through --aligner-arg. panaroo: threshold= is the identity at which it groups genes (0.98; lower it, 0.95 then 0.90, when the core comes out small on a divergent set), and also filtered=false, merge_paralogs, remove_invalid_genes, family_threshold, len_dif_percent. ppanggolin: identity= and coverage= of its protein clustering (0.8 each), partition=softcore\|core\|persistent (softcore, at --core-threshold), single_copy=false, dup_margin, mode, nb_of_partitions, translation_table. scarap: method (FH), seeds (100), core_prefilter (the smaller of 0.90 and --core-threshold). orthofinder: search=diamond\|diamond_ultra_sens\|blastp\|mmseqs (diamond), inflation (MCL, 1.2). markers: min_markers (10 % of the set), the fewest single-copy markers a genome needs. The number of core genes kept is set with --max-core-genes. |
-| `--annotator` | `bakta` | Annotator: bakta (default; needs its database, --bakta-db or BAKTA_DB) or prokka. |
-| `--bakta-db` |  | bakta database directory (bakta_db download --output DIR --type light\|full); BAKTA_DB when unset. |
-| `--core-threshold` |  | With --msa-source coregene: a gene is core when present in at least this fraction of the genomes (0.95). |
-| `--clean-mode` |  | With --msa-source coregene: Panaroo's cleaning of annotation errors, strict (default), moderate or sensitive. |
-| `--coregene-alphabet` |  | With --msa-source coregene: dna (default) or protein; protein suits genus and family overviews, where third codon positions saturate (ppanggolin, scarap and orthofinder; refused with panaroo). markers aligns protein only, which is its default. |
-| `--gene-trim` |  | With --msa-source coregene: none (default) or clipkit; clipkit trims each gene alignment (ClipKIT smart-gap mode, the only mode offered) before the genes are measured, ranked and concatenated. Suits genus and wider sets, where ragged ends and poorly aligned columns inflate the site counts. |
-| `--markers-db` |  | With --coregene markers: the marker database directory (repgenr markers-db download --output DIR); REPGENR_MARKERS_DB when unset. |
-| `--marker-set` |  | With --coregene markers: bac120, ar53 or auto (default: bac120, or ar53 when fewer than half of the genomes reach the bac120 minimum and ar53 finds more of its markers). |
-| `--max-core-genes` |  | With --msa-source coregene: keep at most this many core genes in the alignment, chosen by --gene-rank (a count; 0 keeps every core gene; unset is 0). |
-| `--gene-rank` |  | With --msa-source coregene: how genes are ranked when --max-core-genes caps them: occupancy (fraction of genomes holding the gene), informative (parsimony-informative sites), variable (variable sites), length, random (seeded). Unset is occupancy. |
-| `--min-gene-length` |  | With --msa-source coregene: drop genes whose alignment is shorter than this, in columns, before ranking (0 keeps all; unset is 0). |
-| `--max-gene-gaps` |  | With --msa-source coregene: drop genes where more than this fraction of the alignment is gap characters, before ranking (0 to 1; unset applies no limit). |
-| `--partitioned` | off | With --msa-source coregene: fit one substitution model per core gene (an edge-linked partition model, from the alignment's partitions.json). Honoured by iqtree, raxmlng and aster (which requires it); other builders warn and fit one model. Refused together with an ascertainment-bias correction (asc=, a +ASC model). Changes the tree, not the alignment. |
+| `--core-fraction` |  | Keep only the variable columns where at least this fraction of the genomes have a called base (a soft core, 0 to 1). Default: every variable column, and the log reports what 0.95 would keep. |
+| `--coregene` | `panaroo` | Core-gene alignment builder for --msa-source coregene: panaroo, ppanggolin, scarap, orthofinder or markers (GTDB's single-copy marker proteins, aligned as protein; needs --markers-db). Its settings are --aligner-arg keys, listed in docs/phylogeny.md (Core-gene builders). |
+| `--annotator` | `bakta` | Annotator: bakta (needs its database, --bakta-db or BAKTA_DB) or prokka. |
+| `--bakta-db` |  | bakta database directory (bakta_db download --output DIR --type light\|full). Default: $BAKTA_DB. |
+| `--core-threshold` |  | With --msa-source coregene: a gene is core when present in at least this fraction of the genomes. Default: 0.95. |
+| `--clean-mode` |  | With --msa-source coregene: Panaroo's cleaning of annotation errors: strict, moderate or sensitive. Default: strict. |
+| `--coregene-alphabet` |  | With --msa-source coregene: dna or protein. protein is read by ppanggolin, scarap and orthofinder and refused with panaroo; markers aligns protein only. Default: dna, or protein with --coregene markers. |
+| `--gene-trim` |  | With --msa-source coregene: none or clipkit. clipkit trims each gene alignment (ClipKIT smart-gap mode, the only mode offered) before the genes are measured, ranked and concatenated. Default: none. |
+| `--markers-db` |  | With --coregene markers: the marker database directory (repgenr markers-db download --output DIR). Default: $REPGENR_MARKERS_DB. |
+| `--marker-set` |  | With --coregene markers: bac120, ar53 or auto. auto takes bac120, or ar53 when fewer than half of the genomes reach the bac120 minimum and ar53 finds more of its markers. Default: auto. |
+| `--max-core-genes` |  | With --msa-source coregene: keep at most this many core genes in the alignment, chosen by --gene-rank; 0 keeps every core gene. Default: 0. |
+| `--gene-rank` |  | With --msa-source coregene: how genes are ranked when --max-core-genes caps them: occupancy (fraction of genomes holding the gene), informative (parsimony-informative sites), variable (variable sites), length, random (seeded). Default: occupancy. |
+| `--min-gene-length` |  | With --msa-source coregene: drop genes whose alignment is shorter than this, in columns, before ranking; 0 keeps all. Default: 0. |
+| `--max-gene-gaps` |  | With --msa-source coregene: drop genes where more than this fraction (0 to 1) of the alignment is gap characters, before ranking. Default: no limit. |
+| `--partitioned` | off | With --msa-source coregene: fit one substitution model per core gene (edge-linked, from partitions.json). Read by iqtree, raxmlng and aster (which requires it); other builders warn and fit one model. Refused with an ascertainment-bias correction (asc=, a +ASC model). |
 | `--collapse-support` |  | Merge nodes whose support is below this fraction into their parent. |
 | `--collapse-length` |  | Merge nodes whose branch is shorter than this length into their parent. |
 | `--collapse-diameter` |  | Merge every clade whose leaf-to-leaf distance is within this value into one node, keeping the fewest such clades (in the tree's own units). |
 | `--ranks` | off | Add a rank column to tree2tax.tsv: 'strain' on every genome, 'no rank' on internal nodes unless --rank-red names them. |
 | `--rank-red` |  | With --ranks: NAME=RED bands, e.g. species=0.95,genus=0.8; an internal node takes the rank with the largest threshold not above its relative evolutionary divergence, once per lineage. Needs branch lengths and a rooted tree. |
-| `-t`, `--threads` | `16` | Threads for the external tool (default 16, or the CPU limit when lower). |
+| `-t`, `--threads` | `16` | Threads for the external tool. Default: 16, or the CPU limit when lower. |
 | `--allow-incomplete` | off | Proceed with a warning when the input genome set is incomplete. |
 | `--dry-run` | off | Print the stages and key parameters, then exit. |
 
@@ -162,7 +162,7 @@ that does not exist exits 3.
 |---|---|---|
 | `-wd`, `--workdir` | required | Working directory. |
 | `--all-genomes` | off | Use all genomes, not only the representatives. |
-| `-t`, `--threads` | `16` | Threads for the external tool (default 16, or the CPU limit when lower). |
+| `-t`, `--threads` | `16` | Threads for the external tool. Default: 16, or the CPU limit when lower. |
 | `--json` | off | Print one versioned JSON object (repgenr.phylo-advise/1) on stdout instead of the text. |
 
 ## Entry points: select and fetch genomes
@@ -177,7 +177,7 @@ The --source option is called --metadata-source in 'run'.
 |---|---|---|
 | `-wd`, `--workdir` | required | Working directory (created). |
 | `-d`, `--dataset` | required | GTDB dataset: all or rep. |
-| `-l`, `--level` | required | family, genus or species. |
+| `-l`, `--level` | required | Taxonomic rank of the target: family, genus or species. |
 | `--source` | `tsv` | tsv (download full table) or api (GTDB API, target only). |
 | `-r`, `--release` |  | GTDB release (tsv source). |
 | `--gtdb-version` |  | GTDB table: bac120 or ar53 (tsv source). |
@@ -199,7 +199,7 @@ Download and organize genomes selected by the metadata stage.
 | `-wd`, `--workdir` | required | Working directory. |
 | `--accession-list-only` | off | Write the accession list and stop (no download). |
 | `--keep-files` | off | Keep download and scratch intermediates. |
-| `--sketch`, `--no-sketch` | auto | Write a sourmash sketch of each genome to sketches/ (k=21,31,51, scaled=1000). Default: when sourmash can run; --sketch requires it, --no-sketch skips it. |
+| `--sketch`, `--no-sketch` | auto | Write a sourmash sketch of each genome to sketches/ (k=21,31,51, scaled=1000). --sketch requires sourmash and --no-sketch skips it. Default: when sourmash can run. |
 
 ### vmetadata
 
@@ -210,9 +210,9 @@ The --source option is called --viral-source in 'run'.
 | option | default | description |
 |---|---|---|
 | `-wd`, `--workdir` | required | Working directory (created). |
-| `--target` |  | Virus taxon/group/family. |
+| `--target` |  | Virus taxon to select: a taxon, group or family name. |
 | `--source` | `ncbi_virus` | ncbi_virus (NCBI Virus via datasets) or bvbrc. |
-| `--filter` |  | bvbrc: keep records whose header carries this tag (default: complete genome). |
+| `--filter` |  | bvbrc: keep records whose header carries this tag. Default: complete genome. |
 | `--host` |  | ncbi_virus: restrict to a host species. |
 | `--complete-only` | off | ncbi_virus: only COMPLETE sequences. |
 | `--released-after` |  | ncbi_virus: MM/DD/YYYY. |
@@ -231,7 +231,7 @@ Select and organize viral genomes (virus equivalent of genome).
 | `-tc`, `--target-custom` |  | key:value. |
 | `--length-all` | off | Disable the length window (keep every length). |
 | `--length-deviation` | `10` | Half-width of the length window, in percent of its center. |
-| `--length-method` | `median_of_medians` | Center of the length window: median_of_medians (default) gives one vote per species, so an over-sequenced outbreak species cannot shift the window; mean averages every record and loses that defense. |
+| `--length-method` | `median_of_medians` | Center of the length window: median_of_medians gives one vote per species, so an over-sequenced outbreak species cannot shift the window; mean averages every record. |
 | `--length-range` |  | e.g. 25000-35000. |
 | `--discard` |  | Comma-separated header tags. |
 | `--no-outgroup` | off | Do not root with an outgroup. |
@@ -243,7 +243,7 @@ Select and organize viral genomes (virus equivalent of genome).
 | `--print-fasta-headers` | off | Print the headers of the selected records. |
 | `--ignore-duplicates` | off | bvbrc: tolerate duplicate record ids (last wins). |
 | `--keep-files` | off | Keep download and scratch intermediates. |
-| `--sketch`, `--no-sketch` | auto | Write a sourmash sketch of each genome to sketches/ (k=21,31,51, scaled=1000). Default: when sourmash can run; --sketch requires it, --no-sketch skips it. |
+| `--sketch`, `--no-sketch` | auto | Write a sourmash sketch of each genome to sketches/ (k=21,31,51, scaled=1000). --sketch requires sourmash and --no-sketch skips it. Default: when sourmash can run. |
 
 ### ingest
 
@@ -253,13 +253,13 @@ Populate a working directory from local genomes (no download).
 |---|---|---|
 | `-wd`, `--workdir` | required | Working directory (created). |
 | `--genomes-dir` |  | Directory of genome FASTA files (.fasta, .fa, .fna, .fas, .fasta.gz, .fna.gz or .fa.gz; subdirectories are not searched) to stage under genomes/. At least one of --genomes-dir and --from-workdir is required. |
-| `--from-workdir` |  | Earlier working directory whose genome set (selection.tsv and genomes/) is added, with taxonomy, quality, the GTDB representative flag and the manifest source of each genome; its outgroup is not carried over. Repeatable; may be combined with --genomes-dir. |
-| `--strict-sources` | off | Refuse (exit 2, nothing written) a --from-workdir whose genome set was written by a stage that status lists as interrupted or stale, or that has no stage record; without it each such source is named in a warning and taken. |
-| `--selection` |  | selection.tsv (accession, taxonomy, filename, outgroup flag, quality) naming the genomes to take from --genomes-dir; default: every FASTA under --genomes-dir, taxonomy parsed from canonical Family_genus_species_ACCESSION names. |
+| `--from-workdir` |  | Earlier working directory whose genome set (selection.tsv and genomes/) is added with each genome's taxonomy, quality, GTDB representative flag and manifest source; its outgroup is not carried over. Repeatable, and combines with --genomes-dir. |
+| `--strict-sources` | off | Refuse (exit 2, nothing written) a --from-workdir whose genome set has no stage record or one that status lists as interrupted or stale. Without it such a source is named in a warning and taken. |
+| `--selection` |  | selection.tsv (accession, taxonomy, filename, outgroup flag, quality) naming the genomes to take from --genomes-dir. Default: every FASTA under --genomes-dir, taxonomy parsed from canonical Family_genus_species_ACCESSION names. |
 | `--outgroup` |  | Genome to set aside as the outgroup: a filename, stem or accession under --genomes-dir or in a --from-workdir (genomes/ or outgroup/), or a path to a FASTA file elsewhere. |
 | `--copy` | off | Copy the files into genomes/ instead of symlinking them. |
 | `--drop-foreign` | off | Discard genomes appended from sequencing runs (assemble --append) instead of refusing to overwrite the selection that holds them. |
-| `--sketch`, `--no-sketch` | auto | Write a sourmash sketch of each genome to sketches/ (k=21,31,51, scaled=1000). Default: when sourmash can run; --sketch requires it, --no-sketch skips it. A --from-workdir sketch of the same genome is copied. |
+| `--sketch`, `--no-sketch` | auto | Write a sourmash sketch of each genome to sketches/ (k=21,31,51, scaled=1000). --sketch requires sourmash and --no-sketch skips it. Default: when sourmash can run. A --from-workdir sketch of the same genome is copied. |
 
 ### reads
 
@@ -277,7 +277,7 @@ Select sequencing runs from ENA/SRA by taxon or accession (writes reads.tsv).
 | `--max-runs` |  | Keep at most N runs, the largest by bases. |
 | `--min-bases` | `0` | Drop runs with fewer sequenced bases than this. |
 | `--max-bases` |  | Drop runs with more sequenced bases than this (a guard against whole-host libraries, which would assemble into a host-dominated genome). |
-| `--drop-selection` | `MDA` | Drop runs whose ENA library selection is this value (repeatable; default MDA, whole-genome amplification). Pass 'none' to keep every selection. |
+| `--drop-selection` | `MDA` | Drop runs whose ENA library selection is this value (repeatable; MDA is whole-genome amplification). Pass 'none' to keep every selection. |
 | `--one-per-sample`, `--all-runs` | on | Keep the best run of each sample (a long-read run with enough bases, else the largest run), or every run. |
 
 ### reads-sketch
@@ -290,8 +290,8 @@ Sketch the reads of selected runs streamed from SRA, without downloading them.
 | `--accession` |  | Restrict to these runs of reads.tsv (repeatable); a run not in reads.tsv is refused. Without -wd: the runs to sketch. |
 | `--accession-file` |  | File of run accessions, one per line (# comments allowed). |
 | `--platform` | `any` | Restrict to runs of one platform: any, illumina, ont or pacbio. |
-| `--max-spots` |  | Stream only the first N spots of each run (fastq-dump -X; a paired-end spot gives two reads). Default: the whole run. Each cap is its own variant directory, spots_N/ beside all/. The first spots are not a random sample; for a species-level gather on an isolate this is expected to matter little. |
-| `--jobs` |  | Runs streamed at once, each a fastq-dump and a sourmash process (default 4, or the usable CPUs when fewer). |
+| `--max-spots` |  | Stream only the first N spots of each run (fastq-dump -X; a paired-end spot gives two reads). Each cap writes its own variant, spots_N/ beside all/. The first spots are not a random sample. Default: the whole run. |
+| `--jobs` |  | Runs streamed at once, each a fastq-dump and a sourmash process. Default: 4, or the usable CPUs when fewer. |
 | `-o`, `--out` |  | Standalone form: sketch the runs named by --accession/--accession-file into DIR/<variant>/ without a workdir; nothing is recorded. |
 | `--reads-tsv` |  | Standalone form: a reads.tsv (the reads stage's table) naming the runs, with their taxonomy and biosample; --accession and --accession-file then pick a subset of it. |
 | `--versions-out` |  | Write resolved tool versions (YAML fragment) here. |
@@ -312,7 +312,7 @@ downloading any of them.
 | `--dup-ani` | `0.999` | Minimum ANI estimate at which a run contained in an earlier run of the same biosample is a duplicate (duplicate_isolate). |
 | `--gtdb-sketch` |  | GTDB sourmash sketch database (or set REPGENR_GTDB_SKETCH). |
 | `--gtdb-lineages` |  | Lineages CSV published with the GTDB sketch (or set REPGENR_GTDB_LINEAGES). |
-| `--jobs` |  | Runs gathered at once (default 4, or the usable CPUs when fewer); each gather takes about 0.6 GB against the GTDB representatives sketch. |
+| `--jobs` |  | Runs gathered at once; each gather takes about 0.6 GB against the GTDB representatives sketch. Default: 4, or the usable CPUs when fewer. |
 | `--reads-tsv` |  | Standalone form: a reads.tsv (the reads stage's table) naming the runs, with their taxonomy and biosample; --accession and --accession-file then pick a subset of it. |
 | `--sketches-dir` |  | Standalone form: the -o DIR of reads-sketch, holding <variant>/ directories. |
 | `-o`, `--out` |  | Standalone form: write the decisions to DIR/<variant>/ instead of a workdir. |
@@ -326,8 +326,8 @@ Fetch and assemble the selected runs; write genomes/ and selection.tsv.
 |---|---|---|
 | `-wd`, `--workdir` | required | Working directory. |
 | `--assembler` | `auto` | Assembler: auto, flye, shovill, skesa. |
-| `-t`, `--threads` | `16` | Threads for the external tool (default 16, or the CPU limit when lower). |
-| `--jobs` |  | Runs assembled concurrently, threads split across them (default 2, or 1 when a long-read run is pending). |
+| `-t`, `--threads` | `16` | Threads for the external tool. Default: 16, or the CPU limit when lower. |
+| `--jobs` |  | Runs assembled concurrently, threads split across them. Default: 2, or 1 when a long-read run is pending. |
 | `--memory-gb` | `16` | Memory hint per assembly, in GB, for tools that cap RAM; also the budget that caps concurrent classifier gathers (about 0.6 GB each). |
 | `--min-contig-length` | `500` | Drop contigs shorter than this many bases. |
 | `--polisher` | `auto` | Polisher for long-read assemblies: none, auto, medaka, racon. |
@@ -335,7 +335,7 @@ Fetch and assemble the selected runs; write genomes/ and selection.tsv.
 | `--outgroup` |  | A FASTA file to set aside as the outgroup for rooting. |
 | `--accession` |  | Assemble only these runs of reads.tsv (repeatable); the other pending runs are deferred, as under --max-runs. A run not in reads.tsv is refused. |
 | `--accession-file` |  | File of run accessions to assemble, one per line (# comments allowed), such as the passed.txt of reads-screen. |
-| `--max-runs` |  | Keep at most N runs with a finished assembly, in reads.tsv order (largest first); finished runs count toward N and are kept. The other runs are listed as deferred in excused_runs.tsv; a later call with a larger N assembles them. |
+| `--max-runs` |  | Keep at most N runs with a finished assembly, in reads.tsv order (largest first); finished runs count toward N. The others are deferred in excused_runs.tsv, and a later call with a larger N assembles them. |
 | `--append` | off | Add the assemblies to a working directory that already holds a selection (metadata and genome, or ingest) instead of replacing it. |
 | `--keep-reads` | off | Keep the downloaded FASTQ files after assembling. |
 | `--keep-files` | off | Keep each run's assembler scratch directory. |
@@ -346,9 +346,9 @@ Fetch and assemble the selected runs; write genomes/ and selection.tsv.
 | `--gtdb-sketch` |  | GTDB sourmash sketch database (.sig.zip); enables classification (or set REPGENR_GTDB_SKETCH). |
 | `--gtdb-lineages` |  | The lineages CSV published with the sketch (or set REPGENR_GTDB_LINEAGES). |
 | `--tool-arg` |  | Assembler tuning as key=value (repeatable), e.g. mode=nano-raw. |
-| `--sketch`, `--no-sketch` | auto | Write a sourmash sketch of each genome to sketches/ (k=21,31,51, scaled=1000). Default: when sourmash can run; --sketch requires it, --no-sketch skips it. With --append only the new genomes are sketched. |
-| `--reads-sketch`, `--no-reads-sketch` | auto | Sketch each run's reads with sourmash (k=21,31,51, scaled=1000, with abundances) into assemblies/<run>/reads.sig.zip while the run is assembled; never in sketches/. Default: when sourmash can run; --reads-sketch requires it, --no-reads-sketch skips it. |
-| `--screen-reads` | off | Screen each run's reads sketch before assembling it: a run is excused when its GTDB genus differs from the submitted genus (taxon_mismatch), when the top species holds less than --screen-min-fraction of the reads (low_match_fraction), or when an accepted run of the same biosample contains it (duplicate_isolate). Needs sourmash, --gtdb-sketch and --gtdb-lineages. |
+| `--sketch`, `--no-sketch` | auto | Write a sourmash sketch of each genome to sketches/ (k=21,31,51, scaled=1000). --sketch requires sourmash and --no-sketch skips it. Default: when sourmash can run. With --append only the new genomes are sketched. |
+| `--reads-sketch`, `--no-reads-sketch` | auto | Sketch each run's reads with sourmash (k=21,31,51, scaled=1000, with abundances) into assemblies/<run>/reads.sig.zip while the run is assembled; never in sketches/. --reads-sketch requires sourmash and --no-reads-sketch skips it. Default: when sourmash can run. |
+| `--screen-reads` | off | Screen each run's reads sketch before assembly. A run is excused on a GTDB genus mismatch (taxon_mismatch), a top species below --screen-min-fraction (low_match_fraction) or containment in an accepted run of its biosample (duplicate_isolate). Needs sourmash, --gtdb-sketch and --gtdb-lineages. |
 | `--screen-min-fraction` | `0.3` | With --screen-reads: minimum abundance-weighted fraction of the reads in the top GTDB species. |
 | `--screen-dup-ani` | `0.999` | With --screen-reads: ANI estimate from which a run contained in an earlier accepted run of the same biosample is excused as a duplicate. |
 
@@ -361,15 +361,15 @@ Cluster genomes by ANI and select representatives.
 | option | default | description |
 |---|---|---|
 | `-wd`, `--workdir` | required | Working directory. |
-| `--tool` | `skder` | auto, drep, galah, skder, sourmash. |
+| `--tool` | `skder` | Dereplicator: auto, drep, galah, skder, sourmash. |
 | `-pani`, `--primary-ani` | `0.9` | Primary (pre-clustering) ANI threshold in (0, 1]. |
 | `-sani`, `--secondary-ani` | `0.99` | Secondary (final cluster) ANI threshold in (0, 1]. |
 | `-af`, `--aligned-fraction` | `0.5` | Minimum aligned fraction in (0, 1] for a pair to be compared. |
-| `-t`, `--threads` | `16` | Threads for the external tool (default 16, or the CPU limit when lower). |
+| `-t`, `--threads` | `16` | Threads for the external tool. Default: 16, or the CPU limit when lower. |
 | `-s`, `--process-size` |  | Chunk size; when set and exceeded, two-stage chunking runs for any tool. |
-| `-p`, `--num-processes` | `0` | Parallel stage-1 chunk workers (threads split across them). 0 = auto (~threads/4, capped by cores). |
-| `--pre-primary-ani` |  | Stage-1 (intra-chunk) primary ANI; defaults to --primary-ani. |
-| `--pre-secondary-ani` |  | Stage-1 (intra-chunk) secondary ANI; defaults to --secondary-ani. |
+| `-p`, `--num-processes` | `0` | Parallel stage-1 chunk workers (threads split across them). 0 picks about threads/4, capped by the cores. |
+| `--pre-primary-ani` |  | Stage-1 (intra-chunk) primary ANI. Default: --primary-ani. |
+| `--pre-secondary-ani` |  | Stage-1 (intra-chunk) secondary ANI. Default: --secondary-ani. |
 | `--reduce` | `none` | Taxonomy-aware reduction after ANI: none, species, or genus (one representative per taxon). |
 | `--target-reps` | `0` | Target representative count: search --secondary-ani to land near it (0 = off; re-runs dereplication per search step). |
 | `--virus` | off | Pass virus-tuned parameters to dRep (--tool drep); the other tools do not read it. |
@@ -394,7 +394,7 @@ derep-stock if it should be kept.
 | `--refine` |  | Seed of a lineage to keep at finer resolution (filename, stem or accession; repeatable): every cluster holding a seed is dereplicated again at --refine-ani. |
 | `--refine-ani` |  | Secondary ANI for the clusters of the --refine seeds; above --secondary-ani. |
 | `--refine-file` |  | TSV with the columns seed and ani: several lineages, each refined at its own ANI (the seeds of one ANI form one lineage). |
-| `-t`, `--threads` | `16` | Threads for the external tool (default 16, or the CPU limit when lower). |
+| `-t`, `--threads` | `16` | Threads for the external tool. Default: 16, or the CPU limit when lower. |
 
 ### annotate
 
@@ -405,13 +405,13 @@ On this command --tool selects the annotator.
 | option | default | description |
 |---|---|---|
 | `-wd`, `--workdir` | required | Working directory. |
-| `--tool` | `bakta` | Annotator: bakta (default; needs its database, --bakta-db or BAKTA_DB) or prokka. |
+| `--tool` | `bakta` | Annotator: bakta (needs its database, --bakta-db or BAKTA_DB) or prokka. |
 | `--all-genomes` | off | Use all genomes, not only the representatives. |
-| `--bakta-db` |  | bakta database directory (bakta_db download --output DIR --type light\|full); BAKTA_DB when unset. |
-| `-t`, `--threads` | `16` | Threads for the external tool (default 16, or the CPU limit when lower). |
+| `--bakta-db` |  | bakta database directory (bakta_db download --output DIR --type light\|full). Default: $BAKTA_DB. |
+| `-t`, `--threads` | `16` | Threads for the external tool. Default: 16, or the CPU limit when lower. |
 | `--tool-arg` |  | Annotator tuning as key=value (repeatable). |
 | `--allow-incomplete` | off | Proceed with a warning when the input genome set is incomplete. |
-| `-p`, `--num-processes` | `0` | Genomes annotated at once (threads split across them). 0 = auto (~threads/4, capped by cores). |
+| `-p`, `--num-processes` | `0` | Genomes annotated at once (threads split across them). 0 picks about threads/4, capped by the cores. |
 
 ### snptype
 
@@ -424,11 +424,11 @@ commands it selects the dereplicator.
 |---|---|---|
 | `-wd`, `--workdir` | required | Working directory. |
 | `--tool` | `simple` | SNP typer: parsnp, simple, ska2, snippy. |
-| `--reference` |  | Reference genome: a filename, 'medoid' (the default: the genome nearest to all others by sketch ANI, when the genomes are sketched and sourmash is at hand) or 'first'. |
+| `--reference` |  | Reference genome: a filename, 'medoid' (the genome nearest to all others by sketch ANI) or 'first'. Default: medoid when the genomes are sketched and sourmash is at hand, else first. |
 | `--all-genomes` | off | Use all genomes, not only the representatives. |
 | `--mask` | `none` | Recombination masking of the SNP alignment: none, gubbins. |
-| `--core-fraction` |  | Keep only the variable columns where at least this fraction of the genomes have a called base (a soft core, 0 to 1). Unset keeps every variable column and the log reports what 0.95 would keep. |
-| `-t`, `--threads` | `16` | Threads for the external tool (default 16, or the CPU limit when lower). |
+| `--core-fraction` |  | Keep only the variable columns where at least this fraction of the genomes have a called base (a soft core, 0 to 1). Default: every variable column, and the log reports what 0.95 would keep. |
+| `-t`, `--threads` | `16` | Threads for the external tool. Default: 16, or the CPU limit when lower. |
 | `--tool-arg` |  | Tool tuning as key=value (repeatable). |
 | `--allow-incomplete` | off | Proceed with a warning when the input genome set is incomplete. |
 
@@ -439,7 +439,7 @@ Build a phylogenetic tree from an alignment, SNP alignment, or directly.
 | option | default | description |
 |---|---|---|
 | `-wd`, `--workdir` | required | Working directory. |
-| `--preset` |  | A recommended configuration from the table phylo-advise applies: outbreak, species, species-masked, genus, family or quick (flags listed in docs/phylogeny.md, Presets). It sets the MSA source, tree builder and their settings. An option given on the command line overrides the preset, also at its default value; --aligner-arg values add to the preset's. A --treebuilder other than the preset's drops the preset's --aligner-arg and --partitioned where that builder does not read them, and a different --msa-source is refused. A preset setting cannot be removed; write the flags out without --preset then. |
+| `--preset` |  | A recommended configuration from phylo-advise: outbreak, species, species-masked, genus, family or quick. It sets the MSA source, tree builder and their settings; an option on the command line overrides it. Flags and rules: docs/phylogeny.md, Presets. |
 | `--treebuilder` | `iqtree` | auto, aster, fasttree, iqtree, mashtree, raxmlng, ska2, skani, sourmash, veryfasttree. |
 | `--msa-source` | `aligner` | aligner, snptype or coregene (a concatenated core-gene alignment from the annotations the annotate stage wrote). |
 | `--aligner` | `progressivemauve` | cactus, progressivemauve, sibeliaz. |
@@ -448,23 +448,23 @@ Build a phylogenetic tree from an alignment, SNP alignment, or directly.
 | `--no-outgroup` | off | Do not root with an outgroup. |
 | `--root` |  | How phylo roots tree/tree.nwk: outgroup (on the branch to the outgroup), midpoint, or none (as the tree builder wrote it). Default: outgroup when an outgroup is staged and --no-outgroup is not given, else none. |
 | `-B`, `--bootstrap` | `0` | Bootstrap replicates. 0 turns bootstrapping off; IQ-TREE needs at least 1000 when it is on. |
-| `--reference` |  | Reference genome: a filename, 'medoid' (the default: the genome nearest to all others by sketch ANI, when the genomes are sketched and sourmash is at hand) or 'first'. |
+| `--reference` |  | Reference genome: a filename, 'medoid' (the genome nearest to all others by sketch ANI) or 'first'. Default: medoid when the genomes are sketched and sourmash is at hand, else first. |
 | `--aligner-arg` |  | Aligner, SNP typer, masker or tree builder tuning as key=value (repeatable), e.g. kmer=15 (sibeliaz), seed_weight=11 (progressivemauve) or model=GTR+G (iqtree, raxmlng). |
-| `-t`, `--threads` | `16` | Threads for the external tool (default 16, or the CPU limit when lower). |
+| `-t`, `--threads` | `16` | Threads for the external tool. Default: 16, or the CPU limit when lower. |
 | `--mask` | `none` | Recombination masking of the SNP alignment: none, gubbins. Needs --msa-source snptype. |
-| `--core-fraction` |  | Keep only the variable columns where at least this fraction of the genomes have a called base (a soft core, 0 to 1). Unset keeps every variable column and the log reports what 0.95 would keep. |
-| `--coregene` | `panaroo` | Core-gene alignment builder for --msa-source coregene: panaroo, ppanggolin, scarap, orthofinder or markers (GTDB's single-copy marker proteins, aligned as protein; needs --markers-db). Tuning goes through --aligner-arg. panaroo: threshold= is the identity at which it groups genes (0.98; lower it, 0.95 then 0.90, when the core comes out small on a divergent set), and also filtered=false, merge_paralogs, remove_invalid_genes, family_threshold, len_dif_percent. ppanggolin: identity= and coverage= of its protein clustering (0.8 each), partition=softcore\|core\|persistent (softcore, at --core-threshold), single_copy=false, dup_margin, mode, nb_of_partitions, translation_table. scarap: method (FH), seeds (100), core_prefilter (the smaller of 0.90 and --core-threshold). orthofinder: search=diamond\|diamond_ultra_sens\|blastp\|mmseqs (diamond), inflation (MCL, 1.2). markers: min_markers (10 % of the set), the fewest single-copy markers a genome needs. The number of core genes kept is set with --max-core-genes. |
-| `--core-threshold` |  | With --msa-source coregene: a gene is core when present in at least this fraction of the genomes (0.95). |
-| `--clean-mode` |  | With --msa-source coregene: Panaroo's cleaning of annotation errors, strict (default), moderate or sensitive. |
-| `--coregene-alphabet` |  | With --msa-source coregene: dna (default) or protein; protein suits genus and family overviews, where third codon positions saturate (ppanggolin, scarap and orthofinder; refused with panaroo). markers aligns protein only, which is its default. |
-| `--gene-trim` |  | With --msa-source coregene: none (default) or clipkit; clipkit trims each gene alignment (ClipKIT smart-gap mode, the only mode offered) before the genes are measured, ranked and concatenated. Suits genus and wider sets, where ragged ends and poorly aligned columns inflate the site counts. |
-| `--markers-db` |  | With --coregene markers: the marker database directory (repgenr markers-db download --output DIR); REPGENR_MARKERS_DB when unset. |
-| `--marker-set` |  | With --coregene markers: bac120, ar53 or auto (default: bac120, or ar53 when fewer than half of the genomes reach the bac120 minimum and ar53 finds more of its markers). |
-| `--max-core-genes` |  | With --msa-source coregene: keep at most this many core genes in the alignment, chosen by --gene-rank (a count; 0 keeps every core gene; unset is 0). |
-| `--gene-rank` |  | With --msa-source coregene: how genes are ranked when --max-core-genes caps them: occupancy (fraction of genomes holding the gene), informative (parsimony-informative sites), variable (variable sites), length, random (seeded). Unset is occupancy. |
-| `--min-gene-length` |  | With --msa-source coregene: drop genes whose alignment is shorter than this, in columns, before ranking (0 keeps all; unset is 0). |
-| `--max-gene-gaps` |  | With --msa-source coregene: drop genes where more than this fraction of the alignment is gap characters, before ranking (0 to 1; unset applies no limit). |
-| `--partitioned` | off | With --msa-source coregene: fit one substitution model per core gene (an edge-linked partition model, from the alignment's partitions.json). Honoured by iqtree, raxmlng and aster (which requires it); other builders warn and fit one model. Refused together with an ascertainment-bias correction (asc=, a +ASC model). Changes the tree, not the alignment. |
+| `--core-fraction` |  | Keep only the variable columns where at least this fraction of the genomes have a called base (a soft core, 0 to 1). Default: every variable column, and the log reports what 0.95 would keep. |
+| `--coregene` | `panaroo` | Core-gene alignment builder for --msa-source coregene: panaroo, ppanggolin, scarap, orthofinder or markers (GTDB's single-copy marker proteins, aligned as protein; needs --markers-db). Its settings are --aligner-arg keys, listed in docs/phylogeny.md (Core-gene builders). |
+| `--core-threshold` |  | With --msa-source coregene: a gene is core when present in at least this fraction of the genomes. Default: 0.95. |
+| `--clean-mode` |  | With --msa-source coregene: Panaroo's cleaning of annotation errors: strict, moderate or sensitive. Default: strict. |
+| `--coregene-alphabet` |  | With --msa-source coregene: dna or protein. protein is read by ppanggolin, scarap and orthofinder and refused with panaroo; markers aligns protein only. Default: dna, or protein with --coregene markers. |
+| `--gene-trim` |  | With --msa-source coregene: none or clipkit. clipkit trims each gene alignment (ClipKIT smart-gap mode, the only mode offered) before the genes are measured, ranked and concatenated. Default: none. |
+| `--markers-db` |  | With --coregene markers: the marker database directory (repgenr markers-db download --output DIR). Default: $REPGENR_MARKERS_DB. |
+| `--marker-set` |  | With --coregene markers: bac120, ar53 or auto. auto takes bac120, or ar53 when fewer than half of the genomes reach the bac120 minimum and ar53 finds more of its markers. Default: auto. |
+| `--max-core-genes` |  | With --msa-source coregene: keep at most this many core genes in the alignment, chosen by --gene-rank; 0 keeps every core gene. Default: 0. |
+| `--gene-rank` |  | With --msa-source coregene: how genes are ranked when --max-core-genes caps them: occupancy (fraction of genomes holding the gene), informative (parsimony-informative sites), variable (variable sites), length, random (seeded). Default: occupancy. |
+| `--min-gene-length` |  | With --msa-source coregene: drop genes whose alignment is shorter than this, in columns, before ranking; 0 keeps all. Default: 0. |
+| `--max-gene-gaps` |  | With --msa-source coregene: drop genes where more than this fraction (0 to 1) of the alignment is gap characters, before ranking. Default: no limit. |
+| `--partitioned` | off | With --msa-source coregene: fit one substitution model per core gene (edge-linked, from partitions.json). Read by iqtree, raxmlng and aster (which requires it); other builders warn and fit one model. Refused with an ascertainment-bias correction (asc=, a +ASC model). |
 | `--allow-incomplete` | off | Proceed with a warning when the input genome set is incomplete. |
 
 ### tree2tax
@@ -507,9 +507,9 @@ or an unsupported combination, 3 when a request fails or -wd does not exist.
 | `-tg`, `--target-genus` |  | Count this genus: one row per species. |
 | `--viral` | off | Count a viral taxon (NCBI Virus) instead of a GTDB taxon. |
 | `--target` |  | With --viral: the virus taxon, as vmetadata takes it (e.g. picornaviridae). |
-| `--source` |  | api (GTDB API, default) or table (GTDB metadata table, also 'tsv'); with --viral, ncbi_virus (default). bvbrc is counted only from a vmetadata workdir. |
+| `--source` |  | api (GTDB API) or table (GTDB metadata table, also 'tsv'); with --viral, ncbi_virus. bvbrc is counted only from a vmetadata workdir. Default: api, or ncbi_virus with --viral. |
 | `-r`, `--release` |  | GTDB release of the table source, e.g. 232.0. |
-| `--gtdb-version` |  | GTDB table of the table source: bac120 (default) or ar53. |
+| `--gtdb-version` |  | GTDB table of the table source: bac120 or ar53. Default: bac120. |
 | `--metadata-path` |  | Read this GTDB metadata table (.tsv.gz) instead of downloading the release table; with -wd, the table to count the candidates from. |
 | `--runs` | off | Also count the ENA whole-genome sequencing runs under the taxon: runs, biosamples and runs per platform (bacterial taxa only). |
 | `--host` |  | With --viral: only records from this host species. |
@@ -534,7 +534,7 @@ sourmash thresholds.
 |---|---|---|
 | `-wd`, `--workdir` | required | Working directory. |
 | `--tool` | `auto` | Dereplicator with comparison support: auto, drep, sourmash. auto uses dRep when it can run (on the PATH or via the container backend), otherwise sourmash. |
-| `-t`, `--threads` | `16` | Threads for the external tool (default 16, or the CPU limit when lower). |
+| `-t`, `--threads` | `16` | Threads for the external tool. Default: 16, or the CPU limit when lower. |
 | `--plot-max` | `1.0` | Upper bound of the ANI values plotted, as a fraction from 0 to 1. |
 | `--plot-min` | `0.0` | Lower bound of the ANI values plotted, as a fraction from 0 to 1. |
 | `--keep-files` | off | Keep the comparison tool's working directory glance_wd/. |
@@ -585,7 +585,7 @@ container backend).
 | option | default | description |
 |---|---|---|
 | `-wd`, `--workdir` | required | Working directory. |
-| `-t`, `--threads` | `16` | Threads for the external tool (default 16, or the CPU limit when lower). |
+| `-t`, `--threads` | `16` | Threads for the external tool. Default: 16, or the CPU limit when lower. |
 
 ## Environment and diagnostics
 
@@ -604,11 +604,12 @@ backend each line names where the tool runs: '[image <ref>]' or
 (secondary ones such as racon's minimap2 included) are present
 locally. A version query that does not answer within 8 s is stopped,
 and the version is shown as unknown unless the tool's conda package
-record names one. --check alone
-always exits 0, since a host that has only some families installed is
-normal; --check --strict exits 4 when any adapter is missing or errored,
-or 5 when any plugin failed to load, so a script can verify an
-environment.
+record names one.
+
+--check alone always exits 0, since a host that has only some families
+installed is normal. --check --strict exits 4 when any adapter is
+missing or errored, or 5 when any plugin failed to load, so a script can
+verify an environment.
 
 | option | default | description |
 |---|---|---|
@@ -646,9 +647,6 @@ different versions (an image in one, the host binary in another) is listed
 once per stage as 'tool (stage): version'. A containerized tool's version
 is its image reference. A stage that did not finish is named on stderr.
 
-Lets the Nextflow bridge modules (which run a full stage in a scratch
-workdir) surface the resolved tool versions into versions.yml.
-
 | option | default | description |
 |---|---|---|
 | `-wd`, `--workdir` | required | Working directory. |
@@ -673,10 +671,10 @@ be fetched.
 | option | default | description |
 |---|---|---|
 | `action` | required | download: fetch the marker models into --output; info: summarise the database in DIRECTORY. |
-| `directory` |  | With info: the database directory (default: $REPGENR_MARKERS_DB). |
+| `directory` |  | With info: the database directory. Default: $REPGENR_MARKERS_DB. |
 | `--output` |  | With download: the database directory, new, empty or an earlier download (families already present are kept). |
-| `--set` | `all` | With download: bac120, ar53 or all (default) GTDB marker families. |
-| `-t`, `--threads` | `8` | With download: concurrent requests (default 8, or the CPU limit when lower). |
+| `--set` | `all` | With download: the GTDB marker families, bac120, ar53 or all. |
+| `-t`, `--threads` | `8` | With download: concurrent requests. Default: 8, or the CPU limit when lower. |
 
 ## Nextflow data-channel steps
 
@@ -699,11 +697,11 @@ Dereplicate one chunk of genomes (scatter step; writes a chunk result dir).
 |---|---|---|
 | `--genomes-fofn` | required | File of genome FASTA paths, one per line. |
 | `-o`, `--out` | required | Output directory for the chunk result. |
-| `--tool` | `skder` | drep, galah, skder, sourmash. |
+| `--tool` | `skder` | Dereplicator: drep, galah, skder, sourmash. |
 | `-pani`, `--primary-ani` | `0.9` | Primary (pre-clustering) ANI threshold in (0, 1]. |
 | `-sani`, `--secondary-ani` | `0.99` | Secondary (final cluster) ANI threshold in (0, 1]. |
 | `-af`, `--aligned-fraction` | `0.5` | Minimum aligned fraction in (0, 1] for a pair to be compared. |
-| `-t`, `--threads` | `16` | Threads for the external tool (default 16, or the CPU limit when lower). |
+| `-t`, `--threads` | `16` | Threads for the external tool. Default: 16, or the CPU limit when lower. |
 | `--virus` | off | Pass virus-tuned parameters to dRep (--tool drep); the other tools do not read it. |
 | `--tool-arg` |  | Tool tuning as key=value (repeatable), e.g. mode=greedy. |
 | `--selection-tsv` |  | selection.tsv with quality columns; enables quality-aware representatives. |
@@ -720,11 +718,11 @@ Dereplicate the union of chunk representatives (gather step).
 | `-o`, `--out` | required | Output dir for the merged result. |
 | `--chunk-dir` |  | A chunk result directory (repeatable). |
 | `--chunk-fofn` |  | File listing chunk result directories, one per line. |
-| `--tool` | `skder` | drep, galah, skder, sourmash. |
+| `--tool` | `skder` | Dereplicator: drep, galah, skder, sourmash. |
 | `-pani`, `--primary-ani` | `0.9` | Primary (pre-clustering) ANI threshold in (0, 1]. |
 | `-sani`, `--secondary-ani` | `0.99` | Secondary (final cluster) ANI threshold in (0, 1]. |
 | `-af`, `--aligned-fraction` | `0.5` | Minimum aligned fraction in (0, 1] for a pair to be compared. |
-| `-t`, `--threads` | `16` | Threads for the external tool (default 16, or the CPU limit when lower). |
+| `-t`, `--threads` | `16` | Threads for the external tool. Default: 16, or the CPU limit when lower. |
 | `--virus` | off | Pass virus-tuned parameters to dRep (--tool drep); the other tools do not read it. |
 | `--tool-arg` |  | Tool tuning as key=value (repeatable), e.g. mode=greedy. |
 | `--selection-tsv` |  | selection.tsv with quality columns; enables quality-aware representatives. |
@@ -743,11 +741,11 @@ Refine the lineages of the seeds in a dereplication result at finer ANIs.
 | `--contract-dir` | required | A dereplication result directory (the merge step's output). |
 | `--genomes-fofn` | required | File of every clustered genome's FASTA path, one per line. |
 | `-o`, `--out` | required | Output dir for the refined result. |
-| `--tool` | `skder` | drep, galah, skder, sourmash. |
+| `--tool` | `skder` | Dereplicator: drep, galah, skder, sourmash. |
 | `-pani`, `--primary-ani` | `0.9` | Primary (pre-clustering) ANI threshold in (0, 1]. |
 | `-sani`, `--secondary-ani` | `0.99` | Secondary (final cluster) ANI threshold in (0, 1]. |
 | `-af`, `--aligned-fraction` | `0.5` | Minimum aligned fraction in (0, 1] for a pair to be compared. |
-| `-t`, `--threads` | `16` | Threads for the external tool (default 16, or the CPU limit when lower). |
+| `-t`, `--threads` | `16` | Threads for the external tool. Default: 16, or the CPU limit when lower. |
 | `--virus` | off | Pass virus-tuned parameters to dRep (--tool drep); the other tools do not read it. |
 | `--tool-arg` |  | Tool tuning as key=value (repeatable), e.g. mode=greedy. |
 | `--selection-tsv` |  | selection.tsv with quality columns; enables quality-aware representatives. |
@@ -766,10 +764,10 @@ Annotate one genome (stateless data-channel step; writes <out>/<name>/<name>.gff
 |---|---|---|
 | `--genome` | required | Genome FASTA to annotate (gz accepted). |
 | `-o`, `--out` | required | Output directory; the record's files go under <out>/<name>/. |
-| `--record-name` |  | Record name (prefix of the outputs); the genome's by default. |
-| `--tool` | `bakta` | Annotator: bakta (default; needs its database, --bakta-db or BAKTA_DB) or prokka. |
-| `--bakta-db` |  | bakta database directory (bakta_db download --output DIR --type light\|full); BAKTA_DB when unset. |
-| `-t`, `--threads` | `16` | Threads for the external tool (default 16, or the CPU limit when lower). |
+| `--record-name` |  | Record name (prefix of the outputs). Default: the genome's. |
+| `--tool` | `bakta` | Annotator: bakta (needs its database, --bakta-db or BAKTA_DB) or prokka. |
+| `--bakta-db` |  | bakta database directory (bakta_db download --output DIR --type light\|full). Default: $BAKTA_DB. |
+| `-t`, `--threads` | `16` | Threads for the external tool. Default: 16, or the CPU limit when lower. |
 | `--tool-arg` |  | Annotator tuning as key=value. |
 | `--versions-out` |  | Write resolved tool versions (YAML fragment) here. |
 
@@ -795,7 +793,7 @@ Here --outgroup-accession takes a file that names the accession, not the accessi
 | `-o`, `--out` | required | Output dir (writes tree/tree.nwk). |
 | `--outgroup-dir` |  | Directory holding the outgroup genome file(s). |
 | `--outgroup-accession` |  | File naming the outgroup accession. |
-| `--preset` |  | A recommended configuration from the table phylo-advise applies: outbreak, species, species-masked, genus, family or quick (flags listed in docs/phylogeny.md, Presets). It sets the MSA source, tree builder and their settings. An option given on the command line overrides the preset, also at its default value; --aligner-arg values add to the preset's. A --treebuilder other than the preset's drops the preset's --aligner-arg and --partitioned where that builder does not read them, and a different --msa-source is refused. A preset setting cannot be removed; write the flags out without --preset then. |
+| `--preset` |  | A recommended configuration from phylo-advise: outbreak, species, species-masked, genus, family or quick. It sets the MSA source, tree builder and their settings; an option on the command line overrides it. Flags and rules: docs/phylogeny.md, Presets. |
 | `--treebuilder` | `iqtree` | auto, aster, fasttree, iqtree, mashtree, raxmlng, ska2, skani, sourmash, veryfasttree. |
 | `--msa-source` | `aligner` | aligner, snptype or coregene (a concatenated core-gene alignment from the annotations the annotate stage wrote). |
 | `--aligner` | `progressivemauve` | cactus, progressivemauve, sibeliaz. |
@@ -803,25 +801,25 @@ Here --outgroup-accession takes a file that names the accession, not the accessi
 | `--no-outgroup` | off | Do not root with an outgroup. |
 | `--root` |  | How phylo roots tree/tree.nwk: outgroup (on the branch to the outgroup), midpoint, or none (as the tree builder wrote it). Default: outgroup when an outgroup is staged and --no-outgroup is not given, else none. |
 | `-B`, `--bootstrap` | `0` | Bootstrap replicates. 0 turns bootstrapping off; IQ-TREE needs at least 1000 when it is on. |
-| `--core-fraction` |  | Keep only the variable columns where at least this fraction of the genomes have a called base (a soft core, 0 to 1). Unset keeps every variable column and the log reports what 0.95 would keep. |
-| `--coregene` | `panaroo` | Core-gene alignment builder for --msa-source coregene: panaroo, ppanggolin, scarap, orthofinder or markers (GTDB's single-copy marker proteins, aligned as protein; needs --markers-db). Tuning goes through --aligner-arg. panaroo: threshold= is the identity at which it groups genes (0.98; lower it, 0.95 then 0.90, when the core comes out small on a divergent set), and also filtered=false, merge_paralogs, remove_invalid_genes, family_threshold, len_dif_percent. ppanggolin: identity= and coverage= of its protein clustering (0.8 each), partition=softcore\|core\|persistent (softcore, at --core-threshold), single_copy=false, dup_margin, mode, nb_of_partitions, translation_table. scarap: method (FH), seeds (100), core_prefilter (the smaller of 0.90 and --core-threshold). orthofinder: search=diamond\|diamond_ultra_sens\|blastp\|mmseqs (diamond), inflation (MCL, 1.2). markers: min_markers (10 % of the set), the fewest single-copy markers a genome needs. The number of core genes kept is set with --max-core-genes. |
-| `--core-threshold` |  | With --msa-source coregene: a gene is core when present in at least this fraction of the genomes (0.95). |
-| `--clean-mode` |  | With --msa-source coregene: Panaroo's cleaning of annotation errors, strict (default), moderate or sensitive. |
-| `--coregene-alphabet` |  | With --msa-source coregene: dna (default) or protein; protein suits genus and family overviews, where third codon positions saturate (ppanggolin, scarap and orthofinder; refused with panaroo). markers aligns protein only, which is its default. |
-| `--gene-trim` |  | With --msa-source coregene: none (default) or clipkit; clipkit trims each gene alignment (ClipKIT smart-gap mode, the only mode offered) before the genes are measured, ranked and concatenated. Suits genus and wider sets, where ragged ends and poorly aligned columns inflate the site counts. |
-| `--markers-db` |  | With --coregene markers: the marker database directory (repgenr markers-db download --output DIR); REPGENR_MARKERS_DB when unset. |
-| `--marker-set` |  | With --coregene markers: bac120, ar53 or auto (default: bac120, or ar53 when fewer than half of the genomes reach the bac120 minimum and ar53 finds more of its markers). |
-| `--max-core-genes` |  | With --msa-source coregene: keep at most this many core genes in the alignment, chosen by --gene-rank (a count; 0 keeps every core gene; unset is 0). |
-| `--gene-rank` |  | With --msa-source coregene: how genes are ranked when --max-core-genes caps them: occupancy (fraction of genomes holding the gene), informative (parsimony-informative sites), variable (variable sites), length, random (seeded). Unset is occupancy. |
-| `--min-gene-length` |  | With --msa-source coregene: drop genes whose alignment is shorter than this, in columns, before ranking (0 keeps all; unset is 0). |
-| `--max-gene-gaps` |  | With --msa-source coregene: drop genes where more than this fraction of the alignment is gap characters, before ranking (0 to 1; unset applies no limit). |
-| `--partitioned` | off | With --msa-source coregene: fit one substitution model per core gene (an edge-linked partition model, from the alignment's partitions.json). Honoured by iqtree, raxmlng and aster (which requires it); other builders warn and fit one model. Refused together with an ascertainment-bias correction (asc=, a +ASC model). Changes the tree, not the alignment. |
+| `--core-fraction` |  | Keep only the variable columns where at least this fraction of the genomes have a called base (a soft core, 0 to 1). Default: every variable column, and the log reports what 0.95 would keep. |
+| `--coregene` | `panaroo` | Core-gene alignment builder for --msa-source coregene: panaroo, ppanggolin, scarap, orthofinder or markers (GTDB's single-copy marker proteins, aligned as protein; needs --markers-db). Its settings are --aligner-arg keys, listed in docs/phylogeny.md (Core-gene builders). |
+| `--core-threshold` |  | With --msa-source coregene: a gene is core when present in at least this fraction of the genomes. Default: 0.95. |
+| `--clean-mode` |  | With --msa-source coregene: Panaroo's cleaning of annotation errors: strict, moderate or sensitive. Default: strict. |
+| `--coregene-alphabet` |  | With --msa-source coregene: dna or protein. protein is read by ppanggolin, scarap and orthofinder and refused with panaroo; markers aligns protein only. Default: dna, or protein with --coregene markers. |
+| `--gene-trim` |  | With --msa-source coregene: none or clipkit. clipkit trims each gene alignment (ClipKIT smart-gap mode, the only mode offered) before the genes are measured, ranked and concatenated. Default: none. |
+| `--markers-db` |  | With --coregene markers: the marker database directory (repgenr markers-db download --output DIR). Default: $REPGENR_MARKERS_DB. |
+| `--marker-set` |  | With --coregene markers: bac120, ar53 or auto. auto takes bac120, or ar53 when fewer than half of the genomes reach the bac120 minimum and ar53 finds more of its markers. Default: auto. |
+| `--max-core-genes` |  | With --msa-source coregene: keep at most this many core genes in the alignment, chosen by --gene-rank; 0 keeps every core gene. Default: 0. |
+| `--gene-rank` |  | With --msa-source coregene: how genes are ranked when --max-core-genes caps them: occupancy (fraction of genomes holding the gene), informative (parsimony-informative sites), variable (variable sites), length, random (seeded). Default: occupancy. |
+| `--min-gene-length` |  | With --msa-source coregene: drop genes whose alignment is shorter than this, in columns, before ranking; 0 keeps all. Default: 0. |
+| `--max-gene-gaps` |  | With --msa-source coregene: drop genes where more than this fraction (0 to 1) of the alignment is gap characters, before ranking. Default: no limit. |
+| `--partitioned` | off | With --msa-source coregene: fit one substitution model per core gene (edge-linked, from partitions.json). Read by iqtree, raxmlng and aster (which requires it); other builders warn and fit one model. Refused with an ascertainment-bias correction (asc=, a +ASC model). |
 | `--annotations-dir` |  | With --msa-source coregene: an annotations/ directory the annotate stage or annotate-build wrote (its index names the records); without it the step annotates the genomes itself with --annotator. |
-| `--annotator` | `bakta` | Annotator: bakta (default; needs its database, --bakta-db or BAKTA_DB) or prokka. |
-| `--bakta-db` |  | bakta database directory (bakta_db download --output DIR --type light\|full); BAKTA_DB when unset. |
-| `--reference` |  | Reference genome: a filename, 'medoid' (the default: the genome nearest to all others by sketch ANI, when the genomes are sketched and sourmash is at hand) or 'first'. |
+| `--annotator` | `bakta` | Annotator: bakta (needs its database, --bakta-db or BAKTA_DB) or prokka. |
+| `--bakta-db` |  | bakta database directory (bakta_db download --output DIR --type light\|full). Default: $BAKTA_DB. |
+| `--reference` |  | Reference genome: a filename, 'medoid' (the genome nearest to all others by sketch ANI) or 'first'. Default: medoid when the genomes are sketched and sourmash is at hand, else first. |
 | `--aligner-arg` |  | Aligner, SNP typer, masker or tree builder tuning as key=value (repeatable), e.g. kmer=15 (sibeliaz), seed_weight=11 (progressivemauve) or model=GTR+G (iqtree, raxmlng). |
-| `-t`, `--threads` | `16` | Threads for the external tool (default 16, or the CPU limit when lower). |
+| `-t`, `--threads` | `16` | Threads for the external tool. Default: 16, or the CPU limit when lower. |
 | `--mask` | `none` | Recombination masking of the SNP alignment: none, gubbins. Needs --msa-source snptype. |
 | `--msa-only` | off | Build the alignment and stop, writing msa.fasta (for a separate tree step). |
 | `--msa` |  | Build the tree from this alignment instead of constructing one. |
@@ -866,7 +864,7 @@ Fetch and assemble one run of a reads.tsv (stateless data-channel step).
 | `--run` | required | The run accession (a row of reads.tsv) to assemble. |
 | `-o`, `--out` | required | Output dir: contigs.fasta and assembly.ok, or excused_runs.tsv. |
 | `--assembler` | `auto` | Assembler: auto, flye, shovill, skesa. |
-| `-t`, `--threads` | `16` | Threads for the external tool (default 16, or the CPU limit when lower). |
+| `-t`, `--threads` | `16` | Threads for the external tool. Default: 16, or the CPU limit when lower. |
 | `--memory-gb` | `16` | Memory hint for the assembly, in GB, for tools that cap RAM. |
 | `--min-contig-length` | `500` | Drop contigs shorter than this many bases. |
 | `--polisher` | `auto` | Polisher for long-read assemblies: none, auto, medaka, racon. |
@@ -874,8 +872,8 @@ Fetch and assemble one run of a reads.tsv (stateless data-channel step).
 | `--keep-reads` | off | Keep the downloaded FASTQ files after assembling. |
 | `--keep-files` | off | Keep the assembler scratch directory. |
 | `--tool-arg` |  | Assembler tuning as key=value (repeatable), e.g. mode=nano-raw. |
-| `--reads-sketch`, `--no-reads-sketch` | auto | Sketch each run's reads with sourmash (k=21,31,51, scaled=1000, with abundances) into assemblies/<run>/reads.sig.zip while the run is assembled; never in sketches/. Default: when sourmash can run; --reads-sketch requires it, --no-reads-sketch skips it. |
-| `--screen-reads` | off | Screen each run's reads sketch before assembling it: a run is excused when its GTDB genus differs from the submitted genus (taxon_mismatch), when the top species holds less than --screen-min-fraction of the reads (low_match_fraction), or when an accepted run of the same biosample contains it (duplicate_isolate). Needs sourmash, --gtdb-sketch and --gtdb-lineages. The duplicate check needs the other runs and is not made by this step. |
+| `--reads-sketch`, `--no-reads-sketch` | auto | Sketch each run's reads with sourmash (k=21,31,51, scaled=1000, with abundances) into assemblies/<run>/reads.sig.zip while the run is assembled; never in sketches/. --reads-sketch requires sourmash and --no-reads-sketch skips it. Default: when sourmash can run. |
+| `--screen-reads` | off | Screen each run's reads sketch before assembly. A run is excused on a GTDB genus mismatch (taxon_mismatch), a top species below --screen-min-fraction (low_match_fraction) or containment in an accepted run of its biosample (duplicate_isolate). Needs sourmash, --gtdb-sketch and --gtdb-lineages. This step does not make the duplicate check. |
 | `--screen-min-fraction` | `0.3` | With --screen-reads: minimum abundance-weighted fraction of the reads in the top GTDB species. |
 | `--gtdb-sketch` |  | GTDB sourmash sketch database for --screen-reads (or set REPGENR_GTDB_SKETCH). |
 | `--gtdb-lineages` |  | The lineages CSV published with the sketch (or set REPGENR_GTDB_LINEAGES). |
@@ -889,7 +887,7 @@ Score (CheckM2) and classify a batch of assemblies (stateless data-channel step)
 |---|---|---|
 | `--assemblies` | required | Directory of assemble-run output dirs, one per run. |
 | `-o`, `--out` | required | Output dir for quality.tsv and classification.tsv. |
-| `-t`, `--threads` | `16` | Threads for the external tool (default 16, or the CPU limit when lower). |
+| `-t`, `--threads` | `16` | Threads for the external tool. Default: 16, or the CPU limit when lower. |
 | `--memory-gb` | `16` | Memory budget in GB; caps concurrent classifier gathers at about 0.6 GB each. |
 | `--checkm2-db` |  | CheckM2 DIAMOND database; enables quality scoring (or set CHECKM2DB). |
 | `--classifier` | `auto` | Classifier: none, auto, sourmash. |

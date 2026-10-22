@@ -23,22 +23,22 @@ def ingest(
         [],
         "--from-workdir",
         help="Earlier working directory whose genome set (selection.tsv and genomes/) is "
-        "added, with taxonomy, quality, the GTDB representative flag and the manifest "
-        "source of each genome; its outgroup is not carried over. Repeatable; may be "
-        "combined with --genomes-dir.",
+        "added with each genome's taxonomy, quality, GTDB representative flag and manifest "
+        "source; its outgroup is not carried over. Repeatable, and combines with "
+        "--genomes-dir.",
     ),
     strict_sources: bool = typer.Option(
         False,
         "--strict-sources",
-        help="Refuse (exit 2, nothing written) a --from-workdir whose genome set was "
-        "written by a stage that status lists as interrupted or stale, or that has no "
-        "stage record; without it each such source is named in a warning and taken.",
+        help="Refuse (exit 2, nothing written) a --from-workdir whose genome set has no "
+        "stage record or one that status lists as interrupted or stale. Without it such a "
+        "source is named in a warning and taken.",
     ),
     selection: Path | None = typer.Option(
         None,
         "--selection",
         help="selection.tsv (accession, taxonomy, filename, outgroup flag, quality) "
-        "naming the genomes to take from --genomes-dir; default: every FASTA under "
+        "naming the genomes to take from --genomes-dir. Default: every FASTA under "
         "--genomes-dir, taxonomy parsed from canonical Family_genus_species_ACCESSION names.",
     ),
     outgroup: str | None = typer.Option(

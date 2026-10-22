@@ -188,7 +188,7 @@ def annotate_build_cmd(
         ..., "-o", "--out", help="Output directory; the record's files go under <out>/<name>/."
     ),
     name: str | None = typer.Option(
-        None, "--record-name", help="Record name (prefix of the outputs); the genome's by default."
+        None, "--record-name", help="Record name (prefix of the outputs). Default: the genome's."
     ),
     tool: str = typer.Option("bakta", "--tool", help=HELP_ANNOTATOR),
     bakta_db: str | None = typer.Option(None, "--bakta-db", help=HELP_BAKTA_DB),
@@ -781,8 +781,7 @@ def assemble_run_cmd(
     screen_reads: bool = typer.Option(
         False,
         "--screen-reads",
-        help=HELP_SCREEN_READS + " The duplicate check needs the other runs and is not made "
-        "by this step.",
+        help=HELP_SCREEN_READS + " This step does not make the duplicate check.",
     ),
     screen_min_fraction: float = typer.Option(
         0.3, "--screen-min-fraction", min=0.0, max=1.0, help=HELP_SCREEN_MIN_FRACTION
