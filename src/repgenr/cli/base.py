@@ -198,7 +198,7 @@ HELP_MAX_GENE_GAPS = (
 )
 HELP_PRESET = (
     "A recommended configuration from the table phylo-advise applies: outbreak, species, "
-    "species-masked, genus, family or quick (flags listed in docs/usage.md, Presets). It "
+    "species-masked, genus, family or quick (flags listed in docs/phylogeny.md, Presets). It "
     "sets the MSA source, tree builder and their settings. An option given on the command "
     "line overrides the preset, also at its default value; --aligner-arg values add to the "
     "preset's. A --treebuilder other than the preset's drops the preset's --aligner-arg and "

@@ -25,7 +25,7 @@ workflow {
         Usage:
           nextflow run main.nf --outdir <DIR> [-profile standard|slurm|docker|singularity|wave|test]
 
-        Key parameters (see nextflow_schema.json and docs/usage.md for all):
+        Key parameters (see nextflow_schema.json and docs/nextflow.md for all):
           --outdir <DIR>         Published results (default: results)
           --mode bacterial|viral|reads  Pipeline to run (default: bacterial)
           --metadata_args '<str>'  GTDB selection (bacterial)

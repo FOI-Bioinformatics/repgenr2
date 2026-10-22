@@ -4,7 +4,7 @@ This page is for contributors who change the code or add a tool adapter. It
 describes how the package is organised, the files that pass between stages,
 how the ten tool families are discovered, and the steps and tests a new
 adapter needs. Users who only run the pipeline need [usage.md](usage.md)
-instead.
+and the pages it links to instead.
 
 Contents:
 
@@ -141,6 +141,26 @@ stage (`core/executors.py`).
 * Two-stage chunked dereplication is opt-in via `--process-size` for any
   tool. `supports_native_scaling` only changes the log wording. Automatic
   selection keys on `recommended_max_genomes`.
+* Chunked dereplication adds levels over the union of chunk representatives
+  only when a probe suggests they pay. When the union is larger than two
+  chunks and the level removed at least a tenth of its input or a chunk's
+  worth (N), whichever is larger, one chunk of the next level is run first
+  as a probe. The probe takes the first N representatives in turn from each
+  chunk of the previous level, so that genomes from different chunks meet.
+  A level over the union U costs the tool's per-genome work (sketching, N50)
+  for every representative plus about N/U of the final pass's pairwise work,
+  and is expected to pay when it removes more than about N/U of its genomes.
+  When the probe removes more than that fraction, the rest of the level runs
+  (the probe is its first chunk) and its union is treated the same way. When
+  it removes less, the union goes to the final pass and the probe's result
+  is dropped. A level that removes less than the shrink rule asks sends its
+  union to the final pass without a probe. The probe, the levels after the
+  first and the final pass compare representatives at the final thresholds,
+  not the `--pre-*` ones. The log line for the final pass gives its pairwise
+  factor: the union squared over the level's input times the chunk size. The
+  per-genome work is paid once more for every genome of the union, and the
+  tool's threads are shared by one call rather than by parallel chunks, so
+  the pass can take longer than the factor alone suggests.
 
 ### Phylogenetics: independent choices
 
@@ -224,6 +244,26 @@ Staleness is decided from those records, not from file times.
   unit test checks.
 * The adapters that read the sketches declare it through `sketch_request`
   (see [Optional hooks](#optional-hooks)).
+* A consumer checks each genome's sketch against its record (the FASTA
+  SHA-256 and the parameters) before comparing, writes and records the
+  missing and stale ones, and matches the representatives under
+  `derep/representatives/` to their genomes by file name. The SHA-256 of a
+  genome is cached in `sketches/.digests.json` and computed again only when
+  the file's size or modification time changes, the file metadata the resume
+  fingerprint uses; an edit that keeps both is not seen until `repgenr
+  --force sketch`.
+* `assemble --append` sketches only the genomes it adds, and `ingest
+  --from-workdir` copies the sketch of a source genome whose recorded digest
+  matches. With `--sketch`, the message of a stage skipped as complete names
+  `repgenr sketch`. `repgenr --force sketch` counts the sketches that were
+  current as `replaced (--force)`, apart from stale ones.
+* `assemble` sketches each accepted assembly once, beside its contigs
+  (`assemblies/<run>/contigs.sig.zip`, named by run accession). The
+  classifier gathers with that sketch, and the sketch step copies it to
+  `sketches/` under the genome's record name once the genome is named. An
+  assembly excused after classification (for example `qc_failed`) gets no
+  sketch under `sketches/`. With `--no-sketch` the classifier sketches for
+  itself.
 
 ## 3. Tool families and the registry
 
@@ -433,6 +473,32 @@ The return value of `preflight()` (host versions or the container image
 reference) is recorded in the `repgenr.yaml` provenance and appears in
 `repgenr versions` and the Nextflow `versions.yml` bridge.
 
+**Console lines.** A tool command line is shortened on the console, with or
+without `--verbose`, so that the whole line fits 120 columns; the full text
+is in `repgenr.log`:
+
+* a run of input paths is shown as its first path and a count, then other
+  paths by their last component, then the run as its count alone and other
+  paths as `...`;
+* a path that directly follows an option (`--reference ref.fasta`) is that
+  option's value and is not counted with the inputs;
+* long lists of genome names show the first five and a count.
+
+Under `--container` the console shows the tool's own command, and the
+engine options (mounts, labels, user) are in the run log.
+
+**Stopping containers.** Under `--container docker` the container runs with
+`--init`, so the SIGTERM the `docker run` client forwards ends the tool in
+the container. Each container is named `repgenr-<repgenr pid>-<hex>` and
+carries the labels `repgenr.pid=<repgenr pid>` and `repgenr.host=<host
+name>`. When repgenr is stopped it also runs `docker stop -t 0` on the
+container of the tool it was running, so a tool that ignores SIGTERM does
+not keep running. This also applies to containers started from parallel
+worker threads, which delays the exit by about a second, since the stops run
+concurrently. A second signal ends repgenr at once and starts one `docker
+stop -t 0` for all its running containers, which completes after repgenr
+has exited.
+
 ### Resume semantics
 
 A stage's skip decision digests its declared inputs (`STAGE_INPUTS` in
@@ -455,6 +521,79 @@ incorrectly.
   runs) can also register a check in `_STAGE_PRECHECKS`. The check runs
   before the harness marks the record incomplete, so a refused call leaves
   the last finished one intact.
+
+The rules below are what a user observes; [usage.md](usage.md#resume-and---force)
+summarises them.
+
+**Interrupted and refused stages.** A stage writes its record without a
+completion stamp before it starts, and a successful run stamps it. A stage
+that failed or crashed mid-run is therefore listed as `[interrupted]` by
+`status`, reported as a failure by `doctor`, and always reruns. A failure in
+parameter validation writes no record. A stage that refuses (exit 2 or 3, or
+4 for a tool missing at its preflight) without changing any of its main
+outputs leaves the record as it was: none on a first run, and the last
+finished one on a rerun, since its outputs are untouched. Examples are
+`phylo` with fewer than three genomes and `snptype --mask gubbins` without
+Gubbins. A failed external tool (exit 6), or a refusal after a main output
+changed, leaves the record interrupted.
+
+**Missing outputs.** Before skipping, a stage checks that its main outputs
+exist, for example `genomes/` and `manifest.sqlite` for `ingest`,
+`derep/clusters.tsv` and `derep/representatives/` for `dereplicate`,
+`tree/tree.nwk` for `phylo`, and `tree2tax.tsv` and `genomes_map.tsv` for
+`tree2tax`.
+
+* A directory must not be empty, and dotfiles such as `.DS_Store` or exFAT
+  `._` files do not count. `genomes/` and `derep/representatives/` count
+  only with a genome FASTA file in them, so one holding only a leftover
+  `x.fasta.tmp` is treated as empty.
+* Each genome listed in `selection.tsv` is checked for the stage that wrote
+  the genome set (`genome`, `ingest`, `vgenome`, `assemble`), and each
+  representative listed in `derep/clusters.tsv` for `dereplicate`.
+* A missing output is logged as
+  `Stage 'X': deliverable <path> missing; re-running.` and the stage runs
+  again without `--force`. A genome deleted from `genomes/` is therefore
+  restored by the next run of that stage. To drop a genome on purpose,
+  remove it from the source directory or from the `--selection` file and
+  rerun the entry stage.
+* For `glance` only `glance_clustering_dendrogram.pdf` is checked, since its
+  plots are absent when no value falls within the plot bounds.
+
+**Input digests.** Input directories (`genomes/`, `derep/representatives/`,
+`outgroup/`, the `ingest --genomes-dir` source) are digested from the genome
+FASTA files in them: names ending in `.fasta`, `.fa`, `.fna`, `.fas`,
+`.fasta.gz`, `.fna.gz` or `.fa.gz`. A leftover `x.fasta.tmp`, a `.fai`
+index, a `truth.json` or a README beside the genomes therefore does not
+rerun the stages that read the directory. The digest uses file metadata
+(name, size, mtime), so an in-place edit that preserves size and mtime is
+not detected.
+
+**reads-sketch.** The stage records the variant of its last call and the
+runs each variant holds.
+
+* A failure on the archive side that is not permanent (a dropped
+  connection, a stalled transfer, a pipeline that ran past its time limit)
+  is tried again within the call: up to three attempts, with pauses of
+  about 30 s and 120 s and a quarter of jitter. An accession NCBI does not
+  hold or will not serve (withdrawn, protected), and a failure of sourmash,
+  are not retried.
+* With `--max-spots` each run's pipeline has a time limit of 300 s plus one
+  second per 200 spots (about 22 min at 200000), or
+  `REPGENR_SUBPROCESS_TIMEOUT` when that is lower. A connection that stalls
+  then frees its job slot and is tried again. Without a cap only the global
+  limit applies, and a run killed by it is tried again the same way (up to
+  three times the limit for one run).
+* One call writes a variant at a time. A second call on the same variant
+  directory is refused while the first holds its `.lock` file, since each
+  call clears the partial files of the directory and rewrites its index. On
+  a file system without locks the call goes on with a warning, and on a
+  network file system the lock may hold on one host only.
+* Each sourmash process runs single-threaded (`RAYON_NUM_THREADS=1`). On
+  macOS the default thread pool took twice the time and far more CPU for an
+  identical three-k signature.
+* Under a container back-end both images are pulled once before the first
+  run. Under Docker, an engine that cannot start a tool (no image, daemon
+  down) stops the call with one error instead of failing every run.
 
 ## 4. Adding an adapter
 
@@ -533,7 +672,8 @@ package metadata, and depends on the distribution `repgenr2`.
      `tests/unit/test_docs_tool_limits.py` checks against the registries;
      update the row also when an adapter's limit changes;
    * the adapter table in `README.md` and, if user-facing behaviour differs,
-     a note in [usage.md](usage.md);
+     a note in the user page that owns the stage ([usage.md](usage.md),
+     [reads.md](reads.md) or [phylogeny.md](phylogeny.md));
    * a citation in `CITATIONS.md`;
    * for a dereplicator, the name in the `derep_tool` description of
      `nextflow/nextflow_schema.json`.
@@ -614,6 +754,29 @@ contracts. Run them before pushing a Nextflow change:
 ```bash
 nf-test test --tag stub
 ```
+
+Nextflow resolves both `bin/` and the default config relative to the
+launched script. The harness scripts under `nextflow/tests/` therefore reach
+the versions helper through the symlink
+`nextflow/tests/bin/repgenr_versions_fragment`. Running one of them directly
+needs `-c nextflow/nextflow.config`; nf-test supplies the config itself. A
+script added to `nextflow/bin/` needs its own link under
+`nextflow/tests/bin/`.
+
+Two harnesses run a subworkflow on a directory of genome FASTAs, without
+the GTDB or NCBI front end. `nextflow/tests/local_dataflow.nf` takes a
+genome directory straight into `DEREPLICATE_SCATTER`, the counterpart of
+`repgenr ingest` on the command line. `nextflow/tests/dereplicate_scatter.nf`
+runs the scatter-gather dereplication alone, which also serves to
+dereplicate a local collection:
+
+```bash
+nextflow run nextflow/tests/dereplicate_scatter.nf -c nextflow/nextflow.config \
+    --genomes_dir <DIR> --derep_tool sourmash --derep_process_size 2000 \
+    --outdir results -profile standard
+```
+
+Add `-stub` to exercise the wiring without running the tools.
 
 ### Real-tool tests
 

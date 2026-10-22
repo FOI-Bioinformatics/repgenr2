@@ -263,6 +263,12 @@ recorded.
 | fetch (HTTPS, md5) | 134 MB | 80 s |
 | skesa | 24 contigs, 670879 bp, N50 86129, 308x | 70 s |
 
+On 2026-10-09 the reads sketch that `assemble` makes beside the assembler
+was timed on the same run with `-t 4`. SKESA took 41 s with all four
+threads and 55 s when one thread was given to the sketch. With the
+assembler keeping its full share, the run took 45 s with the sketch and
+44 s without it, so the sketch thread is not taken from the assembler.
+
 `test_reads_steps_assemble_a_public_run` runs the stateless steps behind the
 Nextflow reads mode (`assemble-run`, `reads-gather`) on the same accession.
 `test_nextflow.py::test_main_reads_mode` runs `--mode reads` on SRR25474756

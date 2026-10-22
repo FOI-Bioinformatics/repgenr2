@@ -137,10 +137,10 @@ matters most. It follows the
 [phylo methods audit](audit/phylo-methods-2026-10.md).
 `repgenr phylo-advise -wd WD` reads a working directory and prints the row
 that applies, the reasons and the `phylo` command
-([usage](usage.md#asking-for-a-route-phylo-advise)). The Preset column names
+([phylogeny.md](phylogeny.md#asking-for-a-route-phylo-advise)). The Preset column names
 the `--preset` of `phylo`, `phylo-build` and `run` that sets the route and
 tree builder of the row; its flags and the override rule are listed in
-[usage](usage.md#presets).
+[phylogeny.md](phylogeny.md#presets).
 
 | Purpose | Preset | Span, ANI | Route for 100 to 500 genomes | Tree builder | Notes |
 |---|---|---|---|---|---|
@@ -283,7 +283,7 @@ Points that bear on the choice:
 
 Run selection (`--max-bases`, `--drop-selection`, `--one-per-sample`), the
 organism check with `--classifier`, and the reuse of CheckM2 scores are
-described in [Starting from sequencing reads](usage.md#starting-from-sequencing-reads).
+described in [reads.md](reads.md).
 
 ## Dereplicators
 
@@ -478,6 +478,19 @@ The sparse branchwater back-end keeps only pairs above containment 0.99^k,
 hundreds of shared hashes for any bacterial genome, so the rule does not
 apply there.
 
+The duplicate check of the reads screen (`duplicate_isolate`, see
+[reads.md](reads.md#the-three-checks)) uses the same containment model on
+reads sketches. From the k=31 signature, k-mers seen at least a tenth of the
+abundance-weighted median (and at least twice) are taken as genomic. Their
+containment C in the k-mers the other run saw at least twice gives the
+estimate C^(1/31), as sourmash's containment ANI does. When the two sketches
+have different scaled values, both are first reduced to the larger one. At
+k=31 the default threshold of 0.999 corresponds to a containment of about
+0.97 (0.999^31), roughly 0.1 percent divergence. At scaled=1000 a genome of
+1 Mb gives about 1000 such k-mers, so one missing k-mer already moves the
+estimate from 1.0 to about 0.99997. The estimate therefore cannot separate
+0.9999 from 1.0 for a genome of that size.
+
 For the same cutoff on well-separated data the tools usually form the same
 clusters (see the `clonal_50_clustered` result above); the differences
 appear in fragmented assemblies, in genomes of unequal size, and at the
@@ -543,7 +556,7 @@ cannot be masked. Gubbins is for isolates of one species. The masker
 estimates the variable fraction of the alignment, warns above 10%, and
 repeats the figure if Gubbins fails. Gubbins needs a multi-threaded RAxML
 build when given more than one thread; see
-[usage.md](usage.md#snp-typing-and-masking).
+[phylogeny.md](phylogeny.md#recombination-masking-with-gubbins).
 
 ## Core-gene builders
 
@@ -603,8 +616,9 @@ Which builder to use:
   in the genome count. It gives at most 120 genes, so within a genus the
   clustering builders draw on more of the genome.
 
-The settings, measurements and caveats of each builder are in
-[usage.md](usage.md#core-gene-phylogeny). The two annotators differ in what
+The settings and caveats of each builder are in
+[phylogeny.md](phylogeny.md#core-gene-builders), and the measurements in
+[verification.md](verification.md#core-gene-route). The two annotators differ in what
 they need installed: bakta needs its database and prokka needs none (see
 [Which environment provides each tool](#which-environment-provides-each-tool)).
 
@@ -635,7 +649,7 @@ builders that consume one. The full rule is in
 `phylo` roots `tree/tree.nwk` itself, whatever the builder: on the outgroup
 by default when one is staged, at the midpoint with `--root midpoint`, or not
 at all with `--root none`. The choice therefore does not depend on whether a
-builder can root. Details are in [Rooting the tree](usage.md#rooting-the-tree).
+builder can root. Details are in [Rooting the tree](phylogeny.md#rooting-the-tree).
 
 ### Collapsing weak splits in tree2tax
 
@@ -667,7 +681,7 @@ builders. Units and examples are in
 
 The Nextflow layer has no shared working directory, so `status` and `doctor`
 have nothing to read there. Parameters and profiles are in
-[usage.md](usage.md#nextflow). Installation for each environment is in
+[nextflow.md](nextflow.md). Installation for each environment is in
 [install.md](install.md).
 
 ## How `auto` chooses

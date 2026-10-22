@@ -354,6 +354,27 @@ All notable changes to RepGenR2 are documented here. The format follows
   recommendations and a table of the gaps from the former appendices give the
   pull request that shipped each, or its open state. The appendices A to C
   are in git history at commit ff6cc9f.
+- `docs/usage.md` is split into four pages. `docs/usage.md` keeps the
+  command-line guide; `docs/reads.md` holds the reads entry path (run
+  selection, assembly, polishing, quality checks, and one description of the
+  reads screen before download and during assembly); `docs/phylogeny.md`
+  holds the phylogeny routes (`phylo-advise` and presets, SNP typing and
+  masking, annotation, the core-gene route and the settings of each
+  builder, support values, rooting, alignment reuse); `docs/nextflow.md`
+  holds the Nextflow pipeline. Option tables that duplicated
+  `docs/cli-reference.md`, the container option table that duplicated
+  `docs/install.md`, and the hand-written Nextflow parameter table are
+  replaced by links. Measurements link to `docs/verification.md`, which
+  gains the reads-sketch timing of `assemble`. Resume internals, the
+  reads-sketch retry and lock rules, the chunk probe rule and the Nextflow
+  test harnesses move to `docs/developing.md`; the `genome_n50.tsv` table
+  and the `derep-stock` unpack rules move to `docs/output.md`; the
+  arithmetic of the reads-screen duplicate check moves to
+  `docs/choosing-tools.md`. Notes on working directories from earlier
+  versions are reduced to the three that still apply, under
+  Troubleshooting. The `--preset` help and the Nextflow `--help` text name
+  the new pages, and `tests/audit/cli_matrix.yaml` lists the page that now
+  documents each flag.
 
 ### Fixed
 - `OMP_NUM_THREADS` of the FastTree and VeryFastTree builders never reached
