@@ -1,17 +1,25 @@
 # Command reference
 
-Generated from the command tree by `scripts/render_cli_matrix.py`; the
-matrix test keeps it in sync. Commands are grouped as in `repgenr --help`.
+This page is generated from the command tree by `scripts/render_cli_matrix.py`,
+and a unit test keeps it in sync. Each command's text is the same as
+`repgenr <command> --help` prints, and the commands are grouped as in
+`repgenr --help`. [usage.md](usage.md) explains the stages, and
+[choosing-tools.md](choosing-tools.md) compares the tools.
+
+The default column reads as follows:
+
+- A value is the declared default.
+- A blank cell means the option is unset; when a rule decides the value at run
+  time, the help ends with "Default: <rule>."
+- `auto` marks an on/off pair (`--x/--no-x`) decided at run time.
+- `on` and `off` give the state of a flag.
+- `required` marks an option that must be given.
+
 Global options go before the command name
 (`repgenr --container docker dereplicate ...`).
 
-A few option names differ between commands. `--tool` selects the
-dereplicator on `run` and the derep commands but the SNP typer on `snptype`
-(`--snptyper` on `phylo`, `run` and `phylo-build`). `run --metadata-source`
-and `run --viral-source` correspond to `metadata --source` and `vmetadata
---source`. The global `--platform` is the container platform, while
-`run --platform` filters the sequencing platform. On the step commands
-`--outgroup-accession` takes a file that names the accession.
+The "Nextflow data-channel steps" panel lists the steps that the Nextflow
+pipeline calls, one task each. They are not the commands most users run.
 
 ## Global options
 
