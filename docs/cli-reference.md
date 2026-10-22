@@ -881,7 +881,7 @@ Fetch and assemble one run of a reads.tsv (stateless data-channel step).
 | `--keep-files` | off | Keep the assembler scratch directory. |
 | `--tool-arg` |  | Assembler tuning as key=value (repeatable), e.g. mode=nano-raw. |
 | `--reads-sketch`, `--no-reads-sketch` | auto | Sketch each run's reads with sourmash (k=21,31,51, scaled=1000, with abundances) into assemblies/<run>/reads.sig.zip while the run is assembled; never in sketches/. --reads-sketch requires sourmash and --no-reads-sketch skips it. Default: when sourmash can run. |
-| `--screen-reads` | off | Screen each run's reads sketch before assembly. A run is excused on a GTDB genus mismatch (taxon_mismatch), a top species below --screen-min-fraction (low_match_fraction) or containment in an accepted run of its biosample (duplicate_isolate). Needs sourmash, --gtdb-sketch and --gtdb-lineages. This step does not make the duplicate check. |
+| `--screen-reads` | off | Screen each run's reads sketch before assembly. A run is excused on a GTDB genus mismatch (taxon_mismatch), a top species below --screen-min-fraction (low_match_fraction) or containment in an accepted run of its biosample (duplicate_isolate). Needs sourmash, --gtdb-sketch and --gtdb-lineages. No duplicate check in this step. |
 | `--screen-min-fraction` | `0.3` | With --screen-reads: minimum abundance-weighted fraction of the reads in the top GTDB species. |
 | `--gtdb-sketch` |  | GTDB sourmash sketch database for --screen-reads (or set REPGENR_GTDB_SKETCH). |
 | `--gtdb-lineages` |  | The lineages CSV published with the sketch (or set REPGENR_GTDB_LINEAGES). |

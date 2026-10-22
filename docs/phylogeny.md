@@ -330,8 +330,8 @@ Settings are `--aligner-arg KEY=VALUE` unless an option is named.
   span several species. This identity governs the core: a wider set needs a
   lower value (on three Wolbachia genomes the core grew from 52 genes at
   0.98 to 638 at 0.90). Lower it in steps, for example 0.95 and then 0.90,
-  since too low a value groups non-orthologues. `--clean-mode` (`strict`, `moderate`, `sensitive`) cleans
-  the pangenome graph, and `filtered=false` keeps the genes the entropy
+  since too low a value groups non-orthologues. `--clean-mode` (`strict`,
+  `moderate`, `sensitive`) cleans the pangenome graph, and `filtered=false` keeps the genes the entropy
   filter flags. Read the core-gene count and the identity used in
   `tree/msa/core_gene_stats.json` before relying on the tree. The builder
   warns when the core has fewer than 100 genes, unless `threshold=` was
@@ -363,7 +363,7 @@ The `--aligner-arg` keys each builder reads, with their defaults:
 
 | Builder | Keys |
 |---|---|
-| `panaroo` | `threshold` (0.98), `filtered=false`, `merge_paralogs`, `remove_invalid_genes`, `family_threshold`, `len_dif_percent` |
+| `panaroo` | `threshold` (0.98, or 0.95 when the names span several species), `filtered=false`, `merge_paralogs`, `remove_invalid_genes`, `family_threshold`, `len_dif_percent` |
 | `ppanggolin` | `identity` and `coverage` (0.8 each), `partition` (`softcore`, `core` or `persistent`; `softcore`, at `--core-threshold`), `single_copy=false`, `dup_margin`, `mode`, `nb_of_partitions`, `translation_table` |
 | `scarap` | `method` (`FH`), `seeds` (100), `core_prefilter` (the smaller of 0.90 and `--core-threshold`), `max_core_genes` (SCARAP's `-m`) |
 | `orthofinder` | `search` (`diamond`, `diamond_ultra_sens`, `blastp` or `mmseqs`; `diamond`), `inflation` (MCL, 1.2) |
