@@ -93,10 +93,45 @@ least `--min-contig-length` bases (500). The genome is named
   (`assembler_not_installed`), or a failed assembly. With no assembler installed at
   all the stage exits 4. A failed download is retried only with `--force`.
   When every run is excused, see
-  [output.md](output.md#when-every-sequencing-run-is-excused).
+  [below](#when-every-sequencing-run-is-excused).
 - **Outgroup and statistics.** `--outgroup FASTA` sets a genome aside for
   rooting. `assembly_stats.tsv` gives contigs, length, N50 and coverage per
   assembly.
+
+### When every sequencing run is excused
+
+When `assemble` accepts no run, it exits 3, `status` shows the stage as
+interrupted, and `excused_runs.tsv` gives the reasons. What happens to the
+genome set already in the working directory depends on which stage wrote it
+and on whether any run was judged:
+
+- **Written by an earlier `assemble` call, and at least one run judged.** A
+  run counts as judged when it was assembled, polished or quality-checked and
+  rejected, refused by the assembler, or excused by the reads screen for its
+  reads (`assembly_failed`, `polish_failed`, `qc_failed`,
+  `unsupported_platform`, `unsupported_layout`, `taxon_mismatch`,
+  `low_match_fraction`, `duplicate_isolate`). The set is emptied: a warning
+  is logged first, then `genomes/` is emptied, `selection.tsv` keeps only its
+  header, the manifest lists no genomes, `assembly_stats.tsv` is removed, and
+  the outgroup that call staged is removed with `outgroup_accession.txt`.
+  `dereplicate` then refuses with exit 3 (no genome files) rather than run on
+  the earlier set. The outputs of an earlier `dereplicate` and `phylo` stay
+  until those stages run again.
+- **Written by an earlier `assemble` call, but no run judged.** When every
+  excuse is `download_failed` (ENA unreachable, for example),
+  `no_fastq_mirror`, `assembler_not_installed`, `deferred` or
+  `screen_failed`, the set is kept and the error says so. Rerun with
+  `--force` once the cause is resolved.
+- **Written by another stage** (`genome`, `ingest`, `vgenome`; any manifest
+  row whose source is not `sra`) or not recorded in the manifest. The set and
+  its outgroup are kept, and the error names their sources.
+- **Under `--append`.** Nothing is removed; the existing selection stays as
+  it was.
+- **No set present** (a first call). Nothing is written: no `genomes/`, no
+  `selection.tsv`, no manifest.
+
+The finished runs under `assemblies/` always stay, so a later call with other
+settings (a looser quality gate, for example) reuses them.
 
 ## Polishing long-read assemblies
 

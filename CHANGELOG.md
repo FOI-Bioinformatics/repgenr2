@@ -390,6 +390,20 @@ All notable changes to RepGenR2 are documented here. The format follows
   OrthoFinder packages as in `envs/*.yml`. The README lists the tool
   families one line each, and `docs/README.md` lists the pages one line
   each.
+- `docs/output.md` is a per-stage file reference: each stage has a table of
+  its files and a column or key table for each tabular or JSON file, with
+  the names the code writes (the manifest `genomes` table, `selection.tsv`,
+  `reads.tsv`, `gtdb_api_genomes.tsv`, `reads_sketches.tsv`,
+  `assembly_stats.tsv`, `screen_reads.tsv`, `excused_runs.tsv`,
+  `refined.tsv`, `annotations.tsv`, `alignment_stats.json`, the core-gene
+  and marker tables, `core_gene_stats.json` and the tree2tax tables). The
+  reads path comes before the genome sketches, `repgenr.yaml` record keys
+  are a nested list per stage, and the Nextflow list adds `reads/qc/`,
+  `dereplicate/merged/` and `refined/`, `sketches/` and
+  `tree2tax_nodes.tsv`. The JSON outputs are one section with
+  `phylo-advise`. "When every sequencing run is excused" moves to
+  `docs/reads.md`, and the FlexTaxD version and depth notes move to
+  `docs/usage.md` (tree2tax).
 
 ### Fixed
 - `OMP_NUM_THREADS` of the FastTree and VeryFastTree builders never reached
