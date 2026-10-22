@@ -516,7 +516,7 @@ alignment, or for `ska2` an all-sites alignment counted in scratch:
 | `v` | Format version. |
 | `alignment`, `alignment_digest` | The variable-site alignment the counts belong to, and its SHA-256. |
 | `source` | File the counts were taken from. |
-| `constant_sites` | Constant A, C, G and T columns; added back by IQ-TREE (`-fconst`) and RAxML-NG (`+ASC_STAM`). |
+| `constant_sites` | Counts of constant columns per base (`A`, `C`, `G`, `T`); added back by IQ-TREE (`-fconst`) and RAxML-NG (`+ASC_STAM`). |
 | `variable_sites` | Variable columns; for `ska2` counted on the all-sites file. |
 | `masked` | Whether masking followed. |
 | `core_fraction` | `--core-fraction` applied; null when none. |
@@ -631,7 +631,7 @@ alignment's digest changes.
 | `trimmed_columns_removed` | Columns before minus after trimming, over all genes; a dropped gene counts all its columns. |
 | `genes_dropped_by_trimming` | Genes that lost every column. |
 | `clean_mode`, `filtered` | Panaroo settings; left out for a builder that ignores them. |
-| `builder_settings` | Builder-specific settings (list below). |
+| `builder_settings` | Builder-specific settings (list below); absent for Panaroo, which reports none. |
 
 `core_genes_available`, `variable_sites_total`, `informative_sites_total`,
 `gene_table` and `partitions` are null for a builder that returns only its
@@ -789,7 +789,7 @@ order, depend on the mode:
 | `representatives` | GTDB, selection | GTDB species representatives. |
 | `runs`, `biosamples`, `illumina`, `ont`, `pacbio`, `other` | `--runs` | ENA whole-genome sequencing runs, distinct biosamples, runs per platform; `other` holds every other platform, so the four add up to `runs`. |
 | `sequences`, `complete` | viral | Sequence records, and those marked complete (empty for BV-BRC). |
-| `isolates`, `segmented` | viral | Genomes after grouping segments by isolate (before vgenome's length filter); `yes` for two or more segment labels (empty for BV-BRC). |
+| `isolates`, `segmented` | viral | Genomes after grouping segments by isolate (before vgenome's length filter); `yes` for two or more segment labels, else `no` (empty for BV-BRC). |
 | `median_length` | BV-BRC | Median of the per-taxid median sequence lengths. |
 | `clusters` | selection | Dereplication clusters whose representative falls in the row. |
 
@@ -832,7 +832,7 @@ The pipeline publishes under `--outdir` (default `results/`):
 | `reads/` | Reads mode: `reads.tsv`, `selection.tsv`, `assembly_stats.tsv`, `outgroup_accession.txt`, `excused_runs.tsv`, and `screen_reads.tsv` with `--assemble_args '--screen-reads'`. |
 | `reads/qc/` | `quality.tsv` (`run_accession`, `completeness`, `contamination`) and `classification.tsv` (`run_accession`, `taxonomy`, `rank`, `score`, `db_version`) of the QC step. |
 | `reads/reads_sketches/<variant>/` | With the reads sketch step: the sketches and `reads_sketches.tsv` ([reads-sketch](#reads-sketch)). |
-| `reads/reads_screen/<variant>/` | With the reads screen: `reads_screen.tsv` and the per-run decisions ([reads-screen](#reads-screen)); `passed.txt` is not published. |
+| `reads/reads_screen/<variant>/` | With the reads screen: `reads_screen.tsv` and the per-run decisions and `passed.txt` ([reads-screen](#reads-screen)). |
 | `dereplicate/merged/` | The dereplication contract of the merge step, with `genome_n50.tsv`. |
 | `dereplicate/refined/` | With a refinement: the contract of the refine step, with `refined.tsv`. |
 | `sketches/` | Genome sketches of the `SKETCH` step. |
