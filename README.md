@@ -68,60 +68,33 @@ compares the routes.
 
 ## Tool families
 
-RepGenR2 runs external tools through adapters. The adapters belong to ten
-tool families, and each family can be swapped without changing the rest of
-the pipeline. The families fall into four groups, by what they work on and
-in the order a run uses them. A fifth group, background data, is built in
-rather than pluggable. Adapters are discovered through Python entry points,
-so adding one needs no change to the core (see
-[docs/developing.md](docs/developing.md)).
+RepGenR2 runs external tools through adapters. Each of the ten tool families
+can be swapped without changing the rest of the pipeline, and adapters are
+discovered through Python entry points, so adding one needs no change to the
+core (see [docs/developing.md](docs/developing.md)). The families, in the
+order a run uses them:
 
-**Background data** (built in, not pluggable): where taxa, genomes and runs
-come from, and the reference databases some tools read.
+- **Assemblers:** `skesa`, `shovill` (Illumina), `flye` (ONT, PacBio).
+- **Polishers:** `medaka` (ONT), `racon` (PacBio CLR).
+- **Classifiers:** `sourmash`, which confirms the organism of each assembly.
+- **Dereplicators:** `skder` (default), `galah`, `sourmash`, `drep`.
+- **Annotators:** `bakta` (default), `prokka`, for the core-gene route.
+- **Aligners:** `progressivemauve`, `sibeliaz`, `cactus`.
+- **SNP typers:** `simple`, `snippy`, `parsnp`, `ska2`.
+- **Maskers:** `gubbins` (`--mask`).
+- **Core-gene builders:** `panaroo`, `ppanggolin`, `scarap`, `orthofinder`,
+  `markers` (GTDB marker proteins).
+- **Tree builders:** `iqtree`, `fasttree`, `veryfasttree`, `raxmlng` and
+  `aster` from an alignment; `mashtree`, `sourmash`, `skani` and `ska2` from
+  the genomes.
 
-| Kind | Sources |
-|------|---------|
-| Taxonomy and genome metadata | GTDB (full table or API) for bacteria and archaea, including the species-representative flag that `--keeper gtdb` reads; NCBI Virus (default) or BV-BRC for viruses |
-| Genome sequences | NCBI Datasets; local FASTA files (`ingest`); viral sequences come with the NCBI Virus or BV-BRC download |
-| Sequencing runs | ENA (runs mirrored from SRA) |
-| Reference databases | bakta database (annotation), CheckM2 database (assembly quality), GTDB sourmash sketch and lineages (organism check, `--classifier` and `--screen-reads`) |
-
-**Read tools**: sequencing runs to checked genome assemblies (`reads`,
-`assemble`).
-
-| Family | Built-in adapters |
-|--------|-------------------|
-| Assemblers | `skesa`, `shovill` (Illumina), `flye` (ONT, PacBio) |
-| Polishers | `medaka` (ONT), `racon` with minimap2 (PacBio CLR); correct long-read assemblies |
-| Classifiers | `sourmash` (gather against a GTDB sketch); confirm the organism of each assembly |
-
-**Genome tools**: a genome set to representatives and annotations
-(`dereplicate`, `annotate`).
-
-| Family | Built-in adapters |
-|--------|-------------------|
-| Dereplicators | `drep`, `skder`, `galah`, `sourmash` |
-| Annotators | `bakta` (default; needs its database), `prokka`; for the core-gene route |
-
-**Alignment tools**: genomes to the multiple sequence alignment (MSA) a tree
-is built from (`phylo`, `snptype`).
-
-| Family | Built-in adapters |
-|--------|-------------------|
-| Aligners | `progressivemauve`, `sibeliaz`, `cactus` (whole-genome alignment) |
-| SNP typers | `simple` (samtools/bcftools), `snippy`, `parsnp`, `ska2` (reference-free) |
-| Maskers | `gubbins` (recombination masking of the SNP alignment, `--mask`) |
-| Core-gene builders | `panaroo` (with mafft), `ppanggolin`, `scarap`, `orthofinder`, `markers` (GTDB marker proteins with HMMER) (`--msa-source coregene`) |
-
-**Tree tools**: an alignment, or the genomes themselves, to a tree (`phylo`).
-
-| Family | Built-in adapters |
-|--------|-------------------|
-| Tree builders | from an MSA: `iqtree`, `fasttree`, `veryfasttree`, `raxmlng`, and `aster` (a species tree from the gene trees of a core-gene alignment); alignment-free, from the genomes: `mashtree`, `sourmash`, `skani`, `ska2` |
-
+The data sources are built in rather than pluggable: GTDB for bacteria and
+archaea, NCBI Virus (default) or BV-BRC for viruses, NCBI Datasets for
+genome sequences, and ENA for sequencing runs.
 `repgenr list-tools` prints what is available in the current environment.
-[docs/choosing-tools.md](docs/choosing-tools.md) describes which tools suit a
-dataset and its size.
+[docs/choosing-tools.md](docs/choosing-tools.md) compares the tools for a
+dataset and its size, and [docs/install.md](docs/install.md) lists the
+environments and databases they need.
 
 ## Installation
 
@@ -171,8 +144,9 @@ nextflow run nextflow/main.nf -profile standard --outdir results \
 ```
 
 `--mode viral` and `--mode reads` (ENA/SRA sequencing runs, one assembly task
-per run) select the other two front ends. Nextflow 26.04 or later is required.
-Parameters and profiles are described in [docs/nextflow.md](docs/nextflow.md).
+per run) select the other two front ends. The required Nextflow version is
+in [docs/install.md](docs/install.md#nextflow), and the parameters and
+profiles are described in [docs/nextflow.md](docs/nextflow.md).
 
 ## Documentation
 
@@ -188,7 +162,7 @@ Parameters and profiles are described in [docs/nextflow.md](docs/nextflow.md).
 | [docs/output.md](docs/output.md) | The files each stage writes. |
 | [docs/developing.md](docs/developing.md) | Architecture, data contracts, and how to add a tool adapter. |
 | [docs/verification.md](docs/verification.md) | Which adapters have been run against their real tools, and measured runs. |
-| [docs/audit/](docs/audit/README.md) | Records: the CLI matrix, the scaling and bias audit, and the phylo and tree2tax gap analysis. |
+| [docs/audit/](docs/audit/README.md) | Records: the CLI matrix, the command audit, the scaling and bias audit, the phylo methods audit and the phylo and tree2tax gap analysis. |
 
 The changelog is [CHANGELOG.md](CHANGELOG.md).
 
