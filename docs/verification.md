@@ -56,7 +56,7 @@ is given only where one was recorded.
 | SNP typer | simple | real tool, live suite | yes | yes | 2026-10-08 | [live suite](#the-live-suite): test_species_set, test_container_runs; [typing throughput](#snp-typing-throughput-2026-09-11); [gzipped inputs](#gzipped-inputs-2026-10-08) | not recorded |
 | SNP typer | parsnp | real tool, live suite | yes | no | 2026-10-08 | [live suite](#the-live-suite): test_species_set (osx-64 environment), test_gzip_inputs | ParSNP 2.1.5 |
 | SNP typer | ska2 | real tool, live suite | yes | yes | 2026-10-08 | [live suite](#the-live-suite): test_species_set, test_container_runs; [SNP phylogeny](#snp-phylogeny-on-the-genus-set-2026-09-10) | ska2 0.5.1 |
-| SNP typer | snippy | real tool, live suite | no | yes | 2026-10-08 | test_container_runs (pinned image); [gzipped inputs](#gzipped-inputs-2026-10-08) | snippy 4.6.0 |
+| SNP typer | snippy | real tool, live suite | no | yes | 2026-10-08 | real tool, live test (not in the table): test_container_runs (pinned image); [gzipped inputs](#gzipped-inputs-2026-10-08) | snippy 4.6.0 |
 | masker | gubbins | real tool, live suite | yes | yes | 2026-09-10 | [live suite](#the-live-suite): test_species_set, test_container_runs; [divergence limits](#gubbins-divergence-limits-2026-09-10) | not recorded |
 | tree builder | iqtree | real tool, live suite | yes | yes | 2026-10-21 | [live suite](#the-live-suite): test_species_set, test_container_runs; [core-gene runs](#gene-selection-partitions-trimming-protein-and-aster-2026-10-21) | IQ-TREE 3.1.2 and 3.1.4 (osx-arm64) |
 | tree builder | fasttree | real tool, live suite | yes | yes | 2026-10-21 | [live suite](#the-live-suite): test_species_set, test_container_runs; ASTER gene trees | FastTree 2.2.0 (osx-arm64) |
@@ -75,8 +75,8 @@ is given only where one was recorded.
 | core-gene builder | orthofinder | real tool, by hand | yes | no | 2026-10-15 | [OrthoFinder](#orthofinder-2026-10-15) | OrthoFinder 3.1.5 (noarch), DIAMOND 2.2.8 |
 | core-gene builder | markers | real tool, by hand | yes | no | 2026-10-21 | [GTDB marker genes](#gtdb-marker-genes-2026-10-21) | HMMER 3.4 |
 | assembler | skesa | real tool, live suite | yes | yes | 2026-10-07 | test_reads, test_container_runs; [assembly](#assembly-of-a-public-illumina-run-2026-09-14); native by hand in the reads audit (#226) | not recorded |
-| assembler | shovill | real tool, live suite | no | yes | 2026-09-14 | test_container_runs (pinned image, simulated reads) | not recorded |
-| assembler | flye | real tool, live suite | yes | yes | 2026-10-07 | test_container_runs (simulated 120 kb genome, 40x ONT-like reads, one contig); [polishing](#polishing-an-ont-assembly-2026-09-16); native by hand in the reads audit (#226) | not recorded |
+| assembler | shovill | real tool, live suite | no | yes | 2026-09-14 | real tool, live test (not in the table): test_container_runs (pinned image, simulated reads) | not recorded |
+| assembler | flye | real tool, live suite | yes | yes | 2026-10-07 | real tool, live test (not in the table): test_container_runs (simulated 120 kb genome, 40x ONT-like reads, one contig); [polishing](#polishing-an-ont-assembly-2026-09-16); native by hand in the reads audit (#226) | not recorded |
 | classifier | sourmash | real tool, by hand | yes | yes | 2026-09-14 | `genome-qc` and `assemble` on Wolbachia assemblies against the GTDB rs226 sketch, native and pinned image | not recorded |
 | polisher | medaka | real tool, live suite | no | yes | 2026-09-16 | test_reads; [polishing](#polishing-an-ont-assembly-2026-09-16) | not recorded |
 | polisher | racon | real tool, by hand | yes | no | 2026-10-07 | native by hand in the reads audit (#226); offline contract test | not recorded |
@@ -84,8 +84,15 @@ is given only where one was recorded.
 
 Notes on the table:
 
-* drep, progressivemauve, cactus, snippy, shovill, medaka and CheckM2 have
-  been run only inside containers. skder and SibeliaZ have no pinned image,
+* The container results for galah, sourmash, gubbins, the tree builders,
+  snippy, skesa, shovill and flye come from pinned-image live tests
+  (`test_pinned_dereplicator_image`, `test_pinned_tree_builder_image`,
+  `test_pinned_snippy_and_gubbins_images`,
+  `test_pinned_assembler_image_recovers_a_synthetic_genome`,
+  `test_pinned_flye_image_recovers_a_synthetic_genome_from_long_reads`),
+  added on 2026-09-14 in #178, #190 and #191 and absent from the 2026-09-10
+  table. drep, progressivemauve, cactus, snippy, shovill, medaka and CheckM2
+  have been run only inside containers. skder and SibeliaZ have no pinned image,
   because their BioContainer images are BusyBox-based and the GNU-only calls
   in their shell wrappers fail there; they run in Wave images.
 * The veryfasttree, skani and ska2 tree builders have offline contract tests
@@ -98,7 +105,7 @@ Notes on the table:
 
 | Machine | Description | Records |
 |---|---|---|
-| Machine A | macOS on Apple Silicon, 11 cores, 18 GB; Docker Desktop with Rosetta for amd64 images; tools from conda; several working directories on an external volume | Live suite, reads and polishing, genus-scale run, SNP route, gzipped inputs |
+| Machine A | macOS on Apple Silicon, 11 cores, 18 GB (recorded for the genus-scale run); Docker Desktop with Rosetta for amd64 images; tools from conda; several working directories on an external volume | Live suite, reads and polishing, genus-scale run, SNP route, gzipped inputs |
 | Machine B | An Apple Silicon laptop running macOS; cores and memory not recorded | Core-gene route (2026-10-15 and 2026-10-21), sourmash back-ends |
 
 The records do not state whether machines A and B are the same computer.
@@ -390,7 +397,7 @@ masker used IQ-TREE, which took 76 of the 87 minutes above. With
 | | Serial, plain VCF | Concurrent, compressed BCF |
 |---|---|---|
 | Mapping, calling and core-SNP reduction | 10.8 min | 2.8 min |
-| Scratch left behind | 10 GB | 190 MB |
+| Scratch left behind | 10 GB, of which 8.3 GB uncompressed pileup VCF | 190 MB |
 | Peak resident memory | not recorded | 0.4 GB |
 
 The 190 MB that remain are the whole-genome alignment the stage publishes for

@@ -13,8 +13,8 @@ species-stratified `--limit` (#137 and #138) and a single sourmash ANI
 quantity for both back-ends (#60) have shipped. The summary table and the
 findings give the state when the measurements were made; the
 recommendations and the gap table give the state on 2026-10-22. PR numbers
-from #127 to #268 refer to the earlier fork, druvus/repgenr. #15 to #18
-and #60 refer to FOI-Bioinformatics/repgenr2.
+from #127 to #268 refer to the earlier fork, druvus/repgenr. #3 to #60
+refer to FOI-Bioinformatics/repgenr2.
 
 This document reports, per pipeline step: the available tool alternatives, how
 each scales with genome count (measured wall time and peak memory), whether a
@@ -37,7 +37,7 @@ commit of the audit. The per-stage SWOT and gap analyses are summarised in
 | phylo: sourmash NJ | yes (about 2.4 min) | extrapolated about 1.5 to 2 hours | pure-Python NJ; measured n^3 fit below. Superseded: the builder joins with rapidNJ when installed (#16) |
 | phylo: sibeliaz -> fasttree/iqtree | no | no | times out (>1 h) already at n=20 |
 | phylo: progressivemauve -> fasttree | not measured | not measured | about 10 min at n=20, about 22 min at n=50 per build (B4/B5 runs, Docker on Rosetta); adapter recommends at most 500 genomes |
-| snptype: simple | untested at scale | untested | one worker per genome since #166; O(n^2 S) RAM (appendix B of the full text) |
+| snptype: simple | untested at scale | untested | one worker per genome since #166; O(n^2 S) RAM (appendix B, at commit ff6cc9f) |
 
 ## Benchmark design
 
@@ -207,7 +207,7 @@ limit to 2000 and added a hard refusal at 5000.
    ML path is usable when that aligner is selected.
 2. **All aligners project onto a single reference defaulting to
    `genomes[0]`**, the alphabetically first file, in five places (cited in
-   appendix B of the full text). On a clonal set that is a clone member.
+   appendix B, at commit ff6cc9f). On a clonal set that is a clone member.
    Measured topology effect (B4, mixed 50-genome set, two 25-genome
    truth clusters, progressivemauve + fasttree): swapping the reference
    changes most of the topology. Against the default-reference tree,
@@ -226,7 +226,7 @@ limit to 2000 and added a hard refusal at 5000.
 3. **The sourmash tree builder is a pure-Python O(n^3) neighbor joining**
    (src/repgenr/tree/newick.py); its distance is `1 - Jaccard`, which is
    not an evolutionary distance and compresses exactly in the clonal
-   regime (appendix B of the full text). The measured n^3 fit is above; #129
+   regime (appendix B, at commit ff6cc9f). The measured n^3 fit is above; #129
    lowered the advertised limit to the measured 2000 with a hard guard
    at 5000.
 4. **Near-zero-diversity input produces a degenerate tree with no warning**

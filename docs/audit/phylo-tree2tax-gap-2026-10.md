@@ -27,8 +27,8 @@ were repeated for this record.
 - Code: `src/repgenr/stages/phylo.py`, `stages/snptype.py`, `stages/tree2tax.py`,
   the adapters under `aligners/`, `snptypers/`, `maskers/`, `treebuilders/`,
   `tree/newick.py`, `tree/rooting.py`, `core/contracts.py`.
-- Earlier records: `scaling-audit.md` (appendix B backlog, bias tests B4 and
-  B5), `verification.md` (francisella_all runs, Gubbins failures, ska2 against
+- Earlier records: scaling-audit.md ([gaps and their status](scaling-audit.md#gaps-and-their-status);
+  appendix B in git history at ff6cc9f; bias tests B4 and B5), `verification.md` (francisella_all runs, Gubbins failures, ska2 against
   mashtree), the changelog entries for PRs 139 to 263.
 - External, as of October 2026: the IQ-TREE 3 and RAxML-NG documentation
   (ascertainment bias, `-fconst`, `ASC_STAM`), the VeryFastTree 4 release
@@ -130,7 +130,8 @@ three-genome refusal, leaf checks and trailing-text handling (#207, #212, #213).
 12. **Quadratic naming and path building.** Each internal node hashes all of
     its descendant leaves (`stages/tree2tax.py:436-438`) and each leaf walks its
     full ancestor chain (`:442-463`); ladder-shaped trees from clonal data make
-    this quadratic (`scaling-audit.md`, appendix B).
+    this quadratic (scaling-audit.md, gap table row on tree2tax node naming,
+    [gaps and their status](scaling-audit.md#gaps-and-their-status)).
 13. **`--remove-outgroup` prunes a path, not the leaf.** On a midpoint-rooted
     tree the outgroup's parent keeps a single child and the ancestor hashes
     still contain the outgroup label (`tree2tax.py:137-138`).
