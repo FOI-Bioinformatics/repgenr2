@@ -185,11 +185,16 @@ activating it:
 conda run -n repgenr --no-capture-output repgenr phylo -wd $WD --treebuilder iqtree
 ```
 
-Two further points:
+Three further points:
 
 - On exFAT or NTFS volumes, macOS writes `._*` AppleDouble files. The adapters
-  ignore them, but skDER and dRep must run on a local filesystem, so keep
-  their working directory off an exFAT disk.
+  ignore them, but skDER, dRep and ParSNP must run on a local filesystem, so
+  keep their working directory off an exFAT disk. dRep writes such files into
+  its own cache, and ParSNP reads every file in its input directory.
+- The conda dRep on osx-arm64 (3.4.5, without CheckM) fails in its fastANI
+  step with pandas releases that no longer accept `delim_whitespace` in
+  `read_csv` (seen with pandas 3.0.6). Its ANImf method (`--virus`) runs. The
+  pinned image (`--container docker`) holds dRep 3.7.1.
 - progressiveMauve is not packaged for macOS. Use its image (below) or a Linux
   host.
 
