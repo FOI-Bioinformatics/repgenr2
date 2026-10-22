@@ -106,7 +106,7 @@ exits 7 on a failure and 0 on warnings alone. `doctor --quick` skips
 reading the genome files, the slowest check on a large set. A record without
 a resume fingerprint (from an earlier version, or restored by `derep-stock`)
 is shown as `[done]` with a note that its next run recomputes it. Both
-commands take `--json` (see [output.md](output.md#machine-readable-status)).
+commands take `--json` (see [output.md](output.md#status-and-doctor)).
 A malformed `repgenr.yaml` makes `status` and every stage exit 3.
 
 ## Building the genome set
@@ -647,6 +647,20 @@ tree only loosely, so inspect `tree2tax_nodes.tsv` first. `--rank-red`
 needs branch lengths and a rooted tree: an outgroup, `phylo --root
 midpoint`, or `--keep-root` on `tree2tax-relations`.
 
+### FlexTaxD version and depth
+
+The `tree2tax` files follow the reader on FlexTaxD's GitHub master
+(`flextaxd/modules/ReadTaxonomy.py`, 2026-10), which accepts either column
+order, reads the header to tell, pre-creates `root` and validates from it.
+The PyPI 0.1.5 release reads the genome map with a header line, stores the
+edges of a child-first file inverted and does not pre-create `root`, so it
+cannot consume these files. FlexTaxD walks at most 50 levels below `root`
+(`get_children`, `maxdepth=50`): a deeper taxonomy imports and dumps in full
+but fails `flextaxd --validate`. An unbalanced tree of more than about 50
+genomes can reach that depth; `--collapse-diameter` reduces it. A rank
+column is read on every row, and an empty value inherits the previous
+row's, so `--ranks` writes a rank on every row.
+
 ## Running tools in containers
 
 RepGenR2 can run each external tool in a pinned container, while RepGenR2
@@ -749,7 +763,7 @@ docker ps -q --filter label=repgenr.pid=<repgenr pid> | xargs -r docker stop
 | 0 | Success. |
 | 1 | An unexpected error (traceback in the run log). |
 | 2 | Invalid or missing user input. |
-| 3 | The working directory is missing or in a bad state, or a remote service (GTDB, NCBI, BV-BRC, ENA) failed. `assemble` and `reads-gather` also exit 3 when every run was excused (see [output.md](output.md#when-every-sequencing-run-is-excused)). |
+| 3 | The working directory is missing or in a bad state, or a remote service (GTDB, NCBI, BV-BRC, ENA) failed. `assemble` and `reads-gather` also exit 3 when every run was excused (see [reads.md](reads.md#when-every-sequencing-run-is-excused)). |
 | 4 | A required tool is absent or too old, or the Docker daemon is unreachable. |
 | 5 | A tool adapter could not be found or loaded. |
 | 6 | An external tool failed, including `datasets`. Under `REPGENR_PROPAGATE_TOOL_EXIT=1` (set by the Nextflow modules) the tool's own status is forwarded. |

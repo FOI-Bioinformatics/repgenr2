@@ -45,7 +45,7 @@ gamma=true`. A core-gene route without annotations adds a reason to run
 `repgenr annotate`, and `family` without `REPGENR_MARKERS_DB` a reason to
 download the marker database. Without sketches the ANI is unknown and the
 advice rests on the names. `--json` prints the advice as one object (see
-[output.md](output.md#machine-readable-status)). The advice is a starting point, not a
+[output.md](output.md#phylo-advise)). The advice is a starting point, not a
 replacement for inspecting the set.
 
 ### Presets
