@@ -2197,7 +2197,8 @@ the genomes, so they describe the shared part of the genomes, not the whole
 of them. ska's `no-ambig` filter also drops a variable column that holds an
 ambiguity code from `core_snp.fasta`, while a constant column with one still
 counts as constant, so the corrected branch lengths are a slight
-underestimate. With `lo=true` (`--tool-arg lo=true` on `snptype`), `ska lo` writes variants only: that route
+underestimate. With `lo=true` (`--tool-arg lo=true` on `snptype`, `--aligner-arg lo=true`
+on `phylo`), `ska lo` writes variants only: that route
 has no counts, its tree has no correction, and `phylo` warns. Compare
 topologies and supports rather than lengths there, or build the tree from a
 whole-genome alignment (`phylo-build --msa snp/full_alignment.fasta`).

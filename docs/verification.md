@@ -230,7 +230,7 @@ Last run 2026-09-10 13:11 UTC: 75 passed, 0 failed, 0 errors, 0 skipped, 25 min 
 
 What each module covers, with the flags it exercises, is in
 `docs/audit/cli-matrix.md` (the `live` column) and `tests/live/README.md`.
-The modules `test_reads`, `test_gzip_inputs`, `test_container_signals` and
+The modules `test_reads`, `test_gzip_inputs`, `test_container_signals`,
 `test_sketches_live` and `test_reads_sketch_live` are not in this table. Their
 results are recorded in the sections below where this page has them.
 
@@ -257,9 +257,10 @@ measurements.
 The stateless steps behind the Nextflow reads mode (`assemble-run`,
 `reads-gather`) are run on the same accession by
 `test_reads_steps_assemble_a_public_run`. `genome-qc` has offline
-tests with fakes in the live suite. The sourmash classifier was run by hand
-against the GTDB rs226 sketch (see Adapter status), and CheckM2 was run by
-hand through its pinned image in the reads audit (#226). The Nextflow layer itself is covered by the nf-test stub
+tests with fakes (`tests/integration`). The sourmash classifier was run by
+hand against the GTDB rs226 sketch (see Adapter status), and CheckM2 was run
+by hand through its pinned image in the reads audit (#226). The Nextflow
+layer itself is covered by the nf-test stub
 suite (`reads_select_process`, `reads_assemble_process`,
 `genome_qc_process`, `reads_gather_process`, `acquire_reads`,
 `reads_dataflow` and the `main.nf` reads-mode test) and, with real tools, by

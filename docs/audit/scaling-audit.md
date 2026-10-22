@@ -12,7 +12,7 @@ back-end (#16), the quality-aware keeper (#251 to #255), the
 species-stratified `--limit` (#137 and #138) and a single sourmash ANI
 quantity for both back-ends (#60) have shipped. The summary table and the
 backlog below give the state when the measurements were made. PR numbers
-from #137 to #268 refer to the earlier fork, druvus/repgenr. #15 to #18
+from #127 to #268 refer to the earlier fork, druvus/repgenr. #15 to #18
 and #60 refer to FOI-Bioinformatics/repgenr2.
 
 This document reports, per pipeline step: the available tool alternatives, how

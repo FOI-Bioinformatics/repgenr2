@@ -289,8 +289,8 @@ Set these per-family attributes, or inherit the default deliberately:
 * `Annotator.requires_database`: True for a tool that needs a database
   directory (`AnnotateParams.db`, as for bakta).
 * `CoreGeneParams.markers_db`: the database directory of the `markers`
-  core-gene builder. The `--markers-db` option of `phylo-build` and `phylo`
-  sets it, and `REPGENR_MARKERS_DB` supplies it when the option is absent.
+  core-gene builder. The `--markers-db` option of `phylo-build`, `phylo` and
+  `run` sets it, and `REPGENR_MARKERS_DB` supplies it when the option is absent.
   The builder checks the directory with `check_markers_db` and refuses a
   missing or incomplete one. `repgenr markers-db download` creates the
   directory, and `markers-db info` reports its contents. The other builders
