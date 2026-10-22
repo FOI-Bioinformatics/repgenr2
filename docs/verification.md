@@ -321,6 +321,13 @@ repgenr run -wd work/francisella_all -d all -l genus -tg Francisella \
 | tree2tax | 136 relations, 1158 genomes mapped | under 1 s |
 | whole run | 25 CPU-minutes, 2.9 GB on disk, `doctor` clean | 12 min |
 
+#### Viral run on 1256 Hepeviridae genomes (2026-06-15)
+
+A live viral run from BV-BRC (FTPS download and NCBI Entrez) gave 1256
+genomes; skDER kept 799 representatives, followed by mashtree and tree2tax.
+Times, tool versions and machine were not recorded; the source is the
+adapter status table of `docs/verification.md` at commit 7309fe7.
+
 #### sourmash back-ends on 24 Wolbachia genomes (2026-10-21)
 
 * **Data:** the 24 Wolbachia genomes.

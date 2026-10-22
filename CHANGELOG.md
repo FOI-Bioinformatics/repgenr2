@@ -378,6 +378,18 @@ All notable changes to RepGenR2 are documented here. The format follows
   words: rules restating a refusal message, log excerpts, alternate examples
   and explanations of one-line rules were removed, and the reads-screen
   resume and refinement rules moved to `docs/developing.md`.
+- `docs/choosing-tools.md`, `docs/install.md`, `README.md` and
+  `docs/README.md` are condensed. `docs/choosing-tools.md` has one decision
+  table by purpose and divergence in place of the flow chart, the dataset
+  table and the purpose table, which disagreed on the genus route; its
+  Wolbachia sketch-ANI tables link to the phylo methods audit, its
+  environment table to `docs/install.md`, and the tree-builder options move
+  to a new section of `docs/phylogeny.md`. `docs/install.md` collects the
+  macOS notes in one section, "macOS on Apple Silicon", lists ClipKIT and
+  HMMER in the core environment and gives the PPanGGOLiN, SCARAP and
+  OrthoFinder packages as in `envs/*.yml`. The README lists the tool
+  families one line each, and `docs/README.md` lists the pages one line
+  each.
 
 ### Fixed
 - `OMP_NUM_THREADS` of the FastTree and VeryFastTree builders never reached
