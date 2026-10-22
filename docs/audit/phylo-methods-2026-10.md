@@ -4,7 +4,7 @@ Status: audit complete (2026-10-21); this record is #43. The documentation
 fixes listed under "Other defects" were made with it. The improvement items A
 to E and H under "What this audit changes" are implemented (#42 to #53; the
 pull request of each item is named there). F has shipped since (the marker
-database and the `markers` core-gene builder), and G is pending cluster
+database, #58, and the `markers` core-gene builder, #59), and G is pending cluster
 time. The findings below describe the code at the audited commit.
 
 This record reviews the three MSA sources and the tree builders of the `phylo`
@@ -209,9 +209,11 @@ implemented; G is pending cluster time.
   ModelFinder; B3, the sourmash builder's distance is `1 - ANI` by default
   (`metric=ani`; `metric=jaccard` keeps `1 - Jaccard`). The ANI is the k-mer
   model estimate from the Jaccard index, `(2j / (1 + j))^(1/k)`, shared with
-  the dereplicator, rather than `sourmash compare --ani`, which reports 0 for identical genomes of 10 kb
-  and 30 kb at k=31, scaled=1000 (sourmash 4.9.4). Defects 4 and 5 are
-  fixed.
+  the dereplicator, rather than `sourmash compare --ani`, which reports 0 for
+  identical genomes of 10 kb and 30 kb at k=31, scaled=1000 (sourmash 4.9.4).
+  This formula is superseded by #60: the ANI is c^(1/k) from the average
+  containment, for the tree builder and both dereplication back-ends. Defects
+  4 and 5 are fixed.
 - **C. ska2 constant sites.** Counting constant columns from an unfiltered ska2
   alignment so that the reference-free route gets `-fconst`. Shipped (#46): the
   typer writes an all-sites alignment with `ska align --filter no-filter`, the
@@ -242,14 +244,18 @@ implemented; G is pending cluster time.
   FastTree, summarised by `wastral` (default), `astral4` or `astral-pro3`.
 
 Shipped after the audit: a marker-gene route for family-level sets (F),
-`repgenr markers-db download` (GTDB's bac120 and ar53 marker models from
-InterPro) and the `markers` core-gene builder (`--coregene markers`, HMMER
+`repgenr markers-db download` (#58; GTDB's bac120 and ar53 marker models from
+InterPro) and the `markers` core-gene builder (#59; `--coregene markers`, HMMER
 search and alignment with GTDB-Tk's rules; the builder of `--preset
 family`). Pending cluster
 time: a benchmark of IQ-TREE and capped core-gene trees at 100 to 500 genomes
 on real data (G).
 
 ## Sketch ANI audit (2026-10-21)
+
+The unknown-ANI rule for pairs with few shared hashes (30 hashes) and the
+k=21 advice for genus-level trees shipped as #57. The change to the average
+containment, described below, shipped as #60.
 
 The ANI that RepGenR2 computes from a `sourmash compare` Jaccard matrix,
 `(2j / (1 + j))^(1/k)`, is identical to sourmash's own estimate (maximum

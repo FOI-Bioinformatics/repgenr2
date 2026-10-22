@@ -330,6 +330,17 @@ All notable changes to RepGenR2 are documented here. The format follows
   (221 s and 186 s) are explained as two runs of the same command; the
   status of batch E in the phylo and tree2tax gap record; the version
   comments of the skani and rapidNJ adapters against their image pins.
+- Documentation: factual corrections in `docs/usage.md` (manifest schema,
+  ska2 reference rule, builder count, `--tool-arg` and `--aligner-arg` forms,
+  the `wave` profile, `-B`), `docs/verification.md` (adapter table rows for
+  the `markers` builder and both sourmash back-ends, the Gubbins refusal, the
+  Panaroo identity rule, the live-suite date and module list, the platform
+  note, contents), `docs/developing.md` (the `dereplicate-refine` step, the
+  tests that read the docs, how a core-gene builder receives its database),
+  `docs/output.md` (the `reads.tsv` and `assembly_stats.tsv` columns, the
+  reads sketch and screen directories, the Nextflow output directory) and the
+  records under `docs/audit/` (dates, status paragraphs, PR numbers and the
+  repository each refers to, ASCII punctuation).
 
 ### Fixed
 - `OMP_NUM_THREADS` of the FastTree and VeryFastTree builders never reached

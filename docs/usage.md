@@ -1549,7 +1549,7 @@ A working directory selected by an earlier version has no flag recorded;
 `repgenr metadata --force` with the same options records it. `genome` then
 runs again because `selection.tsv` changed, and downloads nothing already
 present; `dereplicate` runs again because the manifest now flags genomes. A
-manifest from an earlier version is upgraded in place (schema version 3) when
+manifest from an earlier version is upgraded in place to the current schema when
 a stage opens it, and an earlier version then refuses to open it.
 
 #### Quality values passed to the dereplicator
@@ -1997,7 +1997,8 @@ every genome maps to one reference and Gubbins accepts the alignment (under
 genus (ANI about 80 to 95 %), where a single reference no longer serves every
 genome and Panaroo's default clustering identity leaves an empty core.
 
-Support values on an IQ-TREE tree come from `-B N`, N ultrafast bootstrap
+Support values on an IQ-TREE tree come from `-B N` (long form
+`--bootstrap N`), N ultrafast bootstrap
 replicates (at least 1000). `--aligner-arg alrt=N` adds the SH-aLRT test
 with N replicates (`-alrt`, also at least 1000), which gives supports
 without `-B`; with both, IQ-TREE writes the two values in each node label.
@@ -2160,6 +2161,11 @@ Recombination masking (`--mask gubbins`) runs on the typer's whole-genome
 alignment and replaces the core-SNP alignment with Gubbins' filtered
 polymorphic sites. Typers that only emit variable sites cannot be masked.
 
+Typer tuning keys are given as `--tool-arg KEY=VALUE` on `snptype`. On `phylo`,
+`phylo-build` and `run` the same keys are given as `--aligner-arg KEY=VALUE`,
+because those commands pass one set of tuning keys to every tool they drive.
+The examples below use the form of the command they name.
+
 #### Invariant sites and branch lengths
 
 A tree from a variable-site-only alignment overestimates branch lengths
@@ -2191,7 +2197,7 @@ the genomes, so they describe the shared part of the genomes, not the whole
 of them. ska's `no-ambig` filter also drops a variable column that holds an
 ambiguity code from `core_snp.fasta`, while a constant column with one still
 counts as constant, so the corrected branch lengths are a slight
-underestimate. With `--tool-arg lo=true`, `ska lo` writes variants only: that route
+underestimate. With `lo=true` (`--tool-arg lo=true` on `snptype`), `ska lo` writes variants only: that route
 has no counts, its tree has no correction, and `phylo` warns. Compare
 topologies and supports rather than lengths there, or build the tree from a
 whole-genome alignment (`phylo-build --msa snp/full_alignment.fasta`).
@@ -2241,8 +2247,8 @@ are variable, near where Gubbins has failed (13% in
 [verification.md](verification.md)), or when the genome names (canonical
 `Family_Genus_species_Accession` names only, read where the last token is an
 accession) span more than one species. The species check runs before SNP
-typing. `--tool-arg gubbins_divergence_limit=FRACTION` moves the first limit
-and `--tool-arg gubbins_force=true` runs it anyway, with a warning.
+typing. `--aligner-arg gubbins_divergence_limit=FRACTION` moves the first limit
+and `--aligner-arg gubbins_force=true` runs it anyway, with a warning.
 Alignments shorter than 1000 columns are not judged.
 
 **Gubbins' tree builders.** Gubbins builds a tree in every iteration, by
@@ -2251,9 +2257,9 @@ RAxML build (`raxmlHPC-PTHREADS*`). Some conda builds ship only the
 single-threaded binary, and Gubbins then exits before its first iteration.
 When repgenr runs Gubbins natively and finds no such build, it switches to
 IQ-TREE (or to one thread when IQ-TREE is missing too) and says so in the
-log. `--tool-arg gubbins_tree_builder=raxmlng`,
-`--tool-arg gubbins_first_tree_builder=rapidnj` and
-`--tool-arg gubbins_args="--min-snps 5"` pass the choice, the first-iteration
+log. `--aligner-arg gubbins_tree_builder=raxmlng`,
+`--aligner-arg gubbins_first_tree_builder=rapidnj` and
+`--aligner-arg gubbins_args="--min-snps 5"` pass the choice, the first-iteration
 builder and any further `run_gubbins.py` arguments through.
 
 Unless a first-iteration builder or model is given, repgenr asks for
@@ -2331,20 +2337,20 @@ sequence at the cost of the accuracy above.
 
 `--tool ska2` (split k-mer analysis) is reference-free: every genome is an
 ordinary sample, so no assembly's private errors bias the SNP distances, and
-the alphabetical-first-genome reference default does not apply. It emits a
+the medoid reference rule does not apply. It emits a
 variable-site alignment and no whole-genome alignment, so it is not
 compatible with `--mask`. A second `ska align` call with `--filter no-filter`
 gives the constant-site counts for the tree builder (see "Invariant sites and
 branch lengths"); that alignment is counted and removed, not published. Tune it
-with `--tool-arg ksize=31` and `--tool-arg min_freq=0.9` (the fraction of
-samples a split k-mer must occur in).
+with `ksize=31` and `min_freq=0.9` (the fraction of samples a split k-mer must
+occur in), given as `--tool-arg` on `snptype` or `--aligner-arg` on `phylo`.
 
 On the 60 Wolbachia species representatives from GTDB, a genus-level set, it
 returned 708 variable sites in about two minutes. It is designed for clonal
 and outbreak sets, where the shared k-mer space is far larger, and the stage
 says so when the genome names span more than one species.
 
-`--tool-arg lo=true` replaces `ska align` with `ska lo`, which recovers
+`lo=true` replaces `ska align` with `ska lo`, which recovers
 variants in more diverged samples by local assembly of the split k-mer graph
 (Horsfield et al. 2025). The indels it finds are published as
 `snp/variants.vcf`, `lo_missing` (0.1) is its limit on missing data per site,
@@ -2521,7 +2527,7 @@ that the gene filters and `--gene-rank` read.
   needs ClipKIT 2.1.2 or later.
 - A gene whose alignment loses every column is dropped, and the log says
   how many. When every gene is dropped the stage stops.
-- It needs per-gene alignments, which all four builders hand over; a builder
+- It needs per-gene alignments, which all five builders hand over; a builder
   that returns only its own concatenation is refused it.
 - `core_gene_stats.json` records `trim` (`none` or `clipkit`), `trim_mode`,
   `trimmed_columns_removed` (columns before minus after, summed over the
@@ -3236,7 +3242,9 @@ Combine an executor profile with an optional container profile, e.g.
   `docker` or `singularity` every adapter with a pinned image runs in it (all
   but the `simple` SNP typer, parsnp, skder and SibeliaZ, which run on the
   host and say so in the log); `wave` mints an image from each adapter's
-  conda specification instead, which also covers those four. RepGenR2 itself
+  conda specification instead, which also covers those four. The `wave`
+  profile selects Singularity as the container runtime (`--container
+  singularity --wave`). RepGenR2 itself
   must be available to the Nextflow process.
 - **`test`**: minimal resources and a small target for a quick smoke run.
 
@@ -3459,7 +3467,7 @@ own config:
 // site.config
 process {
     withName: 'PHYLO' {
-        ext.args = '--treebuilder iqtree --bootstrap 1000'
+        ext.args = '--treebuilder iqtree -B 1000'
     }
     withName: 'DEREP_CHUNK|DEREP_MERGE' {
         ext.args = '--tool galah --secondary-ani 0.98'
