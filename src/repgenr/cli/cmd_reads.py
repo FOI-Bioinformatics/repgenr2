@@ -77,8 +77,8 @@ def reads(
     drop_selection: list[str] = typer.Option(
         ["MDA"],
         "--drop-selection",
-        help="Drop runs whose ENA library selection is this value (repeatable; default "
-        "MDA, whole-genome amplification). Pass 'none' to keep every selection.",
+        help="Drop runs whose ENA library selection is this value (repeatable; MDA is "
+        "whole-genome amplification). Pass 'none' to keep every selection.",
     ),
     one_per_sample: bool = typer.Option(
         True,
@@ -235,8 +235,8 @@ def reads_screen(
         None,
         "--jobs",
         min=1,
-        help="Runs gathered at once (default 4, or the usable CPUs when fewer); each gather "
-        "takes about 0.6 GB against the GTDB representatives sketch.",
+        help="Runs gathered at once; each gather takes about 0.6 GB against the GTDB "
+        "representatives sketch. Default: 4, or the usable CPUs when fewer.",
     ),
     reads_tsv: Path | None = typer.Option(None, "--reads-tsv", help=HELP_READS_TSV_STANDALONE),
     sketches_dir: Path | None = typer.Option(
@@ -308,8 +308,8 @@ def assemble(
         None,
         "--jobs",
         min=1,
-        help="Runs assembled concurrently, threads split across them (default 2, or 1 when a "
-        "long-read run is pending).",
+        help="Runs assembled concurrently, threads split across them. Default: 2, or 1 "
+        "when a long-read run is pending.",
     ),
     memory_gb: int = typer.Option(
         16,
@@ -345,8 +345,8 @@ def assemble(
         "--max-runs",
         min=1,
         help="Keep at most N runs with a finished assembly, in reads.tsv order (largest "
-        "first); finished runs count toward N and are kept. The other runs are listed as "
-        "deferred in excused_runs.tsv; a later call with a larger N assembles them.",
+        "first); finished runs count toward N. The others are deferred in "
+        "excused_runs.tsv, and a later call with a larger N assembles them.",
     ),
     append: bool = typer.Option(
         False,
