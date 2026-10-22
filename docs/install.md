@@ -201,9 +201,7 @@ variable: `REPGENR_CONTAINER`, `REPGENR_CONTAINER_ENGINE`,
   [macOS on Apple Silicon](#macos-on-apple-silicon)). On a native amd64
   Linux host no emulation is involved.
 - `--wave` mints an image from the adapter's conda spec with the Seqera Wave
-  CLI. It is the only image route for the four adapters that carry no pinned
-  image: `simple`, parsnp, skder and SibeliaZ. Without `--wave` those four run
-  on the host and the log says so.
+  CLI; see [Image sources](#image-sources).
 
 #### Image sources
 
@@ -217,7 +215,8 @@ Each adapter declares a pinned image, a conda spec, or both:
   This is the only image route for `simple` and parsnp, which span several
   packages, and for skder and SibeliaZ. Their BioContainers are
   BusyBox-based, and the GNU-only calls in their shell wrappers fail there,
-  so the run yields nothing.
+  so the run yields nothing. Without `--wave` these four run on the host,
+  and the log says so.
 
 #### Storage location
 
@@ -296,7 +295,7 @@ described under [Databases](#databases).
 | Core-gene builder | ppanggolin | `ppanggolin`, `mmseqs2` (mafft comes with its dependencies) | yes | `ppanggolin:2.3.2` | none |
 | Core-gene builder | scarap | `scarap`, `orthofinder`, `pandas<2` (MMseqs2 and mafft come with its dependencies) | yes | `scarap:1.0.2` | none |
 | Core-gene builder | orthofinder | `orthofinder`, `diamond` (mafft comes with its dependencies) | yes | `orthofinder:3.1.5` | none |
-| Core-gene builder | markers | `hmmsearch`, `hmmalign` (hmmer, in `envs/core.yml`) | yes | `hmmer:3.4` | marker database |
+| Core-gene builder | markers | `hmmer` (in `envs/core.yml`; provides `hmmsearch` and `hmmalign`) | yes | `hmmer:3.4` | marker database |
 | Core-gene trimming (`--gene-trim clipkit`) | clipkit | `clipkit` (in `envs/core.yml`) | yes | `clipkit:2.14.0` | none |
 | Tree builder | iqtree | `iqtree` | yes | `iqtree:3.1.3` | none |
 | Tree builder | fasttree | `fasttree` | yes | `fasttree:2.2.0` | none |

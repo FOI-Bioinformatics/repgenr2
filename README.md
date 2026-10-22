@@ -32,7 +32,9 @@ distributed as `repgenr2`, installed as the `repgenr` command) with ten
 pluggable tool families, grouped as read, genome, alignment and tree tools,
 and an optional Nextflow pipeline for scatter-gather runs on HPC and cloud
 executors. The largest end-to-end runs recorded are 1157 bacterial genomes
-(one genus, 12 minutes) and 1256 viral genomes (Hepeviridae). Larger sizes are
+(one genus, 12 minutes) and
+[1256 viral genomes](docs/verification.md#viral-run-on-1256-hepeviridae-genomes-2026-06-15)
+(Hepeviridae). Larger sizes are
 measured per tool in the [scaling audit](docs/audit/scaling-audit.md).
 
 ## Pipeline routes

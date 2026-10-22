@@ -432,7 +432,9 @@ gets distance 1 and is counted in the log. With
 `vgenome --outgroup-treebuilder skani`, the viral outgroup selection uses
 the skani distance matrix with the `small-genomes` preset. When no candidate is
 within skani's reach, no matrix is written and the log suggests mashtree,
-the default.
+the default. With NCBI Virus, the default source, the run then proceeds
+without an outgroup; with `--source bvbrc` it stops with an error that asks
+for the outgroup to be named.
 
 ## Support values
 

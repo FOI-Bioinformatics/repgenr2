@@ -141,8 +141,9 @@ The evidence behind the rows:
 - **Viral.** The live suite runs the viral chain on Hepatovirus records from
   NCBI Virus with `sourmash` and `mashtree` in 21 seconds. An earlier live
   run on 1256 Hepeviridae genomes from BV-BRC kept 799 representatives with
-  `skder`; it has no current record in verification.md. Other viral scaling
-  is not measured.
+  `skder`
+  ([verification.md](verification.md#viral-run-on-1256-hepeviridae-genomes-2026-06-15)).
+  Other viral scaling is not measured.
 
 Rules of thumb:
 
