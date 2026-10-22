@@ -15,7 +15,9 @@ Contents:
 * [Re-running the checks: the live suite](#re-running-the-checks-the-live-suite)
 * [Live suite results](#live-suite-results)
 * [Measured runs](#measured-runs): the reads route, the genus-scale run, SNP
-  phylogeny and typing, the core-gene route, gzipped inputs
+  phylogeny and typing, the core-gene route, gene selection and ASTER
+  (2026-10-21), GTDB marker genes (2026-10-21), sourmash dereplication
+  back-ends (2026-10-21), gzipped inputs
 * [Command audit (2026-10-07)](#command-audit-2026-10-07)
 * [Platform notes (macOS / Apple Silicon)](#platform-notes-macos--apple-silicon)
 
@@ -38,14 +40,14 @@ adapter at all; every built-in adapter has at least the offline tests.
 Where each built-in adapter has been run against its real tool. "Native"
 means the tool on the host `PATH` of the audit machine; "container" means
 through `--container docker` (a pinned image or one minted by Wave). The
-live-suite rows reflect the live suite as it stands. A tool version is given
+live-suite rows reflect the live-suite run dated under "Live suite results". A tool version is given
 only where this page records one.
 
 | Family | Adapter | Evidence level | Native | Container | Where | Tool version recorded |
 |---|---|---|---|---|---|---|
 | dereplicator | skder | real tool, live suite | yes | yes | test_dereplicators, test_container_runs | not recorded |
 | dereplicator | galah | real tool, live suite | yes | yes | test_dereplicators, test_container_runs (pinned image) | galah 0.4.2 and 0.5.2 (`--genome-info` check, #233) |
-| dereplicator | sourmash | real tool, live suite | yes | yes | test_dereplicators, test_aux_commands, test_container_runs (pinned image) | not recorded |
+| dereplicator | sourmash | real tool, live suite | yes | yes | test_dereplicators, test_aux_commands, test_container_runs (pinned image); both back-ends (sparse and dense) run by hand on 24 Wolbachia genomes (2026-10-21) | not recorded |
 | dereplicator | drep | real tool, live suite | no | yes | test_container_runs (pinned and Wave images; also `glance`) | container pin dRep 3.7.1; the local dRep 3.4.5 fails (see the command audit observations) |
 | aligner | sibeliaz | real tool, live suite | yes | yes | test_steps, test_container_runs | not recorded |
 | aligner | progressivemauve | real tool, live suite | no | yes | test_container_runs, test_nextflow (unpackaged on macOS) | not recorded |
@@ -69,6 +71,7 @@ only where this page records one.
 | core-gene builder | panaroo | real tool, by hand | yes | no | core-gene route on Wolbachia (2026-10-15) | Panaroo 1.8.0 with mafft (osx-64 under Rosetta) |
 | core-gene builder | ppanggolin | real tool, by hand | yes | no | core-gene route on Wolbachia (2026-10-15), also through a temporary Nextflow harness | PPanGGOLiN 2.3.2 (osx-arm64) |
 | core-gene builder | scarap | real tool, by hand | yes | no | core-gene route on Wolbachia (2026-10-15) | SCARAP 1.0.2 (noarch) |
+| core-gene builder | markers | real tool, by hand | yes | no | GTDB marker genes on the 24 Wolbachia genomes (2026-10-21), see the section below; offline tests with fake binaries | HMMER 3.4, IQ-TREE 3.1.2 |
 | core-gene builder | orthofinder | real tool, by hand | yes | no | core-gene route on Wolbachia (2026-10-15) | OrthoFinder 3.1.5 (noarch) with DIAMOND 2.2.8 |
 | assembler | skesa | real tool, live suite | yes | yes | test_container_runs (pinned image, simulated reads; a `requires_binary` test covers the host); test_reads (SRR25474756); native by hand in the reads audit (#226) | not recorded |
 | assembler | shovill | real tool, live suite | no | yes | test_container_runs (pinned image, simulated reads) | not recorded |
@@ -136,7 +139,7 @@ Tests whose tool is not on `PATH` are skipped, not failed. See
 ## Live suite results
 
 The table below is rendered from the junit output of the last complete run
-on the audit machine (Apple Silicon, Docker Desktop with Rosetta) by
+(2026-09-10) on the audit machine (Apple Silicon, Docker Desktop with Rosetta) by
 `scripts/live_report.py`:
 
 ```bash
@@ -227,9 +230,9 @@ Last run 2026-09-10 13:11 UTC: 75 passed, 0 failed, 0 errors, 0 skipped, 25 min 
 
 What each module covers, with the flags it exercises, is in
 `docs/audit/cli-matrix.md` (the `live` column) and `tests/live/README.md`.
-The modules `test_reads`, `test_gzip_inputs`, `test_container_signals` and
-`test_sketches_live` are not in this table; their results are recorded in
-the sections below where this page has them.
+The modules `test_reads`, `test_gzip_inputs`, `test_container_signals`,
+`test_sketches_live` and `test_reads_sketch_live` are not in this table. Their
+results are recorded in the sections below where this page has them.
 
 ## Measured runs
 
@@ -253,9 +256,11 @@ measurements.
 
 The stateless steps behind the Nextflow reads mode (`assemble-run`,
 `reads-gather`) are run on the same accession by
-`test_reads_steps_assemble_a_public_run`. `genome-qc` has only the offline
-tests with fakes, since the audit machine holds neither a CheckM2 database
-nor a GTDB sketch. The Nextflow layer itself is covered by the nf-test stub
+`test_reads_steps_assemble_a_public_run`. `genome-qc` has offline
+tests with fakes (`tests/integration`). The sourmash classifier was run by
+hand against the GTDB rs226 sketch (see Adapter status), and CheckM2 was run
+by hand through its pinned image in the reads audit (#226). The Nextflow
+layer itself is covered by the nf-test stub
 suite (`reads_select_process`, `reads_assemble_process`,
 `genome_qc_process`, `reads_gather_process`, `acquire_reads`,
 `reads_dataflow` and the `main.nf` reads-mode test) and, with real tools, by
@@ -345,8 +350,8 @@ same alignment:
 | tularensis + philomiragia | 27 | 345308 (16.8%) | bus error |
 | whole genus | 68 | 809060 (39.4%) | bus error |
 
-The masker now estimates this fraction, warns above 10%, and reports the
-figure if Gubbins fails. Recombination masking belongs to a within-species
+The masker estimates this fraction, warns above 10%, refuses above 12%, and
+reports the figure if Gubbins fails. Recombination masking belongs to a within-species
 run; a genus-level set is served by mashtree or an alignment-based path.
 
 Masking changes the answer where it does run. On the nine F. tularensis
@@ -432,6 +437,10 @@ reached through `--bin-dir`.
   not carried through. These are the clusters before Panaroo's entropy
   filter, which is why the default run above reports 45 genes in
   `core_gene_stats.json` against the 52 here.)
+
+  The adapter uses 0.95 instead of 0.98 when the canonical genome names span
+  more than one species. These measurements predate that rule, and the
+  24-genome result reported at "the defaults" below was obtained at 0.98.
 
   The set matters as much as the setting. At that same default identity
   two of these genomes shared 1054 genes, three shared 52 and four across
@@ -1017,8 +1026,9 @@ the observation says so.
 - Several tools lack osx-arm64 builds; some run via an osx-64 (Rosetta) conda env
   (e.g. parsnp/harvesttools). `mauve` is unpackaged on macOS entirely.
 - `mashtree` pulls `perl-bio-samtools`, which pins an ancient samtools 0.1.x;
-  modern samtools/bcftools for the `simple` SNP typer live in a separate env and
-  are placed ahead on PATH.
+  modern samtools/bcftools for the `simple` SNP typer come from `envs/core.yml`.
+  Satellite environments are appended to `PATH` after core, so core's tools are
+  found first (see [install.md](install.md)).
 - On exFAT/NTFS volumes, macOS `._*` AppleDouble files must be ignored (handled
   in the adapters/stages) and skDER must run on a local filesystem.
 - amd64-only container tools run under emulation. Docker's QEMU emulation cannot

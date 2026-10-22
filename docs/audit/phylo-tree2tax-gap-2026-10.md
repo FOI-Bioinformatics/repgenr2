@@ -1,8 +1,18 @@
 # Phylo and tree2tax gap analysis (2026-10)
 
-Status: analysis complete. Batches A to D are merged. Of batch E, E2 to E4
-shipped as #15, #16 and #18 (with the skani tree builder, #17); E1, the
-benchmark sweep, needs cluster time and is deferred.
+Status: analysis complete. Batches A to D are merged in this repository
+(FOI-Bioinformatics/repgenr2): A as #3 and #4, B as #5 and #6, C as #7 (C1),
+#8 (C4), #9 (C3) and #13 (C2), and D as #10 (D1), #11 (D2), #12 (D4) and #14
+(D3). Of batch E, E2 to E4 shipped as #15, #16 and #18 (with the skani tree
+builder, #17); E1, the benchmark sweep, needs cluster time and is deferred.
+Two defaults remain open: the C2 soft core (`--core-fraction` is unset by
+default) and the D4 node naming (the leaf-set hash is still the default, and
+`--naming lca` is optional).
+
+PR numbers in this record and in the August and September records refer to two
+repositories. Numbers from about 139 to 270 are in the earlier fork,
+druvus/repgenr. Numbers from #2 upward in the October records are in
+FOI-Bioinformatics/repgenr2, except where the text says otherwise.
 
 This record compares the `phylo` and `tree2tax` stages at commit 43823e8 with
 current practice in bacterial phylogenomics and tree-based taxonomy, lists the
@@ -224,7 +234,7 @@ classes.
   The lineage belongs in the node sidecar.
 - Automatic calibration of divergence to ranks: GTDB derives its rank
   intervals from a tree of thousands of taxa; a genus-level tree gives no
-  distribution to calibrate on. User-supplied bands are honest about that.
+  distribution to calibrate on. User-supplied bands make no claim of calibration.
 - FlexTaxD in the `dev` extra or on CI: the mirror reader in A4 covers the
   contract, and a live test covers the real import.
 - A second rooting policy in tree2tax: since #263 phylo owns rooting.

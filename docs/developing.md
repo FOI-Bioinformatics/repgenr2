@@ -82,7 +82,7 @@ The commands fall into two kinds:
   `repgenr.yaml` configuration and provenance file, and the SQLite genome
   manifest. Stages record what they did and can be resumed.
 * A **step** is a stateless data-channel command (`genome-fetch`,
-  `dereplicate-chunk`, `dereplicate-merge`, `annotate-build`,
+  `dereplicate-chunk`, `dereplicate-merge`, `dereplicate-refine`, `annotate-build`,
   `annotate-index`, `phylo-build`, `tree2tax-relations`, `assemble-run`,
   `genome-qc`, `reads-gather`; see `COMMAND_PANELS` in `cli/base.py`). A step
   reads explicit inputs (a `selection.tsv` or a file of file names) and writes
@@ -288,6 +288,13 @@ Set these per-family attributes, or inherit the default deliberately:
   builds one (Gubbins does); the stage keeps it as `masker_tree.nwk`.
 * `Annotator.requires_database`: True for a tool that needs a database
   directory (`AnnotateParams.db`, as for bakta).
+* `CoreGeneParams.markers_db`: the database directory of the `markers`
+  core-gene builder. The `--markers-db` option of `phylo-build`, `phylo` and
+  `run` sets it, and `REPGENR_MARKERS_DB` supplies it when the option is absent.
+  The builder checks the directory with `check_markers_db` and refuses a
+  missing or incomplete one. `repgenr markers-db download` creates the
+  directory, and `markers-db info` reports its contents. The other builders
+  do not read the field.
 * `CoreGeneBuilder.accepted_annotators`: annotator names the builder accepts;
   empty means any GFF3 with sequences.
 * `Assembler.read_types` and `Assembler.layouts`, `Polisher.read_types`: the
@@ -571,9 +578,8 @@ These are the commands CI runs (`.github/workflows/ci.yml`); CI adds
 `pyproject.toml`), and a test marked `@pytest.mark.requires_binary("name")`
 is skipped when the binary is not on `PATH` (`tests/conftest.py`). Some tests
 read the documentation or the changelog: `test_docs_tool_limits.py`,
-`test_cli_matrix.py`, `test_version_consistency.py` (CHANGELOG.md),
-`test_genome_stage.py` and
-`test_vmetadata_stage.py` under `tests/unit/`.
+`test_cli_matrix.py` and `test_version_consistency.py` (CHANGELOG.md) under
+`tests/unit/`.
 
 #### Unit tests for an adapter
 
