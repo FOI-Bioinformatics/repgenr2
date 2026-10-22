@@ -349,6 +349,11 @@ All notable changes to RepGenR2 are documented here. The format follows
   open observations on ParSNP, BV-BRC behind a proxy, exFAT volumes and dRep
   3.4.5 are in `docs/usage.md` (Troubleshooting) and `docs/install.md`. The
   platform notes point to `docs/install.md`.
+- `docs/audit/scaling-audit.md` keeps the measurements, findings and bias
+  experiments; the tool alternatives list the candidates not adopted; the
+  recommendations and a table of the gaps from the former appendices give the
+  pull request that shipped each, or its open state. The appendices A to C
+  are in git history at commit ff6cc9f.
 
 ### Fixed
 - `OMP_NUM_THREADS` of the FastTree and VeryFastTree builders never reached
