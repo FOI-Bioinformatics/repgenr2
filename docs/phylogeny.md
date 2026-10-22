@@ -13,7 +13,7 @@ routes and tools in [choosing-tools.md](choosing-tools.md#phylogeny-routes).
 3. [SNP typing and masking](#snp-typing-and-masking)
 4. [Annotation](#annotation)
 5. [Core-gene phylogeny](#core-gene-phylogeny)
-6. [Support values](#support-values) and [rooting the tree](#rooting-the-tree)
+6. [Tree-builder options](#tree-builder-options), [support values](#support-values) and [rooting the tree](#rooting-the-tree)
 7. [Reusing an alignment across tree builders](#reusing-an-alignment-across-tree-builders)
 
 ## Choosing a route
@@ -399,6 +399,40 @@ and the marker set are part of the alignment's reuse key; its path is not.
 The proteins come from bakta or prokka rather than Prodigal, and the
 alignment is not masked with GTDB's column mask (`--gene-trim clipkit`
 trims each marker instead), so the tree can differ from a GTDB-Tk tree.
+
+## Tree-builder options
+
+Each tree builder takes its own settings through `--aligner-arg KEY=VALUE`.
+The options of `iqtree` and `raxmlng` are described under
+[Invariant sites and branch lengths](#invariant-sites-and-branch-lengths),
+[Partitioned models](#partitioned-models) and
+[Support values](#support-values), those of `ska2` under
+[Split k-mers: ska2](#split-k-mers-ska2), and those of `aster` under
+[Species tree from gene trees](#species-tree-from-gene-trees). The other
+builders accept the following:
+
+| Builder | Options |
+|---|---|
+| `fasttree` | `gamma=true` rescales the branch lengths under the Gamma20 likelihood. |
+| `veryfasttree` | `gamma=true` as for `fasttree`; `double_precision=true`. Its thread count follows `-t`. |
+| `mashtree` | `genomesize=`, passed to mashtree. |
+| `sourmash` | `metric=ani` (default) or `jaccard`; `ksize=` (31) and `scaled=` (1000) of the sketches; `nj=auto`, `rapidnj` or `python` for the joining step. |
+| `skani` | `screen=` (80, skani's `-s`), `min_af=`, `preset=fast`, `medium`, `slow` or `small-genomes`; `nj=` as for `sourmash`. |
+
+The sourmash distance is one minus the ANI estimate c^(1/k) from the average
+containment c, the quantity the sourmash dereplicator thresholds. A pair
+with too few shared hashes gets distance 1 and is counted in the log (see
+[How the tools estimate ANI](choosing-tools.md#how-the-tools-estimate-ani)).
+For a set wider than a species, use `ksize=21`: k=21 is less biased than
+k=31 at 80 to 95 % identity, and the builder logs this advice at k=31 when
+the genome names span more than one genus. With `nj=auto` the joining step
+runs rapidNJ when it is installed and a pure-Python step otherwise; the
+Python step refuses more than 5000 leaves. A skani pair below the screen
+gets distance 1 and is counted in the log. With
+`vgenome --outgroup-treebuilder skani`, the viral outgroup selection uses
+the skani distance matrix with the `small-genomes` preset. When no candidate is
+within skani's reach, no matrix is written and the log suggests mashtree,
+the default.
 
 ## Support values
 
