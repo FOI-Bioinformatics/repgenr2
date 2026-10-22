@@ -374,7 +374,10 @@ All notable changes to RepGenR2 are documented here. The format follows
   versions are reduced to the three that still apply, under
   Troubleshooting. The `--preset` help and the Nextflow `--help` text name
   the new pages, and `tests/audit/cli_matrix.yaml` lists the page that now
-  documents each flag.
+  documents each flag. The four pages were then condensed to about 11000
+  words: rules restating a refusal message, log excerpts, alternate examples
+  and explanations of one-line rules were removed, and the reads-screen
+  resume and refinement rules moved to `docs/developing.md`.
 
 ### Fixed
 - `OMP_NUM_THREADS` of the FastTree and VeryFastTree builders never reached

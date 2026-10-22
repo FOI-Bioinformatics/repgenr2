@@ -595,6 +595,31 @@ runs each variant holds.
   run. Under Docker, an engine that cannot start a tool (no image, daemon
   down) stops the call with one error instead of failing every run.
 
+**Reads screen.** Each decision records both thresholds and the resolved
+paths of the GTDB sketch and lineages CSV.
+
+* `assemble --screen-reads`: a repeat with the same settings screens nothing
+  again; an excused run is excused from its recorded decision without a
+  download. A changed setting screens the runs again from their kept reads
+  sketches without fetching reads. An excused run is fetched again only when
+  it now passes, and a finished run that now fails is excused while its
+  contigs and marker stay. A finished run without a reads sketch is not
+  screened. With `--max-runs`, a run excused while it is processed frees its
+  place only in the next call.
+* `reads-screen`: a new sketch or a changed threshold screens a run again
+  from the kept sketch. A run the tools failed on keeps no decision. The
+  duplicate check is made again on every call, in `reads.tsv` order, over
+  every run decided with the same settings, so several calls give the
+  result of one.
+
+**Refinement.** `derep-refine` needs a completed `dereplicate` record (one
+restored by `derep-stock` counts) and keeps its seeds and ANI in its own
+record. A seed refined before brings in its original coarse cluster from
+`refined.tsv`. A cluster claimed by two ANIs of a `--refine-file` is
+refused. The file's content is a resume input, and its path is stored as an
+absolute path. On a result reduced with `--reduce`, a lineage is refined as
+the whole taxon group, with a warning.
+
 ## 4. Adding an adapter
 
 A new tool is a self-contained adapter module plus one entry-point line. The

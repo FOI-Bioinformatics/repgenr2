@@ -2017,7 +2017,7 @@ commands:
         invalid: '2'
         docs:
         - docs/cli-reference.md
-        - docs/usage.md
+        - docs/phylogeny.md
         - docs/audit/cli-matrix.md
         nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
         live: 'n/a: shares the phylo builder (wiring test); the typing pass is covered offline
@@ -2495,7 +2495,7 @@ commands:
         invalid: '2'
         docs:
         - docs/cli-reference.md
-        - docs/usage.md
+        - docs/phylogeny.md
         - docs/audit/cli-matrix.md
         nextflow: 'params.phylo_args'
         live: 'n/a: shares the phylo builder (wiring test); the typing pass is covered offline
@@ -2810,7 +2810,7 @@ commands:
         invalid: '-1'
         docs:
         - docs/cli-reference.md
-        - docs/usage.md
+        - docs/phylogeny.md
         - docs/audit/cli-matrix.md
         nextflow: 'n/a: workdir command; the Nextflow layer runs one ANNOTATE task per genome'
         live: 'n/a: covered offline in tests/unit/test_annotate_stage.py (the live run needs bakta and its database)'
@@ -3047,7 +3047,7 @@ commands:
         param: AssembleParams.keep_files
         validated: none
         docs:
-        - docs/usage.md
+        - docs/reads.md
         - docs/cli-reference.md
         - docs/audit/cli-matrix.md
         nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
@@ -3067,7 +3067,7 @@ commands:
         value: '{file}'
         validated: none
         docs:
-        - docs/usage.md
+        - docs/reads.md
         - docs/cli-reference.md
         - docs/audit/cli-matrix.md
         nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
@@ -3110,7 +3110,7 @@ commands:
         value: '{file}'
         validated: none
         docs:
-        - docs/usage.md
+        - docs/reads.md
         - docs/cli-reference.md
         - docs/audit/cli-matrix.md
         nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
@@ -3129,7 +3129,7 @@ commands:
         param: AssembleParams.append
         validated: none
         docs:
-        - docs/usage.md
+        - docs/reads.md
         - docs/cli-reference.md
         - docs/audit/cli-matrix.md
         nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
@@ -3197,7 +3197,7 @@ commands:
         param: AssembleParams.screen_reads
         validated: none
         docs:
-        - docs/usage.md
+        - docs/reads.md
         - docs/output.md
         - docs/cli-reference.md
         - docs/audit/cli-matrix.md
@@ -3571,7 +3571,7 @@ commands:
         value: '{file}'
         validated: stage
         docs:
-        - docs/usage.md
+        - docs/reads.md
         - docs/cli-reference.md
         - docs/audit/cli-matrix.md
         nextflow: params.gtdb_sketch
@@ -4404,7 +4404,7 @@ commands:
         invalid: '2'
         docs:
         - docs/cli-reference.md
-        - docs/usage.md
+        - docs/phylogeny.md
         - docs/audit/cli-matrix.md
         nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
         live: 'n/a: shares the phylo builder (wiring test); the typing pass is covered offline
@@ -4755,7 +4755,7 @@ commands:
         invalid: '2'
         docs:
         - docs/cli-reference.md
-        - docs/usage.md
+        - docs/phylogeny.md
         - docs/audit/cli-matrix.md
         nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
         live: 'n/a: covered offline in tests/integration/test_snptype_stage.py'
@@ -5621,7 +5621,7 @@ commands:
         validated: none
         docs:
         - docs/cli-reference.md
-        - docs/usage.md
+        - docs/reads.md
         - docs/audit/cli-matrix.md
         nextflow: params.assemble_args
         live: 'n/a: offline step tests with fake gather tables in tests/integration/test_assemble_screen.py'
@@ -5721,7 +5721,7 @@ commands:
         value: '{alt_dir}'
         validated: none
         docs:
-        - docs/usage.md
+        - docs/reads.md
         - docs/cli-reference.md
         - docs/audit/cli-matrix.md
         nextflow: params.checkm2_db
@@ -5742,7 +5742,7 @@ commands:
         value: '{alt_file}'
         validated: none
         docs:
-        - docs/usage.md
+        - docs/reads.md
         - docs/cli-reference.md
         - docs/audit/cli-matrix.md
         nextflow: params.gtdb_sketch
