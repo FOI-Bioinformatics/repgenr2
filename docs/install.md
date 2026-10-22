@@ -42,7 +42,7 @@ Contents:
 | HPC cluster | `--container singularity` with `--container-cache` on shared storage | Tools run from pinned images without site installs. Images are pulled once and reused. |
 | macOS on Apple Silicon | The core environment (osx-arm64) with satellites appended on `PATH`; containers for progressiveMauve, Cactus, snippy, dRep, shovill, medaka and CheckM2 | These were run inside containers on the audit machine (`verification.md`); the CheckM2 host builds fail on macOS. skder, galah, sourmash, SibeliaZ, `simple`, parsnp, ska2, Gubbins, iqtree, fasttree, raxmlng, mashtree and the sourmash tree builder, skesa, flye and racon ran natively. |
 | Nextflow on a cluster | A site image or conda per profile; `-profile slurm,singularity` | The `slurm` profile sets only the executor. The container profiles set `--container` for every stage. |
-| Nextflow on a cloud executor | A site config with the executor, queue and an image that provides `repgenr` and the tools | No cloud profile ships, because the region, queue and image are site-specific (see [usage.md](usage.md#profiles)). |
+| Nextflow on a cloud executor | A site config with the executor, queue and an image that provides `repgenr` and the tools | No cloud profile ships, because the region, queue and image are site-specific (see [nextflow.md](nextflow.md#profiles-and-containers)). |
 
 ## The package
 
@@ -203,9 +203,9 @@ Three further points:
 RepGenR2 can run each tool inside a pinned container instead of from `PATH`.
 The package itself runs on the host and only the tool subprocess is
 containerized, so this works in the plain CLI and inside Nextflow. The default
-is `none` (native execution). The quick start and the option table are in
-[usage.md](usage.md#running-tools-in-containers); the remaining details are
-here.
+is `none` (native execution). The quick start is also in
+[usage.md](usage.md#running-tools-in-containers); the options and the
+remaining details are here.
 
 ```bash
 repgenr --container docker dereplicate -wd $WD --tool drep
@@ -343,7 +343,7 @@ the `envs/` files, and the environment that holds each tool is listed in
 | SNP typer | snippy | `snippy` | no | `snippy:4.6.0` | none |
 | SNP typer | parsnp | `parsnp`, `harvesttools` | yes, from an osx-64 environment | none (Wave) | none |
 | SNP typer | ska2 | `ska2` | yes | `ska2:0.5.1` | none |
-| Masker | gubbins | `gubbins` | yes | `gubbins:3.4.3` | a multi-threaded RAxML build for more than one thread (see [usage.md](usage.md#snp-typing-and-masking)) |
+| Masker | gubbins | `gubbins` | yes | `gubbins:3.4.3` | a multi-threaded RAxML build for more than one thread (see [phylogeny.md](phylogeny.md#recombination-masking-with-gubbins)) |
 | Core-gene builder | panaroo | `panaroo`, `mafft` | yes, from an osx-64 environment under Rosetta (its dependency prokka is not packaged for arm64; `CONDA_SUBDIR=osx-64`) | `panaroo:1.8.0` | none |
 | Core-gene builder | ppanggolin | `ppanggolin`, `mafft` | yes | `ppanggolin:2.3.2` | none |
 | Core-gene builder | scarap | `scarap`, `mmseqs`, `mafft` | yes | `scarap:1.0.2` | none |
@@ -395,7 +395,7 @@ The Nextflow layer needs Nextflow 26.04 or later (`nextflowVersion =
 profiles set `params.repgenr_opts`, so every stage calls `repgenr` with
 `--container docker`, `--container singularity` or `--container singularity
 --wave`. The `repgenr` command itself must be available to each process. See
-[usage.md](usage.md#nextflow) for parameters and profiles.
+[nextflow.md](nextflow.md) for parameters and profiles.
 
 ## Verify the installation
 
@@ -418,5 +418,5 @@ A stage run with a missing or outdated tool exits with status 4. The
 exception is `assemble --assembler auto`, which excuses runs whose assembler
 is missing (reason `assembler_not_installed`, with a warning) and exits 4 only
 when no run can be assembled. A missing `auto` polisher is skipped (see
-[usage.md](usage.md#starting-from-sequencing-reads)). The full exit-code table
+[reads.md](reads.md#polishing-long-read-assemblies)). The full exit-code table
 is in [usage.md](usage.md#troubleshooting).

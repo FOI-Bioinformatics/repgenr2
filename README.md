@@ -172,7 +172,7 @@ nextflow run nextflow/main.nf -profile standard --outdir results \
 
 `--mode viral` and `--mode reads` (ENA/SRA sequencing runs, one assembly task
 per run) select the other two front ends. Nextflow 26.04 or later is required.
-Parameters and profiles are described in [docs/usage.md](docs/usage.md#nextflow).
+Parameters and profiles are described in [docs/nextflow.md](docs/nextflow.md).
 
 ## Documentation
 
@@ -180,7 +180,10 @@ Parameters and profiles are described in [docs/usage.md](docs/usage.md#nextflow)
 |------|----------------|
 | [docs/install.md](docs/install.md) | Installing the package and the external tools: conda environments, containers, per-tool requirements and databases. |
 | [docs/choosing-tools.md](docs/choosing-tools.md) | Which dereplicator, phylogeny route and tree builder to use for a dataset and size, with the measured runs and declared limits behind each. |
-| [docs/usage.md](docs/usage.md) | Running the pipeline: CLI stages, local genomes, viruses, resume, representative selection, SNP typing and masking, Nextflow parameters and profiles, containers, troubleshooting. |
+| [docs/usage.md](docs/usage.md) | Running the pipeline from the command line: stages, resume, GTDB, local genomes, viruses, representative selection, a summary of the phylogeny routes, tree2tax, containers, troubleshooting. |
+| [docs/reads.md](docs/reads.md) | Building the genome set from sequencing runs: run selection, assembly, polishing, quality checks and screening. |
+| [docs/phylogeny.md](docs/phylogeny.md) | The phylogeny routes in depth: presets, SNP typing and masking, annotation, the core-gene builders, support values and rooting. |
+| [docs/nextflow.md](docs/nextflow.md) | The Nextflow pipeline: structure, parameters, profiles, reads mode, scaling and process configuration. |
 | [docs/cli-reference.md](docs/cli-reference.md) | Every command and option, generated from the command tree. |
 | [docs/output.md](docs/output.md) | The files each stage writes. |
 | [docs/developing.md](docs/developing.md) | Architecture, data contracts, and how to add a tool adapter. |
