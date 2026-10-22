@@ -51,7 +51,7 @@ The selection is then filtered:
   host-dominated genome.
 - `--drop-selection` drops runs by ENA library selection; the default,
   `MDA`, drops whole-genome amplification, which gives chimeric contigs.
-  `--drop-selection none` keeps every run.
+  The flag repeats, and `--drop-selection none` keeps every run.
 - `--one-per-sample` (the default) keeps the best run of each sample: a
   long-read run with at least 100 Mb and a tenth of the largest short-read
   run, else the largest run. `--all-runs` keeps every run.
@@ -105,7 +105,8 @@ auto` (the default) runs medaka for ONT runs (racon when medaka is missing)
 and racon for PacBio CLR runs, with `--polish-rounds` rounds, and nothing
 for HiFi or Illumina. `--polisher none` turns polishing off.
 
-medaka needs the basecaller model. SRA rewrites the FASTQ headers that name
+medaka needs the basecaller model, which it reads from the FASTQ headers of
+reads basecalled with Dorado. SRA rewrites the FASTQ headers that name
 it, so give it with `--tool-arg model=...`. Otherwise ONT's bacterial
 R10.4.1 model is used (`--tool-arg bacteria=false` uses medaka's general
 default). A polishing failure excuses the run with `polish_failed`. When the
@@ -186,8 +187,10 @@ abundances).
   `reads.tsv`, and a later call adds the rest.
 - The index `reads_sketches.tsv` gives each run's status (`ok`, `failed`,
   `empty` or `pending`; see [output.md](output.md#reads-sketch)). A failed
-  run is streamed again on the next call. The command exits 3 only when
-  every selected run failed.
+  run is streamed again on the next call, and a run that keeps failing is
+  retried on every call until the selection is narrowed with `--accession`.
+  The command exits 3 only when every selected run failed. `--force`
+  streams every selected run again, `empty` ones included.
 - `--jobs` (4) streams runs in parallel, each costing about one CPU.
 
 The first spots of a run are not a random sample, and a low-abundance
@@ -197,14 +200,20 @@ compare the starts of two runs. `fastq-dump` needs sra-tools 3.0 or later
 and reads from NCBI, so a run that only ENA holds fails. Under `--container
 docker` it runs from NCBI's `ncbi/sra-tools` image, which also runs natively
 on arm64. A run whose stream holds no biological read is marked `empty` and
-not streamed again at that cap. Retries and locking
-are described in [developing.md](developing.md#resume-semantics).
+not streamed again at that cap. A stalled stream is limited by
+`REPGENR_SUBPROCESS_TIMEOUT`, and a refusal naming a `.lock` file means
+another call holds the variant directory. Retries and locking are described
+in [developing.md](developing.md#resume-semantics).
 
-`reads-screen` judges one variant (`--max-spots N`) with the three checks
+`reads-screen` judges one variant (`--max-spots N`, required when more than
+one variant exists) with the three checks
 (`--min-fraction`, `--dup-ani`) and writes `reads_screen/<variant>/`.
 `passed.txt` there lists the accepted runs in the form `assemble
---accession-file` takes (see [output.md](output.md#reads-screen)). Repeats
-reuse earlier decisions made with the same settings. A run decided with
+--accession-file` takes (see [output.md](output.md#reads-screen)). A run
+without a sketch in the variant is listed as `screen_failed: no reads
+sketch`; run `reads-sketch` for it first. Repeats reuse earlier decisions
+made with the same settings, and `--force` screens every selected run
+again. A run decided with
 other settings and not selected in the call is left out of `passed.txt`
 with a warning, so screen every run with the same settings before using the
 file.
@@ -221,7 +230,10 @@ tasks use these forms.
 `assemble` sketches each run's reads beside the assembler into
 `assemblies/<run>/reads.sig.zip`, when sourmash is available
 (`--reads-sketch/--no-reads-sketch`). The reads sketch is not a genome
-sketch and is never copied into `sketches/`.
+sketch and is never copied into `sketches/`. A failed reads sketch never
+fails the assembly. A run finished without a reads sketch gets one only if
+its reads were kept with `--keep-reads`, and the call needs `--force` when
+the stage is otherwise up to date.
 
 `--screen-reads` (off by default) screens that sketch before the assembler
 starts, with `--screen-min-fraction` (0.3) and `--screen-dup-ani` (0.999),
@@ -235,7 +247,14 @@ needs sourmash and the GTDB sketch and lineages CSV (`--gtdb-sketch`,
 `screen_failed`, which does not count as a judgement of the run's data. An
 excused run keeps its reads sketch and decision under `assemblies/<run>/`
 for inspection. `screen_reads.tsv` lists every screened run.
-How decisions are reused on a repeat is in
+
+`--screen-reads` does not read the decisions of `reads-screen`; it screens
+again from its own sketch of the whole run. To assemble only the runs
+`reads-screen` passed, give its `passed.txt` to `--accession-file`. On a
+repeat with changed thresholds, the runs are screened again from their kept
+reads sketches without fetching reads. An excused run is fetched again only
+when it now passes, and a finished run that now fails is excused while its
+contigs stay. The full rules are in
 [developing.md](developing.md#resume-semantics).
 
 ## Adding assemblies to a GTDB selection
@@ -244,7 +263,11 @@ How decisions are reused on a repeat is in
 holds a GTDB selection, so a mixed set dereplicates together. The existing
 rows and outgroup stay, and the new genomes get the manifest source `sra`. `metadata` and
 `ingest` then refuse to rerun while appended genomes are present;
-`--drop-foreign` discards them. To keep the two sets apart, combine them
+`--drop-foreign` discards them, and `assemble --append` can put them back
+afterwards. Genomes with source `sra` brought in by an earlier `ingest
+--from-workdir` are protected only if `assemble` has also run in that
+working directory. With `--append`, a run assembled earlier is replaced, and
+`--max-runs` applies in the same way. To keep the two sets apart, combine them
 with [`ingest --from-workdir`](usage.md#combining-working-directories)
 instead.
 
@@ -257,8 +280,10 @@ assembled count first, and the others are listed as `deferred` in
 deferred runs. A run counts toward N once assembled, also when the quality
 gate later excuses it, and `status` shows, for example, `20 assembled, 35
 deferred`. `assemble --accession-file FILE` names the runs to assemble
-instead, for example the `passed.txt` of `reads-screen`. `reads --max-runs
-N` bounds the selection itself; that is the form the Nextflow pipeline
+instead, for example the `passed.txt` of `reads-screen`; an empty
+`passed.txt` means the screen excused every run. `reads --max-runs N` bounds
+the selection itself, and a later `reads` with a larger N followed by
+`assemble` builds only the new runs. That is the form the Nextflow pipeline
 uses.
 
 ## Stateless steps
@@ -277,7 +302,8 @@ None of the steps touches a working directory or the manifest.
 `assemble`, including `--polisher`, `--polish-rounds` and
 `--reads-sketch`; its `--screen-reads` applies the taxon and fraction checks
 only. `genome-qc` scores and classifies every run directory
-(`--assemblies`), and `--memory-gb` and `--classifier` act as on
+(`--assemblies`) and needs at least one database (CheckM2 or the GTDB
+sketch); `--memory-gb` and `--classifier` act as on
 `assemble`. `reads-gather` applies the quality gate and the naming, and
 writes the genome set from `--assemblies` and the optional `--qc`
-directory.
+directory, with an empty `outgroup_accession.txt`.

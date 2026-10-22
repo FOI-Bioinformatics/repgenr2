@@ -95,9 +95,13 @@ slurm,singularity`. `test` runs a small smoke test.
   which builds images from the conda specifications (`--container
   singularity --wave`).
 - `standard` caps every process's CPU and memory request to the machine.
-  `slurm` sets only the executor; give the queue in a site config (`-c
+  `base.config` asks for up to 32 CPUs and 128 GB for the heavy processes.
+  `slurm` leaves those requests as they are and sets only the executor, so
+  set caps and the queue in a site config (`-c
   site.config` with `process.queue = '...'`). No cloud profile ships, since
   the region, queue and image are site-specific.
+- Do not stack these profiles on Nextflow's own Docker engine, which would
+  run one container engine inside another.
 - `--repgenr_opts '--bin-dir gubbins=/p/bin'` gives one tool a satellite
   environment. It replaces the value a container profile sets, so with
   `-profile docker` give `--repgenr_opts '--container docker --bin-dir
@@ -171,7 +175,8 @@ copied once per genome, so give the tasks a path through `BAKTA_DB` there.
 Each record carries `annotation.json`, so a set annotated by two tools is
 refused rather than mixed. The route is detected from
 `--phylo_args`, not from a `withName` override. The viral path has no
-annotation step. The annotator and builders must be reachable through
+annotation step, so with `--msa-source coregene` the phylo task annotates
+every genome itself, with a warning. The annotator and builders must be reachable through
 `--repgenr_opts '--bin-dir ...'` or a container profile.
 
 ## Scaling
@@ -191,7 +196,16 @@ more in one merge task, applying the keeper in both. Unlike `dereplicate
 `--derep_target_reps` act on the merge. `--derep_refine SEEDS
 --derep_refine_ani F`, or `--derep_refine_file`, add a `DEREP_REFINE` task
 (see [usage.md](usage.md#finer-resolution-inside-a-lineage)); its result
-under `dereplicate/refined/` is the one the tree is built from. Resource
+under `dereplicate/refined/` is the one the tree is built from.
+
+For a directory of local genomes, run the scatter-gather dereplication on
+its own:
+
+```bash
+nextflow run nextflow/tests/dereplicate_scatter.nf -c nextflow/nextflow.config \
+    --genomes_dir DIR --derep_tool sourmash --derep_process_size 2000 --outdir results
+```
+ Resource
 labels scale memory and time with the retry attempt, and their values are in
 `nextflow/conf/base.config`.
 
@@ -206,6 +220,9 @@ retune one process:
 process {
     withName: 'PHYLO' {
         ext.args = '--treebuilder iqtree -B 1000'
+    }
+    withName: 'DEREP_CHUNK|DEREP_MERGE' {
+        ext.args = '--tool galah --secondary-ani 0.98'
     }
 }
 ```

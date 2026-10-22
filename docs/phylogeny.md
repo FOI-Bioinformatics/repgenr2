@@ -27,7 +27,8 @@ builder such as `mashtree`, `skani` or `ska2`.
 
 `repgenr phylo-advise -wd $WD` prints the row of the
 [By purpose and divergence](choosing-tools.md#by-purpose-and-divergence)
-table that applies, the reasons, and a `phylo` command with `--preset`. It
+table that applies, the reasons, and a `phylo` command with `--preset`,
+followed by the same command with the preset written out as its flags. It
 reads the genome names and the minimum pairwise ANI from the existing genome
 sketches, and writes nothing. The rules, in order:
 
@@ -43,8 +44,8 @@ IQ-TREE limit of 500 genomes `--treebuilder fasttree` with `--aligner-arg
 gamma=true`. A core-gene route without annotations adds a reason to run
 `repgenr annotate`, and `family` without `REPGENR_MARKERS_DB` a reason to
 download the marker database. Without sketches the ANI is unknown and the
-advice rests on the names. `--json` prints the advice as one
-`repgenr.phylo-advise/1` object. The advice is a starting point, not a
+advice rests on the names. `--json` prints the advice as one object (see
+[output.md](output.md#machine-readable-status)). The advice is a starting point, not a
 replacement for inspecting the set.
 
 ### Presets
@@ -83,9 +84,11 @@ Nextflow, `--preset` goes inside `phylo_args`.
 runs on a smaller set. After the tree is built, its leaves are compared with
 the input genomes. A builder can drop a genome it considers degenerate and
 still succeed, as mashtree does, so a missing or unexpected leaf exits 3
-and `phylo` is not recorded as completed. The comparison ignores FASTA
+and `phylo` is not recorded as completed; the tree is kept in `tree/` for
+inspection. The comparison ignores FASTA
 suffixes and ParSNP's `.ref` marker and reads other characters than letters,
-digits, `_` and `-` as `_`. Records and leaves are named by the genome file
+digits, `_` and `-` as `_`. This matching is looser than tree2tax's, so a
+tree that passes can still have leaves tree2tax does not map. Records and leaves are named by the genome file
 name without its FASTA suffix and `.gz` (`x.fasta.gz` gives `x`), as in
 `clusters.tsv`.
 
@@ -118,7 +121,9 @@ is. FastTree applies no correction and says so. The counts are taken before
 masking, so after `--mask` they slightly undercount. For `ska2` they come
 from an all-sites alignment of the shared split k-mers, which is then
 removed. `ska2 lo=true` writes variants only, so its tree has no correction
-and `phylo` warns; compare topologies rather than lengths there.
+and `phylo` warns. Compare topologies rather than lengths there, or build
+the tree from a whole-genome alignment (`phylo-build --msa
+snp/full_alignment.fasta`) when branch lengths matter.
 
 ### Soft core (`--core-fraction`)
 
@@ -138,10 +143,12 @@ species. The masker warns above 10 % variable columns and refuses above
 12 % (see [verification.md](verification.md#gubbins-divergence-limits-2026-09-10)),
 and refuses genome names that span several species.
 `--aligner-arg gubbins_divergence_limit=FRACTION` moves the limit and
-`gubbins_force=true` overrides both refusals.
+`gubbins_force=true` overrides both refusals. Alignments under 1000
+columns are not judged.
 
 Gubbins needs a multi-threaded RAxML build for more than one thread. Without
-one, repgenr switches Gubbins to IQ-TREE and says so. `gubbins_tree_builder=`,
+one, repgenr switches Gubbins to IQ-TREE, or to one thread when IQ-TREE is
+missing too, and says so. `gubbins_tree_builder=`,
 `gubbins_first_tree_builder=` and `gubbins_args=` pass Gubbins' own options,
 and repgenr asks for a rapidnj first tree when rapidnj is installed.
 A rapidnj first tree makes the first iteration cheap. Gubbins' final,
@@ -166,7 +173,8 @@ genome's chain runs in one container.
 It maps with the minimap2 preset `asm20`, which suits assemblies up to
 several percent divergence. `--tool-arg preset=` also accepts `asm5`,
 `asm10`, `map-ont`, `map-pb`, `map-hifi`, `sr` and `none` (minimap2's
-default settings). A divergent genome, such as an outgroup of another
+default settings). `asm5` suits near-identical genomes, and `none` aligns
+more divergent sequence at some cost in accuracy. A divergent genome, such as an outgroup of another
 species, aligns over less of the reference and is correspondingly more N.
 
 ### Split k-mers: ska2
@@ -174,12 +182,14 @@ species, aligns over less of the reference and is correspondingly more N.
 `--snptyper ska2` is reference-free and suits clonal and outbreak sets; it
 warns when the names span several species. Tune it with `ksize=31` and
 `min_freq=0.9`. `lo=true` uses `ska lo`, which recovers variants in more
-diverged samples (`lo_missing`, 0.1, limits missing data per site).
+diverged samples (`lo_missing`, 0.1, limits missing data per site;
+`min_freq` is not read in this mode).
 `ska2` writes no whole-genome alignment, so it cannot be masked.
 `--treebuilder ska2` builds a tree from `ska distance` without an alignment
 (`metric=snps`, the default, or `mismatch`), joined with rapidNJ when
 installed. Pairs that share few k-mers are undercounted, and a pair that
-shares none is refused. `auto` never picks this builder.
+shares none is refused. `min_freq` there is `ska distance`'s own (0). `auto`
+never picks this builder.
 
 ## Annotation
 
@@ -194,11 +204,14 @@ repgenr annotate -wd $WD --bakta-db $BAKTA_DB
 
 `bakta` (the default) needs its database: `bakta_db download --output DIR
 --type light` (1.4 GB, about 4 GB unpacked; `--type full` is about 84 GB
-unpacked), then `--bakta-db DIR` or `BAKTA_DB`. Replacing the database
+unpacked; it annotates CDS more specifically), then `--bakta-db DIR` or
+`BAKTA_DB`. Replacing the database
 re-annotates. `--tool prokka` needs no database. Tuning goes through
 `--tool-arg` (for example `genus=Francisella` for bakta, `kingdom=Bacteria`
 for prokka). Several genomes are annotated at once, by default one per four
-threads (`-p/--num-processes`); allow a few GB of memory each with bakta. A
+threads (`-p/--num-processes`). `repgenr run --msa-source coregene` passes
+its `-p` to `annotate`, and `phylo-build` divides its `-t` the same way when
+it annotates its own inputs. Allow a few GB of memory each with bakta. A
 later run annotates only new or changed genomes and keeps records of genomes
 that left the set. An interrupted run keeps the genomes that finished, and
 `--force` annotates everything again. `annotate-build` annotates one genome
@@ -235,7 +248,8 @@ change rebuilds the alignment.
 
 The kept genes are concatenated in gene-id order, and
 `tree/msa/core_genes.tsv` records the decision for every gene. A genome that
-holds none of the kept genes stops the stage. Every gene alignment is held
+holds none of the kept genes stops the stage; lower `--core-threshold`,
+relax the selection, or leave the genome out of the set. Every gene alignment is held
 in memory during the selection, roughly 1 GB at 500 genomes and 1500 genes.
 The options are refused outside `--msa-source coregene`. For a genus
 overview a cap of
@@ -274,8 +288,10 @@ alignment. Gene names the tools cannot parse are rewritten.
 tree per gene, by default IQ-TREE `--fast` with aBayes supports
 (`gene_tree_builder=fasttree` uses FastTree), and summarises them with
 ASTER. `program=wastral` (the default) weights quartets by support and
-gives coalescent branch lengths, so `--root midpoint` is refused;
-`astral4` gives lengths in substitutions per site. A gene with fewer than
+gives coalescent branch lengths, so `--root midpoint` is refused; root on
+the outgroup instead.
+`astral4` gives lengths in substitutions per site, and `astral-pro3` the
+same kind of tree for one record per genome. A gene with fewer than
 four genomes or `min_gene_columns` columns is skipped. `rounds=N` sets
 ASTER's rounds of placement and subsampling (4). Node labels are local
 posterior probabilities in [0, 1], which tree2tax `--collapse-support`
@@ -298,8 +314,9 @@ third codon positions saturate across a genus or family. `ppanggolin`,
 `panaroo` with protein, and `markers` with `dna`, are refused when the
 command starts. An ascertainment-bias correction is refused on a protein
 alignment. The alphabet is recorded in `partitions.json`, so `phylo-build
---msa FILE` takes it from there; without that file a protein alignment is
-read as nucleotide. Changing the alphabet rebuilds the alignment.
+--msa FILE` takes it from there. A protein `--msa FILE` without that file is read as
+nucleotide and IQ-TREE fails on `-st DNA`, so keep `partitions.json` beside
+it. Changing the alphabet rebuilds the alignment.
 
 ### Core-gene builders
 
@@ -315,7 +332,10 @@ Settings are `--aligner-arg KEY=VALUE` unless an option is named.
   0.98 to 638 at 0.90). Lower it in steps, since too low a value groups
   non-orthologues. `--clean-mode` (`strict`, `moderate`, `sensitive`) cleans
   the pangenome graph, and `filtered=false` keeps the genes the entropy
-  filter flags. The builder warns when the core has fewer than 100 genes.
+  filter flags. Read the core-gene count and the identity used in
+  `tree/msa/core_gene_stats.json` before relying on the tree. The builder
+  warns when the core has fewer than 100 genes, unless `threshold=` was
+  set.
 - **PPanGGOLiN** (`--coregene ppanggolin`) clusters proteins with MMseqs2 at
   80 % identity and coverage (`identity=`, `coverage=`). It takes the soft
   core at `--core-threshold`; `partition=core` or `persistent` choose
@@ -324,6 +344,8 @@ Settings are `--aligner-arg KEY=VALUE` unless an option is named.
   multi-copy in at least 5 % of the genomes are left out (`dup_margin=`;
   `single_copy=false` keeps them). A genome sharing no selected family is
   dropped with a warning, and an outgroup in that state is an error.
+- **SCARAP and OrthoFinder** read the `.faa` and `.ffn` files beside each
+  GFF3, which an `--annotations-dir` given to `phylo-build` must provide.
 - **SCARAP** (`--coregene scarap`) builds orthogroups on `seeds=` (100)
   random seed genomes and searches every genome against them; `method=`
   (`FH`) chooses the inference. The `O-D` and `O-B` methods run natively
@@ -345,6 +367,7 @@ is the builder of `--preset family`. It needs the marker database:
 
 ```bash
 repgenr markers-db download --output ~/db/repgenr_markers   # --set bac120|ar53|all
+repgenr markers-db info ~/db/repgenr_markers
 export REPGENR_MARKERS_DB=~/db/repgenr_markers
 repgenr phylo -wd $WD --msa-source coregene --coregene markers --partitioned -B 1000
 ```
@@ -352,7 +375,9 @@ repgenr phylo -wd $WD --msa-source coregene --coregene markers --partitioned -B 
 The download takes each family's HMMER3 model from InterPro (`--threads`
 requests at once, 8 by default; about 25 MB in all) and fetches only the
 missing families on a repeat. It is written beside `--output` and renamed
-into place, so an interrupted download leaves no partial database. The
+into place, so an interrupted download leaves no partial database. A
+download stopped while replacing an earlier database leaves that database
+beside `--output`, and the next download puts it back. The
 model versions are InterPro's current ones and can be newer than those
 GTDB-Tk pins. `--markers-db` names the database on `phylo`, and `repgenr
 doctor` reports a recorded database that moved or changed version.
@@ -362,19 +387,25 @@ gathering cutoff and TIGRFAM families with their noise cutoff, each protein
 assigned to its best model, and a marker found in several different copies
 treated as absent. Each marker's proteins are aligned to its model with
 `hmmalign`, keeping the match-state columns.
-`--marker-set auto` (the default) uses bac120, or ar53 when it fits the
-genomes better. A marker enters the alignment when it is single-copy in at
+`--marker-set auto` (the default) searches with bac120, adds ar53 when fewer
+than half of the genomes reach the bac120 minimum, and keeps the set with
+the higher median fraction of its markers found. A marker enters the alignment when it is single-copy in at
 least `--core-threshold` of the genomes. A genome with fewer single-copy
-markers than `min_markers` (10 % of the set by default) is refused, which
+markers than `min_markers` (`--aligner-arg min_markers=N`; by default 10 %
+of the set, 12 for bac120 and 6 for ar53) is refused, which
 usually means a wrong domain or an incomplete annotation. A genome with
 fewer than half of the markers is named in a warning. The database version
 and the marker set are part of the alignment's reuse key; its path is not.
+The proteins come from bakta or prokka rather than Prodigal, and the
+alignment is not masked with GTDB's column mask (`--gene-trim clipkit`
+trims each marker instead), so the tree can differ from a GTDB-Tk tree.
 
 ## Support values
 
 On IQ-TREE, `-B N` (`--bootstrap`) gives ultrafast bootstrap supports and
 `--aligner-arg alrt=N` SH-aLRT supports, each with at least 1000
-replicates. Without either the tree has no supports. Without
+replicates; with both, each node label holds the two values. Without either
+the tree has no supports. Without
 `--aligner-arg model=` IQ-TREE runs ModelFinder first; `model=GTR+G` skips
 it.
 
@@ -401,7 +432,7 @@ stage record holds the rooting.
 that changes only the tree builder, the bootstrap or the thread count reuses
 it, and says so in the log. Anything the alignment depends on (the
 aligner, the typer, `--reference`, `--mask`, the genome set) rebuilds it, as
-does `--force`. `phylo-build --msa-only` builds only the alignment, with
+does `--force` or a change to the alignment file. `phylo-build --msa-only` builds only the alignment, with
 its `alignment_stats.json` and `partitions.json` beside it, and
 `phylo-build --msa FILE` builds a tree from one and reads those files. The
 Nextflow split mode uses the pair.

@@ -202,7 +202,7 @@ settings (a looser quality gate, for example) reuses them.
 |------|-------------|-------------|
 | `glance_clustering_dendrogram.pdf` | glance | Clustering dendrogram over all genomes: dRep's own with `--tool drep`; average-linkage clustering on 1 - ANI with `--tool sourmash`. `--tool auto`, the default, uses dRep when it can run and sourmash otherwise. |
 | `glance_MASH_ANI_similarity_boxplot.png`, `glance_MASH_ANI_similarity_histogram.png` | glance | Box plot and histogram of the all-against-all ANI values (Mash ANI from dRep, the sketch-based ANI estimate from sourmash; the axes name which) within `--plot-min`/`--plot-max`, one value per genome pair (self-comparisons left out); the histogram counts genome pairs. A run removes the previous glance plots and dendrogram once the comparison succeeds, so a plot with no values in range is absent rather than stale. |
-| `glance_wd/` | glance | Working files of the comparison tool; kept only with `--keep-files`. With `--tool sourmash` it holds `pairwise_ani.csv` (`genome1`, `genome2`, `similarity`, one row per genome pair), `dendrogram_leaves.txt` (the dendrogram's leaf order) and the signatures. |
+| `glance_wd/` | glance | Working files of the comparison tool; kept only with `--keep-files`. With `--tool sourmash` it holds `pairwise_ani.csv` (`genome1`, `genome2`, `similarity`, one row per genome pair), `dendrogram_leaves.txt` (the dendrogram's leaf order) and the signatures. An empty `similarity` cell means the pair is below the sketch's reach (fewer than 30 shared hashes and under a tenth of the smaller sketch), not missing data. |
 
 ## dereplicate and the dereplication commands
 
@@ -454,6 +454,21 @@ people and may change wording between releases.
   above zero, else 0.
 - `quick` is true under `--quick`; the genome files were then not read, and a
   non-FASTA file under a FASTA name is not reported.
+
+`phylo-advise`:
+
+`repgenr phylo-advise --json` prints one object with `schema`
+(`repgenr.phylo-advise/1`), `repgenr` (version), `evidence` and
+`recommendation`.
+
+- `evidence` holds what the advice rests on: `workdir`, `all_genomes`,
+  `n_genomes`, `n_species` and `n_genera` (from canonical record names),
+  `names_canonical`, `ani_min` and `ani_median` (percent, null without
+  sketches), `ani_unknown_pairs` (pairs below the sketch's reach),
+  `has_annotations`, `outgroup` and `notes`.
+- `recommendation` holds `preset`, `purpose`, `route`, `summary`, `reasons`,
+  `command` (the `phylo` command with `--preset`, as a list of arguments)
+  and `expanded_command` (the same with the preset written out).
 
 ## Nextflow output directory
 
