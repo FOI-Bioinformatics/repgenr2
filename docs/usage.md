@@ -1896,7 +1896,7 @@ reach: its sketches share fewer than 30 hashes and under a tenth of the
 smaller sketch) and `glance_wd/dendrogram_leaves.txt` the
 dendrogram's leaf order. dRep writes into its cache with names beginning
 `._` on exFAT volumes and fails there; use an APFS or ext4 working directory
-(see [verification.md](verification.md)).
+(see [install.md](install.md#2-satellites-on-path-after-core)).
 
 #### Comparing two dereplications
 
@@ -3663,6 +3663,18 @@ Set `NCBI_API_KEY` (and optionally `NCBI_EMAIL`) to raise the request-rate
 limit. An HTTP error is retried per batch of taxids; a connection error (no
 network, or the host does not answer) stops the lookup at the first batch
 with exit 3.
+
+### BV-BRC behind a proxy
+
+`vmetadata --source bvbrc` reaches BV-BRC over FTPS (`ftp.bvbrc.org`), which
+does not use the `HTTPS_PROXY` and `HTTP_PROXY` settings. On a network that
+allows only proxied traffic, use the default NCBI Virus source.
+
+### ParSNP on three genomes
+
+ParSNP's internal RAxML step refuses fewer than four genomes, so
+`--snptyper parsnp` exits 6 on a set of three. The three-genome minimum that
+`phylo` checks before any tool runs does not cover this case.
 
 ### A tool hangs
 

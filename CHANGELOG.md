@@ -341,6 +341,14 @@ All notable changes to RepGenR2 are documented here. The format follows
   reads sketch and screen directories, the Nextflow output directory) and the
   records under `docs/audit/` (dates, status paragraphs, PR numbers and the
   repository each refers to, ASCII punctuation).
+- `docs/verification.md` is a current-state record: an adapter table with a
+  "Last checked" date and links to the measured runs, the test machines and
+  data sets named once, and the measured runs ordered by pipeline stage, each
+  with its data, tools and versions, conditions and result. The command
+  audit of 2026-10-07 moved to `docs/audit/command-audit-2026-10.md`; its
+  open observations on ParSNP, BV-BRC behind a proxy, exFAT volumes and dRep
+  3.4.5 are in `docs/usage.md` (Troubleshooting) and `docs/install.md`. The
+  platform notes point to `docs/install.md`.
 
 ### Fixed
 - `OMP_NUM_THREADS` of the FastTree and VeryFastTree builders never reached

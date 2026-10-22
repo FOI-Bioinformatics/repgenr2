@@ -619,7 +619,7 @@ nf-test test --tag stub
 
 * `tests/live/`: pytest tests marked `live` that run the installed `repgenr`
   console script against real tools. They are never run in CI.
-  [verification.md](verification.md#re-running-the-checks-the-live-suite)
+  [verification.md](verification.md#the-live-suite)
   describes the configuration file and the `network` and `container`
   markers. The offline subset runs with:
 
