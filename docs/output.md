@@ -1,31 +1,26 @@
 # Output files
 
-This page describes every file RepGenR2 writes: the contents of a working
-directory, stage by stage in pipeline order, followed by the tables of the
-inspection commands and the output directory of the Nextflow pipeline. It is
-a reference for users who read the results or build on them in scripts.
+This page lists the files RepGenR2 writes and the columns or keys of each.
+The CLI writes every stage into one working directory (`--workdir`, `-wd`).
+The Nextflow pipeline passes files between processes and publishes them
+under `--outdir` (see [Nextflow output directory](#nextflow-output-directory));
+a file with the same name has the same format in both.
 
-The CLI writes all stage outputs into one shared working directory
-(`--workdir`, `-wd`), the directory every stage reads from and writes into.
-The Nextflow data-channel pipeline has no shared working directory: it passes
-results between processes as staged channel files and publishes them under
-`--outdir` (see [Nextflow output directory](#nextflow-output-directory)).
-
-Terms used below: a representative is the genome kept for a cluster of
+Terms: a representative (keeper) is the genome kept for a cluster of
 near-identical genomes after dereplication; the outgroup is a genome outside
-the studied group, used to root the tree; ANI is average nucleotide identity;
-an MSA is a multiple sequence alignment; the core genome is the set of genes
-present in all or nearly all genomes of a set.
+the studied group, used to root the tree; ANI is average nucleotide
+identity; an MSA is a multiple sequence alignment; the core genome is the
+set of genes present in all or nearly all genomes of a set; a record name is
+a genome's file name without its FASTA suffix and `.gz`.
 
 Contents:
 
 - [Working directory layout](#working-directory-layout)
 - [Files shared across stages](#files-shared-across-stages)
 - [Entry stages: metadata, vmetadata, reads](#entry-stages-metadata-vmetadata-reads)
-- [reads-sketch](#reads-sketch)
-- [reads-screen](#reads-screen)
 - [Genome set: genome, ingest, vgenome](#genome-set-genome-ingest-vgenome)
-- [assemble](#assemble)
+- [Reads path](#reads-path): [reads-sketch](#reads-sketch),
+  [reads-screen](#reads-screen), [assemble](#assemble)
 - [Genome sketches](#genome-sketches)
 - [glance](#glance)
 - [dereplicate and the dereplication commands](#dereplicate-and-the-dereplication-commands)
@@ -33,16 +28,12 @@ Contents:
 - [snptype](#snptype)
 - [phylo](#phylo)
 - [tree2tax](#tree2tax)
-- [Census table](#census-table)
-- [Machine-readable status](#machine-readable-status)
+- [Machine-readable output](#machine-readable-output)
 - [Nextflow output directory](#nextflow-output-directory)
 
 ## Working directory layout
 
-The tree below shows where each stage writes in a working directory. Not
-every file is present in every run: each stage writes only its own outputs,
-and several files depend on options. The sections that follow describe each
-file in pipeline order.
+Each stage writes only its own files, and several files depend on options.
 
 ```
 WD/
@@ -76,7 +67,7 @@ WD/
     clusters.tsv
     genome_status.tsv
     cluster_summary.tsv
-    refined.tsv            (only after --refine or derep-refine)
+    refined.tsv                   (only after --refine or derep-refine)
     unpacked/<representative>/    (derep-unpack)
     stock/<name>/                 (derep-stock)
   annotations/<record>/           per-genome annotation (annotate)
@@ -94,289 +85,622 @@ WD/
 
 ## Files shared across stages
 
-| Path | Produced by | Description |
-|------|-------------|-------------|
-| `manifest.sqlite` | metadata, genome, ingest, vgenome, assemble, sketch | Genome manifest (accessions, taxonomy, CheckM quality when known, dereplication status, the genome's sketch record (see [Genome sketches](#genome-sketches)), and the source of each genome: `gtdb`, `ncbi_virus`, `bvbrc`, `sra` or `local`). `ingest` writes `local`, except that a genome taken with `--from-workdir` keeps the source the manifest of that working directory gives it. |
-| `repgenr.yaml` | all stages | Provenance: tool name, parameters, resolved tool versions, completion timestamps, and `bin_dirs`, the directory each tool was given with `--bin-dir` (present only when one was used). A tool that reports no version number itself (SibeliaZ) is recorded with the version of the conda package that installed it, read from `conda-meta` in the binary's environment, or as `unknown` without one. A tool run in a container image is recorded with its image reference, and the engine that ran it with the engine's version (`docker: 29.5.3`, or `singularity`, `podman`, `apptainer`); `repgenr versions` and the Nextflow `versions.yml` list the engine once. The metadata record holds the GTDB `release` for the table path; for `--source api`, whose API reports no release number, `release` is null and `api_query_date` holds the UTC time of the query. The ingest record holds `genomes_dir`, `from_workdirs` (the source working directories of `--from-workdir`, empty without it), `sources`, the number of ingroup genomes per manifest source, and `source_states`, one entry per `--from-workdir` with its `path`, the `stage` that wrote its genome set (null without a record) and the `state` of that record when ingest read it (`done`, `stale`, `interrupted`, `no stage record`, `unreadable record` or `unchecked`). The dereplicate record holds the request (`secondary_ani`, `keeper`, `tool_args` and the like) and `tool_settings`, how the tool computed the clustering: for sourmash `backend` (`sparse`, the branchwater plugin, or `dense`, `sourmash compare`; `dense,sparse` when the passes of a chunked run differed), `ani_estimate` (`average_containment^(1/k)`), `ksize`, `scaled` and, on the dense back-end, `unknown_pairs`, the number of pairs with too few shared hashes for an ANI (left out for a chunked run, where it differs between passes). It is empty for the other dereplicators, and `status` prints it on the dereplicate line. A record restored by `derep-stock unpack` keeps the `tool_settings` of the packed record, so a run packed before this field existed, or without `record.json`, has none. |
+| Path | Produced by | Content |
+|------|-------------|---------|
+| `manifest.sqlite` | metadata, genome, ingest, vgenome, assemble, sketch | SQLite database with one row per genome in the table `genomes` (columns below). |
+| `repgenr.yaml` | all stages | One provenance record per stage (keys below). |
 | `repgenr.log` | all stages | Run log. |
-| `scratch/` | genome, assemble, dereplicate, snptype, phylo | Working files, one subdirectory per stage; the typing pass of `phylo --msa-source snptype` uses `phylo_snptype/`, which holds the same kinds of files as `snptype/` and is cleared when phylo types again. The files under `genome_download/` and `assemble/` are removed unless `--keep-files`. `dereplicate/` holds the dereplicator's working files (sketches, pairwise tables); it is kept after the run and cleared when `dereplicate` runs again. Under `snptype/`, each genome's intermediates are removed once its consensus has been read; a genome whose chain failed keeps its own. The `ska2` typer keeps its split k-mer file (`split_kmers.skf`) and sample list there, and `parsnp` its output directory and `input_genomes/` (links to the genomes where the file system allows, copies otherwise); they are left in place and cleared when `snptype` runs again. For gzipped genomes, `parsnp`'s `input_genomes/` holds decompressed copies. A tool that cannot read gzip (progressiveMauve, SibeliaZ, `parsnp`, `snippy`) is given decompressed copies of gzipped genomes in `inputs/` under `snptype/` or `phylo_snptype/`, or in `phylo_inputs/`; they are removed when the tool has finished. |
+| `scratch/` | genome, assemble, dereplicate, snptype, phylo | Working files, one subdirectory per stage (list below). |
 
-## Entry stages: metadata, vmetadata, reads
-
-| Path | Produced by | Description |
-|------|-------------|-------------|
-| `<version>_metadata_r<major>.tsv.gz` (or `.tar.gz`), `<version>_metadata_r<major>.release` | metadata | The downloaded GTDB table (`--source tsv` without `--metadata-path`) and the exact release it was fetched for, which `--nodownload` checks before reusing the table. |
-| `gtdb_api_genomes.tsv` | metadata | With `--source api`: the genomes the GTDB API returned for the target before `--limit` (accession, family, genus and species tokens, `gtdb_representative`, and the family, genus and species as GTDB writes them). `repgenr census -wd` counts them as the candidates of the selection. Removed by a run with `--source tsv`. |
-| `virus_download_wd/` | vmetadata | Downloaded viral sequences and the metadata tables `vgenome` selects from, and `download.source` naming the source and target of `download.fa`. On the NCBI Virus path `virus_records.json` holds one record per sequence with its report lineage, its species (the current NCBI Taxonomy species of its taxid, else the ICTV binomial from the lineage, else the organism name), `species_source` naming which of the three applied, `species_name` (the species as NCBI writes it, for display by `census`; empty in records written before it), and the segment label as submitted. `virus_metadata_base.tsv` (and `virus_metadata_ncbi.tsv` on the BV-BRC path) at the root of the working directory are copies of those tables; on the NCBI Virus path its `name` column is the species and `description` the organism name. |
-| `reads.tsv` | reads | The selected sequencing runs, with the columns `run_accession`, `biosample`, `bioproject`, `organism`, `taxid`, `platform`, `instrument_model`, `layout`, `bases`, `read_count`, the resolved `family`, `genus` and `species` tokens, the FASTQ locations (`fastq_urls`), checksums and sizes ENA reports (`fastq_md5`, `fastq_bytes`; empty when ENA holds no FASTQ mirror), and ENA's library selection (`library_selection`: RANDOM, MDA, PCR, ...). |
-
-## reads-sketch
-
-| Path | Produced by | Description |
-|------|-------------|-------------|
-| `reads_sketches/<variant>/<run>.sig.zip` | reads-sketch | One variant directory per cap: `all/` for the whole run, `spots_<N>/` for `--max-spots N`, so sketches at several depths coexist. Inside, the reads sketch of one run of `reads.tsv`, streamed from NCBI with `fastq-dump` and sketched by sourmash without a download: three DNA signatures (k=21, 31, 51, scaled=1000, with abundances) named after the run, the parameters of the `reads.sig.zip` that `assemble` writes beside an assembly. With `--max-spots N` only the first N spots of the run went in. In the standalone form (`-o DIR` instead of `-wd`) the files are written to `DIR/<variant>/`. |
-| `reads_sketches/<variant>/reads_sketches.tsv` | reads-sketch | The index of one variant: one row per run of `reads.tsv` in its order. `status` is `ok`, `failed`, `empty` (the stream held no biological read at this cap, so there is no sketch and a repeat does not stream the run again) or `pending` (never selected); `max_spots` the cap the sketch was made with (empty for the whole run); `spots_read` and `sequences` what `fastq-dump` and sourmash reported; `sketch_file` the file name beside the index; `sketch_params` the sourmash parameter string; `seconds` the wall time of the pipeline; `reason` the last error line of a failed run (after up to three attempts for a transient archive failure; `seconds` is the last attempt's). Rewritten after every finished run, so an interrupted call keeps what was done. `.lock` beside it is held by the running call; a second call on the variant is refused while it is held. |
-
-## reads-screen
-
-| Path | Produced by | Description |
-|------|-------------|-------------|
-| `reads_screen/<variant>/reads_screen.tsv` | reads-screen | The decisions on the sketches of one variant of `reads_sketches/` (`all/` or `spots_<N>/`): one row per run of `reads.tsv` in its order, with the columns of `screen_reads.tsv` (run, top GTDB match and its genus, the abundance-weighted fraction of the reads in the top species, the earlier run a duplicate was contained in, `decision` as `pass` or `excused`, and the reason: `taxon_mismatch`, `low_match_fraction`, `duplicate_isolate`, or `screen_failed` for a run without a sketch or one the tools failed on). Rows of runs not selected by the call are kept from the earlier table. |
-| `reads_screen/<variant>/passed.txt` | reads-screen | The runs of the table that passed, one accession per line in `reads.tsv` order; `assemble --accession-file` takes it. |
-| `reads_screen/<variant>/<run>/screen.json` | reads-screen | One run's decision with the settings it was made with (thresholds, the resolved GTDB sketch and lineages paths, k=31); kept on a repeat with the same settings while the sketch is unchanged. Absent for a run the tools failed on, so a repeat screens it again. |
-| `reads_screen/<variant>/<run>/screen/` | reads-screen | The `sourmash gather` CSV and the `tax genome` output the decision was made from. |
-
-## Genome set: genome, ingest, vgenome
-
-These files form the genome set that every later stage reads. On the reads
-path, `assemble` writes the same files (see [assemble](#assemble)).
-
-| Path | Produced by | Description |
-|------|-------------|-------------|
-| `selection.tsv` | metadata, ingest, vgenome | The selected genomes: accession, taxonomy, outgroup flag, canonical filename, quality when known, and, as the last column, `gtdb_representative` (1 for a genome GTDB marks as its species representative, 0 otherwise and on every non-GTDB entry path; read by `--keeper gtdb`). On the NCBI Virus path the species is the current NCBI Taxonomy species of the record's taxid (see [usage.md](usage.md#species-assignment)). The hand-off every later stage reads, and a resume input. |
-| `outgroup_accession.txt` | metadata, ingest, vgenome | Accession of the outgroup genome, read by phylo and tree2tax for rooting. Absent when there is no outgroup. |
-| `genomes/` | genome, ingest, vgenome | Genome FASTAs, one per selected accession. `genome` and `vgenome` write `.fasta`; `ingest` stages the source files under their own names, with the suffixes `.fasta`, `.fa`, `.fna`, `.fas`, `.fasta.gz`, `.fna.gz` or `.fa.gz`. |
-| `outgroup/` | genome, ingest, vgenome | Outgroup genome for rooting. |
-| `ncbi_acc_download_list.txt` | genome | Accessions the download step will fetch, one per line (those without a FASTA in `genomes/`). With `--accession-list-only` it is the only output. |
-| `missing_accessions.txt` | genome | Accessions the download did not return, or whose FASTA failed the package checksum; the completeness guard of later stages reads it. |
-| `segments.tsv` | vgenome | With `--group-segments`: each grouped isolate's token and its member segment accessions, one row per member, with the normalised segment (`segment`) and the label as submitted (`segment_label`). Absent otherwise. |
-
-## assemble
-
-| Path | Produced by | Description |
-|------|-------------|-------------|
-| `assemblies/<run>/` | assemble | Each assembled run's filtered contigs and its `assembly.ok` marker (assembler and polisher, their versions, metrics, and the settings the run was built with); a re-run reuses a run whose settings agree and assembles it again otherwise. With a CheckM2 database, `checkm2.json` stores the run's completeness and contamination with what they were computed from (the SHA-256 of the contigs, the database's resolved path, size and modification time, the CheckM2 version or image); a later call with other `--min-completeness` or `--max-contamination` values applies the stored scores, and CheckM2 runs again only for a run where one of these differs. `--force` reruns the stage but does not bypass the stored scores; to score a run again, delete `assemblies/<run>/checkm2.json`. When the sourmash classifier runs and sketches are not turned off, `contigs.sig.zip` is the run's sourmash sketch with the parameters of `sketches/` (signatures named by run accession) and `contigs.sig.zip.json` records the contigs SHA-256 it was built from; the classifier gathers with it, a later call reuses it while the contigs are unchanged, and the sketch step copies it to `sketches/` under the genome's record name. `reads.sig.zip` is the sourmash sketch of the run's reads (all its FASTQ files, k=21, 31 and 51, scaled=1000, with abundances, named by run accession), made beside the assembler unless `--no-reads-sketch` is given or sourmash is missing. The marker records it as `reads_sketch` (the file name, or null), `reads_sketch_params` and `reads_sketch_version` (sourmash). It is not a genome sketch and is never copied to `sketches/`; an excused run keeps none, except one the reads screen excused. With `--screen-reads`, `screen.json` holds the run's screen decision (`decision` `pass` or `excused`, `reason`, `top_match`, `top_genus`, `fraction`, `duplicate_of`, `ani`, `duplicates_checked`) and the `settings` it was made with (`min_fraction`, `dup_ani`, the resolved `gtdb_sketch` and `gtdb_lineages` paths, `ksize`), and `screen/` the gather table (`gather.csv`) and `tax genome` output (`tax.classifications.csv`) it was made from; the marker of a run that passed holds the same record as `screen`. A later call with the same settings reuses the decision; with other settings the run is screened again from `reads.sig.zip`. |
-| `assembly_stats.tsv` | assemble | Per-assembly metrics: assembler, contigs, total length, N50, largest contig, estimated coverage, the NCBI taxonomy used for the name, quality and classification columns once those steps run, and the polisher that corrected a long-read assembly. `label_source` is `classifier` when the GTDB tokens name the genome (the genera agree) and `metadata` otherwise. `taxonomy_flag` is empty when the genera agree, `genus_renamed` when the genera differ but the family and the species epithet agree (an NCBI name that GTDB places in another genus of the same family, such as Mycoplasmopsis arginini, GTDB Metamycoplasma arginini; a GTDB suffix such as `_A` is ignored in the comparison), and `classifier_disagrees` for any other difference, including a shared epithet in another family (Klebsiella pneumoniae against Streptococcus pneumoniae). Both flags are warned about, keep the submitted name, and neither excuses the genome; only `classifier_disagrees` counts towards `n_disagree` in the stage record, which records the renames as `n_genus_renamed`. `reads_sketch` is 1 when `assemblies/<run>/reads.sig.zip` holds the run's reads sketch and 0 otherwise; a table written before the column existed reads as 0. `screen` (the last column) is `pass` when the reads screen passed the run (`assemble --screen-reads`) and empty when the run was not screened; a table written before the column existed reads as empty. |
-| `screen_reads.tsv` | assemble with `--screen-reads`, reads-gather | One row per screened run: `run_accession`, `top_match` (the first gather match, as named in the GTDB sketch), `top_genus` (its GTDB genus), `fraction` (the abundance-weighted fraction of the reads in the top species), `duplicate_of` (the run that contains it, for a duplicate), `decision` (`pass` or `excused`) and `reason` (the excuse, or `genus_renamed` for a pass under the genus tolerance). Rewritten by each call: runs screened or reused in the call get their current row, rows of runs the call did not reach are kept. In the Nextflow reads mode `reads-gather` writes it from the `screen.json` files of the run directories. |
-| `excused_runs.tsv` | assemble | Runs that produced no genome, with the step that gave up (`fetch`, `screen`, `assemble`, ...) and the reason; the completeness guard excuses them like `missing_accessions.txt`. Reasons include `no_fastq_mirror`, `download_failed`, `unsupported_platform` (no assembler takes the platform), `unsupported_layout` (the requested assembler takes the platform but not the layout, for example shovill and a run with one FASTQ file), `assembler_not_installed`, `assembly_failed`, `polish_failed`, `qc_failed`, the reads screen's `taxon_mismatch`, `low_match_fraction`, `duplicate_isolate` and `screen_failed` (step `screen`, with `--screen-reads`; see [reads.md](reads.md#the-three-checks)), and `deferred` (step `assemble`: not attempted because `--max-runs` was reached; a later call with a larger `--max-runs`, or without it, assembles the run and removes the row). When every run is excused, `assemble` exits 3 and, in the cases described below, leaves an empty genome set. |
-
-`assemble` also writes the genome set (`selection.tsv`, `genomes/`,
-`outgroup/`, `manifest.sqlite`) on the reads path.
-
-### When every sequencing run is excused
-
-When `assemble` accepts no run, it exits 3, `status` shows the stage as
-interrupted, and `excused_runs.tsv` gives the reasons. What happens to the
-genome set already in the working directory depends on which stage wrote it
-and on whether any run was judged:
-
-- **Written by an earlier `assemble` call, and at least one run judged.** A
-  run counts as judged when it was assembled, polished or quality-checked and
-  rejected, refused by the assembler, or excused by the reads screen for its
-  reads (`assembly_failed`, `polish_failed`, `qc_failed`,
-  `unsupported_platform`, `unsupported_layout`, `taxon_mismatch`,
-  `low_match_fraction`, `duplicate_isolate`). The set is emptied: a warning
-  is logged first, then `genomes/` is emptied, `selection.tsv` keeps only its
-  header, the manifest lists no genomes, `assembly_stats.tsv` is removed, and
-  the outgroup that call staged is removed with `outgroup_accession.txt`.
-  `dereplicate` then refuses with exit 3 (no genome files) rather than run on
-  the earlier set. The outputs of an earlier `dereplicate` and `phylo` stay
-  until those stages run again.
-- **Written by an earlier `assemble` call, but no run judged.** When every
-  excuse is `download_failed` (ENA unreachable, for example),
-  `no_fastq_mirror`, `assembler_not_installed`, `deferred` or
-  `screen_failed`, the set is kept and the error says so. Rerun with
-  `--force` once the cause is resolved.
-- **Written by another stage** (`genome`, `ingest`, `vgenome`; any manifest
-  row whose source is not `sra`) or not recorded in the manifest. The set and
-  its outgroup are kept, and the error names their sources.
-- **Under `--append`.** Nothing is removed; the existing selection stays as
-  it was.
-- **No set present** (a first call). Nothing is written: no `genomes/`, no
-  `selection.tsv`, no manifest.
-
-The finished runs under `assemblies/` always stay, so a later call with other
-settings (a looser quality gate, for example) reuses them.
-
-## Genome sketches
-
-| Path | Produced by | Description |
-|------|-------------|-------------|
-| `sketches/<name>.sig.zip` | genome, vgenome, ingest, assemble, sketch, and dereplicate, glance and phylo with a sourmash tool | One sourmash zip collection per genome, outgroup included, when sourmash could run (or `--sketch`): three DNA signatures at k=21, k=31 and k=51, scaled=1000, no abundance, each named `<name>`, the genome's file name without its FASTA suffix and `.gz` (its record name in alignments and trees). Written to a hidden `.<name>.partial.sig.zip` and renamed, so an interrupted run leaves no partial sketch. Not a stage deliverable. The manifest records each sketch in three columns of the genome's row (schema version 4): `sketch_file` (the path relative to the working directory), `sketch_params` (`k=21,k=31,k=51,scaled=1000`) and `sketch_digest` (the SHA-256 of the FASTA it was built from); a sketch whose FASTA digest or parameter string differs from its record is stale and written again. `dereplicate --tool sourmash`, `glance --tool sourmash` and `phylo --treebuilder sourmash` read these files and first write the missing and stale ones of the genomes they compare. A manifest of schema version 3 gains the columns, empty, when a stage next opens it; they are not part of the manifest digest of the resume fingerprint. |
-| `sketches/.digests.json` | every sketch writer (genome, vgenome, ingest, assemble, sketch) and every consumer (dereplicate, glance and phylo with a sourmash tool) | The SHA-256 of each genome FASTA with the size and modification time it was computed at, so an unchanged genome is not read again to decide whether its sketch is current. Only genomes of the current set are kept. A cache: removed with the last sketch, and rebuilt when absent. |
-| `sketches/outgroup.json` | genome, vgenome, ingest, assemble, sketch | The same three fields for an outgroup FASTA under `outgroup/` that has no manifest row, keyed by its file name. Every entry path writes the outgroup to the manifest (the bacterial `genome` stage leaves the filename of the outgroup row empty; that row is matched to the file under `outgroup/` by its accession), so the file is normally absent. |
-
-## glance
-
-| Path | Produced by | Description |
-|------|-------------|-------------|
-| `glance_clustering_dendrogram.pdf` | glance | Clustering dendrogram over all genomes: dRep's own with `--tool drep`; average-linkage clustering on 1 - ANI with `--tool sourmash`. `--tool auto`, the default, uses dRep when it can run and sourmash otherwise. |
-| `glance_MASH_ANI_similarity_boxplot.png`, `glance_MASH_ANI_similarity_histogram.png` | glance | Box plot and histogram of the all-against-all ANI values (Mash ANI from dRep, the sketch-based ANI estimate from sourmash; the axes name which) within `--plot-min`/`--plot-max`, one value per genome pair (self-comparisons left out); the histogram counts genome pairs. A run removes the previous glance plots and dendrogram once the comparison succeeds, so a plot with no values in range is absent rather than stale. |
-| `glance_wd/` | glance | Working files of the comparison tool; kept only with `--keep-files`. With `--tool sourmash` it holds `pairwise_ani.csv` (`genome1`, `genome2`, `similarity`, one row per genome pair), `dendrogram_leaves.txt` (the dendrogram's leaf order) and the signatures. An empty `similarity` cell means the pair is below the sketch's reach (fewer than 30 shared hashes and under a tenth of the smaller sketch), not missing data. |
-
-## dereplicate and the dereplication commands
-
-| Path | Produced by | Description |
-|------|-------------|-------------|
-| `derep/` | dereplicate | Representative genomes and per-tool intermediates. |
-| `derep/representatives/` | dereplicate | The representative genomes, one genome file per cluster; the distinct values of the first column of `clusters.tsv`. |
-| `derep/clusters.tsv` | dereplicate | `representative<TAB>member`, one row per genome; a representative also lists itself. |
-| `derep/genome_status.tsv` | dereplicate | Per-genome status: `representative`, `contained` or `fail_qc`. |
-| `derep/refined.tsv` | dereplicate `--refine`, derep-refine | The genomes of a lineage dereplicated again at a finer ANI: `genome`, `seed` (the seed whose coarse cluster brought it in), `coarse_representative`, `representative` (after the refinement; blank for `fail_qc`), `status` and `ani` (the secondary ANI of that lineage's refinement). Absent when the result holds no refinement. |
-| `genome_n50.tsv` | dereplicate-chunk, dereplicate-merge | In the output directory of each chunk and merge step (the Nextflow `DEREP_CHUNK` and `DEREP_MERGE` tasks): `genome` and `n50`, the N50 in bases of every scored genome the step read, so the merge step scores members whose files it does not receive. Absent from the refined result of `dereplicate-refine`. |
-| `derep/cluster_summary.tsv` | dereplicate, cluster-summary | One row per representative: member count, species spanned and keeper quality against the members (see [Cluster summary](#cluster-summary)). |
-| `derep/unpacked/<representative>/` | derep-unpack | One directory per cluster with its member genomes (and the representative unless `--no-representant`), hard-linked from `genomes/` where the file system allows it and copied otherwise. The directory is named by the representative's file name without its genome extension, or by its full file name when two representatives would otherwise share a directory (`x.fasta` and `x.fna`; names differing only in case). The gzip suffixes (`.fasta.gz`, `.fna.gz`, `.fa.gz`) are removed as a whole. Replaced on each run. |
-| `derep/stock/<name>/` | derep-stock | A named, stored dereplication run written by `pack`: `clusters.tsv`, `genome_status.tsv`, `cluster_summary.tsv`, `refined.tsv` when the run holds a refinement, a `representatives/` directory of links to the representative genomes, and `record.json`, the completed `dereplicate` record at pack time (tool, params, tool_versions, completed; absent when there was none). `unpack` restores it, re-stamps the `dereplicate` record from `record.json`, and rebuilds `derep/cluster_summary.tsv` from the restored clusters and the current manifest; the stored summary keeps the quality of pack time. The re-stamped record holds no resume fingerprint, so a later `dereplicate` or `repgenr run` recomputes the restored dereplication; run `phylo` directly to build on it. |
-
-### Cluster summary
-
-`derep/cluster_summary.tsv` condenses `clusters.tsv` into one row per
-representative, largest cluster first and then by representative name.
-`dereplicate` writes it after every run, and
-`repgenr cluster-summary -wd <workdir>` regenerates it for an existing
-working directory from `clusters.tsv` and the manifest, without rerunning the
-dereplicator. The outgroup is set aside before dereplication and has no row.
+`manifest.sqlite`, table `genomes` (schema version 4):
 
 | Column | Meaning |
 |--------|---------|
-| `representative` | Keeper filename, as in `clusters.tsv`. |
-| `n_members` | Genomes contained under the keeper; the keeper itself is not counted, so a cluster of 20 genomes reads 19 (`clusters.tsv` lists the keeper as a member of itself). |
-| `n_species` | Distinct species across keeper and members. The species comes from the manifest taxonomy (`selection.tsv` in the Nextflow steps) and, for a genome without one, from its canonical filename. A genome with neither adds no species, so a cluster of such genomes reports 0. Species are told apart by genus and epithet. |
-| `species` | Those species, comma-separated: the keeper's first, then by number of genomes and name. At most five are listed, followed by `+N more`; `n_species` gives the full count. An epithet shared by two genera is written with its genus, for example `Escherichia coli`. |
-| `rep_completeness`, `rep_contamination` | CheckM values of the keeper from the manifest; blank when unknown. |
-| `member_max_completeness`, `member_min_contamination` | Best values among the scored members; blank when no member is scored. |
-| `best_member` | The genome the quality keeper chooses in the cluster (score `completeness - 5 x contamination + 0.5 x log10(N50)`, ties and the high-quality condition as in [usage.md](usage.md#the-keeper-score)). Usually equals `representative` under `--keeper quality`, except where `--reduce` or the Nextflow chunk and merge steps compare only representatives; under `--keeper gtdb` it also differs where a GTDB species representative was kept over a better-scored member. Blank when nothing in the cluster is scored. |
-| `n_genomes` | Genomes in the cluster, the keeper included (`n_members` + 1). It follows `best_member`, so the positions of the earlier columns are unchanged. |
-| `rep_n50` | N50 of the keeper in bases, read from its FASTA. Filled only when the keeper has completeness and contamination, so an unscored representative is not read; blank otherwise or when the file is not found. |
-| `best_score` | Keeper score of `best_member`, four decimals; blank when `best_member` is blank. |
-| `rep_is_gtdb_representative` | 1 when the keeper is a GTDB species representative (manifest, or `selection.tsv` in the Nextflow steps), else 0. It is 0 throughout for non-GTDB selections and for a working directory whose selection predates the flag. |
-| `refined` | 1 when the cluster comes from a refinement at a finer ANI (`dereplicate --refine` or `derep-refine`, see [usage.md](usage.md#finer-resolution-inside-a-lineage)), read from `refined.tsv`; else 0. It is the last column. |
+| `accession` | Genome accession, the primary key. |
+| `filename` | Genome file name. Empty on the outgroup row of the bacterial `genome` stage, which is matched to `outgroup/` by accession. |
+| `source` | `gtdb`, `ncbi_virus`, `bvbrc`, `sra` or `local`. `ingest` writes `local`, except that a genome taken with `--from-workdir` keeps the source its own manifest gives. |
+| `family`, `genus`, `species` | Taxonomy tokens. |
+| `is_outgroup` | 1 for the outgroup, else 0. |
+| `derep_status` | `representative`, `contained`, `fail_qc`, or empty before dereplication. |
+| `representative` | The representative of a contained genome. |
+| `completeness`, `contamination` | CheckM percentages, when known. |
+| `gtdb_representative` | 1 for a GTDB species representative, else 0. |
+| `sketch_file`, `sketch_params`, `sketch_digest` | The genome's sketch record (see [Genome sketches](#genome-sketches)). A version 3 manifest gains these columns, empty, when a stage next opens it. |
 
-The species columns come from the manifest taxonomy (`selection.tsv` in the
-Nextflow steps), and from the canonical filename
-(`Family_genus_species_ACCESSION.fasta`) for a genome without one. A genome
-with neither adds no species. In a cluster of one species `n_species` is 1.
-A larger value means the cluster joins several species, or, for names such
-as the synthetic benchmark sets, that every genome has its own species
-token. With no quality in the manifest (for example after `ingest` without
-`--selection` columns) the four quality columns, `best_member` and
-`best_score` are blank, and the command logs that it left them blank.
+`repgenr.yaml` holds one record per stage with these keys:
 
-A row whose `best_member` differs from its `representative` marks a cluster
-where the quality keeper would choose another genome. This happens under
-`--keeper tool`, where the adapter's pick stands, including after
-`--reduce`. The quality columns come from the manifest in the working
-directory CLI and from `--selection-tsv` in the Nextflow steps; without
-either they stay blank, and the size and species columns still apply.
+- `tool`, `params`, `tool_versions`, `completed` (UTC timestamp, empty
+  while the stage runs or after it failed), `fingerprint` and `inputs` (the
+  resume fingerprint and input digests).
+- `bin_dirs`: the directory each tool was given with `--bin-dir`; present
+  only when one was used.
+- `tool_versions`: a tool that reports no version (SibeliaZ) is recorded
+  with the version of its conda package from `conda-meta`, else `unknown`.
+  A tool run in a container is recorded with its image reference, and the
+  engine with its version (`docker: 29.5.3`, `singularity`, `podman`,
+  `apptainer`).
+- `metadata` `params`: `release`, the GTDB release of the table; with
+  `--source api` it is null and `api_query_date` holds the UTC time of the
+  query.
+- `ingest` `params`:
+  - `genomes_dir`;
+  - `from_workdirs`, the `--from-workdir` directories, empty without it;
+  - `sources`, ingroup genomes per manifest source;
+  - `source_states`, one entry per `--from-workdir` with `path`, `stage`
+    (the stage that wrote its genome set, null without a record) and
+    `state` (`done`, `stale`, `interrupted`, `no stage record`,
+    `unreadable record` or `unchecked`).
+- `dereplicate` `params`: the request (`secondary_ani`, `keeper`,
+  `tool_args` and the like) and `tool_settings`, how the tool computed the
+  clustering. For sourmash it holds:
+  - `backend`: `sparse` (branchwater plugin), `dense` (`sourmash compare`),
+    or `dense,sparse` when the passes of a chunked run differed;
+  - `ani_estimate` (`average_containment^(1/k)`), `ksize`, `scaled`;
+  - `unknown_pairs` on the dense back-end: pairs with too few shared hashes
+    for an ANI; left out for a chunked run.
 
-To list the members of a cluster, see "Finding the members of a cluster" in
+  `tool_settings` is empty for the other dereplicators. A record restored
+  by `derep-stock unpack` keeps the `tool_settings` of the packed record and
+  adds `stock: <name>`.
+
+`repgenr versions` and the Nextflow `versions.yml` list each container
+engine once.
+
+`scratch/` subdirectories:
+
+- `genome_download/`, `assemble/`: removed unless `--keep-files`.
+- `dereplicate/`: the dereplicator's working files (sketches, pairwise
+  tables); kept, and cleared when `dereplicate` runs again.
+- `snptype/`: each genome's intermediates are removed once its consensus is
+  read; a genome whose chain failed keeps its own. `ska2` keeps
+  `split_kmers.skf` and its sample list; `parsnp` keeps its output directory
+  and `input_genomes/` (links, or copies; decompressed copies of gzipped
+  genomes). Cleared when `snptype` runs again.
+- `phylo_snptype/`: the same kinds of files for the typing pass of
+  `phylo --msa-source snptype`; cleared when phylo types again.
+- `inputs/` (under `snptype/` or `phylo_snptype/`) and `phylo_inputs/`:
+  decompressed copies of gzipped genomes for tools that cannot read gzip
+  (progressiveMauve, SibeliaZ, `parsnp`, `snippy`); removed when the tool
+  has finished.
+
+## Entry stages: metadata, vmetadata, reads
+
+| Path | Content |
+|------|---------|
+| `<version>_metadata_r<major>.tsv.gz` (or `.tar.gz`) | The downloaded GTDB table (`--source tsv` without `--metadata-path`). |
+| `<version>_metadata_r<major>.release` | The exact release the table was fetched for; `--nodownload` checks it before reuse. |
+| `gtdb_api_genomes.tsv` | With `--source api`: the genomes the GTDB API returned for the target before `--limit`. `census -wd` counts them as candidates. Removed by a run with `--source tsv`. |
+| `virus_download_wd/` | Downloaded viral sequences, the tables `vgenome` selects from, and `download.source`, the source and target of `download.fa`. |
+| `virus_download_wd/virus_records.json` | NCBI Virus path: one record per sequence (keys below). |
+| `virus_metadata_base.tsv`, `virus_metadata_ncbi.tsv` | Copies of the viral metadata tables; the second on the BV-BRC path only. On the NCBI Virus path `name` is the species and `description` the organism name. |
+| `reads.tsv` | The selected sequencing runs (columns below). |
+
+`gtdb_api_genomes.tsv`:
+
+| Column | Meaning |
+|--------|---------|
+| `accession` | GTDB genome accession. |
+| `family`, `genus`, `species` | Taxonomy as filename tokens. |
+| `gtdb_representative` | 1 for a GTDB species representative, else 0. |
+| `family_name`, `genus_name`, `species_name` | Family, genus and species as GTDB writes them, without the rank prefix. |
+
+`virus_records.json`, per record: the report lineage; the species (the
+current NCBI Taxonomy species of the taxid, else the ICTV binomial from the
+lineage, else the organism name); `species_source`, which of the three
+applied; `species_name`, the species as NCBI writes it (empty in records
+written before it); and the segment label as submitted. See
+[usage.md](usage.md#species-assignment).
+
+`reads.tsv`:
+
+| Column | Meaning |
+|--------|---------|
+| `run_accession` | ENA or SRA run accession. |
+| `biosample`, `bioproject` | Sample and project accessions. |
+| `organism`, `taxid` | Submitted organism name and NCBI taxid. |
+| `platform`, `instrument_model`, `layout` | Sequencing platform, instrument and library layout. |
+| `bases`, `read_count` | Bases and reads ENA reports. |
+| `family`, `genus`, `species` | Tokens resolved from the taxid. |
+| `fastq_urls`, `fastq_md5`, `fastq_bytes` | FASTQ locations, checksums and sizes, `;`-separated per file; empty when ENA holds no FASTQ mirror. |
+| `library_selection` | ENA library selection (`RANDOM`, `MDA`, `PCR`, ...). |
+
+## Genome set: genome, ingest, vgenome
+
+These files form the genome set every later stage reads. On the reads path
+`assemble` writes the same files.
+
+| Path | Content |
+|------|---------|
+| `selection.tsv` | The selected genomes (columns below); the hand-off every later stage reads, and a resume input. Written by metadata, ingest, vgenome and assemble. |
+| `outgroup_accession.txt` | Accession of the outgroup, read by phylo and tree2tax. Absent without an outgroup. |
+| `genomes/` | One FASTA per selected accession. `genome` and `vgenome` write `.fasta`; `ingest` keeps the source names (`.fasta`, `.fa`, `.fna`, `.fas`, `.fasta.gz`, `.fna.gz`, `.fa.gz`). |
+| `outgroup/` | The outgroup genome. |
+| `ncbi_acc_download_list.txt` | Accessions `genome` will fetch (those without a FASTA in `genomes/`), one per line; the only output with `--accession-list-only`. |
+| `missing_accessions.txt` | Accessions the download did not return or whose FASTA failed the package checksum; read by the completeness check of later stages. |
+| `segments.tsv` | With `vgenome --group-segments`: columns `isolate` (the grouped isolate's token), `accession`, `segment` (normalised) and `segment_label` (as submitted), one row per member. |
+
+`selection.tsv`:
+
+| Column | Meaning |
+|--------|---------|
+| `accession` | Genome accession. |
+| `family`, `genus`, `species` | Taxonomy tokens. On the NCBI Virus path the species is the current NCBI Taxonomy species of the taxid. |
+| `is_outgroup` | 1 for the outgroup, else 0. |
+| `filename` | Canonical file name, `Family_genus_species_ACCESSION.fasta`. |
+| `completeness`, `contamination` | CheckM percentages, two decimals; empty when unknown. |
+| `gtdb_representative` | 1 for a GTDB species representative; 0 otherwise and on every non-GTDB path. Read by `--keeper gtdb`. |
+
+## Reads path
+
+The reads path writes, in order, reads sketches, screen decisions and
+assemblies; `assemble` then writes the genome set above. The methods are in
+[reads.md](reads.md).
+
+### reads-sketch
+
+| Path | Content |
+|------|---------|
+| `reads_sketches/<variant>/` | One directory per depth cap: `all/` for the whole run, `spots_<N>/` for `--max-spots N`. With `-o DIR` instead of `-wd`, the same files under `DIR/<variant>/`. |
+| `reads_sketches/<variant>/<run>.sig.zip` | Reads sketch of one run, streamed from NCBI with `fastq-dump` into sourmash: k=21, 31 and 51, scaled=1000, with abundances, named by run accession. |
+| `reads_sketches/<variant>/reads_sketches.tsv` | Index, one row per run of `reads.tsv` in its order (columns below); rewritten after every finished run. |
+| `reads_sketches/<variant>/.lock` | Held by the running call; a second call on the variant is refused while it is held. |
+
+`reads_sketches.tsv`:
+
+| Column | Meaning |
+|--------|---------|
+| `run_accession` | Run accession. |
+| `status` | `ok`; `failed`; `empty` (no biological read at this cap, no sketch, not streamed again); or `pending` (never selected). |
+| `max_spots` | Cap the sketch was made with; empty for the whole run. |
+| `spots_read`, `sequences` | Spots `fastq-dump` reported and sequences sourmash reported. |
+| `sketch_file` | Sketch file name beside the index. |
+| `sketch_params` | sourmash parameter string. |
+| `seconds` | Wall time of the pipeline, one decimal; for a retried run, the last attempt's. |
+| `reason` | Last error line of a failed run, after up to three attempts for a transient archive failure. |
+
+### reads-screen
+
+| Path | Content |
+|------|---------|
+| `reads_screen/<variant>/reads_screen.tsv` | Decisions on the sketches of one variant, one row per run of `reads.tsv`, with the columns of `screen_reads.tsv`. Rows of runs a call did not select are kept. |
+| `reads_screen/<variant>/passed.txt` | The runs that passed, one accession per line in `reads.tsv` order; the input of `assemble --accession-file`. |
+| `reads_screen/<variant>/<run>/screen.json` | One run's decision and settings (keys under [assemble](#assemble)). Absent for a run the tools failed on. |
+| `reads_screen/<variant>/<run>/screen/` | The `sourmash gather` CSV and `tax genome` output the decision was made from. |
+
+### assemble
+
+| Path | Content |
+|------|---------|
+| `assemblies/<run>/contigs.fasta` | Filtered contigs of one run. |
+| `assemblies/<run>/assembly.ok` | Completion marker (keys below). |
+| `assemblies/<run>/checkm2.json` | With a CheckM2 database: completeness, contamination, the contigs SHA-256, the database's resolved path, size and modification time, and the CheckM2 version or image. |
+| `assemblies/<run>/contigs.sig.zip`, `contigs.sig.zip.json` | When the sourmash classifier runs: the contig sketch (parameters of `sketches/`, named by run accession) and the contigs SHA-256 it was built from. Copied to `sketches/` under the record name. |
+| `assemblies/<run>/reads.sig.zip` | Reads sketch of all FASTQ files of the run: k=21, 31 and 51, scaled=1000, with abundances. Absent with `--no-reads-sketch`, without sourmash, and for an excused run unless the reads screen excused it. Never copied to `sketches/`. |
+| `assemblies/<run>/screen.json`, `screen/` | With `--screen-reads`: the run's decision (keys below), and `gather.csv` and `tax.classifications.csv` it was made from. |
+| `assembly_stats.tsv` | Per-assembly metrics (columns below). |
+| `screen_reads.tsv` | With `--screen-reads`, or from `reads-gather` in the Nextflow reads mode: one row per screened run (columns below). Rows of runs a call did not reach are kept. |
+| `excused_runs.tsv` | Runs that produced no genome (columns below); the completeness check excuses them like `missing_accessions.txt`. |
+
+`assembly.ok` records the assembler and polisher, their versions, the
+metrics and the settings of the run; `reads_sketch` (file name or null),
+`reads_sketch_params` and `reads_sketch_version` (sourmash); and, for a run
+that passed the screen, the `screen` record.
+
+`screen.json`:
+
+- `run_accession`, `decision` (`pass` or `excused`) and `reason` (the
+  excuse, or `genus_renamed` for a pass under the genus tolerance);
+- `top_match`, `top_genus`, `fraction` (see `screen_reads.tsv`);
+- `duplicate_of` and `ani`, the containment ANI to that run;
+- `duplicates_checked`, whether the duplicate check was part of the
+  decision;
+- `settings`: `min_fraction`, `dup_ani`, the resolved `gtdb_sketch` and
+  `gtdb_lineages` paths, and `ksize` (31).
+
+`assembly_stats.tsv`:
+
+| Column | Meaning |
+|--------|---------|
+| `run_accession`, `filename` | Run and genome file name. |
+| `assembler` | Assembler that built the contigs. |
+| `n_contigs`, `total_length`, `n50`, `largest_contig` | Contig count, total length, N50 and largest contig in bases. |
+| `est_coverage` | Estimated coverage. |
+| `completeness`, `contamination` | CheckM2 percentages; empty when not scored. |
+| `ncbi_taxonomy`, `gtdb_taxonomy` | Taxonomy used for the name, and the classifier's GTDB taxonomy. |
+| `label_source` | `classifier` when the GTDB tokens name the genome (the genera agree), else `metadata`. |
+| `taxonomy_flag` | Empty when the genera agree; `genus_renamed` when genus differs but family and epithet agree; `classifier_disagrees` otherwise. GTDB suffixes such as `_A` are ignored. |
+| `polisher` | Polisher that corrected a long-read assembly; empty when none ran. |
+| `reads_sketch` | 1 when `assemblies/<run>/reads.sig.zip` holds the reads sketch, else 0. |
+| `screen` | `pass` when the reads screen passed the run; empty when it was not screened. The last column. |
+
+Neither taxonomy flag excuses a genome. The stage record counts
+`classifier_disagrees` as `n_disagree` and `genus_renamed` as
+`n_genus_renamed`. In tables written before `reads_sketch` or `screen`
+existed, the column reads as 0 or empty.
+
+`screen_reads.tsv` (and `reads_screen.tsv`):
+
+| Column | Meaning |
+|--------|---------|
+| `run_accession` | Run accession. |
+| `top_match` | First gather match, as named in the GTDB sketch. |
+| `top_genus` | Its GTDB genus. |
+| `fraction` | Abundance-weighted fraction of the reads in the top species. |
+| `duplicate_of` | Earlier run that contains this one, for a duplicate. |
+| `decision` | `pass` or `excused`. |
+| `reason` | `taxon_mismatch`, `low_match_fraction`, `duplicate_isolate` or `screen_failed`; `genus_renamed` for a pass under the genus tolerance. |
+
+`excused_runs.tsv`:
+
+| Column | Meaning |
+|--------|---------|
+| `run_accession` | Run accession. |
+| `step` | Step that gave up: `fetch`, `screen`, `assemble`, `qc` or `classify`. |
+| `reason` | The reason code, with any tool output folded onto one line (codes below). |
+
+Reason codes: `no_fastq_mirror`, `download_failed`, `unsupported_platform`
+(no assembler takes the platform), `unsupported_layout` (the assembler takes
+the platform but not the layout), `assembler_not_installed`,
+`assembly_failed`, `polish_failed`, `qc_failed`; the screen codes
+`taxon_mismatch`, `low_match_fraction`, `duplicate_isolate` and
+`screen_failed` (step `screen`, see
+[reads.md](reads.md#the-three-checks)); and `deferred` (step `assemble`,
+not attempted because `--max-runs` was reached).
+
+When every run is excused, `assemble` exits 3 and may empty the genome set
+of an earlier `assemble` call. The cases are described in
+[reads.md](reads.md#when-every-sequencing-run-is-excused).
+
+## Genome sketches
+
+| Path | Content |
+|------|---------|
+| `sketches/<name>.sig.zip` | One sourmash zip collection per genome, outgroup included: k=21, 31 and 51 DNA signatures, scaled=1000, no abundance, each named by the record name. |
+| `sketches/.digests.json` | SHA-256 of each genome FASTA with the size and modification time it was computed at; genomes of the current set only. A cache, rebuilt when absent. |
+| `sketches/outgroup.json` | The three sketch fields for an outgroup FASTA under `outgroup/` without a manifest row, keyed by file name; normally absent. |
+
+Sketches are written by genome, vgenome, ingest, assemble and sketch, and by
+`dereplicate --tool sourmash`, `glance --tool sourmash` and
+`phylo --treebuilder sourmash`, which first write the missing and stale
+sketches of the genomes they compare. A sketch is written to a hidden
+`.<name>.partial.sig.zip` and renamed. The manifest records each sketch in
+`sketch_file` (path relative to the working directory), `sketch_params`
+(`k=21,k=31,k=51,scaled=1000`) and `sketch_digest` (SHA-256 of the FASTA). A
+sketch whose digest or parameter string differs from its record is stale.
+The sketch columns are not part of the manifest digest of the resume
+fingerprint.
+
+## glance
+
+| Path | Content |
+|------|---------|
+| `glance_clustering_dendrogram.pdf` | Clustering dendrogram over all genomes: dRep's own with `--tool drep`, average linkage on 1 - ANI with `--tool sourmash`. `--tool auto` uses dRep when it can run. |
+| `glance_MASH_ANI_similarity_boxplot.png`, `glance_MASH_ANI_similarity_histogram.png` | Box plot and histogram of the pairwise ANI values within `--plot-min`/`--plot-max`, one value per genome pair. Mash ANI from dRep, sketch ANI from sourmash; the axes name which. |
+| `glance_wd/` | Working files of the comparison tool, kept only with `--keep-files`. |
+| `glance_wd/pairwise_ani.csv` | `--tool sourmash`: columns `genome1`, `genome2`, `similarity`, one row per pair. An empty `similarity` means the pair is below the sketch's reach (under 30 shared hashes and a tenth of the smaller sketch). |
+| `glance_wd/dendrogram_leaves.txt` | `--tool sourmash`: leaf order of the dendrogram; the signatures lie beside it. |
+
+A run removes the previous plots once the comparison succeeds, so a plot
+with no values in range is absent.
+
+## dereplicate and the dereplication commands
+
+| Path | Content |
+|------|---------|
+| `derep/` | Representative genomes and per-tool intermediates. |
+| `derep/representatives/` | One genome file per cluster, the distinct values of `representative` in `clusters.tsv`. |
+| `derep/clusters.tsv` | Columns `representative` and `member`, one row per genome; a representative also lists itself. |
+| `derep/genome_status.tsv` | Columns `genome` and `status` (`representative`, `contained` or `fail_qc`). |
+| `derep/refined.tsv` | With `dereplicate --refine` or `derep-refine`: the genomes of the refined lineages (columns below). Absent without a refinement. |
+| `derep/cluster_summary.tsv` | One row per representative (columns below). Written by dereplicate and `cluster-summary`. |
+| `genome_n50.tsv` | In the output of each `dereplicate-chunk` and `dereplicate-merge` step (Nextflow `DEREP_CHUNK`, `DEREP_MERGE`): `genome` and `n50` (bases) of every scored genome the step read. Absent from `dereplicate-refine` output. |
+| `derep/unpacked/<representative>/` | `derep-unpack`: the cluster's members, and the representative unless `--no-representant`, hard-linked or copied from `genomes/`. Replaced on each run. |
+| `derep/stock/<name>/` | `derep-stock --action pack`: a stored dereplication (contents under [Storing and restoring with derep-stock](#storing-and-restoring-with-derep-stock)). |
+
+An `unpacked/` directory is named by the representative's file name without
+its genome extension; the gzip suffixes `.fasta.gz`, `.fna.gz` and `.fa.gz`
+are removed as a whole. When two representatives would share a directory
+(`x.fasta` and `x.fna`, or names differing only in case), the full file name
+is used.
+
+`refined.tsv`:
+
+| Column | Meaning |
+|--------|---------|
+| `genome` | Genome of the lineage. |
+| `seed` | Seed whose coarse cluster brought the genome in. |
+| `coarse_representative` | That cluster's representative before the refinement. |
+| `representative` | Representative after the refinement; blank for `fail_qc`. |
+| `status` | Final status. |
+| `ani` | Secondary ANI of the lineage's refinement. |
+
+### Cluster summary
+
+`derep/cluster_summary.tsv` has one row per representative, largest cluster
+first, then by representative name. The outgroup has no row. In the
+Nextflow steps the taxonomy, quality and GTDB flag come from
+`selection.tsv` (`--selection-tsv`) instead of the manifest.
+
+| Column | Meaning |
+|--------|---------|
+| `representative` | Keeper file name, as in `clusters.tsv`. |
+| `n_members` | Genomes contained under the keeper, the keeper not counted. |
+| `n_species` | Distinct species (genus and epithet) across keeper and members, from the manifest taxonomy or else the canonical file name. A genome with neither adds none. |
+| `species` | Those species, comma-separated: the keeper's first, then by genome count and name; at most five, then `+N more`. An epithet shared by two genera is written with its genus. |
+| `rep_completeness`, `rep_contamination` | CheckM values of the keeper; blank when unknown. |
+| `member_max_completeness`, `member_min_contamination` | Best values among the scored members; blank when none is scored. |
+| `best_member` | Genome the quality keeper chooses in the cluster ([keeper score](usage.md#the-keeper-score)); blank when nothing is scored. |
+| `n_genomes` | Genomes in the cluster, keeper included (`n_members` + 1). |
+| `rep_n50` | Keeper N50 in bases from its FASTA; filled only for a keeper with completeness and contamination whose file is found. |
+| `best_score` | Keeper score of `best_member`, four decimals; blank with `best_member`. |
+| `rep_is_gtdb_representative` | 1 when the keeper is a GTDB species representative, else 0. |
+| `refined` | 1 for a cluster from a [refinement](usage.md#finer-resolution-inside-a-lineage), read from `refined.tsv`, else 0. The last column. |
+
+Without quality values the four quality columns, `best_member` and
+`best_score` are blank and the command logs it. `best_member` differs from
+`representative` under `--keeper tool`, after `--reduce` or the Nextflow
+merge (only representatives are compared), and under `--keeper gtdb` where a
+GTDB representative was kept over a better-scored member. Listing a
+cluster's members is described in
 [usage.md](usage.md#finding-the-members-of-a-cluster).
 
 ### Storing and restoring with derep-stock
 
-`derep-stock --action unpack --name <run>` makes a stored run the current
-one again (see
-[usage.md](usage.md#storing-and-restoring-a-dereplication)). It changes the
-working directory as follows:
+`derep/stock/<name>/` holds `clusters.tsv`, `genome_status.tsv`,
+`cluster_summary.tsv`, `refined.tsv` when the run holds a refinement,
+`representatives/` (links to the representative genomes) and `record.json`,
+the completed `dereplicate` record at pack time (`tool`, `params`,
+`tool_versions`, `completed`; absent when there was none). The workflow is
+in [usage.md](usage.md#storing-and-restoring-a-dereplication).
 
-- It rebuilds `cluster_summary.tsv` from the restored clusters and the
-  current manifest quality, and removes a live `genome_status.tsv` the
-  stored run lacks. The N50 of a scored genome whose file is no longer in
-  `genomes/` cannot be read, so its keeper score in the summary has no N50
-  term and `rep_n50` is blank. Unpack and `cluster-summary` name such
-  genomes in a warning.
-- It replaces `derep/representatives/` as a whole, so other files placed
-  there are removed, and it takes the representatives by name from
-  `genomes/`.
-- The re-stamped `dereplicate` record takes the tool, parameters and tool
-  versions from the stored `record.json` and adds `stock: <run>`. Its
-  completion time is that of the unpack.
-- A run stored without `record.json` (packed while no completed
-  `dereplicate` record existed, which pack reports with a warning) keeps the
-  tool and parameters of the `dereplicate` record current at unpack time
-  instead. A record left incomplete by an interrupted `dereplicate` run then
-  carries nothing over (no tool), and one left by an interrupted unpack
-  keeps what that unpack was carrying.
+`derep-stock --action unpack` changes the working directory as follows:
+
+- `derep/cluster_summary.tsv` is rebuilt from the restored clusters and the
+  current manifest; the stored summary keeps the quality of pack time. A
+  scored genome no longer in `genomes/` has no N50 term in its score and a
+  blank `rep_n50`; unpack and `cluster-summary` name it in a warning.
+- A live `genome_status.tsv` the stored run lacks is removed.
+- `derep/representatives/` is replaced as a whole, from `genomes/` by name.
+- The `dereplicate` record takes `tool`, `params` and `tool_versions` from
+  `record.json`, adds `stock: <name>`, and is completed at unpack time. It
+  holds no resume fingerprint.
+- Without `record.json`, the record keeps the tool and parameters of the
+  `dereplicate` record current at unpack time; a record left by an
+  interrupted `dereplicate` then carries no tool, and one left by an
+  interrupted unpack keeps what that unpack carried.
 
 ## annotate
 
-| Path | Produced by | Description |
-|------|-------------|-------------|
-| `annotations/<record>/<record>.gff3`, `.faa`, `.ffn` | annotate | One directory per annotated record (the representatives, or every genome with `--all-genomes`, and the outgroup): the GFF3 with the sequences appended (`##FASTA`), the proteins and the gene nucleotides, as bakta or prokka wrote them (prokka's `.gff` is copied as `.gff3`). The Nextflow pipeline publishes the same directories under `--outdir`, one per `ANNOTATE` task, without the index. A record is annotated again only when its genome, the annotator, the tool version, the database version or the tuning changed; a record whose genome left the set is kept (it is reused if the genome returns) and one whose genome left the working directory is removed. |
-| `annotations/<record>/annotation.json` | annotate, `annotate-build` | The annotator, its version, the database version and the tuning that made the record. `annotate-index` reads it, so gathered records are indexed with the tool that made them; records written by an earlier version lack it and take the `--tool` of `annotate-index`. |
-| `annotations/annotations.tsv` | annotate (and, in the Nextflow tasks, `annotate-index`) | The index, one row per record: `record_name`, `set` (genomes or outgroup), `genome_path`, `genome_digest`, `annotator`, `annotator_version`, `db_version` (bakta's database version, empty for prokka), `extra` (the tuning as key=value), `gff_digest`, `completed`. Rewritten after every annotated genome, so an interrupted run keeps what it did. |
+| Path | Content |
+|------|---------|
+| `annotations/<record>/<record>.gff3`, `.faa`, `.ffn` | One directory per annotated record (the representatives, or every genome with `--all-genomes`, and the outgroup): GFF3 with `##FASTA`, proteins and gene nucleotides from bakta or prokka (prokka's `.gff` copied as `.gff3`). |
+| `annotations/<record>/annotation.json` | `annotator`, `annotator_version`, `db_version` and `extra` of the record; `annotate-index` indexes the record with this annotator, else with its `--tool`. |
+| `annotations/annotations.tsv` | Index, one row per record (columns below); rewritten after every annotated genome. Written by annotate and `annotate-index`. |
+
+A record is annotated again only when its genome, annotator, tool version,
+database version or tuning changed. A record whose genome left the set is
+kept; one whose genome left the working directory is removed.
+
+`annotations.tsv`:
+
+| Column | Meaning |
+|--------|---------|
+| `record_name` | Record name. |
+| `set` | `genomes` or `outgroup`. |
+| `genome_path`, `genome_digest` | Genome path (relative to the working directory, or absolute outside it) and its SHA-256. |
+| `annotator`, `annotator_version` | bakta or prokka, and its version. |
+| `db_version` | bakta database version; empty for prokka. |
+| `extra` | Tuning as sorted `key=value` pairs, comma-separated. |
+| `gff_digest` | SHA-256 of the GFF3. |
+| `completed` | UTC timestamp. |
 
 ## snptype
 
-Only the `snptype` stage writes `snp/`. The typing pass of
-`phylo --msa-source snptype` writes the same kinds of files under
-`tree/msa/` (see [phylo](#phylo)); the rows below that name both
-locations apply to both.
+`snptype` writes `snp/`. The typing pass of `phylo --msa-source snptype`
+writes the same files under `tree/msa/` (see [phylo](#phylo)).
 
-| Path | Produced by | Description |
-|------|-------------|-------------|
-| `snp/core_snp.fasta` | snptype | Core-SNP (variable-site) alignment; masked in place when `--mask` is set. Only the `snptype` stage writes `snp/`; the typing pass of `phylo --msa-source snptype` writes under `tree/msa/`. |
-| `snp/full_alignment.fasta` | snptype | Whole-genome alignment in reference coordinates, when the SNP typer produces one (snippy, parsnp, simple); required input for `--mask`. In the `simple` typer's alignment, reference positions where a genome's alignments place no base (outside them, or in a deletion) are N. |
-| `snp/snp_distance_matrix.tsv` | snptype | Pairwise SNP distances between genomes; the `simple` typer writes it, the others do not. Each pair is compared only at sites where both genomes have a base (A, C, G or T); a pair without such a site has `NA`. It is computed before masking, so with `--mask` it counts the recombinant sites that `core_snp.fasta` no longer holds. |
-| `snp/variants.vcf` | snptype | The typer's variant calls when it writes any (snippy); under `--snptyper ska2 --tool-arg lo=true` the indels `ska lo` recovered, since its SNPs go into the core alignment. |
-| `snp/alignment_stats.json`, `tree/msa/alignment_stats.json` | snptype, phylo | Beside `core_snp.fasta` when the typer wrote a whole-genome alignment, or for `ska2` an all-sites alignment (`all_sites.fasta`, counted in scratch and then removed): the counts of its constant A, C, G and T columns (`constant_sites`), the number of variable columns, the file they were counted from, whether masking followed and the `--core-fraction` applied (null when none). The tree builder adds the counts back as ascertainment-bias correction (IQ-TREE `-fconst`, RAxML-NG `+ASC_STAM`). Absent for `ska2 --tool-arg lo=true`, which writes variants only. For `ska2`, `variable_sites` is counted on the all-sites file and can differ from the number of columns in `core_snp.fasta`. |
-| `snp/masker_tree.nwk`, `tree/msa/masker_tree.nwk` | snptype, phylo | With `--mask gubbins`: Gubbins' own final tree (recombination-aware, built by its tree builder over its iterations), kept for comparison with the tree repgenr builds from the filtered sites. It describes the alignment beside it, which under `tree/msa/` may come from an earlier run (the reuse cache). Removed when a later run does not mask. |
+| Path | Content |
+|------|---------|
+| `snp/core_snp.fasta` | Core-SNP (variable-site) alignment; masked in place with `--mask`. |
+| `snp/full_alignment.fasta` | Whole-genome alignment in reference coordinates (snippy, parsnp, simple); the input of `--mask`. In the `simple` typer's alignment, positions where a genome has no aligned base are N. |
+| `snp/snp_distance_matrix.tsv` | `simple` typer only: pairwise SNP distances over sites where both genomes have A, C, G or T; `NA` without such a site. Computed before masking. |
+| `snp/variants.vcf` | The typer's variant calls (snippy); for `ska2 --tool-arg lo=true`, the indels `ska lo` recovered. |
+| `snp/alignment_stats.json`, `tree/msa/alignment_stats.json` | Constant-site counts of the alignment beside it (keys below). Absent for `ska2 lo=true`. |
+| `snp/masker_tree.nwk`, `tree/msa/masker_tree.nwk` | With `--mask gubbins`: Gubbins' final tree of the alignment beside it. Removed when a later run does not mask. |
+
+`alignment_stats.json` is written when the typer produced a whole-genome
+alignment, or for `ska2` an all-sites alignment counted in scratch:
+
+| Key | Meaning |
+|-----|---------|
+| `v` | Format version. |
+| `alignment`, `alignment_digest` | The variable-site alignment the counts belong to, and its SHA-256. |
+| `source` | File the counts were taken from. |
+| `constant_sites` | Constant A, C, G and T columns; added back by IQ-TREE (`-fconst`) and RAxML-NG (`+ASC_STAM`). |
+| `variable_sites` | Variable columns; for `ska2` counted on the all-sites file. |
+| `masked` | Whether masking followed. |
+| `core_fraction` | `--core-fraction` applied; null when none. |
 
 ## phylo
 
-| Path | Produced by | Description |
-|------|-------------|-------------|
-| `align/msa.fasta` | phylo | Whole-genome alignment from the aligner (`--msa-source aligner`). Each record is named by the genome file name without its FASTA suffix and `.gz`. |
-| `align/msa_source.json`, `tree/msa/msa_source.json` | phylo | Stamp beside the alignment phylo built: the genome set, the source settings and the alignment's digest, so a later `phylo` that changes only the tree builder reuses it. A `snp/msa_source.json` was written by phylo versions that typed into `snp/`; it is no longer read, such a working directory is typed once more into `tree/msa/`, and `doctor` warns that the tables in `snp/` may be phylo's. |
-| `tree/` | phylo | Phylogeny (`tree.nwk`) and the tree builder's own files (logs, bootstrap trees). `tree.nwk` is rooted as `phylo --root` asks: on the branch to the outgroup (the default with an outgroup), at the midpoint, or not at all (`none`, the default without one). When phylo rerooted it, `tree.unrooted.nwk` holds the builder's output as written. With `--partitioned`, `partitions.txt` holds the partition definitions given to `iqtree` (`-p`) or `raxmlng` (`--model`), one gene per line. With `--treebuilder aster`, `gene_trees.nwk` holds the gene trees ASTER summarised (one Newick per line, IQ-TREE aBayes or FastTree SH-like supports), `aster.nwk` ASTER's own output, `genes/` the per-gene FASTA cut from the alignment and `gene_trees/` the gene-tree builder's files. A rebuild removes the previous builder's files but keeps `msa/`, the reuse cache of the SNP typing pass. |
-| `tree/msa/` | phylo | With `--msa-source snptype`: the alignment phylo's own typing pass produced, outgroup included (`core_snp.fasta`, with `full_alignment.fasta`, `snp_distance_matrix.tsv` or `variants.vcf` when the typer writes them, masked in place with `--mask`), and its reuse stamp. It is a reuse cache: after a switch to `--msa-source aligner` or an alignment-free builder it may remain from an earlier snptype-source run, and it then does not describe the current tree; a later return to the same source and settings reuses it. `alignment_stats.json` and `masker_tree.nwk` are described under [snptype](#snptype). |
-| `tree/msa/core_gene_alignment.fasta`, `tree/msa/pangenome/`, `tree/msa/core_gene_stats.json` | phylo | With `--msa-source coregene`: the concatenated core-gene alignment (with Panaroo, of the genes in its entropy-filtered alignment unless `filtered=false`), its tables (Panaroo: `gene_presence_absence.csv`, `.Rtab`, `summary_statistics.txt`; PPanGGOLiN: `gene_presence_absence.Rtab`, `matrix.csv`, `genomes_statistics.tsv` and one family list per partition; SCARAP: `genes.tsv`, gene, genome and orthogroup per row; OrthoFinder: `Orthogroups.GeneCount.tsv` and `core_orthogroups.txt`, the orthogroups kept; markers: `markers_summary.tsv`, one row per genome with `genome set unique multiple_unique multiple missing single_copy_percent`, and `markers_per_genome.tsv`, one row per genome and marker with `genome set marker status gene bitscore`, where `status` is `unique`, `multiple_unique`, `multiple` or `missing` and `gene` is the protein kept, empty for `multiple` and `missing`) and a summary (core genes, columns, genomes, `alphabet` (`dna`, or `protein` with `--coregene-alphabet protein`), core threshold, clustering identity, and for Panaroo the clean mode and filtered; `builder_settings` with PPanGGOLiN's partition, coverage and single-copy choice, SCARAP's method and seeds, OrthoFinder's search and inflation, or for markers the set used and the set asked for (`marker_set`, `marker_set_requested`), `markers_in_set`, `min_markers`, the median and minimum single-copy markers per genome and `markers_db_version`). A genome left as a row of gaps by the builder is removed from the alignment and reported like one the builder dropped. A builder that hands over one alignment per gene has its genes measured, ranked and capped by RepGenR, which concatenates the kept genes in gene-id order (so the column layout does not depend on the rank) with gaps for a genome that lacks a gene. It then also writes `tree/msa/core_genes.tsv`, one row per aligned gene (`gene kept rank length present occupancy gap_fraction variable_sites informative_sites mean_identity start end`; `rank` is the 1-based position among the kept genes, `start`/`end` the gene's 1-based inclusive columns, both empty for a gene left out; a column's states exclude gaps and missing-data symbols, an informative column has at least two states each seen at least twice, and `mean_identity` is the mean fraction of identical pairs over the columns with two or more called characters), and `tree/msa/partitions.json`, the columns of each kept gene (`{"v": 1, "alignment", "alignment_digest", "alphabet", "partitions": [[gene, start, end], ...]}`; `alphabet` is `dna` or `protein`, and the tree builder takes its model family from it), which names the alignment and holds its digest so it is ignored once the alignment changes. `core_gene_stats.json` then holds `core_genes` as the number of genes kept, and five further fields: `core_genes_available` (the genes the builder aligned), `variable_sites_total`, `informative_sites_total`, `gene_table` and `partitions`. These five are null for a builder that returns only its own concatenation, where `core_genes` remains the builder's own count. A genome whose record of a gene holds only gaps or missing-data symbols is not counted as present in that gene. `selection` (the maximum gene count, rank, minimum length, maximum gap fraction and seed) is always recorded, and anything but the default (every gene, ranked by occupancy) is refused for such a builder. `trim` (`none`, or `clipkit` with `--gene-trim clipkit`) is always recorded; with trimming, `trim_mode` (the ClipKIT mode, `smart-gap`), `trimmed_columns_removed` (alignment columns before minus after trimming, summed over the genes, a dropped gene counting all its columns) and `genes_dropped_by_trimming` (genes that lost every column) are set, and they are null without it. With trimming, `core_genes_available` and `core_genes.tsv` describe the genes after trimming. No `alignment_stats.json`: the alignment keeps its invariant sites. The reuse stamp `msa_source.json` holds the annotation index digest, so a re-annotated genome rebuilds it. |
+### Tree and alignment
+
+| Path | Content |
+|------|---------|
+| `align/msa.fasta` | Whole-genome alignment from the aligner (`--msa-source aligner`), records named by record name. |
+| `align/msa_source.json`, `tree/msa/msa_source.json` | Reuse stamp of the alignment: `v`, `key` (hash of the genome set and source settings), `artifact`, `artifact_digest`, `versions` and `records`. |
+| `tree/tree.nwk` | The tree, rooted as `phylo --root` asks: on the outgroup branch, at the midpoint, or not at all (`none`). |
+| `tree/tree.unrooted.nwk` | The builder's output as written, when phylo rerooted it. |
+| `tree/` | The builder's own files (logs, bootstrap trees); replaced on a rebuild, `msa/` kept. |
+| `tree/partitions.txt` | With `--partitioned`: partition definitions given to `iqtree` (`-p`) or `raxmlng` (`--model`), one gene per line. |
+| `tree/gene_trees.nwk`, `tree/aster.nwk` | `--treebuilder aster`: the gene trees ASTER summarised, one Newick per line (IQ-TREE aBayes or FastTree SH-like supports), and ASTER's own output. |
+| `tree/genes/`, `tree/gene_trees/` | `--treebuilder aster`: per-gene FASTA cut from the alignment, and the gene-tree builder's files. |
+
+### SNP-typing cache
+
+| Path | Content |
+|------|---------|
+| `tree/msa/` | With `--msa-source snptype`: the alignment of phylo's own typing pass, outgroup included, and its reuse stamp. |
+| `tree/msa/core_snp.fasta` | Core-SNP alignment; masked in place with `--mask`. |
+| `tree/msa/full_alignment.fasta`, `snp_distance_matrix.tsv`, `variants.vcf` | As under [snptype](#snptype), when the typer writes them. |
+
+`tree/msa/` is a reuse cache. After a switch to `--msa-source aligner` or an
+alignment-free builder it may remain from an earlier run and then does not
+describe the current tree.
+
+### Core-gene files
+
+With `--msa-source coregene`:
+
+| Path | Content |
+|------|---------|
+| `tree/msa/core_gene_alignment.fasta` | Concatenated core-gene alignment. With Panaroo, of the genes in its entropy-filtered alignment unless `filtered=false`. Invariant sites are kept, so there is no `alignment_stats.json`. |
+| `tree/msa/pangenome/` | The builder's tables (list below). |
+| `tree/msa/core_gene_stats.json` | Summary of the alignment (keys below). |
+| `tree/msa/core_genes.tsv` | One row per aligned gene (columns below); only for a builder that hands over one alignment per gene. |
+| `tree/msa/partitions.json` | Columns of each kept gene (keys below); same condition. |
+| `tree/msa/msa_source.json` | Reuse stamp; it includes the annotation index digest. |
+
+A genome left as a row of gaps by the builder is removed and reported like
+one the builder dropped. For a per-gene builder RepGenR2 measures, ranks
+and caps the genes, and concatenates the kept ones in gene-id order with
+gaps for a genome that lacks a gene. A record of only gaps or
+missing-data symbols counts as absent.
+
+Builder tables in `pangenome/`:
+
+| Builder | Tables |
+|---------|--------|
+| Panaroo | `gene_presence_absence.csv`, `gene_presence_absence.Rtab`, `summary_statistics.txt`. |
+| PPanGGOLiN | `gene_presence_absence.Rtab`, `matrix.csv`, `genomes_statistics.tsv`, `mean_persistent_duplication.tsv`, one family list per partition. |
+| SCARAP | `genes.tsv`: gene, genome and orthogroup per row. |
+| OrthoFinder | `Orthogroups.GeneCount.tsv`, and `core_orthogroups.txt`, the orthogroups kept. |
+| markers | `markers_summary.tsv` and `markers_per_genome.tsv` (columns below). |
+
+`markers_summary.tsv`, one row per genome:
+
+| Column | Meaning |
+|--------|---------|
+| `genome`, `set` | Genome and marker set (bac120 or ar53). |
+| `unique`, `multiple_unique`, `multiple`, `missing` | Markers per call. |
+| `single_copy_percent` | Single-copy markers as a percentage of the set, one decimal. |
+
+`markers_per_genome.tsv`, one row per genome and marker:
+
+| Column | Meaning |
+|--------|---------|
+| `genome`, `set`, `marker` | Genome, marker set and marker. |
+| `status` | `unique`, `multiple_unique`, `multiple` or `missing`. |
+| `gene`, `bitscore` | Protein kept and its bit score; empty for `multiple` and `missing`. |
+
+`core_genes.tsv`:
+
+| Column | Meaning |
+|--------|---------|
+| `gene` | Gene identifier. |
+| `kept` | Whether the gene is in the concatenation. |
+| `rank` | 1-based position among the kept genes; empty for a gene left out. |
+| `length` | Alignment columns. |
+| `present`, `occupancy` | Genomes with at least one called character, and that count over the genomes of the set. |
+| `gap_fraction` | Gap characters over all characters of the present records. |
+| `variable_sites` | Columns with at least two states (gaps and missing data excluded). |
+| `informative_sites` | Columns with at least two states each seen at least twice. |
+| `mean_identity` | Mean fraction of identical pairs over the columns with two or more called characters. |
+| `start`, `end` | 1-based inclusive columns of the gene; empty for a gene left out. |
+
+`partitions.json`: `v` (1), `alignment`, `alignment_digest`, `alphabet`
+(`dna` or `protein`; the tree builder takes its model family from it) and
+`partitions`, a list of `[gene, start, end]`. The file is ignored once the
+alignment's digest changes.
+
+`core_gene_stats.json`:
+
+| Key | Meaning |
+|-----|---------|
+| `alignment`, `source` | Alignment file and builder. |
+| `alphabet` | `dna`, or `protein` with `--coregene-alphabet protein`. |
+| `core_genes` | Genes kept; for a builder that returns only its concatenation, the builder's own count. |
+| `core_genes_available` | Genes the builder aligned, after trimming. |
+| `variable_sites_total`, `informative_sites_total` | Sums over the kept genes. |
+| `gene_table`, `partitions` | `core_genes.tsv` and `partitions.json`. |
+| `alignment_length`, `genomes` | Columns and genomes of the alignment. |
+| `core_threshold`, `clustering_identity` | Core threshold and the identity the builder clustered at. |
+| `selection` | `max_genes`, `rank`, `min_length`, `max_gaps`, `seed`. |
+| `trim` | `none`, or `clipkit` with `--gene-trim clipkit`. |
+| `trim_mode` | ClipKIT mode (`smart-gap`). |
+| `trimmed_columns_removed` | Columns before minus after trimming, over all genes; a dropped gene counts all its columns. |
+| `genes_dropped_by_trimming` | Genes that lost every column. |
+| `clean_mode`, `filtered` | Panaroo settings; left out for a builder that ignores them. |
+| `builder_settings` | Builder-specific settings (list below). |
+
+`core_genes_available`, `variable_sites_total`, `informative_sites_total`,
+`gene_table` and `partitions` are null for a builder that returns only its
+own concatenation; such a builder accepts only the default selection. The
+three trimming counts are null without trimming.
+
+`builder_settings` holds `clustering_on` and:
+
+- PPanGGOLiN: `partition`, `coverage`, `single_copy`;
+- SCARAP: `method`, `seeds`, `scarap_core_m`, `core_prefilter`;
+- OrthoFinder: `search`, `inflation`;
+- markers: `marker_set` (used), `marker_set_requested`, `markers_in_set`,
+  `min_markers`, `single_copy_markers_median`, `single_copy_markers_min`
+  and `markers_db_version`.
 
 ## tree2tax
 
-| Path | Produced by | Description |
-|------|-------------|-------------|
-| `tree2tax.tsv` | tree2tax | The taxonomy derived from the tree, for FlexTaxD's `--taxonomy_file`: a header row `child<TAB>parent`, then one edge per row (FlexTaxD accepts either column order and reads the header to tell). Nodes are identified by their label: genome file stems for leaves, a hash of the descendant leaf set (or `--node-basename` plus a number) for internal nodes, and `root` for the top node, which FlexTaxD pre-creates and validates from (`--root-name` changes it, with a warning). Every node has one parent and no field is empty. There is no rank column unless `--ranks` is given: FlexTaxD reads a third column as a rank that must then be present on every row, since an empty one silently inherits the previous row's, so with `--ranks` the header is `child<TAB>parent<TAB>rank` and every row carries `strain` (a genome), `no rank` (an internal node) or a rank `--rank-red` assigned by relative evolutionary divergence. The contract follows the reader on FlexTaxD's GitHub master (`flextaxd/modules/ReadTaxonomy.py`, 2026-10); the PyPI 0.1.5 release reads the genome map with a header line, stores the edges of a child-first file inverted and does not pre-create `root`, so it cannot consume these files. FlexTaxD walks at most 50 levels below `root` (`get_children`, `maxdepth=50`): a taxonomy deeper than that imports and dumps in full but fails `flextaxd --validate`, which an unbalanced tree of more than about 50 genomes can reach; `--collapse-diameter` reduces the depth. |
-| `tree2tax_nodes.tsv` | tree2tax | One row per node of the taxonomy, the root included, for reading the taxonomy and choosing collapse thresholds; FlexTaxD does not read it. Columns: `node`, `parent`, `n_leaves`, `depth` (path length from the root), `branch_length`, `support` (the builder's value as a fraction, NA for leaves and trees without supports), `red` (relative evolutionary divergence after Parks et al. 2018 as PhyloRank computes it: 0 at the root, or at the ingroup's common ancestor when the outgroup was removed; 1 at the leaves; with the outgroup kept, the ingroup values depend on where the root sits on the outgroup branch; NA on a tree without branch lengths or without an outgroup or midpoint root, which includes the stateless step without `--keep-root` or an outgroup) and `lineage` (family;genus;species of a leaf's genome from the manifest, empty otherwise or on the stateless step). |
-| `genomes_map.tsv` | tree2tax | Accession to leaf, for FlexTaxD's `--genomeid2taxid`: no header, two tab-separated columns, the genome accession and the node it belongs to. One row per representative (its own leaf), per dereplicated member (its representative's leaf, with `--include-dereplicated`), and for a grouped viral isolate per member segment accession. |
+| Path | Content |
+|------|---------|
+| `tree2tax.tsv` | Taxonomy for FlexTaxD's `--taxonomy_file`, one edge per row (columns below). |
+| `tree2tax_nodes.tsv` | One row per node, root included (columns below); not read by FlexTaxD. |
+| `genomes_map.tsv` | For FlexTaxD's `--genomeid2taxid`: no header; genome accession and node, tab-separated. |
 
-## Census table
+`tree2tax.tsv` has a header row; every node has one parent and no field is
+empty.
 
-`repgenr census --tsv PATH` writes one row per genus (family census) or
-species (genus census), with a header line and no totals line. The totals are
-printed on the console and are part of `--json`. The columns depend on the
-mode and appear in this order:
+| Column | Meaning |
+|--------|---------|
+| `child` | Node label: the genome file stem for a leaf; a hash of the descendant leaf set, or `--node-basename` plus a number, for an internal node. |
+| `parent` | Parent label; the top node is `root` (`--root-name` changes it). |
+| `rank` | With `--ranks` only: `strain` for a genome, `no rank` for an internal node, or a rank `--rank-red` assigned. Present on every row. |
 
-| Column | Mode | Meaning |
-|--------|------|---------|
-| `name` | all | The genus, or the species, as the source writes them: GTDB `Bacillus_A thuringiensis_S`, NCBI `Francisella sp. LA112445`, NCBI Virus `Hepatovirus ahepa`, BV-BRC `Hepatovirus A`. Filename tokens are shown where only those are known (`selection.tsv` without candidates, a `virus_records.json` from before this field). With `--runs`, a row that holds runs only ends in `(NCBI)` and is listed last. |
-| `species` | family census | Distinct species of the genus (GTDB species with `--runs`; selected species in a working directory). |
-| `candidates` | selection | Genomes, sequence records or sequencing runs the entry stage chose from. |
-| `genomes` | GTDB, selection | GTDB genomes; in a working directory, selected genomes present in `genomes/`. |
-| `gtdb`, `sra`, `ncbi_virus`, `bvbrc`, `local` | selection | Selected genomes per manifest source; only the sources present are listed. |
-| `representatives` | GTDB, selection | GTDB species representatives. |
-| `runs`, `biosamples`, `illumina`, `ont`, `pacbio`, `other` | `--runs` | ENA whole-genome sequencing runs, distinct biosamples, and runs per platform; `other` holds every other platform (BGISEQ, Ion Torrent, ...), so the four platform columns add up to `runs`. |
-| `sequences`, `complete` | viral | NCBI Virus or BV-BRC sequence records, and those marked complete (empty for BV-BRC). |
-| `isolates`, `segmented` | viral | Genomes after grouping segments by isolate (before vgenome's length filter), and `yes` when the row holds two or more distinct segment labels (empty for BV-BRC). |
-| `median_length` | BV-BRC | Median of the per-taxid median sequence lengths. |
-| `clusters` | selection | Dereplication clusters whose representative falls in the row (`derep/clusters.tsv`). |
+The format follows the FlexTaxD reader on its GitHub master branch
+(compatibility in [usage.md](usage.md#flextaxd-version-and-depth)).
 
-`repgenr census --json` prints one object with these keys:
+`tree2tax_nodes.tsv`:
 
-- `schema` (`repgenr.census/1`) and `repgenr` (version);
-- `taxon`, `mode` (`taxon`, `candidates` or `selection`) and `source`
-  (`gtdb-api`, `gtdb-table`, `ncbi_virus`, `bvbrc`, `selection` or
-  `selection.tsv`);
-- `rank` (family or genus) and `row_rank` (genus or species);
-- `totals` (genera, species, and the counts of the header line; in the
-  selection mode also `sources` and `outgroup`);
-- `rows` (objects with the TSV columns, an empty BV-BRC field as `null`);
-- `notes`;
-- `runs_taxon` (with `--runs`, the taxon the runs were counted under when it
-  differs from `taxon`, such as `NCBI genus Bacillus` for the GTDB genus
-  `Bacillus_A`; otherwise empty).
+| Column | Meaning |
+|--------|---------|
+| `node`, `parent` | Node label and parent label (empty for the root). |
+| `n_leaves` | Leaves below the node. |
+| `depth` | Path length from the root. |
+| `branch_length` | Length of the node's branch. |
+| `support` | Builder support as a fraction; NA for leaves and trees without supports. |
+| `red` | Relative evolutionary divergence (Parks et al. 2018, as PhyloRank computes it); NA without branch lengths or a root (below). |
+| `lineage` | Family;genus;species of a leaf's genome from the manifest; empty otherwise and on the stateless step. |
 
-## Machine-readable status
+`red` is 0 at the root, or at the ingroup's common ancestor when the
+outgroup was removed, and 1 at the leaves. With the outgroup kept the
+ingroup values depend on where the root sits on the outgroup branch. It is
+NA on a tree without an outgroup or midpoint root, which includes the
+stateless step without `--keep-root` or an outgroup.
 
-`repgenr status --json` and `repgenr doctor --json` print one JSON object on
-stdout and nothing else; log messages go to stderr. The `schema` key names the
-format and its version, and a change that removes or renames a key raises the
-version. The exit codes are the same as without `--json`. On exit 3 (a
-missing working directory, or for `status` a malformed `repgenr.yaml`) stdout
-is empty and the error is on stderr, so a caller checks the exit code before
-parsing. Scripts should key on `level`, `area`, `state`, `pipeline` and
-`next`. The `message`, `reason`, `detail` and `notes` texts are meant for
-people and may change wording between releases.
+`genomes_map.tsv` has one row per representative (its own leaf), per
+dereplicated member with `--include-dereplicated` (its representative's
+leaf), and, for a grouped viral isolate, per member segment accession.
+
+## Machine-readable output
+
+`repgenr status --json`, `doctor --json`, `census --json` and
+`phylo-advise --json` print one JSON object on stdout; log messages go to
+stderr. The `schema` key names the format and version, and removing or
+renaming a key raises the version. Exit codes are as without `--json`; on
+exit 3 (a missing working directory, or for `status` a malformed
+`repgenr.yaml`) stdout is empty. The `level`, `area`, `state`, `pipeline`
+and `next` values are stable; `message`, `reason`, `detail` and `notes` are
+prose.
+
+### status and doctor
 
 `status`:
 
@@ -403,27 +727,23 @@ people and may change wording between releases.
 }
 ```
 
-- `pipeline` is `bacterial`, `viral`, `local` or `reads` (the lineage `status`
-  follows). It is null when the working directory has no `repgenr.yaml` or
-  the record holds no stage (`stages` is then empty and `notes` names the
-  entry stages), and when stages are recorded but no entry stage (`stages`
-  then follows dereplicate, phylo and tree2tax).
-- `stages` lists the stages of that lineage in order (`in_chain` true), then
-  any other recorded stage (`in_chain` false), such as `snptype` or `glance`.
-- `state` is `done`, `stale` (completed, but an input changed or an output is
-  missing; `reason` says which), `interrupted` (started and did not finish) or
-  `pending` (not run).
-- `fingerprint` is true when the record holds a resume fingerprint. A `done`
-  stage without one (written by an older version, or restored by
-  `derep-stock --action unpack`) is recomputed by its next invocation.
-- `detail` holds the GTDB release or API query date of `metadata`, or the
-  source working directories of an `ingest --from-workdir` (followed by the
-  sources whose record was not done when they were ingested), else null.
-- `next` is the first stage of the lineage that is not done, or null when all
-  are. `notes` holds advice about that stage, for example that `phylo` will
-  refuse too few representatives.
-- `unchecked` is null, or the error that stopped the staleness check; the
-  states are then based on the records alone.
+- `pipeline`: `bacterial`, `viral`, `local` or `reads`. Null without
+  `repgenr.yaml` or a recorded stage (`stages` empty, `notes` names the
+  entry stages), and when no entry stage is recorded (`stages` then follows
+  dereplicate, phylo and tree2tax).
+- `stages`: the stages of the lineage in order (`in_chain` true), then any
+  other recorded stage such as `snptype` or `glance` (`in_chain` false).
+- `state`: `done`, `stale` (an input changed or an output is missing;
+  `reason` says which), `interrupted` (started, not finished) or `pending`.
+- `fingerprint`: true when the record holds a resume fingerprint. A `done`
+  stage without one is recomputed by its next invocation.
+- `detail`: the GTDB release or API query date of `metadata`, or the source
+  working directories of `ingest --from-workdir` (then the sources whose
+  record was not done); else null.
+- `next`: the first stage of the lineage not done, or null. `notes` holds
+  remarks on that stage.
+- `unchecked`: null, or the error that stopped the staleness check; the
+  states then rest on the records alone.
 
 `doctor`:
 
@@ -443,69 +763,89 @@ people and may change wording between releases.
 }
 ```
 
-- `level` is `fail`, `warn` or `ok`; findings are ordered failures first, then
-  warnings, then the rest, each group by `area`, as in the text report.
-- `area` is a stage name (`dereplicate`, `phylo`) or a topic such as
-  `config`, `genomes`, `manifest`, `outgroup`, `leftovers` or `summary`. A
-  check that raised an error is reported as a `fail` in an area named after
-  the check (for example `tree` or `manifest_drift`), with a message starting
-  "Check could not complete".
-- `exit_code` is the status the command exits with: 7 when `counts.fail` is
-  above zero, else 0.
-- `quick` is true under `--quick`; the genome files were then not read, and a
-  non-FASTA file under a FASTA name is not reported.
+- `level`: `fail`, `warn` or `ok`; findings are ordered failures, warnings,
+  the rest, each group by `area`.
+- `area`: a stage name or a topic such as `config`, `genomes`, `manifest`,
+  `outgroup`, `leftovers` or `summary`. A check that raised an error is a
+  `fail` in an area named after the check (`tree`, `manifest_drift`), with a
+  message starting "Check could not complete".
+- `exit_code`: 7 when `counts.fail` is above zero, else 0.
+- `quick`: true under `--quick`; genome files were not read, so a non-FASTA
+  file under a FASTA name is not reported.
 
-`phylo-advise`:
+### Census table
 
-`repgenr phylo-advise --json` prints one object with `schema`
-(`repgenr.phylo-advise/1`), `repgenr` (version), `evidence` and
-`recommendation`.
+`repgenr census --tsv PATH` writes one row per genus (family census) or
+species (genus census), with a header and no totals line. Columns, in this
+order, depend on the mode:
 
-- `evidence` holds what the advice rests on: `workdir`, `all_genomes`,
-  `n_genomes`, `n_species` and `n_genera` (from canonical record names),
-  `names_canonical`, `ani_min` and `ani_median` (percent, null without
-  sketches), `ani_unknown_pairs` (pairs below the sketch's reach),
-  `has_annotations`, `outgroup` and `notes`.
-- `recommendation` holds `preset`, `purpose`, `route`, `summary`, `reasons`,
+| Column | Mode | Meaning |
+|--------|------|---------|
+| `name` | all | Genus or species as the source writes it (GTDB `Bacillus_A thuringiensis_S`, NCBI `Francisella sp. LA112445`, NCBI Virus `Hepatovirus ahepa`, BV-BRC `Hepatovirus A`); filename tokens where only those are known. With `--runs`, runs-only rows end in `(NCBI)` and come last. |
+| `species` | family census | Distinct species of the genus (GTDB species with `--runs`; selected species in a working directory). |
+| `candidates` | selection | Genomes, sequence records or runs the entry stage chose from. |
+| `genomes` | GTDB, selection | GTDB genomes; in a working directory, selected genomes present in `genomes/`. |
+| `gtdb`, `sra`, `ncbi_virus`, `bvbrc`, `local` | selection | Selected genomes per manifest source; only sources present are listed. |
+| `representatives` | GTDB, selection | GTDB species representatives. |
+| `runs`, `biosamples`, `illumina`, `ont`, `pacbio`, `other` | `--runs` | ENA whole-genome sequencing runs, distinct biosamples, runs per platform; `other` holds every other platform, so the four add up to `runs`. |
+| `sequences`, `complete` | viral | Sequence records, and those marked complete (empty for BV-BRC). |
+| `isolates`, `segmented` | viral | Genomes after grouping segments by isolate (before vgenome's length filter); `yes` for two or more segment labels (empty for BV-BRC). |
+| `median_length` | BV-BRC | Median of the per-taxid median sequence lengths. |
+| `clusters` | selection | Dereplication clusters whose representative falls in the row. |
+
+`census --json` (`repgenr.census/1`) holds:
+
+- `schema` and `repgenr` (version);
+- `taxon`, `mode` (`taxon`, `candidates` or `selection`) and `source`
+  (`gtdb-api`, `gtdb-table`, `ncbi_virus`, `bvbrc`, `selection` or
+  `selection.tsv`);
+- `rank` (family or genus) and `row_rank` (genus or species);
+- `totals`: genera, species and the header counts; in the selection mode
+  also `sources` and `outgroup`;
+- `rows`: objects with the TSV columns, an empty BV-BRC field as `null`;
+- `notes`;
+- `runs_taxon`: with `--runs`, the taxon the runs were counted under when it
+  differs from `taxon` (`NCBI genus Bacillus` for GTDB `Bacillus_A`); else
+  empty.
+
+### phylo-advise
+
+`repgenr phylo-advise --json` (`repgenr.phylo-advise/1`) holds `schema`,
+`repgenr`, `evidence` and `recommendation`.
+
+- `evidence`: `workdir`, `all_genomes`, `n_genomes`, `n_species` and
+  `n_genera` (from canonical record names), `names_canonical`, `ani_min`
+  and `ani_median` (percent, null without sketches), `ani_unknown_pairs`
+  (pairs below the sketch's reach), `has_annotations`, `outgroup` and
+  `notes`.
+- `recommendation`: `preset`, `purpose`, `route`, `summary`, `reasons`,
   `command` (the `phylo` command with `--preset`, as a list of arguments)
   and `expanded_command` (the same with the preset written out).
 
 ## Nextflow output directory
 
-The Nextflow pipeline publishes under `--outdir` (default `results/`):
+The pipeline publishes under `--outdir` (default `results/`):
 
-- `metadata/selection.tsv`, or, in reads mode, `reads/reads.tsv`,
-  `reads/selection.tsv`, `reads/assembly_stats.tsv`,
-  `reads/excused_runs.tsv`, `reads/screen_reads.tsv` (with
-  `--assemble_args '--screen-reads'`), and the `quality.tsv` and
-  `classification.tsv` tables of the QC step;
-- with the reads sketch step, `reads/reads_sketches/<variant>/` (the sketches
-  and `reads_sketches.tsv`) and, with the reads screen, `reads/reads_screen/<variant>/`
-  (see [reads-sketch](#reads-sketch) and [reads-screen](#reads-screen));
-- the dereplication contract under `dereplicate/`;
-- `sketches/` at the top level, the genome sketches of the `SKETCH` step;
-- the phylogeny under `phylo/`: the tree and the tree builder's files under
-  `phylo/tree/`, and the alignment it was built from under `phylo/align/` or
-  `phylo/tree/msa/`;
-- with `--msa-source coregene` in `--phylo_args`, the annotation directories,
-  one per `ANNOTATE` task, without the index (see [annotate](#annotate));
-- `tree2tax.tsv`, `tree2tax_nodes.tsv` and `genomes_map.tsv` at the top level;
-- the execution reports under `pipeline_info/`.
+| Path | Content |
+|------|---------|
+| `metadata/` | `selection.tsv` and `outgroup_accession.txt`. |
+| `reads/` | Reads mode: `reads.tsv`, `selection.tsv`, `assembly_stats.tsv`, `outgroup_accession.txt`, `excused_runs.tsv`, and `screen_reads.tsv` with `--assemble_args '--screen-reads'`. |
+| `reads/qc/` | `quality.tsv` (`run_accession`, `completeness`, `contamination`) and `classification.tsv` (`run_accession`, `taxonomy`, `rank`, `score`, `db_version`) of the QC step. |
+| `reads/reads_sketches/<variant>/` | With the reads sketch step: the sketches and `reads_sketches.tsv` ([reads-sketch](#reads-sketch)). |
+| `reads/reads_screen/<variant>/` | With the reads screen: `reads_screen.tsv` and the per-run decisions ([reads-screen](#reads-screen)); `passed.txt` is not published. |
+| `dereplicate/merged/` | The dereplication contract of the merge step, with `genome_n50.tsv`. |
+| `dereplicate/refined/` | With a refinement: the contract of the refine step, with `refined.tsv`. |
+| `sketches/` | Genome sketches of the `SKETCH` step. |
+| `annotations/<record>/` | With `--msa-source coregene` in `--phylo_args`: one directory per `ANNOTATE` task, without the index ([annotate](#annotate)). |
+| `phylo/` | `tree/` (tree and builder files) and the alignment under `align/` or `tree/msa/`. With `phylo_split_msa`, also `msa.fasta`, `alignment_stats.json` and `partitions.json`. |
+| `tree2tax.tsv`, `tree2tax_nodes.tsv`, `genomes_map.tsv` | tree2tax output ([tree2tax](#tree2tax)). |
+| `pipeline_info/` | Execution reports (below). |
 
-Files with the same names as in a working directory have the formats
-described in the stage sections above.
+`pipeline_info/` holds, per run, timestamped files:
 
-### Pipeline information
-
-Under `<outdir>/pipeline_info/`, each run writes timestamped Nextflow execution
-reports:
-
-- `execution_report_*.html`: resource usage and per-task summary.
-- `execution_timeline_*.html`: task timeline.
-- `execution_trace_*.txt`: machine-readable trace of every task.
-- `pipeline_dag_*.html`: the workflow DAG.
-- `software_versions.yml`: every process's resolved tool versions, collected
-  and de-duplicated from each process's `versions.yml` fragment.
-
-These reports help to diagnose resource limits (the retry strategy scales
-memory and time per attempt) and record provenance.
+- `execution_report_*.html`: resource usage and per-task summary;
+- `execution_timeline_*.html`: task timeline;
+- `execution_trace_*.txt`: machine-readable trace of every task;
+- `pipeline_dag_*.html`: the workflow graph;
+- `software_versions.yml`: the resolved tool versions of every process,
+  collected and de-duplicated from each process's `versions.yml`.
