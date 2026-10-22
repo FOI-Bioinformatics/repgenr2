@@ -129,19 +129,9 @@ times.
 
 `tests/live/` holds the re-executable records: pytest tests marked `live`
 that run the installed `repgenr` console script against real tools on
-seeded synthetic genome sets. They are deselected by default and never run
-in CI. Copy `tests/live/live.example.toml` to `live.local.toml`, point it at
-the conda environments that hold each tool, and run:
-
-```bash
-conda run -n repgenr_dev --no-capture-output \
-    pytest tests/live -m live --live-config tests/live/live.local.toml -ra
-```
-
-Markers `network` and `container` select the tests that need GTDB/NCBI or
-Docker; `-m "live and not network and not container"` is the offline subset.
-Tests whose tool is not on `PATH` are skipped, not failed. See
-`tests/live/README.md`.
+seeded synthetic genome sets. They are never run in CI. The configuration
+file, the markers and the command are described in
+[developing.md](developing.md#real-tool-tests).
 
 ### Results of the last complete run
 

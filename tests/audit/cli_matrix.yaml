@@ -527,7 +527,7 @@ commands:
         value: '4'
         validated: none
         docs:
-        - docs/developing.md
+        - docs/usage.md
         - docs/cli-reference.md
         - docs/audit/scaling-audit.md
         - docs/audit/cli-matrix.md

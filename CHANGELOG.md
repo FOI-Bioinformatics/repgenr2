@@ -197,6 +197,13 @@ All notable changes to RepGenR2 are documented here. The format follows
   existing core-gene alignment is rebuilt once.
 
 ### Changed
+- CLI help: option help is capped at about 35 words, and a default computed
+  at run time ends the help with "Default: <rule>." The preset override
+  rules and core-gene tuning advice moved to `docs/phylogeny.md`, which
+  gains a table of the `--aligner-arg` keys per core-gene builder. The
+  terse `run` options (`-l`, `--metadata-source`, `--tool`, `--target`,
+  `--group-segments`) name what they set. Meanings and defaults are
+  unchanged.
 - The dense back-end of `dereplicate --tool sourmash` (without the
   branchwater plugin) estimates ANI from the average containment of
   `sourmash compare --avg-containment`, c^(1/k), as the sparse back-end
@@ -306,6 +313,11 @@ All notable changes to RepGenR2 are documented here. The format follows
   variables; the host runs the tool in it).
 
 ### Documentation
+- `docs/cli-reference.md`: the generated header explains the default column
+  and the Nextflow step panel. `docs/developing.md` puts "Adding an adapter"
+  after the family table, gives `ToolCapabilities` as a field table, merges
+  the resume rules under "Resume semantics", and holds the live-suite
+  instructions that `docs/verification.md` now links to.
 - `docs/verification.md`: live run of gene selection, partitions, ClipKIT
   trimming, the protein alphabet, ASTER and `--preset genus` on 24 Wolbachia
   genomes (2026-10-21), with two defects recorded: the partitioned protein
