@@ -197,6 +197,7 @@ All notable changes to RepGenR2 are documented here. The format follows
   existing core-gene alignment is rebuilt once.
 
 ### Changed
+- The plugin discovery test reads the entry points from `pyproject.toml` and checks every tool family, so a newly registered adapter is covered without editing the test. The manifest schema comment lists the `source` values the stages write.
 - CLI help: option help is capped at about 35 words, and a default computed
   at run time ends the help with "Default: <rule>." The preset override
   rules and core-gene tuning advice moved to `docs/phylogeny.md`, which
