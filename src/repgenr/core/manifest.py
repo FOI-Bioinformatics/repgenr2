@@ -58,7 +58,8 @@ _SCHEMA = """
 CREATE TABLE IF NOT EXISTS genomes (
     accession   TEXT PRIMARY KEY,
     filename    TEXT,
-    source      TEXT,                  -- gtdb | bvbrc | ncbi
+    source      TEXT,                  -- gtdb | ncbi_virus | bvbrc | local | sra (or a
+                                       -- source copied by ingest --from-workdir)
     family      TEXT,
     genus       TEXT,
     species     TEXT,
