@@ -22,7 +22,9 @@ All notable changes to RepGenR2 are documented here. The format follows
   genome, the dRep filter criteria it fails (`length`, `completeness`,
   `contamination`), from dRep's `genomeInformation.csv` or the manifest.
   Carried through chunked runs, the Nextflow dereplication steps and
-  `derep-refine`.
+  `derep-refine`. A `fail_qc` genome without a named criterion (a plugin
+  dereplicator, or a two-column status file read back) has `unspecified`;
+  galah, skDER and sourmash do not filter on quality and give no `fail_qc`.
 - `vmetadata --source bvbrc` writes `virus_metadata_ncbi_summary.tsv`:
   sequences per NCBI taxon at each rank, with and without the header tag.
 - Nextflow publishes the selection summary and `metadata_selected.tsv`
