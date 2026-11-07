@@ -282,7 +282,8 @@ passed and the log says so. The decision covers the whole run, so a chunked
 run never scores one chunk from the manifest and another with CheckM.
 Genomes that dRep's filter removes (`--tool-arg length=N`, or its
 completeness and contamination thresholds) are `fail_qc` in
-`genome_status.tsv` and in no cluster.
+`genome_status.tsv` and in no cluster; its `reason` column names the
+criteria they failed.
 
 Which dereplicator to use:
 

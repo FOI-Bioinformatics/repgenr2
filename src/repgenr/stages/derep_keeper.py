@@ -348,6 +348,7 @@ def rescore_representatives(
         clusters=new_clusters,
         genome_status=status,
         genome_information=result.genome_information,
+        qc_reasons=result.qc_reasons,
     ), swaps
 
 
@@ -456,4 +457,5 @@ def prefer_gtdb_representatives(
         clusters=new_clusters,
         genome_status=status,
         genome_information=result.genome_information,
+        qc_reasons=result.qc_reasons,
     ), swaps

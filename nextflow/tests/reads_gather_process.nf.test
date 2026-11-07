@@ -39,6 +39,7 @@ nextflow_process {
             assert stats[1].split('\t', -1).size() == stats[0].split('\t', -1).size()
             assert path(process.out.excused.get(0).get(1)).text.contains('SRR000003\tassemble\tunsupported_platform')
             assert path(process.out.outgroup_accession.get(0).get(1)).text == ''
+            assert file(process.out.summary.get(0).get(1)).name == 'metadata_summary.tsv'
         }
     }
 

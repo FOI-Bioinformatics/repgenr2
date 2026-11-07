@@ -428,3 +428,53 @@ def test_sourmash_tree_labels_use_the_record_name(label: str) -> None:
 
     genomes = [Path("/p/x.fasta.gz"), Path("/p/y.fasta")]
     assert _label_to_genome(label, genomes) == "x"
+
+
+def test_drep_names_the_filter_criteria_a_genome_failed(genomes, tmp_path, monkeypatch) -> None:
+    """The reason column: length from the FASTA, quality from the manifest."""
+    import repgenr.dereplicators.drep as drep_mod
+
+    short = genomes[0].parent / "short.fasta"
+    short.write_text(">short\nACGT\n")
+    poor = genomes[0].parent / "poor.fasta"
+    poor.write_text(">poor\n" + "ACGT" * 10 + "\n")
+
+    def fake(caps, command, *, logger, **kwargs):
+        _fake_drep([str(c) for c in command])  # writes only g1..g4
+        return 0
+
+    monkeypatch.setattr(drep_mod, "run_tool", fake)
+    every = [*genomes, short, poor]
+    quality = {g.name: (99.0, 1.0) for g in every}
+    quality["poor.fasta"] = (60.0, 30.0)
+    params = DerepParams(extra={"length": 20}, quality=quality)
+    result = drep_mod.DrepDereplicator().dereplicate(every, tmp_path / "out", params, _LOG)
+    assert result.qc_reasons == {
+        "short.fasta": "length",
+        "poor.fasta": "completeness,contamination",
+    }
+
+
+def test_drep_reasons_read_genome_information(tmp_path) -> None:
+    """dRep's own CheckM values win; a genome no criterion explains is named."""
+    import repgenr.dereplicators.drep as drep_mod
+
+    wd = tmp_path / "drep_workdir" / "data_tables"
+    wd.mkdir(parents=True)
+    (wd / "genomeInformation.csv").write_text(
+        "genome,completeness,contamination,strain_heterogeneity,length,N50,centrality\n"
+        "a.fasta,70.0,1.0,0,5000000,1,0\n"
+        "b.fasta,99.0,1.0,0,5000000,1,0\n",
+        encoding="utf-8",
+    )
+    info = drep_mod._genome_info_rows(tmp_path / "drep_workdir")
+    a, b = tmp_path / "a.fasta", tmp_path / "b.fasta"
+    reasons = drep_mod._qc_reasons(
+        {"a.fasta": "fail_qc", "b.fasta": "fail_qc"},
+        [(a, a), (b, b)],
+        info,
+        {"a.fasta": (99.0, 1.0)},  # the manifest; dRep's value is used
+        min_length=0,
+        check_quality=True,
+    )
+    assert reasons == {"a.fasta": "completeness", "b.fasta": "drep_filter"}

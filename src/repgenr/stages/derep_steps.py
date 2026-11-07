@@ -41,6 +41,7 @@ from ..core.contracts import (
     parse_genome_filename,
     read_clusters,
     read_genome_status,
+    read_genome_status_reasons,
     read_refined,
     read_selection,
     write_cluster_summary,
@@ -506,7 +507,12 @@ def _load_chunk(chunk_dir: Path, step: str = "dereplicate-merge") -> DerepResult
         if not rep_path.exists():
             raise WorkdirError(f"{step}: representative file missing: {rep_path}")
         reps.append(rep_path)
-    return DerepResult(representatives=reps, clusters=clusters, genome_status=status)
+    return DerepResult(
+        representatives=reps,
+        clusters=clusters,
+        genome_status=status,
+        qc_reasons=read_genome_status_reasons(status_path),
+    )
 
 
 def _write_step_contract(
@@ -538,7 +544,7 @@ def _write_step_contract(
             )
         link_or_copy(source, rep_dir / rep.name)
     write_clusters(out_dir / CLUSTERS_TSV, result.clusters)
-    write_genome_status(out_dir / GENOME_STATUS_TSV, result.genome_status)
+    write_genome_status(out_dir / GENOME_STATUS_TSV, result.genome_status, result.qc_reasons)
     refined_path = out_dir / REFINED_TSV
     if refined:
         write_refined(refined_path, refined)
@@ -662,6 +668,7 @@ def dereplicate_refine(params: RefineStepParams, logger: logging.Logger) -> Dere
         representatives=[paths[rep.name] for rep in result.representatives],
         clusters=result.clusters,
         genome_status=result.genome_status,
+        qc_reasons=result.qc_reasons,
     )
     accessions: dict[str, str] = {}
     outgroup: set[str] = set()

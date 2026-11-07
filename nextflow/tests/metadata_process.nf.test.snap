@@ -23,6 +23,18 @@
                 "2": [
                     "versions.yml:md5,d41d8cd98f00b204e9800998ecf8427e"
                 ],
+                "3": [
+                    [
+                        {
+                            "id": "test",
+                            "mode": "bacterial"
+                        },
+                        [
+                            "metadata_selected.tsv:md5,947f18265adf541f6c6efd704d30ffb7",
+                            "metadata_summary.tsv:md5,aa5b6d5800186d2d78372f92a2936271"
+                        ]
+                    ]
+                ],
                 "outgroup_accession": [
                     [
                         {
@@ -30,6 +42,18 @@
                             "mode": "bacterial"
                         },
                         "outgroup_accession.txt:md5,41a1da4ab52c59b9258b23c01abcc68d"
+                    ]
+                ],
+                "report": [
+                    [
+                        {
+                            "id": "test",
+                            "mode": "bacterial"
+                        },
+                        [
+                            "metadata_selected.tsv:md5,947f18265adf541f6c6efd704d30ffb7",
+                            "metadata_summary.tsv:md5,aa5b6d5800186d2d78372f92a2936271"
+                        ]
                     ]
                 ],
                 "selection": [
@@ -46,10 +70,10 @@
                 ]
             }
         ],
-        "timestamp": "2026-09-06T08:07:53.688454",
+        "timestamp": "2026-11-07T13:19:39.703228",
         "meta": {
             "nf-test": "0.9.5",
-            "nextflow": "26.04.6"
+            "nextflow": "26.04.7"
         }
     }
 }

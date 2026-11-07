@@ -179,7 +179,7 @@ describes every file a stage writes.
 selection.tsv                  the selected genomes and their metadata
 derep/representatives/         representative genome FASTAs
 derep/clusters.tsv             representative <TAB> member
-derep/genome_status.tsv        genome <TAB> status
+derep/genome_status.tsv        genome <TAB> status <TAB> reason
 derep/cluster_summary.tsv      one row per representative: size, species, quality
 annotations/annotations.tsv    index of the annotation cache (annotate)
 align/msa.fasta                aligner output (MSA-FASTA)

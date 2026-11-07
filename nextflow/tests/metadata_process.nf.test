@@ -25,6 +25,8 @@ nextflow_process {
                 assert lines.count { row -> row.split('\t')[4] == '1' } == 1
             }
             assert path(process.out.outgroup_accession.get(0).get(1)).text.trim() == 'GCF_000009.1'
+            def report = [process.out.report.get(0).get(1)].flatten().collect { p -> file(p).name }.sort()
+            assert report == ['metadata_selected.tsv', 'metadata_summary.tsv']
         }
     }
 }

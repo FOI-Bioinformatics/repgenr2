@@ -39,6 +39,7 @@ from ..core.contracts import (
 )
 from ..core.errors import UserInputError, WorkdirError
 from ..core.process import link_or_copy, remove_tree
+from ..core.selection_summary import write_selection_summary
 from ..core.sketches import require_sourmash_if_requested, sourmash_for_reads_sketch
 from ..core.versions import write_versions_fragment
 from . import assemble as stage
@@ -365,7 +366,9 @@ def reads_gather(params: ReadsGatherParams, logger: logging.Logger) -> int:
     genomes.mkdir(parents=True)
     for o in assembled:
         link_or_copy(assemblies_dir / o.row.run_accession / _CONTIGS, genomes / stage._name(o))
-    write_selection(out / SELECTION_TSV, [stage._selection_row(o) for o in assembled])
+    selection_rows = [stage._selection_row(o) for o in assembled]
+    write_selection(out / SELECTION_TSV, selection_rows)
+    write_selection_summary(out, selection_rows, logger)
     write_assembly_stats(out / ASSEMBLY_STATS_TSV, [stage._stats_row(o) for o in assembled])
     # The standalone reads chain has no outgroup here; downstream steps read an
     # empty accession file as "none".

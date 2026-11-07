@@ -81,6 +81,10 @@ class DerepResult:
     # the sourmash back-end and ANI estimate, for example. Empty when the
     # adapter has nothing to add to its parameters.
     settings: dict = field(default_factory=dict)
+    # Why a fail_qc genome failed (genome filename -> comma-separated
+    # criteria: length, completeness, contamination); written as the reason
+    # column of genome_status.tsv. Only dRep filters genomes on quality.
+    qc_reasons: dict[str, str] = field(default_factory=dict)
 
 
 _VALID_STATUS = frozenset({STATUS_REPRESENTATIVE, STATUS_CONTAINED, STATUS_FAIL_QC})

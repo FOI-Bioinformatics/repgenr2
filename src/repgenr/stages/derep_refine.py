@@ -32,6 +32,7 @@ from ..core.contracts import (
     list_fasta,
     read_clusters,
     read_genome_status,
+    read_genome_status_reasons,
     read_refined,
     strip_fasta_suffix,
 )
@@ -419,6 +420,7 @@ def splice(
         clusters=clusters,
         genome_status=status,
         genome_information=result.genome_information,
+        qc_reasons={**result.qc_reasons, **sub.qc_reasons},
     )
     check_result_complete(out, list(result.genome_status))
     logger.info(
@@ -541,6 +543,7 @@ def run(ctx: WorkdirContext, params: DerepRefineParams) -> DerepResult:
             representatives=[ctx.genomes_dir / rep for rep in clusters],
             clusters=clusters,
             genome_status=read_genome_status(ctx.derep_dir / GENOME_STATUS_TSV),
+            qc_reasons=read_genome_status_reasons(ctx.derep_dir / GENOME_STATUS_TSV),
         )
     clusters_path = ctx.derep_dir / CLUSTERS_TSV
     if not clusters_path.is_file():
@@ -563,6 +566,7 @@ def run(ctx: WorkdirContext, params: DerepRefineParams) -> DerepResult:
         representatives=[paths[rep] for rep in clusters],
         clusters=clusters,
         genome_status=status,
+        qc_reasons=read_genome_status_reasons(ctx.derep_dir / GENOME_STATUS_TSV),
     )
     accessions, outgroup = manifest_accessions(ctx)
     resolved = [
