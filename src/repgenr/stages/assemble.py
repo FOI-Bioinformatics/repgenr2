@@ -64,6 +64,7 @@ from ..core.errors import (
 from ..core.executors import parallel_map
 from ..core.manifest import MANIFEST_FILENAME, SketchRecord, record_from_selection
 from ..core.process import check_free_disk, link_or_copy, remove_tree, staged_dir
+from ..core.selection_summary import write_selection_summary
 from ..core.sketches import (
     READS_SKETCH_NAME,
     READS_SKETCH_PARAMS,
@@ -402,6 +403,7 @@ def run(ctx: WorkdirContext, params: AssembleParams) -> int:
                 )
         ctx.manifest.replace_genomes([record_from_selection(r, "sra") for r in selection_rows])
     write_selection(ctx.workdir / SELECTION_TSV, selection_rows)
+    write_selection_summary(ctx.workdir, selection_rows, logger)
     write_assembly_stats(ctx.workdir / ASSEMBLY_STATS_TSV, [_stats_row(o) for o in assembled])
     outgroup_row = next((r for r in selection_rows if r.is_outgroup), None)
     sketches, sketch_versions = sketch_stage_genomes(
@@ -1990,6 +1992,7 @@ def _clear_genome_set(ctx: WorkdirContext, logger: logging.Logger) -> None:
     with staged_dir(ctx.genomes_dir):
         pass
     write_selection(ctx.workdir / SELECTION_TSV, [])
+    write_selection_summary(ctx.workdir, [], logger)
     (ctx.workdir / ASSEMBLY_STATS_TSV).unlink(missing_ok=True)
     _stage_outgroup(ctx, None, logger)
     ctx.manifest.replace_genomes([])

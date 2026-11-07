@@ -31,6 +31,7 @@ from ..core.contracts import (
 from ..core.errors import UserInputError
 from ..core.manifest import record_from_selection
 from ..core.process import staged_dir
+from ..core.selection_summary import write_selection_summary
 from ..core.sketches import sketch_stage_genomes
 from . import _outgroup
 from ._common import (
@@ -131,6 +132,7 @@ def run_records(
         )
 
     write_selection(ctx.workdir / "selection.tsv", selection_rows)
+    write_selection_summary(ctx.workdir, selection_rows, logger)
     # The member accessions behind each grouped isolate, for tree2tax's
     # genomes_map; a run without grouping must not leave a stale table.
     segments_path = ctx.workdir / SEGMENTS_TSV
