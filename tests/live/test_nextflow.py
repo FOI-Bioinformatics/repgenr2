@@ -132,6 +132,17 @@ def test_main_bacterial_test_profile(run_nextflow) -> None:
     assert (out / "tree2tax.tsv").is_file() and (out / "genomes_map.tsv").is_file()
     assert (out / "phylo" / "tree" / "tree.nwk").is_file()
     assert len(list((out / "dereplicate" / "merged" / "representatives").glob("*.fasta"))) >= 2
+    # The selection summary, its plots and the lineage table are published.
+    meta = out / "metadata"
+    for name in (
+        "metadata_summary.tsv",
+        "metadata_summary_number_in_level.png",
+        "metadata_summary_number_per_level.png",
+        "metadata_selected.tsv",
+    ):
+        assert (meta / name).is_file(), name
+    summary = (meta / "metadata_summary.tsv").read_text(encoding="utf-8")
+    assert "species\tFrancisella " in summary
 
 
 @pytest.mark.network
@@ -149,6 +160,14 @@ def test_main_viral_mode(run_nextflow) -> None:
     out = proc.outdir
     assert (out / "tree2tax.tsv").is_file()
     assert len(list((out / "dereplicate" / "merged" / "representatives").glob("*.fasta"))) >= 2
+    # The selection summary names a viral species by its token, without the
+    # genus in front ("Hepatovirus-ahepa", not "Hepatovirus Hepatovirus-ahepa").
+    rows = [
+        line.split("\t")
+        for line in (out / "metadata" / "metadata_summary.tsv").read_text().splitlines()[1:]
+    ]
+    species = [name for level, name, _ in rows if level == "species"]
+    assert species and not any(name.startswith("Hepatovirus Hepatovirus") for name in species)
 
 
 @pytest.mark.container

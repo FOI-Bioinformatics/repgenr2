@@ -62,6 +62,14 @@ def ingest(
         "--sketch/--no-sketch",
         help=HELP_SKETCH + " A --from-workdir sketch of the same genome is copied.",
     ),
+    viral: bool = typer.Option(
+        False,
+        "--viral",
+        help="The --genomes-dir genomes are viral: the species token of a file name is "
+        "the whole species name (Picornaviridae_Hepatovirus_Hepatovirus-ahepa_ACC), not "
+        "an epithet. Recorded as manifest source local_viral. --from-workdir genomes "
+        "keep the source of their workdir.",
+    ),
 ) -> None:
     """Populate a working directory from local genomes (no download)."""
     from .param_builders import ingest_params
@@ -76,6 +84,7 @@ def ingest(
             drop_foreign=drop_foreign,
             sketch=sketch,
             strict_sources=strict_sources,
+            viral=viral,
         )
 
     _run("ingest", workdir, build, create=True)

@@ -46,6 +46,7 @@ from ..core.contracts import (
     sanitise_taxon_tokens,
 )
 from ..core.errors import UserInputError, WorkdirError
+from ..core.manifest import VIRAL_SOURCES as VIRAL_MANIFEST_SOURCES
 
 FAMILY = "family"
 GENUS = "genus"
@@ -60,7 +61,7 @@ SOURCE_ALIASES = {"tsv": "table"}
 SOURCE_CHOICES = (*BACTERIAL_SOURCES, "tsv", *VIRAL_SOURCES)
 
 # Manifest sources in the order their columns appear.
-MANIFEST_SOURCES = ("gtdb", "sra", "ncbi_virus", "bvbrc", "local")
+MANIFEST_SOURCES = ("gtdb", "sra", "ncbi_virus", "bvbrc", "local", "local_viral")
 # ENA instrument platforms counted in their own column.
 _PLATFORM_COLUMNS = {"ILLUMINA": "illumina", "OXFORD_NANOPORE": "ont", "PACBIO_SMRT": "pacbio"}
 # Runs on any other platform (BGISEQ, ION_TORRENT, ...) are counted as 'other'.
@@ -1124,7 +1125,7 @@ def selection_census(wd: Path, cfg: Any, params: CensusParams, logger: logging.L
         notes.append("genomes/ does not exist; every selection.tsv row is counted.")
 
     sources = manifest_sources(wd)
-    viral = any(sources.get(r.accession) in ("ncbi_virus", "bvbrc") for r in rows)
+    viral = any(sources.get(r.accession) in VIRAL_MANIFEST_SOURCES for r in rows)
     table = _Rows(rank, binomial=not viral)
     source_totals: dict[str, int] = {}
     for r in present:

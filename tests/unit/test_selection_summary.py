@@ -67,6 +67,18 @@ def test_count_taxa_counts_the_ingroup_per_level_largest_first() -> None:
         assert sum(n for lvl, _, n in counts if lvl == level) == 5
 
 
+def test_viral_species_token_is_the_whole_name() -> None:
+    # vgenome writes the full species name as the token (spaces as hyphens).
+    rows = [
+        _row("V1", "Picornaviridae", "Hepatovirus", "Hepatovirus-ahepa"),
+        _row("V2", "Picornaviridae", "Hepatovirus", "Rodent-hepatovirus"),
+    ]
+    species = [n for lvl, n, _ in ss.count_taxa(rows, full_species=True) if lvl == "species"]
+    assert species == ["Hepatovirus-ahepa", "Rodent-hepatovirus"]
+    # The bacterial rule names the epithet with its genus.
+    assert ("species", "Hepatovirus Hepatovirus-ahepa", 1) in ss.count_taxa(rows)
+
+
 def test_summary_table_and_plots_are_written(tmp_path) -> None:
     ss.write_selection_summary(tmp_path, ROWS, LOG)
     table = _read_tsv(tmp_path / ss.SUMMARY_TSV)

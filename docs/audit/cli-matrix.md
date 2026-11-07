@@ -3,7 +3,7 @@
 Generated from `tests/audit/cli_matrix.yaml` by `scripts/render_cli_matrix.py`;
 `tests/unit/test_cli_matrix.py` keeps both in step with the command tree.
 
-39 commands, 489 flags (489 with a live test or an n/a reason, 0 pending).
+39 commands, 490 flags (490 with a live test or an n/a reason, 0 pending).
 
 ## Global flags
 
@@ -243,6 +243,7 @@ dispatch: `stage`
 | `--copy` |  | IngestParams.copy | none | n/a: workdir command; the Nextflow layer uses the stateless steps | tests/live/test_ingest_flags.py::test_outgroup_and_copy | docs/usage.md, docs/cli-reference.md, docs/audit/cli-matrix.md |
 | `--drop-foreign` |  | IngestParams.drop_foreign | none | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: offline guard tests in tests/integration/test_ingest_stage.py | docs/reads.md, docs/cli-reference.md, docs/audit/cli-matrix.md |
 | `--sketch` |  | IngestParams.sketch | none | n/a: workdir command; the Nextflow layer uses the stateless steps | tests/live/test_sketches_live.py::test_ingest_sketches_and_sketch_command | docs/cli-reference.md, docs/usage.md, docs/audit/cli-matrix.md |
+| `--viral` |  | IngestParams.viral | none | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: offline tests in tests/integration/test_ingest_from_workdir.py | docs/usage.md, docs/cli-reference.md, docs/audit/cli-matrix.md |
 
 ## list-tools
 

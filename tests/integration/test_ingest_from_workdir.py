@@ -573,3 +573,56 @@ def test_cli_strict_refusal_is_not_announced_as_a_rerun(tmp_path, monkeypatch) -
     assert result.exit_code == 2, result.output
     assert "re-running" not in result.output
     assert not Config.load(wd3).stages["ingest"].interrupted
+
+
+VIRAL_ROWS = [
+    SelectionRow(
+        "OZ389729.1",
+        "Picornaviridae",
+        "Hepatovirus",
+        "Hepatovirus-ahepa",
+        False,
+        "Picornaviridae_Hepatovirus_Hepatovirus-ahepa_OZ389729.1.fasta",
+    ),
+]
+
+
+def test_summary_names_viral_species_by_their_token(tmp_path, sources) -> None:
+    # A viral token is the whole species name; a bacterial one the epithet.
+    # Each genome of a combined set is named by the rule of its source.
+    wd1, _ = sources
+    viral = _make_workdir(tmp_path / "viral", VIRAL_ROWS, "ncbi_virus")
+    ctx = _ctx(tmp_path / "wd3")
+    run(ctx, IngestParams(from_workdirs=[str(wd1), str(viral)]))
+    lines = (ctx.workdir / "metadata_summary.tsv").read_text(encoding="utf-8").splitlines()
+    species = {line.split("\t")[1] for line in lines if line.startswith("species\t")}
+    assert species == {"Francisella tularensis", "Hepatovirus-ahepa"}
+
+
+def test_viral_flag_marks_local_genomes_and_carries_over(tmp_path, sources) -> None:
+    # Viral FASTAs without a manifest: --viral names their species by the
+    # token and records source local_viral, which a later --from-workdir
+    # of that workdir keeps without the flag.
+    wd1, _ = sources
+    local = tmp_path / "local"
+    local.mkdir()
+    name = VIRAL_ROWS[0].filename
+    (local / name).write_text(">OZ389729.1\nACGTACGTAC\n")
+
+    first = _ctx(tmp_path / "first")
+    run(first, IngestParams(genomes_dir=str(local), viral=True))
+    records = first.manifest.all_genomes(include_outgroup=True)
+    assert {g.source for g in records} == {"local_viral"}
+    assert first.config.stages["ingest"].params["viral"] is True
+
+    second = _ctx(tmp_path / "second")
+    run(second, IngestParams(from_workdirs=[str(wd1), str(first.workdir)]))
+    lines = (second.workdir / "metadata_summary.tsv").read_text(encoding="utf-8").splitlines()
+    species = {line.split("\t")[1] for line in lines if line.startswith("species\t")}
+    assert species == {"Francisella tularensis", "Hepatovirus-ahepa"}
+
+    # Without the flag the same file is named by the bacterial rule.
+    plain = _ctx(tmp_path / "plain")
+    run(plain, IngestParams(genomes_dir=str(local)))
+    text = (plain.workdir / "metadata_summary.tsv").read_text(encoding="utf-8")
+    assert "species\tHepatovirus Hepatovirus-ahepa\t1" in text

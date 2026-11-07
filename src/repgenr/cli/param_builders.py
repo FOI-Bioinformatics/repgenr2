@@ -118,6 +118,7 @@ def ingest_params(
     drop_foreign: Any = _UNSET,
     sketch: Any = _UNSET,
     strict_sources: Any = _UNSET,
+    viral: Any = _UNSET,
 ) -> IngestParams:
     from ..core.errors import UserInputError
     from ..stages.ingest import IngestParams
@@ -152,6 +153,7 @@ def ingest_params(
         drop_foreign=drop_foreign,
         sketch=sketch,
         strict_sources=strict_sources,
+        viral=viral,
     )
 
 
