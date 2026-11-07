@@ -233,7 +233,7 @@ def _run_bvbrc(ctx, params, download_wd, logger) -> int:
     _drop(download_wd, _NCBI_VIRUS_ONLY)
 
     tag = params.filter or "complete genome"
-    base, all_taxids, taxid_bvbrc = _parse_fasta(download_fa, tag, logger)
+    base, all_taxids, taxid_bvbrc, records = _parse_fasta(download_fa, tag, logger)
 
     logger.info("Enriching %d taxids via NCBI Entrez", len(all_taxids))
     ncbi_data, missing, _alts = get_taxon_data_from_entrez(all_taxids, logger)
@@ -242,7 +242,7 @@ def _run_bvbrc(ctx, params, download_wd, logger) -> int:
     _write_base(download_wd / "metadata_base.tsv", base)
     _write_ncbi(download_wd / "metadata_ncbi.tsv", ncbi_data, base)
     _write_ncbi_summary(
-        download_wd / "metadata_ncbi_summary.tsv", ncbi_data, missing, taxid_bvbrc, base
+        download_wd / "metadata_ncbi_summary.tsv", ncbi_data, missing, taxid_bvbrc, records, base
     )
     serializable = {
         name: {**data, "datasets": sorted(data["datasets"])} for name, data in taxnames_data.items()
@@ -325,7 +325,15 @@ def _download_group(target: str, dest: Path, logger) -> None:
 
 
 def _parse_fasta(path: Path, tag: str, logger):
+    """Per-taxid statistics of a BV-BRC group FASTA.
+
+    Returns ``base`` (count and length statistics of the records whose header
+    holds ``tag``), every taxid, the BV-BRC genome ids per taxid, and the
+    number of records per taxid. A BV-BRC genome id can label several records
+    (segments, or contigs of a partial genome), so the last two differ.
+    """
     base: dict[str, dict] = {}
+    records: dict[str, int] = {}
     all_taxids: set[str] = set()
     taxid_bvbrc: dict[str, set[str]] = {}
     counts: dict[str, int] = {}
@@ -343,6 +351,7 @@ def _parse_fasta(path: Path, tag: str, logger):
         taxid = bvbrc_id.split(".")[0]
         all_taxids.add(taxid)
         taxid_bvbrc.setdefault(taxid, set()).add(bvbrc_id)
+        records[taxid] = records.get(taxid, 0) + 1
         if tag not in entry.description:
             continue
         seq_len = len(entry.seq)
@@ -364,7 +373,7 @@ def _parse_fasta(path: Path, tag: str, logger):
             "desc": descriptions[taxid],
         }
     logger.info("Found %d taxids; %d passed the '%s' filter", len(all_taxids), len(base), tag)
-    return base, all_taxids, taxid_bvbrc
+    return base, all_taxids, taxid_bvbrc, records
 
 
 def _taxnames_data(ncbi_data, missing, taxid_bvbrc) -> dict[str, dict]:
@@ -403,14 +412,21 @@ def _write_base(path: Path, base: dict) -> None:
 
 
 def _write_ncbi_summary(
-    path: Path, ncbi_data: dict, missing: set[str], taxid_bvbrc: dict[str, set[str]], base: dict
+    path: Path,
+    ncbi_data: dict,
+    missing: set[str],
+    taxid_bvbrc: dict[str, set[str]],
+    records: dict[str, int],
+    base: dict,
 ) -> None:
-    """Sequences per NCBI taxon at each rank (RepGenR 1's metadata_ncbi_summary).
+    """Genomes and sequences per NCBI taxon at each rank (RepGenR 1's
+    metadata_ncbi_summary).
 
-    One row per rank and taxon name: the taxon's NCBI taxid, the BV-BRC
-    taxids below it (``taxids``), their sequences (``sequences``) and those
-    that passed the header filter (``sequences_with_tag``). Ordered by rank
-    as in metadata_ncbi.tsv, then by sequences with the tag, then by name.
+    One row per rank and taxon name: the taxon's NCBI taxid, the taxids of the
+    group FASTA below it (``taxids``), their BV-BRC genome ids (``genomes``),
+    their FASTA records (``sequences``) and the records whose header holds the
+    filter tag (``sequences_with_tag``). Ordered by rank as in
+    metadata_ncbi.tsv, then by sequences with the tag, then by name.
     """
     totals: dict[tuple[str, str], dict] = {}
     for taxid, data in ncbi_data.items():
@@ -423,17 +439,32 @@ def _write_ncbi_summary(
                 continue
             entry = totals.setdefault(
                 (level, name),
-                {"taxid": level_data.get("taxid"), "taxids": 0, "seqs": 0, "tagged": 0},
+                {
+                    "taxid": level_data.get("taxid"),
+                    "taxids": 0,
+                    "genomes": 0,
+                    "seqs": 0,
+                    "tagged": 0,
+                },
             )
             entry["taxids"] += 1
-            entry["seqs"] += len(taxid_bvbrc.get(taxid, ()))
+            entry["genomes"] += len(taxid_bvbrc.get(taxid, ()))
+            entry["seqs"] += records.get(taxid, 0)
             entry["tagged"] += base[taxid]["num"] if taxid in base else 0
     rank = {level: i for i, level in enumerate(TAXNAMES_ORDERED)}
     ordered = sorted(totals.items(), key=lambda kv: (rank[kv[0][0]], -kv[1]["tagged"], kv[0][1]))
     with open(path, "w", encoding="utf-8") as fo:
-        fo.write("level\tname\ttaxid\ttaxids\tsequences\tsequences_with_tag\n")
+        fo.write("level\tname\ttaxid\ttaxids\tgenomes\tsequences\tsequences_with_tag\n")
         for (level, name), e in ordered:
-            row = [level, name, e["taxid"] or "", e["taxids"], e["seqs"], e["tagged"]]
+            row = [
+                level,
+                name,
+                e["taxid"] or "",
+                e["taxids"],
+                e["genomes"],
+                e["seqs"],
+                e["tagged"],
+            ]
             fo.write("\t".join(map(str, row)) + "\n")
 
 

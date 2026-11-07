@@ -182,6 +182,8 @@ def test_missing_target_raises(tmp_path) -> None:
 _BVBRC_FASTA = (
     ">acc1 Strain one, complete genome [Adenovirus A | 111.1]\nACGTACGT\n"
     ">acc2 Strain two, complete genome [Adenovirus A | 111.2]\nACGTACGTAC\n"
+    # A second record of genome 111.2 (a contig of the same BV-BRC genome).
+    ">acc4 Strain two contig 2, partial sequence [Adenovirus A | 111.2]\nACGTA\n"
     ">acc3 Strain three, partial sequence [Adenovirus B | 222.1]\nACGT\n"
 )
 
@@ -222,11 +224,22 @@ def test_bvbrc_end_to_end(tmp_path, monkeypatch) -> None:
     # Sequences per NCBI taxon and rank, copied to the working directory.
     summary = (ctx.workdir / "virus_metadata_ncbi_summary.tsv").read_text(encoding="utf-8")
     rows = [line.split("\t") for line in summary.splitlines()]
-    assert rows[0] == ["level", "name", "taxid", "taxids", "sequences", "sequences_with_tag"]
+    assert rows[0] == [
+        "level",
+        "name",
+        "taxid",
+        "taxids",
+        "genomes",
+        "sequences",
+        "sequences_with_tag",
+    ]
     by_name = {(r[0], r[1]): r[2:] for r in rows[1:]}
-    assert by_name[("family", "Adenoviridae")] == ["10508", "2", "3", "2"]
-    assert by_name[("species", "Species 111")] == ["111", "1", "2", "2"]
-    assert by_name[("species", "Species 222")] == ["222", "1", "1", "0"]
+    # Genome 111.2 has two records: 3 genomes, 4 sequences, 2 with the tag.
+    assert by_name[("family", "Adenoviridae")] == ["10508", "2", "3", "4", "2"]
+    assert by_name[("species", "Species 111")] == ["111", "1", "2", "3", "2"]
+    assert by_name[("species", "Species 222")] == ["222", "1", "1", "1", "0"]
+    for row in rows[1:]:
+        assert int(row[-1]) <= int(row[-2]), row
     # Ranks in order, the family before the species.
     assert [r[0] for r in rows[1:]].index("family") < [r[0] for r in rows[1:]].index("species")
 
