@@ -3,7 +3,8 @@
 // `repgenr reads-gather` reads reads.tsv, the assemble-run directories and the
 // optional genome-qc directory, applies the quality gate and the naming
 // policy (GTDB tokens where the classifier agrees at genus), and writes
-// genomes/, selection.tsv, assembly_stats.tsv and excused_runs.tsv, and
+// genomes/, selection.tsv, assembly_stats.tsv and excused_runs.tsv, the
+// selection summary (metadata_summary.tsv and its plots), and
 // screen_reads.tsv when assemble-run screened the runs (--screen-reads in
 // params.assemble_args; one screen.json per run directory). The
 // outputs mirror the ACQUIRE subworkflow's: the genome FASTAs feed the
@@ -24,6 +25,7 @@ process READS_GATHER {
     tuple val(meta), path("out/excused_runs.tsv")      , emit: excused, optional: true
     tuple val(meta), path("out/screen_reads.tsv")      , emit: screen, optional: true
     tuple val(meta), path("out/outgroup_accession.txt"), emit: outgroup_accession
+    tuple val(meta), path("out/metadata_summary*")     , emit: summary, optional: true
     path "versions.yml"                                , emit: versions
 
     when:
@@ -82,6 +84,9 @@ process READS_GATHER {
         printf '%s\\t\\t\\t\\t\\t%s\\t\\n' "\$run" "\$decision" >> out/screen_reads.tsv
     done
     : > out/outgroup_accession.txt
+    if [ -n "\$(ls out/genomes)" ]; then
+        printf 'level\\tname\\tgenomes\\n' > out/metadata_summary.tsv
+    fi
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":

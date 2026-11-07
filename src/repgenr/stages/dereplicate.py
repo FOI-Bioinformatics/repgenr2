@@ -929,6 +929,9 @@ def _compose_two_stage(
     # representative left. QC is a per-genome check, so in practice this only
     # forwards failures from deeper levels; it keeps every genome accounted for.
     rejected_reps: list[str] = []
+    reasons: dict[str, str] = {}
+    for r in (*stage1, stage2):
+        reasons.update(r.qc_reasons)
     for genome, state in stage2.genome_status.items():
         if state != STATUS_FAIL_QC or genome in status:
             continue
@@ -937,6 +940,9 @@ def _compose_two_stage(
             rejected_reps.append(genome)
         for member in members:
             status.setdefault(member, STATUS_FAIL_QC)
+            if member != genome:
+                # Not checked itself: its stage-1 representative failed.
+                reasons.setdefault(member, "representative_fail_qc")
     if rejected_reps:
         n_members = sum(len(s1rep_to_members[r]) - 1 for r in rejected_reps)
         (logger or logging.getLogger(__name__)).warning(
@@ -954,6 +960,7 @@ def _compose_two_stage(
         genome_status=status,
         # The settings every pass shares, recorded once (combine_settings).
         settings=combine_settings([*stage1, stage2]),
+        qc_reasons={g: r for g, r in reasons.items() if status.get(g) == STATUS_FAIL_QC},
     )
 
 
@@ -1041,6 +1048,7 @@ def _reduce_by_taxonomy(
         representatives=sorted(new_reps),
         clusters=new_clusters,
         genome_status=status,
+        qc_reasons=result.qc_reasons,
     )
 
 
@@ -1102,7 +1110,7 @@ def _write_contract(
         link_or_copy(source, rep_dir / rep.name)
 
     write_clusters(ctx.derep_dir / CLUSTERS_TSV, result.clusters)
-    write_genome_status(ctx.derep_dir / GENOME_STATUS_TSV, result.genome_status)
+    write_genome_status(ctx.derep_dir / GENOME_STATUS_TSV, result.genome_status, result.qc_reasons)
     refined_path = ctx.derep_dir / REFINED_TSV
     if refined:
         write_refined(refined_path, refined)

@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import csv
 import logging
+import os
 import shutil
 from collections.abc import Mapping, Sequence
 from pathlib import Path
@@ -195,6 +196,14 @@ class DrepDereplicator(Dereplicator):
             )
             for name in dropped:
                 result.genome_status[name] = STATUS_FAIL_QC
+        result.qc_reasons = _qc_reasons(
+            result.genome_status,
+            list(zip(genomes, staged, strict=True)),
+            _genome_info_rows(drep_wd),
+            params.quality,
+            min_length=int(params.extra.get("length", 0) or 0),
+            check_quality=not virus,
+        )
         return result
 
 
@@ -327,6 +336,94 @@ def _parse_drep_output(drep_wd: Path, logger: logging.Logger) -> DerepResult:
         genome_status=status,
         genome_information=[{"genome": g, "centrality": c} for g, c in info.items()],
     )
+
+
+# dRep's default filter (dRep dereplicate --completeness / --contamination);
+# RepGenR2 passes --length (0 unless the length tool-arg is given) and leaves
+# these two at dRep's defaults.
+DREP_MIN_COMPLETENESS = 75.0
+DREP_MAX_CONTAMINATION = 25.0
+
+
+def _qc_reasons(
+    status: Mapping[str, str],
+    inputs: Sequence[tuple[Path, Path]],
+    info: Mapping[str, dict[str, float | None]],
+    quality: Mapping[str, tuple[float, float]],
+    *,
+    min_length: int,
+    check_quality: bool,
+) -> dict[str, str]:
+    """Name the dRep filter criteria each ``fail_qc`` genome fails.
+
+    ``inputs`` pairs each input genome with the staged copy dRep read. The
+    values come from dRep's genomeInformation.csv (staged names), else from
+    the manifest quality and the staged FASTA. A genome no criterion explains
+    is given ``drep_filter``.
+    """
+    reasons: dict[str, str] = {}
+    for src, st in inputs:
+        if status.get(src.name) != STATUS_FAIL_QC:
+            continue
+        row = info.get(st.name, {})
+        completeness = row.get("completeness")
+        contamination = row.get("contamination")
+        if completeness is None and src.name in quality:
+            completeness, contamination = quality[src.name]
+        failed: list[str] = []
+        if min_length > 0:
+            length = row.get("length")
+            if length is None:
+                length = _sequence_length(st)
+            if length < min_length:
+                failed.append("length")
+        if check_quality:
+            if completeness is not None and completeness < DREP_MIN_COMPLETENESS:
+                failed.append("completeness")
+            if contamination is not None and contamination > DREP_MAX_CONTAMINATION:
+                failed.append("contamination")
+        reasons[src.name] = ",".join(failed) or "drep_filter"
+    return reasons
+
+
+def _sequence_length(path: Path) -> int:
+    """Residues in a plain FASTA (the staged copies are never gzipped)."""
+    total = 0
+    with open(path, encoding="utf-8", errors="replace") as fo:
+        for line in fo:
+            if not line.startswith(">"):
+                total += len(line.strip())
+    return total
+
+
+def _genome_info_rows(drep_wd: Path) -> dict[str, dict[str, float | None]]:
+    """genomeInformation.csv as genome -> completeness, contamination, length.
+
+    The 7-column layout holds all three; the 5-column layout of
+    ``--ignoreGenomeQuality`` holds the length only. Unreadable values are None.
+    """
+    path = drep_wd / "data_tables" / "genomeInformation.csv"
+    if not path.exists():
+        return {}
+
+    def num(value: str) -> float | None:
+        try:
+            return float(value)
+        except ValueError:
+            return None
+
+    out: dict[str, dict[str, float | None]] = {}
+    with open(path, encoding="utf-8", newline="") as fo:
+        reader = csv.DictReader(fo)
+        for row in reader:
+            genome = row.get("genome")
+            if not genome:
+                continue
+            out[os.path.basename(genome)] = {
+                key: num(row[key]) if row.get(key) not in (None, "") else None
+                for key in ("completeness", "contamination", "length")
+            }
+    return out
 
 
 def _parse_genome_information(drep_wd: Path, logger: logging.Logger) -> dict[str, float]:

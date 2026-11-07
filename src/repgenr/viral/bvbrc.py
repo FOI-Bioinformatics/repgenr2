@@ -27,6 +27,7 @@ from ..core.contracts import SELECTION_TSV, SelectionRow, write_selection
 from ..core.errors import UserInputError, WorkdirError
 from ..core.manifest import record_from_selection
 from ..core.process import staged_dir
+from ..core.selection_summary import write_selection_summary
 from ..core.sketches import sketch_stage_genomes
 from . import _outgroup
 from ._common import (
@@ -95,6 +96,7 @@ def run_select(
     # The same hand-off the NCBI Virus path and the bacterial stages publish,
     # so dereplicate, tree2tax and doctor see one contract.
     write_selection(ctx.workdir / SELECTION_TSV, rows)
+    write_selection_summary(ctx.workdir, rows, logger)
     ctx.manifest.replace_genomes([record_from_selection(r, "bvbrc") for r in rows])
     sketches, sketch_versions = sketch_stage_genomes(ctx, params.sketch, "vgenome", logger)
 

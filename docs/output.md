@@ -30,6 +30,7 @@ Contents:
 - [tree2tax](#tree2tax)
 - [Machine-readable output](#machine-readable-output)
 - [Nextflow output directory](#nextflow-output-directory)
+- [Files of RepGenR 1](#files-of-repgenr-1)
 
 ## Working directory layout
 
@@ -45,10 +46,14 @@ WD/
   gtdb_api_genomes.tsv            GTDB API candidates (metadata --source api)
   virus_download_wd/              viral records (vmetadata)
   virus_metadata_base.tsv         viral metadata table (vmetadata)
+  virus_metadata_ncbi_summary.tsv sequences per NCBI taxon (vmetadata, BV-BRC)
   reads.tsv                       selected sequencing runs (reads)
   reads_sketches/<variant>/       reads sketches and index (reads-sketch)
   reads_screen/<variant>/         reads screen decisions (reads-screen)
   selection.tsv                   the selected genomes (entry stages)
+  metadata_summary.tsv            genomes per taxon (entry stages)
+  metadata_summary_*.png          plots of the summary (entry stages)
+  metadata_selected.tsv           GTDB and NCBI lineage per genome (metadata)
   outgroup_accession.txt          outgroup accession
   ncbi_acc_download_list.txt      accessions to download (genome)
   missing_accessions.txt          accessions not returned (genome)
@@ -173,6 +178,7 @@ engine once.
 | `virus_download_wd/` | Downloaded viral sequences, the tables `vgenome` selects from, and `download.source`, the source and target of `download.fa`. |
 | `virus_download_wd/virus_records.json` | NCBI Virus path: one record per sequence (keys below). |
 | `virus_metadata_base.tsv`, `virus_metadata_ncbi.tsv` | Copies of the viral metadata tables; the second on the BV-BRC path only. On the NCBI Virus path `name` is the species and `description` the organism name. |
+| `virus_metadata_ncbi_summary.tsv` | BV-BRC path only: sequences per NCBI taxon at each rank (columns below). |
 | `reads.tsv` | The selected sequencing runs (columns below). |
 
 `gtdb_api_genomes.tsv`:
@@ -190,6 +196,18 @@ lineage, else the organism name); `species_source`, which of the three
 applied; `species_name`, the species as NCBI writes it (empty in records
 written before it); and the segment label as submitted. See
 [usage.md](usage.md#species-assignment).
+
+`virus_metadata_ncbi_summary.tsv`, ordered by rank as in
+`virus_metadata_ncbi.tsv`, then by `sequences_with_tag`, largest first, then
+by name:
+
+| Column | Meaning |
+|--------|---------|
+| `level` | NCBI rank. |
+| `name`, `taxid` | NCBI taxon name and taxid at that rank. |
+| `taxids` | Taxids of the group FASTA that fall under the taxon. |
+| `sequences` | Their sequences in the group FASTA. |
+| `sequences_with_tag` | Those whose header holds the `--filter` text (default `complete genome`). |
 
 `reads.tsv`:
 
@@ -218,6 +236,33 @@ These files form the genome set every later stage reads. On the reads path
 | `ncbi_acc_download_list.txt` | Accessions `genome` will fetch (those without a FASTA in `genomes/`), one per line; the only output with `--accession-list-only`. |
 | `missing_accessions.txt` | Accessions the download did not return or whose FASTA failed the package checksum; read by the completeness check of later stages. |
 | `segments.tsv` | With `vgenome --group-segments`: columns `isolate` (the grouped isolate's token), `accession`, `segment` (normalised) and `segment_label` (as submitted), one row per member. |
+| `metadata_summary.tsv` | Genomes per taxon of the ingroup, written with `selection.tsv` by metadata, ingest, vgenome and assemble (columns below). Removed when the selection holds no ingroup genome. |
+| `metadata_summary_number_in_level.png` | Bar plot of `metadata_summary.tsv`: genomes per family, genus and species. At most 60 bars per level, the largest; the title names a cut. |
+| `metadata_summary_number_per_level.png` | Bar plot of the number of distinct families, genera and species. |
+| `metadata_selected.tsv` | Written by metadata: one row per selected genome, outgroup included, with the lineages GTDB gives (columns below). Another entry stage keeps only the rows of genomes still selected and removes the file when none is. |
+
+`metadata_summary.tsv`, ordered by level (family, genus, species), then by
+genome count, largest first, then by name. The outgroup is not counted.
+
+| Column | Meaning |
+|--------|---------|
+| `level` | `family`, `genus` or `species`. |
+| `name` | Taxon name as in the file names; a species as genus and epithet. A genome without the token counts as `unclassified`. |
+| `genomes` | Selected genomes in the taxon. |
+
+`metadata_selected.tsv`:
+
+| Column | Meaning |
+|--------|---------|
+| `accession` | Genome accession, as in `selection.tsv`. |
+| `accession_ncbi` | GenBank assembly accession. |
+| `is_outgroup`, `gtdb_representative` | As in `selection.tsv`. |
+| `gtdb_taxonomy` | GTDB lineage, domain to species (`d__...;s__...`). |
+| `ncbi_taxonomy`, `ncbi_taxonomy_unfiltered` | NCBI lineage as GTDB records it: on the standard ranks, and with every rank NCBI gives. |
+| `ncbi_strain_identifiers` | NCBI strain identifiers. |
+
+The NCBI fields are empty when the GTDB table lacks the column, and with
+`--source api` for a genome whose card the API did not return.
 
 `selection.tsv`:
 
@@ -390,12 +435,22 @@ with no values in range is absent.
 | `derep/` | Representative genomes and per-tool intermediates. |
 | `derep/representatives/` | One genome file per cluster, the distinct values of `representative` in `clusters.tsv`. |
 | `derep/clusters.tsv` | Columns `representative` and `member`, one row per genome; a representative also lists itself. |
-| `derep/genome_status.tsv` | Columns `genome` and `status` (`representative`, `contained` or `fail_qc`). |
+| `derep/genome_status.tsv` | Columns `genome`, `status` (`representative`, `contained` or `fail_qc`) and `reason` (below). |
 | `derep/refined.tsv` | With `dereplicate --refine` or `derep-refine`: the genomes of the refined lineages (columns below). Absent without a refinement. |
 | `derep/cluster_summary.tsv` | One row per representative (columns below). Written by dereplicate and `cluster-summary`. |
 | `genome_n50.tsv` | In the output of each `dereplicate-chunk` and `dereplicate-merge` step (Nextflow `DEREP_CHUNK`, `DEREP_MERGE`): `genome` and `n50` (bases) of every scored genome the step read. Absent from `dereplicate-refine` output. |
 | `derep/unpacked/<representative>/` | `derep-unpack`: the cluster's members, and the representative unless `--no-representant`, hard-linked or copied from `genomes/`. Replaced on each run. |
 | `derep/stock/<name>/` | `derep-stock --action pack`: a stored dereplication (contents under [Storing and restoring with derep-stock](#storing-and-restoring-with-derep-stock)). |
+
+`reason` is empty except for a `fail_qc` genome, where it names the dRep
+filter criteria the genome fails, comma-separated: `length` (shorter than
+`--tool-arg length=N`), `completeness` (below 75 %) and `contamination`
+(above 25 %), the thresholds of dRep's filter. The values are those dRep
+reports in `genomeInformation.csv`, else those of the manifest.
+`drep_filter` marks a genome dRep removed for which no criterion was found;
+`representative_fail_qc` a genome of a chunked run whose first-pass
+representative failed in a later pass. A file written before the column
+existed has two columns.
 
 An `unpacked/` directory is named by the representative's file name without
 its genome extension; the gzip suffixes `.fasta.gz`, `.fna.gz` and `.fa.gz`
@@ -828,8 +883,8 @@ The pipeline publishes under `--outdir` (default `results/`):
 
 | Path | Content |
 |------|---------|
-| `metadata/` | `selection.tsv` and `outgroup_accession.txt`. |
-| `reads/` | Reads mode: `reads.tsv`, `selection.tsv`, `assembly_stats.tsv`, `outgroup_accession.txt`, `excused_runs.tsv`, and `screen_reads.tsv` with `--assemble_args '--screen-reads'`. |
+| `metadata/` | Bacterial mode: `selection.tsv`, `outgroup_accession.txt`, `metadata_selected.tsv` and the selection summary (`metadata_summary.tsv` and its two plots). Viral mode: the selection summary, and `virus_metadata_ncbi_summary.tsv` on the BV-BRC path. |
+| `reads/` | Reads mode: `reads.tsv`, `selection.tsv`, `assembly_stats.tsv`, `outgroup_accession.txt`, `excused_runs.tsv`, the selection summary, and `screen_reads.tsv` with `--assemble_args '--screen-reads'`. |
 | `reads/qc/` | `quality.tsv` (`run_accession`, `completeness`, `contamination`) and `classification.tsv` (`run_accession`, `taxonomy`, `rank`, `score`, `db_version`) of the QC step. |
 | `reads/reads_sketches/<variant>/` | With the reads sketch step: the sketches and `reads_sketches.tsv` ([reads-sketch](#reads-sketch)). |
 | `reads/reads_screen/<variant>/` | With the reads screen: `reads_screen.tsv` and the per-run decisions and `passed.txt` ([reads-screen](#reads-screen)). |
@@ -849,3 +904,32 @@ The pipeline publishes under `--outdir` (default `results/`):
 - `pipeline_dag_*.html`: the workflow graph;
 - `software_versions.yml`: the resolved tool versions of every process,
   collected and de-duplicated from each process's `versions.yml`.
+
+## Files of RepGenR 1
+
+RepGenR 1 wrote one file set per command into the working directory. Its
+files map to RepGenR2 as follows.
+
+| RepGenR 1 | RepGenR2 |
+|-----------|----------|
+| `metadata_summary.tsv`, `metadata_summary_number_in_level.png`, `metadata_summary_number_per_level.png` | Same names; the column `abundance` is now `genomes`, and a species is named by genus and epithet. |
+| `metadata_selected.tsv` | `metadata_selected.tsv`, with the GTDB and NCBI lineages as one string each and the outgroup included. |
+| `metadata_selected.dict`, `metadata_outgroup.tsv` | `selection.tsv` and `manifest.sqlite`; the outgroup is the row with `is_outgroup` 1. |
+| `metadata_level.txt` | `level` in the `metadata` record of `repgenr.yaml`. |
+| `outgroup_accession.txt`, `ncbi_acc_download_list.txt`, `genomes/`, `outgroup/` | Same names. |
+| `genomes_derep_representants/` | `derep/representatives/`. |
+| `derep_representative_genomes.tsv` | The file names in `derep/representatives/`. |
+| `derep_clustered_genomes.tsv`, `derep_genomes_summary2.tsv` | `derep/clusters.tsv`. |
+| `derep_genomes_summary.tsv` | `derep/cluster_summary.tsv` (members per cluster as a count); the members are listed in `derep/clusters.tsv`. |
+| `derep_genomes_status.tsv` | `derep/genome_status.tsv`. |
+| `derep_genomeInformation.tsv` | Completeness and contamination in `manifest.sqlite`; with `--tool drep`, dRep's own table under `scratch/dereplicate/`. |
+| `derep_potentially_discarded_genomes.tsv` | Rows with status `fail_qc` in `derep/genome_status.tsv`; the `reason` column names the failed criteria (`length`, `completeness`, `contamination`, where RepGenR 1 wrote `fail_length`, `fail_qc`, `fail_contamination`). |
+| `derep_parameters.txt` | The `dereplicate` record of `repgenr.yaml`. |
+| `genomes_derep_representants.dnd`, `genomes.dnd` | `tree/tree.nwk`. |
+| `msa_derep.fasta`, `msa_all.fasta` | `align/msa.fasta`. |
+| `phylo_workdir/tree_reference.txt` | `reference_genome` in the `phylo` record of `repgenr.yaml`. |
+| `derep_genomes_tree2tax.tsv`, `genomes_tree2tax.tsv` | `tree2tax.tsv`. |
+| `derep_genomes_map.tsv` | `genomes_map.tsv`. |
+| `glance_*.png` | Same names. |
+| `virus_metadata_base.tsv`, `virus_metadata_ncbi.tsv` | Same names. |
+| `virus_metadata_ncbi_summary.tsv` | Same name, one row per rank and taxon instead of four columns per rank. |

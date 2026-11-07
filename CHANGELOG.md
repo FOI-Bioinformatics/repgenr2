@@ -7,6 +7,28 @@ All notable changes to RepGenR2 are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- Selection summary, as RepGenR 1 wrote it: `metadata_summary.tsv`
+  (genomes per family, genus and species of the ingroup) and the plots
+  `metadata_summary_number_in_level.png` and
+  `metadata_summary_number_per_level.png`. Written with `selection.tsv` by
+  metadata, ingest, vgenome and assemble.
+- `metadata_selected.tsv` from `metadata`: per selected genome, outgroup
+  included, the GenBank accession, the GTDB lineage, the NCBI lineage
+  (standard ranks and unfiltered) and the NCBI strain identifiers, from the
+  GTDB table or, with `--source api`, from the genome cards already fetched
+  for the assembly quality.
+- `docs/output.md` maps the files of RepGenR 1 to those of RepGenR2.
+- `derep/genome_status.tsv` has a third column, `reason`: for a `fail_qc`
+  genome, the dRep filter criteria it fails (`length`, `completeness`,
+  `contamination`), from dRep's `genomeInformation.csv` or the manifest.
+  Carried through chunked runs, the Nextflow dereplication steps and
+  `derep-refine`.
+- `vmetadata --source bvbrc` writes `virus_metadata_ncbi_summary.tsv`:
+  sequences per NCBI taxon at each rank, with and without the header tag.
+- Nextflow publishes the selection summary and `metadata_selected.tsv`
+  under `metadata/` (bacterial), the selection summary and the BV-BRC taxon
+  summary under `metadata/` (viral), and the selection summary under
+  `reads/` (reads mode).
 - The `dereplicate` record holds `tool_settings`, how the tool computed the
   clustering. For sourmash: `backend` (`sparse` or `dense`), `ani_estimate`
   (`average_containment^(1/k)`), `ksize`, `scaled` and, on the dense

@@ -25,6 +25,8 @@ nextflow_process {
             def outgroup = [process.out.outgroup.get(0).get(1)].flatten().collect { p -> file(p).name }
             assert outgroup == ['Vir_out_grp_iso9.fasta']
             assert path(process.out.outgroup_accession.get(0).get(1)).text.trim() == 'iso9'
+            def report = [process.out.report.get(0).get(1)].flatten().collect { p -> file(p).name }
+            assert report == ['metadata_summary.tsv']
         }
     }
 }

@@ -17,6 +17,9 @@ process METADATA {
     tuple val(meta), path("selection.tsv")         , emit: selection
     tuple val(meta), path("outgroup_accession.txt"), emit: outgroup_accession
     path "versions.yml"                            , emit: versions
+    // Summary table and plots of the selection and the per-genome GTDB/NCBI
+    // lineage table; published, not consumed downstream.
+    tuple val(meta), path("report/*")              , emit: report, optional: true
 
     when:
     task.ext.when == null || task.ext.when
@@ -31,6 +34,11 @@ process METADATA {
     repgenr ${opts} metadata -wd metadata_wd ${args}
     cp metadata_wd/selection.tsv selection.tsv
     cp metadata_wd/outgroup_accession.txt outgroup_accession.txt
+    mkdir -p report
+    for f in metadata_summary.tsv metadata_summary_number_in_level.png \\
+             metadata_summary_number_per_level.png metadata_selected.tsv; do
+        if [ -f metadata_wd/\$f ]; then cp metadata_wd/\$f report/\$f; fi
+    done
 
     repgenr versions -wd metadata_wd --versions-out tool_versions.yml
     repgenr_versions_fragment "${task.process}" tool_versions.yml
@@ -45,6 +53,9 @@ process METADATA {
     printf 'GCF_000002.1\\tFam\\tGen\\tsp2\\t0\\tFam_Gen_sp2_GCF_000002.1.fasta\\t\\t\\n' >> selection.tsv
     printf 'GCF_000009.1\\tFam\\tOut\\tgrp\\t1\\tFam_Out_grp_GCF_000009.1.fasta\\t\\t\\n' >> selection.tsv
     printf 'GCF_000009.1\\n' > outgroup_accession.txt
+    mkdir -p report
+    printf 'level\\tname\\tgenomes\\nfamily\\tFam\\t2\\n' > report/metadata_summary.tsv
+    printf 'accession\\taccession_ncbi\\tis_outgroup\\n' > report/metadata_selected.tsv
     touch versions.yml
     """
 }

@@ -9,6 +9,7 @@ from repgenr.core.contracts import (
     parse_genome_filename,
     read_clusters,
     read_genome_status,
+    read_genome_status_reasons,
     record_name,
     strip_fasta_suffix,
     write_clusters,
@@ -88,8 +89,28 @@ def test_clusters_round_trip(tmp_path: Path) -> None:
 def test_genome_status_sorted(tmp_path: Path) -> None:
     path = tmp_path / "genome_status.tsv"
     write_genome_status(path, {"z.fasta": "contained", "a.fasta": "representative"})
-    rows = [line.split("\t") for line in path.read_text().splitlines()[1:]]
-    assert rows == [["a.fasta", "representative"], ["z.fasta", "contained"]]
+    lines = path.read_text().splitlines()
+    assert lines[0] == "genome\tstatus\treason"
+    rows = [line.split("\t") for line in lines[1:]]
+    assert rows == [["a.fasta", "representative", ""], ["z.fasta", "contained", ""]]
+
+
+def test_genome_status_reason_only_for_fail_qc(tmp_path: Path) -> None:
+    path = tmp_path / "genome_status.tsv"
+    status = {"a.fasta": "representative", "b.fasta": "fail_qc", "c.fasta": "fail_qc"}
+    # A reason given for a genome that did not fail QC is not written.
+    reasons = {"a.fasta": "length", "b.fasta": "completeness,contamination"}
+    write_genome_status(path, status, reasons)
+    assert read_genome_status(path) == status
+    assert read_genome_status_reasons(path) == {"b.fasta": "completeness,contamination"}
+
+
+def test_genome_status_without_reason_column_reads(tmp_path: Path) -> None:
+    # A file written before the reason column existed.
+    path = tmp_path / "genome_status.tsv"
+    path.write_text("genome\tstatus\na.fasta\tfail_qc\n")
+    assert read_genome_status(path) == {"a.fasta": "fail_qc"}
+    assert read_genome_status_reasons(path) == {}
 
 
 def test_genome_status_round_trip(tmp_path: Path) -> None:

@@ -219,6 +219,17 @@ def test_bvbrc_end_to_end(tmp_path, monkeypatch) -> None:
     assert (ctx.workdir / "virus_metadata_base.tsv").exists()
     assert ctx.config.stages["vmetadata"].tool == "bvbrc"
 
+    # Sequences per NCBI taxon and rank, copied to the working directory.
+    summary = (ctx.workdir / "virus_metadata_ncbi_summary.tsv").read_text(encoding="utf-8")
+    rows = [line.split("\t") for line in summary.splitlines()]
+    assert rows[0] == ["level", "name", "taxid", "taxids", "sequences", "sequences_with_tag"]
+    by_name = {(r[0], r[1]): r[2:] for r in rows[1:]}
+    assert by_name[("family", "Adenoviridae")] == ["10508", "2", "3", "2"]
+    assert by_name[("species", "Species 111")] == ["111", "1", "2", "2"]
+    assert by_name[("species", "Species 222")] == ["222", "1", "1", "0"]
+    # Ranks in order, the family before the species.
+    assert [r[0] for r in rows[1:]].index("family") < [r[0] for r in rows[1:]].index("species")
+
 
 def _refuse_ftp(*args, **kwargs):
     raise ConnectionRefusedError(61, "Connection refused")

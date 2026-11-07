@@ -6,7 +6,7 @@ obligation), so the names and layout are chosen fresh:
 
     derep/representatives/      representative genome FASTAs
     derep/clusters.tsv          representative<TAB>member (member==representative for self)
-    derep/genome_status.tsv     genome<TAB>status(representative|contained|fail_qc)
+    derep/genome_status.tsv     genome<TAB>status(representative|contained|fail_qc)<TAB>reason
     derep/cluster_summary.tsv   one row per representative: size, species, quality
     align/msa.fasta             multiple sequence alignment (aligner output)
     snp/core_snp.fasta          variant-site alignment (snptype stage output)
@@ -25,7 +25,7 @@ import csv
 import os
 import re
 from collections import defaultdict
-from collections.abc import Iterator, Sequence
+from collections.abc import Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
@@ -518,12 +518,34 @@ def read_refined(path: Path) -> list[RefinedRow]:
     return rows
 
 
-def write_genome_status(path: Path, status: dict[str, str]) -> None:
+def write_genome_status(
+    path: Path, status: dict[str, str], reasons: Mapping[str, str] | None = None
+) -> None:
+    """Write genome, status and reason. The reason (the QC criteria a
+    ``fail_qc`` genome failed) is empty for the other statuses and when the
+    dereplicator gives none."""
+    reasons = reasons or {}
     with atomic_replace(path, newline="") as fo:
         writer = _tsv_writer(fo)
-        writer.writerow(["genome", "status"])
+        writer.writerow(["genome", "status", "reason"])
         for genome, value in sorted(status.items()):
-            writer.writerow([genome, value])
+            reason = reasons.get(genome, "") if value == "fail_qc" else ""
+            writer.writerow([genome, value, reason])
+
+
+def read_genome_status_reasons(path: Path) -> dict[str, str]:
+    """Read genome -> reason for the rows with a reason. A missing file, or
+    one written before the reason column existed, yields an empty mapping."""
+    reasons: dict[str, str] = {}
+    if not path.exists():
+        return reasons
+    with open(path, encoding="utf-8", newline="") as fo:
+        reader = csv.reader(fo, delimiter="\t")
+        next(reader, None)  # skip header
+        for row in reader:
+            if len(row) >= 3 and row[2]:
+                reasons[row[0]] = row[2]
+    return reasons
 
 
 def read_genome_status(path: Path) -> dict[str, str]:

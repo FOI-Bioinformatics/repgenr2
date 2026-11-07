@@ -18,6 +18,7 @@ import csv
 import gzip
 import re
 import shutil
+import sys
 import tarfile
 import time
 import urllib.parse
@@ -40,6 +41,11 @@ from ..core.errors import UserInputError, WorkdirError
 from ..core.executors import parallel_map
 from ..core.integrity import refuse_foreign_rows
 from ..core.manifest import GenomeRecord
+from ..core.selection_summary import (
+    GenomeDetails,
+    write_metadata_selected,
+    write_selection_summary,
+)
 
 TAXONOMY = ("domain", "phylum", "class", "family", "genus", "species")
 GTDB_API_BASE = "https://gtdb-api.ecogenomic.org"
@@ -105,16 +111,18 @@ def run(ctx: WorkdirContext, params: MetadataParams) -> int:
                 "Use --source tsv to pin a release or to read a local table.",
                 ", ".join(ignored),
             )
-        selected, outgroup = _select_via_api(params, logger, ctx.workdir)
+        selected, outgroup, details = _select_via_api(params, logger, ctx.workdir)
     else:
         # A table run leaves no API answer behind for census to read.
         (ctx.workdir / GTDB_API_GENOMES).unlink(missing_ok=True)
-        selected, outgroup = _select_via_tsv(ctx, params, logger)
+        selected, outgroup, details = _select_via_tsv(ctx, params, logger)
 
     logger.info("Selected %d genomes; outgroup: %s", len(selected), outgroup.accession)
     _populate_manifest(ctx, selected, outgroup)
     _write_outgroup_file(ctx, outgroup.accession)
-    _write_selection(ctx, selected, outgroup)
+    rows = _write_selection(ctx, selected, outgroup)
+    write_metadata_selected(ctx.workdir, rows, details)
+    write_selection_summary(ctx.workdir, rows, logger)
 
     ctx.config.record_stage(
         "metadata",
@@ -184,7 +192,7 @@ def _validate(params: MetadataParams) -> None:
 
 def _select_via_tsv(
     ctx: WorkdirContext, params: MetadataParams, logger
-) -> tuple[list[GenomeRecord], GenomeRecord]:
+) -> tuple[list[GenomeRecord], GenomeRecord, dict[str, GenomeDetails]]:
     metadata_file = _obtain_metadata(ctx, params, logger)
     accessions = _parse_metadata(metadata_file, params, logger)
 
@@ -215,7 +223,9 @@ def _select_via_tsv(
         contamination=outgroup_data.get("contamination"),
         gtdb_representative=bool(outgroup_data.get("is_rep")),
     )
-    return records, outgroup
+    details = {acc: data["details"] for acc, data in selected.items()}
+    details[outgroup_acc] = outgroup_data["details"]
+    return records, outgroup, details
 
 
 def _record_from_tax(
@@ -394,9 +404,21 @@ def _parse_metadata(path: Path, params: MetadataParams, logger) -> dict[str, dic
             contamination = _opt_column(
                 fields, idx, "checkm2_contamination", "checkm_contamination"
             )
+            accession_ncbi = fields[idx.get("ncbi_genbank_assembly_accession", 0)]
             accessions[accession] = {
                 "accession": accession,
-                "accession_ncbi": fields[idx.get("ncbi_genbank_assembly_accession", 0)],
+                "accession_ncbi": accession_ncbi,
+                "details": GenomeDetails(
+                    accession_ncbi=accession_ncbi,
+                    # Lineage strings repeat across genomes; interning keeps
+                    # one copy each when the whole table is parsed.
+                    gtdb_taxonomy=sys.intern(fields[idx["gtdb_taxonomy"]]),
+                    ncbi_taxonomy=sys.intern(_text_column(fields, idx, "ncbi_taxonomy")),
+                    ncbi_taxonomy_unfiltered=sys.intern(
+                        _text_column(fields, idx, "ncbi_taxonomy_unfiltered")
+                    ),
+                    ncbi_strain_identifiers=_text_column(fields, idx, "ncbi_strain_identifiers"),
+                ),
                 "tax": tax,
                 "is_rep": is_rep,
                 "outgroup_only": outgroup_only,
@@ -405,6 +427,15 @@ def _parse_metadata(path: Path, params: MetadataParams, logger) -> dict[str, dic
             }
     logger.info("Parsed %d accessions", len(accessions))
     return accessions
+
+
+def _text_column(fields: list[str], idx: dict[str, int], name: str) -> str:
+    """The column ``name`` of a row; empty when absent or ``none``."""
+    i = idx.get(name)
+    if i is None or i >= len(fields):
+        return ""
+    raw = fields[i].strip()
+    return "" if raw.lower() == "none" else raw
 
 
 def _opt_column(fields: list[str], idx: dict[str, int], *names: str) -> float | None:
@@ -620,7 +651,9 @@ def _write_outgroup_file(ctx, outgroup_acc) -> None:
     (ctx.workdir / "outgroup_accession.txt").write_text(outgroup_acc + "\n")
 
 
-def _write_selection(ctx, selected: list[GenomeRecord], outgroup: GenomeRecord) -> None:
+def _write_selection(
+    ctx, selected: list[GenomeRecord], outgroup: GenomeRecord
+) -> list[SelectionRow]:
     """Publish the portable selection.tsv (the metadata -> genome data-channel hand-off)."""
     rows = []
     for r in (*selected, outgroup):
@@ -639,6 +672,7 @@ def _write_selection(ctx, selected: list[GenomeRecord], outgroup: GenomeRecord) 
             )
         )
     write_selection(ctx.workdir / SELECTION_TSV, rows)
+    return rows
 
 
 # --- GTDB API source --------------------------------------------------------
@@ -722,10 +756,8 @@ def _api_card(accession: str) -> dict:
     return _api_get(f"/genome/{urllib.parse.quote(accession, safe='')}/card")
 
 
-def _api_quality_by_accession(
-    accessions: Sequence[str], logger
-) -> dict[str, tuple[float | None, float | None]]:
-    """Fetch each genome's card and return its CheckM quality.
+def _api_cards_by_accession(accessions: Sequence[str], logger) -> dict[str, dict]:
+    """Fetch each genome's card; an empty dict for a card that failed.
 
     Cards are fetched a few at a time; any that still fail after the session's
     own retries (the API rate-limits sustained bursts) are retried once more,
@@ -737,29 +769,71 @@ def _api_quality_by_accession(
         return {}
     logger.info("Fetching assembly quality for %d genomes from the GTDB API", len(accessions))
 
-    def fetch(acc: str) -> tuple[str, tuple[float | None, float | None] | None]:
+    def fetch(acc: str) -> tuple[str, dict | None]:
         try:
-            return acc, _api_quality(_api_card(acc))
+            return acc, _api_card(acc)
         except WorkdirError:
             return acc, None
 
-    out: dict[str, tuple[float | None, float | None]] = {}
+    out: dict[str, dict] = {}
     failed: list[str] = []
-    for acc, quality in parallel_map(fetch, accessions, _API_CARD_WORKERS):
-        if quality is None:
+    for acc, card in parallel_map(fetch, accessions, _API_CARD_WORKERS):
+        if card is None:
             failed.append(acc)
         else:
-            out[acc] = quality
+            out[acc] = card
     if failed:
         logger.info("Retrying %d quality card(s) that the API refused, one at a time", len(failed))
     for acc in failed:
         time.sleep(_API_CARD_RETRY_PAUSE)
         try:
-            out[acc] = _api_quality(_api_card(acc))
+            out[acc] = _api_card(acc)
         except WorkdirError as exc:
             logger.warning("No assembly quality for %s: %s", acc, exc)
-            out[acc] = (None, None)
+            out[acc] = {}
     return out
+
+
+def _api_quality_by_accession(
+    accessions: Sequence[str], logger
+) -> dict[str, tuple[float | None, float | None]]:
+    """CheckM quality of each genome from its card; see :func:`_api_cards_by_accession`."""
+    cards = _api_cards_by_accession(accessions, logger)
+    return {acc: _api_quality(card) if card else (None, None) for acc, card in cards.items()}
+
+
+_GTDB_RANK_FIELDS = (
+    "gtdbDomain",
+    "gtdbPhylum",
+    "gtdbClass",
+    "gtdbOrder",
+    "gtdbFamily",
+    "gtdbGenus",
+    "gtdbSpecies",
+)
+
+
+def _api_details(row: dict, card: dict) -> GenomeDetails:
+    """The metadata_selected.tsv fields of one genome from the API.
+
+    The GTDB lineage comes from the genomes-detail row (or the card's taxonomy
+    block); the NCBI fields from the card, empty when the card failed.
+    """
+    taxonomy = card.get("metadataTaxonomy") or {}
+    ncbi = card.get("metadata_ncbi") or {}
+    ranks = [row.get(f) or taxonomy.get(f) or "" for f in _GTDB_RANK_FIELDS]
+
+    def text(block: dict, key: str) -> str:
+        value = block.get(key)
+        return "" if value is None or str(value).lower() == "none" else str(value)
+
+    return GenomeDetails(
+        accession_ncbi=text(ncbi, "ncbi_genbank_assembly_accession"),
+        gtdb_taxonomy=";".join(ranks) if any(ranks) else "",
+        ncbi_taxonomy=text(taxonomy, "ncbi_taxonomy"),
+        ncbi_taxonomy_unfiltered=text(taxonomy, "ncbi_taxonomy_unfiltered"),
+        ncbi_strain_identifiers=text(ncbi, "ncbi_strain_identifiers"),
+    )
 
 
 def _normalize_api_tax(row: dict) -> dict:
@@ -829,7 +903,7 @@ def read_api_genomes(path: Path) -> list[dict]:
 
 def _select_via_api(
     params: MetadataParams, logger, workdir: Path | None = None
-) -> tuple[list[GenomeRecord], GenomeRecord]:
+) -> tuple[list[GenomeRecord], GenomeRecord, dict[str, GenomeDetails]]:
     taxon = _target_taxon(params)
     logger.info("Querying GTDB API for genomes in %s", taxon)
     sp_reps = params.dataset == "rep"
@@ -840,7 +914,8 @@ def _select_via_api(
         write_api_genomes(workdir / GTDB_API_GENOMES, rows)
 
     # Quality for every candidate first: the cut below ranks on it.
-    quality = _api_quality_by_accession([row["gid"] for row in rows], logger)
+    cards = _api_cards_by_accession([row["gid"] for row in rows], logger)
+    quality = {acc: _api_quality(card) if card else (None, None) for acc, card in cards.items()}
     if params.limit and len(rows) > params.limit:
         candidates = [
             _Candidate(
@@ -859,9 +934,11 @@ def _select_via_api(
 
     records: list[GenomeRecord] = []
     selected_acc: set[str] = set()
+    details: dict[str, GenomeDetails] = {}
     for row in rows:
         acc = row["gid"]
         completeness, contamination = quality[acc]
+        details[acc] = _api_details(row, cards[acc])
         records.append(
             _record_from_tax(
                 acc,
@@ -873,8 +950,9 @@ def _select_via_api(
         )
         selected_acc.add(acc)
 
-    outgroup = _select_outgroup_via_api(params, rows, selected_acc, logger)
-    return records, outgroup
+    outgroup, outgroup_details = _select_outgroup_via_api(params, rows, selected_acc, logger)
+    details[outgroup.accession] = outgroup_details
+    return records, outgroup, details
 
 
 def _api_genomes_detail(taxon: str, sp_reps_only: bool, logger) -> list[dict]:
@@ -896,7 +974,7 @@ def _api_genomes_detail(taxon: str, sp_reps_only: bool, logger) -> list[dict]:
 
 def _select_outgroup_via_api(
     params: MetadataParams, rows: list[dict], selected_acc: set[str], logger
-) -> GenomeRecord:
+) -> tuple[GenomeRecord, GenomeDetails]:
     # Explicit outgroup: fetch its card for taxonomy.
     if params.outgroup_accession:
         _refuse_outgroup_in_selection(params.outgroup_accession, selected_acc)
@@ -917,13 +995,14 @@ def _select_outgroup_via_api(
             tax_row.get(field, ""),
         )
         completeness, contamination = _api_quality(card)
-        return _record_from_tax(
+        record = _record_from_tax(
             params.outgroup_accession,
             _normalize_api_tax(tax_row),
             is_outgroup=True,
             completeness=completeness,
             contamination=contamination,
         )
+        return record, _api_details(tax_row, card)
 
     # Otherwise pick a representative from the parent taxon (one rank up) that is
     # not part of the selection. Use the same rank order as the TSV path.
@@ -943,8 +1022,9 @@ def _select_outgroup_via_api(
         # must be outside the selected sub-taxon
         if row.get(_rank_field(params.level)) == rows[0].get(_rank_field(params.level)):
             continue
-        completeness, contamination = _api_quality_by_accession([row["gid"]], logger)[row["gid"]]
-        return _record_from_tax(
+        card = _api_cards_by_accession([row["gid"]], logger)[row["gid"]]
+        completeness, contamination = _api_quality(card) if card else (None, None)
+        record = _record_from_tax(
             row["gid"],
             _normalize_api_tax(row),
             is_outgroup=True,
@@ -952,6 +1032,7 @@ def _select_outgroup_via_api(
             contamination=contamination,
             gtdb_representative=True,
         )
+        return record, _api_details(row, card)
     raise WorkdirError("Could not determine an outgroup via the API; specify --outgroup-accession.")
 
 

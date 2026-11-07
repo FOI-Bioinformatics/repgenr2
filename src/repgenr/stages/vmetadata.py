@@ -34,7 +34,13 @@ DOWNLOAD_SOURCE = "download.source"
 # Files only one source writes; the other source removes them so vgenome
 # dispatches on the metadata of the latest vmetadata run.
 _NCBI_VIRUS_ONLY = ("virus_records.json",)
-_BVBRC_ONLY = ("metadata_ncbi.tsv", "metadata_ncbi_taxnames_data.json")
+_BVBRC_ONLY = (
+    "metadata_ncbi.tsv",
+    "metadata_ncbi_summary.tsv",
+    "metadata_ncbi_taxnames_data.json",
+)
+# The BV-BRC tables copied to the working directory with a virus_ prefix.
+_BVBRC_COPIES = ("metadata_base.tsv", "metadata_ncbi.tsv", "metadata_ncbi_summary.tsv")
 
 
 def _source_key(source: str, target: str) -> str:
@@ -132,7 +138,8 @@ def _run_ncbi_virus(ctx, params, download_wd, logger) -> int:
         _source_key("ncbi_virus", params.target) + "\n", encoding="utf-8"
     )
     _drop(download_wd, _BVBRC_ONLY)
-    (ctx.workdir / "virus_metadata_ncbi.tsv").unlink(missing_ok=True)
+    for name in _BVBRC_COPIES[1:]:
+        (ctx.workdir / f"virus_{name}").unlink(missing_ok=True)
     ncbi_virus.write_records(download_wd / "virus_records.json", records)
     _write_base_from_records(download_wd / "metadata_base.tsv", records)
     (ctx.workdir / "virus_metadata_base.tsv").write_text(
@@ -234,6 +241,9 @@ def _run_bvbrc(ctx, params, download_wd, logger) -> int:
 
     _write_base(download_wd / "metadata_base.tsv", base)
     _write_ncbi(download_wd / "metadata_ncbi.tsv", ncbi_data, base)
+    _write_ncbi_summary(
+        download_wd / "metadata_ncbi_summary.tsv", ncbi_data, missing, taxid_bvbrc, base
+    )
     serializable = {
         name: {**data, "datasets": sorted(data["datasets"])} for name, data in taxnames_data.items()
     }
@@ -241,7 +251,7 @@ def _run_bvbrc(ctx, params, download_wd, logger) -> int:
         json.dump(serializable, fo)
 
     # copy human-readable tables to the workdir root with a virus_ prefix
-    for name in ("metadata_base.tsv", "metadata_ncbi.tsv"):
+    for name in _BVBRC_COPIES:
         (ctx.workdir / f"virus_{name}").write_text((download_wd / name).read_text())
 
     ctx.config.record_stage(
@@ -389,6 +399,41 @@ def _write_base(path: Path, base: dict) -> None:
                 data["mean"],
                 data["desc"]["full"],
             ]
+            fo.write("\t".join(map(str, row)) + "\n")
+
+
+def _write_ncbi_summary(
+    path: Path, ncbi_data: dict, missing: set[str], taxid_bvbrc: dict[str, set[str]], base: dict
+) -> None:
+    """Sequences per NCBI taxon at each rank (RepGenR 1's metadata_ncbi_summary).
+
+    One row per rank and taxon name: the taxon's NCBI taxid, the BV-BRC
+    taxids below it (``taxids``), their sequences (``sequences``) and those
+    that passed the header filter (``sequences_with_tag``). Ordered by rank
+    as in metadata_ncbi.tsv, then by sequences with the tag, then by name.
+    """
+    totals: dict[tuple[str, str], dict] = {}
+    for taxid, data in ncbi_data.items():
+        if taxid in missing:
+            continue
+        for level in TAXNAMES_ORDERED:
+            level_data = data["taxdata"].get(level) or {}
+            name = level_data.get("name")
+            if name is None:
+                continue
+            entry = totals.setdefault(
+                (level, name),
+                {"taxid": level_data.get("taxid"), "taxids": 0, "seqs": 0, "tagged": 0},
+            )
+            entry["taxids"] += 1
+            entry["seqs"] += len(taxid_bvbrc.get(taxid, ()))
+            entry["tagged"] += base[taxid]["num"] if taxid in base else 0
+    rank = {level: i for i, level in enumerate(TAXNAMES_ORDERED)}
+    ordered = sorted(totals.items(), key=lambda kv: (rank[kv[0][0]], -kv[1]["tagged"], kv[0][1]))
+    with open(path, "w", encoding="utf-8") as fo:
+        fo.write("level\tname\ttaxid\ttaxids\tsequences\tsequences_with_tag\n")
+        for (level, name), e in ordered:
+            row = [level, name, e["taxid"] or "", e["taxids"], e["seqs"], e["tagged"]]
             fo.write("\t".join(map(str, row)) + "\n")
 
 

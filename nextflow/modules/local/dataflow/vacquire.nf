@@ -21,6 +21,9 @@ process VACQUIRE {
     tuple val(meta), path("outgroup_accession.txt"), emit: outgroup_accession
     tuple val(meta), path("segments.tsv")          , emit: segments, optional: true
     path "versions.yml"                            , emit: versions
+    // Summary table and plots of the selection, and the BV-BRC taxon summary;
+    // published, not consumed downstream.
+    tuple val(meta), path("report/*")              , emit: report, optional: true
 
     when:
     task.ext.when == null || task.ext.when
@@ -48,6 +51,11 @@ process VACQUIRE {
     if [ -f wd/segments.tsv ]; then
         cp wd/segments.tsv segments.tsv
     fi
+    mkdir -p report
+    for f in metadata_summary.tsv metadata_summary_number_in_level.png \\
+             metadata_summary_number_per_level.png virus_metadata_ncbi_summary.tsv; do
+        if [ -f wd/\$f ]; then cp wd/\$f report/\$f; fi
+    done
 
     repgenr versions -wd wd --versions-out tool_versions.yml
     repgenr_versions_fragment "${task.process}" tool_versions.yml
@@ -76,6 +84,8 @@ process VACQUIRE {
             printf 'isolate\\taccession\\tsegment\\tsegment_label\\n' > segments.tsv
             printf 'iso1\\tiso1_S\\tS\\tS\\n' >> segments.tsv ;;
     esac
+    mkdir -p report
+    printf 'level\\tname\\tgenomes\\nfamily\\tVir\\t2\\n' > report/metadata_summary.tsv
     touch versions.yml
     """
 }
