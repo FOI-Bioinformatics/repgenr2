@@ -449,8 +449,12 @@ filter criteria the genome fails, comma-separated: `length` (shorter than
 reports in `genomeInformation.csv`, else those of the manifest.
 `drep_filter` marks a genome dRep removed for which no criterion was found;
 `representative_fail_qc` a genome of a chunked run whose first-pass
-representative failed in a later pass. A file written before the column
-existed has two columns.
+representative failed in a later pass. Of the built-in dereplicators only
+dRep filters genomes on quality; galah, skDER and sourmash place every genome
+in a cluster, so their runs have no `fail_qc` genome. `unspecified` marks a
+`fail_qc` genome whose dereplicator (a plugin) names no criterion, or one
+carried over from a status file written before the column existed, which has
+two columns.
 
 An `unpacked/` directory is named by the representative's file name without
 its genome extension; the gzip suffixes `.fasta.gz`, `.fna.gz` and `.fa.gz`

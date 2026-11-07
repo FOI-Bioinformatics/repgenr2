@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from repgenr.core.contracts import (
+    REASON_UNSPECIFIED,
     list_fasta,
     parse_genome_filename,
     read_clusters,
@@ -98,11 +99,15 @@ def test_genome_status_sorted(tmp_path: Path) -> None:
 def test_genome_status_reason_only_for_fail_qc(tmp_path: Path) -> None:
     path = tmp_path / "genome_status.tsv"
     status = {"a.fasta": "representative", "b.fasta": "fail_qc", "c.fasta": "fail_qc"}
-    # A reason given for a genome that did not fail QC is not written.
+    # A reason given for a genome that did not fail QC is not written; a
+    # fail_qc genome without one (c.fasta, a plugin adapter) is "unspecified".
     reasons = {"a.fasta": "length", "b.fasta": "completeness,contamination"}
     write_genome_status(path, status, reasons)
     assert read_genome_status(path) == status
-    assert read_genome_status_reasons(path) == {"b.fasta": "completeness,contamination"}
+    assert read_genome_status_reasons(path) == {
+        "b.fasta": "completeness,contamination",
+        "c.fasta": REASON_UNSPECIFIED,
+    }
 
 
 def test_genome_status_without_reason_column_reads(tmp_path: Path) -> None:
@@ -111,6 +116,9 @@ def test_genome_status_without_reason_column_reads(tmp_path: Path) -> None:
     path.write_text("genome\tstatus\na.fasta\tfail_qc\n")
     assert read_genome_status(path) == {"a.fasta": "fail_qc"}
     assert read_genome_status_reasons(path) == {}
+    # Written again (a chunk read back), the genome gets the fallback reason.
+    write_genome_status(path, read_genome_status(path), read_genome_status_reasons(path))
+    assert read_genome_status_reasons(path) == {"a.fasta": REASON_UNSPECIFIED}
 
 
 def test_genome_status_round_trip(tmp_path: Path) -> None:

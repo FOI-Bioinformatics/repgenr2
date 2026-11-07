@@ -83,7 +83,9 @@ class DerepResult:
     settings: dict = field(default_factory=dict)
     # Why a fail_qc genome failed (genome filename -> comma-separated
     # criteria: length, completeness, contamination); written as the reason
-    # column of genome_status.tsv. Only dRep filters genomes on quality.
+    # column of genome_status.tsv. Of the built-in adapters only dRep filters
+    # genomes on quality. An adapter that returns fail_qc without a reason
+    # gets "unspecified" in the file.
     qc_reasons: dict[str, str] = field(default_factory=dict)
 
 

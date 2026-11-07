@@ -518,18 +518,24 @@ def read_refined(path: Path) -> list[RefinedRow]:
     return rows
 
 
+# The reason of a fail_qc genome whose dereplicator named no criterion.
+REASON_UNSPECIFIED = "unspecified"
+
+
 def write_genome_status(
     path: Path, status: dict[str, str], reasons: Mapping[str, str] | None = None
 ) -> None:
     """Write genome, status and reason. The reason (the QC criteria a
-    ``fail_qc`` genome failed) is empty for the other statuses and when the
-    dereplicator gives none."""
+    ``fail_qc`` genome failed) is empty for the other statuses. A ``fail_qc``
+    genome without a reason (a dereplicator plugin that gives none, or a
+    status file from before the column existed) is written as
+    ``REASON_UNSPECIFIED``, so every ``fail_qc`` row carries a value."""
     reasons = reasons or {}
     with atomic_replace(path, newline="") as fo:
         writer = _tsv_writer(fo)
         writer.writerow(["genome", "status", "reason"])
         for genome, value in sorted(status.items()):
-            reason = reasons.get(genome, "") if value == "fail_qc" else ""
+            reason = (reasons.get(genome) or REASON_UNSPECIFIED) if value == "fail_qc" else ""
             writer.writerow([genome, value, reason])
 
 
