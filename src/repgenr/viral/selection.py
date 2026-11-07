@@ -132,7 +132,7 @@ def run_records(
         )
 
     write_selection(ctx.workdir / "selection.tsv", selection_rows)
-    write_selection_summary(ctx.workdir, selection_rows, logger)
+    write_selection_summary(ctx.workdir, selection_rows, logger, full_species=True)
     # The member accessions behind each grouped isolate, for tree2tax's
     # genomes_map; a run without grouping must not leave a stale table.
     segments_path = ctx.workdir / SEGMENTS_TSV

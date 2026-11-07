@@ -61,20 +61,32 @@ class GenomeDetails:
     ncbi_strain_identifiers: str = ""
 
 
-def _species_name(row: SelectionRow) -> str:
+def _species_name(row: SelectionRow, full_species: bool) -> str:
     if not row.species:
         return ""
-    return f"{row.genus} {row.species}" if row.genus else row.species
+    if full_species or not row.genus:
+        return row.species
+    return f"{row.genus} {row.species}"
 
 
-def count_taxa(rows: Iterable[SelectionRow]) -> list[tuple[str, str, int]]:
+def count_taxa(
+    rows: Iterable[SelectionRow], *, full_species: bool = False
+) -> list[tuple[str, str, int]]:
     """``(level, name, genomes)`` for the ingroup, per level largest first,
-    then by name. An empty token is counted as ``unclassified``."""
+    then by name. An empty token is counted as ``unclassified``.
+
+    A bacterial species token is the epithet, named here with its genus
+    ("Yersinia pestis"). A viral token is the whole species name as in the
+    file name ("Hepatovirus-ahepa"); ``full_species`` takes it unchanged."""
     counters: dict[str, Counter[str]] = {level: Counter() for level in LEVELS}
     for row in rows:
         if row.is_outgroup:
             continue
-        names = {"family": row.family, "genus": row.genus, "species": _species_name(row)}
+        names = {
+            "family": row.family,
+            "genus": row.genus,
+            "species": _species_name(row, full_species),
+        }
         for level in LEVELS:
             counters[level][names[level] or UNCLASSIFIED] += 1
     out: list[tuple[str, str, int]] = []
@@ -85,12 +97,17 @@ def count_taxa(rows: Iterable[SelectionRow]) -> list[tuple[str, str, int]]:
 
 
 def write_selection_summary(
-    workdir: Path, rows: Sequence[SelectionRow], logger: logging.Logger
+    workdir: Path,
+    rows: Sequence[SelectionRow],
+    logger: logging.Logger,
+    *,
+    full_species: bool = False,
 ) -> None:
     """Write the summary table and plots of ``rows``; remove them when the
-    selection holds no ingroup genome. Trim ``metadata_selected.tsv``."""
+    selection holds no ingroup genome. Trim ``metadata_selected.tsv``.
+    ``full_species`` as in :func:`count_taxa` (the viral stages)."""
     _trim_metadata_selected(workdir, {r.accession for r in rows})
-    counts = count_taxa(rows)
+    counts = count_taxa(rows, full_species=full_species)
     paths = [workdir / name for name in (SUMMARY_TSV, PLOT_IN_LEVEL, PLOT_PER_LEVEL)]
     if not counts:
         for path in paths:

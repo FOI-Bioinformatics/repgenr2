@@ -96,7 +96,7 @@ def run_select(
     # The same hand-off the NCBI Virus path and the bacterial stages publish,
     # so dereplicate, tree2tax and doctor see one contract.
     write_selection(ctx.workdir / SELECTION_TSV, rows)
-    write_selection_summary(ctx.workdir, rows, logger)
+    write_selection_summary(ctx.workdir, rows, logger, full_species=True)
     ctx.manifest.replace_genomes([record_from_selection(r, "bvbrc") for r in rows])
     sketches, sketch_versions = sketch_stage_genomes(ctx, params.sketch, "vgenome", logger)
 
