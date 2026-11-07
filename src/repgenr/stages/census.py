@@ -46,6 +46,7 @@ from ..core.contracts import (
     sanitise_taxon_tokens,
 )
 from ..core.errors import UserInputError, WorkdirError
+from ..core.manifest import VIRAL_SOURCES as VIRAL_MANIFEST_SOURCES
 
 FAMILY = "family"
 GENUS = "genus"
@@ -1124,7 +1125,7 @@ def selection_census(wd: Path, cfg: Any, params: CensusParams, logger: logging.L
         notes.append("genomes/ does not exist; every selection.tsv row is counted.")
 
     sources = manifest_sources(wd)
-    viral = any(sources.get(r.accession) in ("ncbi_virus", "bvbrc") for r in rows)
+    viral = any(sources.get(r.accession) in VIRAL_MANIFEST_SOURCES for r in rows)
     table = _Rows(rank, binomial=not viral)
     source_totals: dict[str, int] = {}
     for r in present:

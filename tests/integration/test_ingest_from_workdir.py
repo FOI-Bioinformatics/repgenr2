@@ -573,3 +573,27 @@ def test_cli_strict_refusal_is_not_announced_as_a_rerun(tmp_path, monkeypatch) -
     assert result.exit_code == 2, result.output
     assert "re-running" not in result.output
     assert not Config.load(wd3).stages["ingest"].interrupted
+
+
+VIRAL_ROWS = [
+    SelectionRow(
+        "OZ389729.1",
+        "Picornaviridae",
+        "Hepatovirus",
+        "Hepatovirus-ahepa",
+        False,
+        "Picornaviridae_Hepatovirus_Hepatovirus-ahepa_OZ389729.1.fasta",
+    ),
+]
+
+
+def test_summary_names_viral_species_by_their_token(tmp_path, sources) -> None:
+    # A viral token is the whole species name; a bacterial one the epithet.
+    # Each genome of a combined set is named by the rule of its source.
+    wd1, _ = sources
+    viral = _make_workdir(tmp_path / "viral", VIRAL_ROWS, "ncbi_virus")
+    ctx = _ctx(tmp_path / "wd3")
+    run(ctx, IngestParams(from_workdirs=[str(wd1), str(viral)]))
+    lines = (ctx.workdir / "metadata_summary.tsv").read_text(encoding="utf-8").splitlines()
+    species = {line.split("\t")[1] for line in lines if line.startswith("species\t")}
+    assert species == {"Francisella tularensis", "Hepatovirus-ahepa"}

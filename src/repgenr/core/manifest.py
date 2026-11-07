@@ -54,6 +54,10 @@ _SET_SKETCH_SQL = (
     "UPDATE genomes SET sketch_file=?, sketch_params=?, sketch_digest=? WHERE accession=?"
 )
 
+# Manifest sources of viral genomes. Their selection.tsv species token is the
+# whole species name ("Hepatovirus-ahepa"), not the epithet of a bacterial one.
+VIRAL_SOURCES = frozenset({"ncbi_virus", "bvbrc"})
+
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS genomes (
     accession   TEXT PRIMARY KEY,

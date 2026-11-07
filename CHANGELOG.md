@@ -12,7 +12,9 @@ All notable changes to RepGenR2 are documented here. The format follows
   `metadata_summary_number_in_level.png` and
   `metadata_summary_number_per_level.png`. Written with `selection.tsv` by
   metadata, ingest, vgenome and assemble. A viral species is named by its
-  file-name token (`Hepatovirus-ahepa`), without the genus in front.
+  file-name token (`Hepatovirus-ahepa`), without the genus in front; `ingest
+  --from-workdir` applies this to the genomes whose manifest source is
+  `ncbi_virus` or `bvbrc`.
 - `metadata_selected.tsv` from `metadata`: per selected genome, outgroup
   included, the GenBank accession, the GTDB lineage, the NCBI lineage
   (standard ranks and unfiltered) and the NCBI strain identifiers, from the

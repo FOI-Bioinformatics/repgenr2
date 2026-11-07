@@ -51,7 +51,7 @@ from ..core.contracts import (
 )
 from ..core.errors import UserInputError, WorkdirError
 from ..core.integrity import FOREIGN_SOURCES, refuse_foreign_rows
-from ..core.manifest import MANIFEST_FILENAME, Manifest, record_from_selection
+from ..core.manifest import MANIFEST_FILENAME, VIRAL_SOURCES, Manifest, record_from_selection
 from ..core.selection_summary import write_selection_summary
 from ..core.sketches import (
     SketchSource,
@@ -440,7 +440,9 @@ def run(ctx: WorkdirContext, params: IngestParams) -> int:
 
     ctx.manifest.replace_genomes([record_from_selection(c.row, c.source) for c in plan.chosen])
     write_selection(ctx.workdir / SELECTION_TSV, [c.row for c in plan.chosen])
-    write_selection_summary(ctx.workdir, [c.row for c in plan.chosen], logger)
+    # Genomes from a viral workdir keep their whole-name species token.
+    viral = {c.row.accession for c in plan.chosen if c.source in VIRAL_SOURCES}
+    write_selection_summary(ctx.workdir, [c.row for c in plan.chosen], logger, full_species=viral)
     reuse: dict[str, SketchSource] = {}
     for wd in params.from_workdirs:
         reuse.update(sources_from_workdir(Path(wd).expanduser()))

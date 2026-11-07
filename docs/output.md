@@ -248,7 +248,7 @@ genome count, largest first, then by name. The outgroup is not counted.
 | Column | Meaning |
 |--------|---------|
 | `level` | `family`, `genus` or `species`. |
-| `name` | Taxon name as in the file names; a bacterial species as genus and epithet, a viral species (vgenome) as its file-name token, e.g. `Hepatovirus-ahepa`. A genome without the token counts as `unclassified`. |
+| `name` | Taxon name as in the file names; a bacterial species as genus and epithet, a viral species (vgenome, or a genome `ingest --from-workdir` takes from a viral working directory) as its file-name token, e.g. `Hepatovirus-ahepa`. A genome without the token counts as `unclassified`. |
 | `genomes` | Selected genomes in the taxon. |
 
 `metadata_selected.tsv`:

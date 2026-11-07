@@ -22,7 +22,7 @@ from __future__ import annotations
 import csv
 import logging
 from collections import Counter
-from collections.abc import Iterable, Sequence
+from collections.abc import Collection, Iterable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -61,23 +61,30 @@ class GenomeDetails:
     ncbi_strain_identifiers: str = ""
 
 
-def _species_name(row: SelectionRow, full_species: bool) -> str:
+# True: every genome's species token is the whole species name; a collection:
+# the accessions whose token is (an ingest that combines viral and other sets).
+FullSpecies = bool | Collection[str]
+
+
+def _species_name(row: SelectionRow, full_species: FullSpecies) -> str:
     if not row.species:
         return ""
-    if full_species or not row.genus:
+    whole = full_species if isinstance(full_species, bool) else row.accession in full_species
+    if whole or not row.genus:
         return row.species
     return f"{row.genus} {row.species}"
 
 
 def count_taxa(
-    rows: Iterable[SelectionRow], *, full_species: bool = False
+    rows: Iterable[SelectionRow], *, full_species: FullSpecies = False
 ) -> list[tuple[str, str, int]]:
     """``(level, name, genomes)`` for the ingroup, per level largest first,
     then by name. An empty token is counted as ``unclassified``.
 
     A bacterial species token is the epithet, named here with its genus
     ("Yersinia pestis"). A viral token is the whole species name as in the
-    file name ("Hepatovirus-ahepa"); ``full_species`` takes it unchanged."""
+    file name ("Hepatovirus-ahepa") and is taken unchanged for the genomes
+    ``full_species`` names: all of them when True, else those accessions."""
     counters: dict[str, Counter[str]] = {level: Counter() for level in LEVELS}
     for row in rows:
         if row.is_outgroup:
@@ -101,7 +108,7 @@ def write_selection_summary(
     rows: Sequence[SelectionRow],
     logger: logging.Logger,
     *,
-    full_species: bool = False,
+    full_species: FullSpecies = False,
 ) -> None:
     """Write the summary table and plots of ``rows``; remove them when the
     selection holds no ingroup genome. Trim ``metadata_selected.tsv``.
