@@ -82,6 +82,10 @@ class IngestParams:
     # Refuse a --from-workdir whose genome-set record is not done (missing,
     # interrupted or stale) instead of warning about it.
     strict_sources: bool = False
+    # The --genomes-dir genomes (and an --outgroup FASTA path) are viral: their
+    # species token is the whole species name. Recorded as manifest source
+    # local_viral, so a later --from-workdir of this workdir knows it too.
+    viral: bool = False
 
 
 # Stages that write the genome set (selection.tsv and genomes/) of a workdir.
@@ -172,6 +176,8 @@ def _refuse_sources(states: list[SourceState]) -> None:
 
 # Manifest source of a genome that no source manifest describes.
 LOCAL_SOURCE = "local"
+# The same for a genome given to ingest --viral (in core.manifest.VIRAL_SOURCES).
+LOCAL_VIRAL_SOURCE = "local_viral"
 
 
 @dataclass
@@ -279,6 +285,9 @@ def _plan(params: IngestParams, target: Path, logger) -> _Plan:
         others.extend(outgroups)
 
     outgroup = _resolve_outgroup(ingroup, marked, others, params.outgroup)
+    if outgroup is not None and params.viral and outgroup.origin.startswith("--outgroup "):
+        # An --outgroup FASTA path given with --viral is a local viral genome.
+        outgroup = replace(outgroup, source=LOCAL_VIRAL_SOURCE)
     if outgroup is not None:
         ingroup = [c for c in ingroup if c.key != outgroup.key]
     plan = _Plan(origins, ingroup, outgroup)
@@ -329,7 +338,8 @@ def _genomes_dir_candidates(params: IngestParams, origin: str, logger) -> list[_
                 ", ".join(FASTA_SUFFIXES),
                 _examples(skipped),
             )
-    return [_Candidate(r, by_name[r.filename], LOCAL_SOURCE, origin) for r in rows]
+    source_label = LOCAL_VIRAL_SOURCE if params.viral else LOCAL_SOURCE
+    return [_Candidate(r, by_name[r.filename], source_label, origin) for r in rows]
 
 
 def _workdir_candidates(
@@ -477,6 +487,7 @@ def run(ctx: WorkdirContext, params: IngestParams) -> int:
             "outgroup_accession": outgroup.row.accession if outgroup is not None else None,
             "copy": params.copy,
             "drop_foreign": params.drop_foreign,
+            "viral": params.viral,
             "total": len(ingroup),
             # Ingroup genomes per manifest source (gtdb, sra, local, ...).
             "sources": dict(sorted(by_source.items())),

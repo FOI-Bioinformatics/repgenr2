@@ -227,6 +227,13 @@ Every name with four or more tokens is parsed this way, so
 `sample_1_run_A.fasta` gives the accession `A`; give such files their
 accessions with `--selection`.
 
+The species token is read as an epithet, which `metadata_summary.tsv` names
+with its genus (`Francisella tularensis`). For viral genomes named as
+`vgenome` names them, `Picornaviridae_Hepatovirus_Hepatovirus-ahepa_ACC.fasta`,
+the token is the whole species name; `--viral` says so, and the summary then
+names the species `Hepatovirus-ahepa`. The manifest records these genomes
+with source `local_viral`.
+
 Subdirectories are not searched, so collect the `.fna` files of an NCBI
 Datasets download into one directory first. An empty or unreadable file
 stops `ingest` before anything is staged. Two files with one accession stop
@@ -261,7 +268,9 @@ repgenr ingest -wd WD3 --from-workdir WD1 --from-workdir WD2 --outgroup GCF_0035
 
 Accession, taxonomy, CheckM values and `gtdb_representative` carry over,
 so `--keeper quality` and `--keeper gtdb` work on the combined set. The
-manifest keeps each genome's source (`gtdb`, `sra`, `local`). Per-run files
+manifest keeps each genome's source (`gtdb`, `sra`, `local`, and for viral
+genomes `ncbi_virus`, `bvbrc` or `local_viral`, whose species the summary
+names by the file-name token without `--viral`). Per-run files
 of a reads working directory stay there. The outgroups of the sources do not
 carry over; name one with `--outgroup` (filename, stem or accession, also
 from a source's `outgroup/`). To add assemblies to a GTDB selection within

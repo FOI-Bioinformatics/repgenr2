@@ -1589,6 +1589,16 @@ commands:
         nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
         live: tests/live/test_sketches_live.py::test_ingest_sketches_and_sketch_command
         observable: sketches/ holds one .sig.zip per genome
+      --viral:
+        param: IngestParams.viral
+        validated: none
+        docs:
+        - docs/usage.md
+        - docs/cli-reference.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
+        live: 'n/a: offline tests in tests/integration/test_ingest_from_workdir.py'
+        observable: manifest source local_viral; metadata_summary.tsv names the species by its token
   list-tools:
     dispatch: query
     base_args: []

@@ -56,14 +56,15 @@ _SET_SKETCH_SQL = (
 
 # Manifest sources of viral genomes. Their selection.tsv species token is the
 # whole species name ("Hepatovirus-ahepa"), not the epithet of a bacterial one.
-VIRAL_SOURCES = frozenset({"ncbi_virus", "bvbrc"})
+# local_viral: local genomes given to ingest --viral.
+VIRAL_SOURCES = frozenset({"ncbi_virus", "bvbrc", "local_viral"})
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS genomes (
     accession   TEXT PRIMARY KEY,
     filename    TEXT,
-    source      TEXT,                  -- gtdb | ncbi_virus | bvbrc | local | sra (or a
-                                       -- source copied by ingest --from-workdir)
+    source      TEXT,                  -- gtdb | ncbi_virus | bvbrc | local | local_viral |
+                                       -- sra (or a source copied by ingest --from-workdir)
     family      TEXT,
     genus       TEXT,
     species     TEXT,

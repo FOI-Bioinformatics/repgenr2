@@ -15,6 +15,9 @@ All notable changes to RepGenR2 are documented here. The format follows
   file-name token (`Hepatovirus-ahepa`), without the genus in front; `ingest
   --from-workdir` applies this to the genomes whose manifest source is
   `ncbi_virus` or `bvbrc`.
+- `ingest --viral`: the `--genomes-dir` genomes are viral, so their species
+  token is the whole species name in `metadata_summary.tsv`. Recorded as
+  manifest source `local_viral`, which a later `--from-workdir` keeps.
 - `metadata_selected.tsv` from `metadata`: per selected genome, outgroup
   included, the GenBank accession, the GTDB lineage, the NCBI lineage
   (standard ranks and unfiltered) and the NCBI strain identifiers, from the

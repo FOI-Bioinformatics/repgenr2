@@ -61,7 +61,7 @@ SOURCE_ALIASES = {"tsv": "table"}
 SOURCE_CHOICES = (*BACTERIAL_SOURCES, "tsv", *VIRAL_SOURCES)
 
 # Manifest sources in the order their columns appear.
-MANIFEST_SOURCES = ("gtdb", "sra", "ncbi_virus", "bvbrc", "local")
+MANIFEST_SOURCES = ("gtdb", "sra", "ncbi_virus", "bvbrc", "local", "local_viral")
 # ENA instrument platforms counted in their own column.
 _PLATFORM_COLUMNS = {"ILLUMINA": "illumina", "OXFORD_NANOPORE": "ont", "PACBIO_SMRT": "pacbio"}
 # Runs on any other platform (BGISEQ, ION_TORRENT, ...) are counted as 'other'.
