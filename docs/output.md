@@ -46,7 +46,7 @@ WD/
   gtdb_api_genomes.tsv            GTDB API candidates (metadata --source api)
   virus_download_wd/              viral records (vmetadata)
   virus_metadata_base.tsv         viral metadata table (vmetadata)
-  virus_metadata_ncbi_summary.tsv sequences per NCBI taxon (vmetadata, BV-BRC)
+  virus_metadata_ncbi_summary.tsv genomes and sequences per NCBI taxon (vmetadata, BV-BRC)
   reads.tsv                       selected sequencing runs (reads)
   reads_sketches/<variant>/       reads sketches and index (reads-sketch)
   reads_screen/<variant>/         reads screen decisions (reads-screen)
@@ -178,7 +178,7 @@ engine once.
 | `virus_download_wd/` | Downloaded viral sequences, the tables `vgenome` selects from, and `download.source`, the source and target of `download.fa`. |
 | `virus_download_wd/virus_records.json` | NCBI Virus path: one record per sequence (keys below). |
 | `virus_metadata_base.tsv`, `virus_metadata_ncbi.tsv` | Copies of the viral metadata tables; the second on the BV-BRC path only. On the NCBI Virus path `name` is the species and `description` the organism name. |
-| `virus_metadata_ncbi_summary.tsv` | BV-BRC path only: sequences per NCBI taxon at each rank (columns below). |
+| `virus_metadata_ncbi_summary.tsv` | BV-BRC path only: genomes and sequences per NCBI taxon at each rank (columns below). |
 | `reads.tsv` | The selected sequencing runs (columns below). |
 
 `gtdb_api_genomes.tsv`:
@@ -206,8 +206,9 @@ by name:
 | `level` | NCBI rank. |
 | `name`, `taxid` | NCBI taxon name and taxid at that rank. |
 | `taxids` | Taxids of the group FASTA that fall under the taxon. |
-| `sequences` | Their sequences in the group FASTA. |
-| `sequences_with_tag` | Those whose header holds the `--filter` text (default `complete genome`). |
+| `genomes` | Their BV-BRC genome ids. One genome id can label several records (segments, or contigs of a partial genome). |
+| `sequences` | Their records in the group FASTA. |
+| `sequences_with_tag` | The records whose header holds the `--filter` text (default `complete genome`). |
 
 `reads.tsv`:
 

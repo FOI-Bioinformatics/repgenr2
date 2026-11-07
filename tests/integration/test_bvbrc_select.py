@@ -65,11 +65,12 @@ def _write_metadata(download_wd: Path) -> tuple[Path, Path]:
 def test_parse_fasta_groups_by_taxid(tmp_path: Path) -> None:
     fasta = tmp_path / "download.fa"
     fasta.write_text(_FASTA)
-    base, all_taxids, taxid_bvbrc = _parse_fasta(fasta, "complete genome", _LOG)
+    base, all_taxids, taxid_bvbrc, records = _parse_fasta(fasta, "complete genome", _LOG)
     assert all_taxids == {"10535", "99999"}
     assert base["10535"]["num"] == 2
     assert base["10535"]["min"] == 300 and base["10535"]["max"] == 310
     assert taxid_bvbrc["10535"] == {"10535.1", "10535.2"}
+    assert records == {"10535": 2, "99999": 1}
 
 
 def test_determine_length_range_from_base() -> None:

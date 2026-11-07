@@ -26,7 +26,11 @@ All notable changes to RepGenR2 are documented here. The format follows
   dereplicator, or a two-column status file read back) has `unspecified`;
   galah, skDER and sourmash do not filter on quality and give no `fail_qc`.
 - `vmetadata --source bvbrc` writes `virus_metadata_ncbi_summary.tsv`:
-  sequences per NCBI taxon at each rank, with and without the header tag.
+  per NCBI taxon at each rank, the BV-BRC genome ids (`genomes`), their
+  FASTA records (`sequences`) and the records with the header tag
+  (`sequences_with_tag`). (The first version counted genome ids as
+  `sequences`, so a genome with several records could give more tagged
+  sequences than sequences.)
 - Nextflow publishes the selection summary and `metadata_selected.tsv`
   under `metadata/` (bacterial), the selection summary and the BV-BRC taxon
   summary under `metadata/` (viral), and the selection summary under
