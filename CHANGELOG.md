@@ -15,6 +15,7 @@ All notable changes to RepGenR2 are documented here. The format follows
   exFAT volume, where every representative is a copy, `derep-refine` of the
   1305-genome Brucella melitensis lineage took 30 s instead of 249 s, with
   the same result.
+
 ### Fixed
 - `--preset` failed with "'TyperOption' object has no attribute 'type'"
   under typer 0.29, which no longer builds on click; the preset values are
