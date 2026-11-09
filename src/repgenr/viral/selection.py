@@ -25,6 +25,7 @@ from ..core.contracts import (
     SEGMENTS_TSV,
     SelectionRow,
     genome_filename,
+    glob_visible,
     write_segments,
     write_selection,
 )
@@ -455,7 +456,7 @@ def _determine_outgroup_records(ctx, records, kept, length_range, params, seqs, 
     for rs in candidates.values():
         _emit("O", rs, 3)
 
-    genome_files = sorted(gdir.glob("*.fasta"))
+    genome_files = glob_visible(gdir, "*.fasta")
     if len([f for f in genome_files if f.name.startswith("O_")]) == 0:
         logger.warning("No length-compatible outgroup candidates; proceeding without one.")
         _outgroup.cleanup_workdir(outgroup_wd, params.keep_files)
