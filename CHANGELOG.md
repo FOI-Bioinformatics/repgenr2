@@ -34,6 +34,11 @@ All notable changes to RepGenR2 are documented here. The format follows
   and quartiles, taxonomy flags, runs without a genome; N50 against
   length, completeness against contamination, coverage).
   `reads_stats.json` keeps the counts of the reads filters.
+- Report steps `snptype` (core-SNP alignment summary, SNP distance
+  histogram and heatmap in tree order), `alignment` (source and size of the
+  alignment; core-gene occupancy and informative sites) and `phylogeny`
+  (tree summary with model, support and root-to-tip distances; a tree
+  figure with support values, species colours and a scale bar).
 - Selection summary, as RepGenR 1 wrote it: `metadata_summary.tsv`
   (genomes per family, genus and species of the ingroup) and the plots
   `metadata_summary_number_in_level.png` and

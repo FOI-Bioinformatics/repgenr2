@@ -71,6 +71,9 @@ STEPS: tuple[StepSpec, ...] = (
         ("dereplicate", "derep_refine", "cluster_summary"),
         "dereplication",
     ),
+    StepSpec("snptype", "SNP typing", ("snptype",), "snptype"),
+    StepSpec("alignment", "Alignment", ("phylo",), "alignment"),
+    StepSpec("phylogeny", "Phylogeny", ("phylo",), "phylogeny"),
 )
 
 STEP_NAMES: tuple[str, ...] = tuple(s.name for s in STEPS)
