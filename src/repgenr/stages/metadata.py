@@ -23,7 +23,7 @@ import tarfile
 import time
 import urllib.parse
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -75,8 +75,13 @@ class MetadataParams:
     source: str = "tsv"  # tsv | api
     target_family: str | None = None
     target_genus: str | None = None
+    # One species epithet, or several separated by commas (all of the target
+    # genus); see target_species_list.
     target_species: str | None = None
     outgroup_accession: str | None = None
+    # Select no outgroup: selection.tsv holds the ingroup only and no
+    # outgroup is downloaded (root the tree with phylo --root midpoint).
+    no_outgroup: bool = False
     metadata_path: str | None = None
     nodownload: bool = False
     limit: int | None = None
@@ -119,9 +124,13 @@ def run(ctx: WorkdirContext, params: MetadataParams) -> int:
         (ctx.workdir / GTDB_API_GENOMES).unlink(missing_ok=True)
         selected, outgroup, details = _select_via_tsv(ctx, params, logger, counts)
 
-    logger.info("Selected %d genomes; outgroup: %s", len(selected), outgroup.accession)
+    logger.info(
+        "Selected %d genomes; outgroup: %s",
+        len(selected),
+        outgroup.accession if outgroup is not None else "none (--no-outgroup)",
+    )
     _populate_manifest(ctx, selected, outgroup)
-    _write_outgroup_file(ctx, outgroup.accession)
+    _write_outgroup_file(ctx, outgroup.accession if outgroup is not None else None)
     rows = _write_selection(ctx, selected, outgroup)
     write_metadata_selected(ctx.workdir, rows, details)
     write_selection_summary(
@@ -150,12 +159,31 @@ def run(ctx: WorkdirContext, params: MetadataParams) -> int:
             "target_genus": params.target_genus,
             "target_species": params.target_species,
             "selected_count": len(selected),
-            "outgroup": outgroup.accession,
+            "outgroup": outgroup.accession if outgroup is not None else None,
+            "no_outgroup": params.no_outgroup,
         },
         completed=datetime.now(UTC).isoformat(),
     )
     ctx.save_config()
     return len(selected)
+
+
+def _species_or_none(params: MetadataParams) -> list[str | None]:
+    """The species to select one by one; [None] for a genus or family target."""
+    return list(target_species_list(params.target_species)) or [None]
+
+
+def target_species_list(value: str | None) -> list[str]:
+    """The species epithets of a -ts value: one, or several separated by
+    commas ("tularensis,novicida"), in the order given, without repeats."""
+    if not value:
+        return []
+    out: list[str] = []
+    for part in value.split(","):
+        name = part.strip()
+        if name and name not in out:
+            out.append(name)
+    return out
 
 
 def gtdb_provenance(params: dict) -> dict[str, str]:
@@ -195,6 +223,16 @@ def _validate(params: MetadataParams) -> None:
         raise UserInputError("Supply --target-genus or --target-family.")
     if params.level == "species" and not params.target_species:
         raise UserInputError("Level 'species' needs --target-species.")
+    species = target_species_list(params.target_species)
+    if len(species) > 1 and params.level != "species":
+        raise UserInputError(
+            f"{len(species)} species were given with -ts; select them with --level species "
+            "(at --level genus the whole genus is selected)."
+        )
+    if len(species) > 1 and not params.target_genus:
+        raise UserInputError("Several species (-ts) need their genus (-tg).")
+    if params.no_outgroup and params.outgroup_accession:
+        raise UserInputError("Give either --outgroup-accession or --no-outgroup, not both.")
     if params.level == "genus" and not params.target_genus:
         raise UserInputError("Level 'genus' needs --target-genus.")
     if params.level == "family" and not params.target_family:
@@ -203,19 +241,20 @@ def _validate(params: MetadataParams) -> None:
 
 def _select_via_tsv(
     ctx: WorkdirContext, params: MetadataParams, logger, counts: dict[str, int] | None = None
-) -> tuple[list[GenomeRecord], GenomeRecord, dict[str, GenomeDetails]]:
+) -> tuple[list[GenomeRecord], GenomeRecord | None, dict[str, GenomeDetails]]:
     metadata_file = _obtain_metadata(ctx, params, logger)
     accessions = _parse_metadata(metadata_file, params, logger)
 
-    target_levels = _target_levels(accessions, params)
-    if not target_levels:
-        raise UserInputError(
-            f"Target not found in GTDB: family={params.target_family} "
-            f"genus={params.target_genus} species={params.target_species} at level {params.level}"
-        )
-    selected = _select(accessions, target_levels, params.limit, logger, counts)
-    outgroup_acc, outgroup_data = _pick_outgroup(accessions, selected, target_levels, params)
-
+    targets = []
+    for species in _species_or_none(params):
+        target_levels = _target_levels(accessions, replace(params, target_species=species))
+        if not target_levels:
+            raise UserInputError(
+                f"Target not found in GTDB: family={params.target_family} "
+                f"genus={params.target_genus} species={species} at level {params.level}"
+            )
+        targets.append(target_levels)
+    selected = _select(accessions, targets, params.limit, logger, counts)
     records = [
         _record_from_tax(
             acc,
@@ -226,6 +265,11 @@ def _select_via_tsv(
         )
         for acc, data in selected.items()
     ]
+    details = {acc: data["details"] for acc, data in selected.items()}
+    if params.no_outgroup:
+        return records, None, details
+    outgroup_acc, outgroup_data = _pick_outgroup(accessions, selected, targets, params)
+
     outgroup = _record_from_tax(
         outgroup_acc,
         outgroup_data["tax"],
@@ -234,7 +278,6 @@ def _select_via_tsv(
         contamination=outgroup_data.get("contamination"),
         gtdb_representative=bool(outgroup_data.get("is_rep")),
     )
-    details = {acc: data["details"] for acc, data in selected.items()}
     details[outgroup_acc] = outgroup_data["details"]
     return records, outgroup, details
 
@@ -577,19 +620,22 @@ def _log_limit(limit: int | None, candidates: Sequence[_Candidate], kept: Sequen
 
 def _select(
     accessions: dict[str, dict],
-    target_levels: dict[str, str],
+    targets: Sequence[dict[str, str]],
     limit: int | None,
     logger,
     counts: dict[str, int] | None = None,
 ):
-    """Every genome matching the target, cut to ``limit`` by species-stratified
-    quality ranking (never by file order). ``counts["candidates"]`` is set to
-    the number of matching genomes before the cut."""
+    """Every genome matching one of the targets (one per species given), cut
+    to ``limit`` by species-stratified quality ranking (never by file order).
+    ``counts["candidates"]`` is set to the number of matching genomes before
+    the cut."""
+    if isinstance(targets, dict):  # one target, as callers before several species
+        targets = [targets]
     matching = {
         acc: data
         for acc, data in accessions.items()
         if not data.get("outgroup_only")
-        and all(data["tax"][lvl] == val for lvl, val in target_levels.items())
+        and any(all(data["tax"][lvl] == val for lvl, val in t.items()) for t in targets)
     }
     if counts is not None:
         counts["candidates"] = len(matching)
@@ -610,7 +656,11 @@ def _select(
     return {c.accession: matching[c.accession] for c in kept}
 
 
-def _pick_outgroup(accessions, selected, target_levels, params):
+def _pick_outgroup(accessions, selected, targets, params):
+    if isinstance(targets, dict):
+        targets = [targets]
+    target_vals = {t[params.level] for t in targets}
+    target_levels = targets[0]
     if params.outgroup_accession:
         if params.outgroup_accession not in accessions:
             raise UserInputError(
@@ -618,12 +668,10 @@ def _pick_outgroup(accessions, selected, target_levels, params):
             )
         _refuse_outgroup_in_selection(params.outgroup_accession, selected)
         data = accessions[params.outgroup_accession]
-        _refuse_outgroup_in_target(
-            params.outgroup_accession,
-            params.level,
-            target_levels[params.level],
-            data["tax"][params.level],
-        )
+        for target in sorted(target_vals):
+            _refuse_outgroup_in_target(
+                params.outgroup_accession, params.level, target, data["tax"][params.level]
+            )
         return params.outgroup_accession, data
 
     # A representative one level above the selection level, outside the target
@@ -632,13 +680,15 @@ def _pick_outgroup(accessions, selected, target_levels, params):
     levels = list(target_levels)
     upper = levels[-2] if len(levels) >= 2 else levels[-1]
     upper_val = next(iter(selected.values()))["tax"][upper]
-    target_val = target_levels[params.level]
     for acc, data in accessions.items():
-        if acc in selected or data["tax"][params.level] == target_val:
+        if acc in selected or data["tax"][params.level] in target_vals:
             continue
         if data["tax"][upper] == upper_val and data["is_rep"]:
             return acc, data
-    raise WorkdirError("Could not determine an outgroup; specify --outgroup-accession.")
+    raise WorkdirError(
+        "Could not determine an outgroup; specify --outgroup-accession, or select none "
+        "with --no-outgroup."
+    )
 
 
 def _refuse_outgroup_in_selection(accession: str, selected) -> None:
@@ -662,21 +712,27 @@ def _refuse_outgroup_in_target(accession: str, level: str, target: str, value: s
         )
 
 
-def _populate_manifest(ctx, selected: list[GenomeRecord], outgroup: GenomeRecord) -> None:
+def _populate_manifest(ctx, selected: list[GenomeRecord], outgroup: GenomeRecord | None) -> None:
     # Replace, not upsert: a re-selection must remove de-selected rows.
-    ctx.manifest.replace_genomes([*selected, outgroup])
+    ctx.manifest.replace_genomes([*selected, *([outgroup] if outgroup is not None else [])])
 
 
-def _write_outgroup_file(ctx, outgroup_acc) -> None:
-    (ctx.workdir / "outgroup_accession.txt").write_text(outgroup_acc + "\n")
+def _write_outgroup_file(ctx, outgroup_acc: str | None) -> None:
+    """Name the outgroup; without one (--no-outgroup) remove the file, as
+    ingest does, so no earlier outgroup is named."""
+    path = ctx.workdir / "outgroup_accession.txt"
+    if outgroup_acc is None:
+        path.unlink(missing_ok=True)
+    else:
+        path.write_text(outgroup_acc + "\n")
 
 
 def _write_selection(
-    ctx, selected: list[GenomeRecord], outgroup: GenomeRecord
+    ctx, selected: list[GenomeRecord], outgroup: GenomeRecord | None
 ) -> list[SelectionRow]:
     """Publish the portable selection.tsv (the metadata -> genome data-channel hand-off)."""
     rows = []
-    for r in (*selected, outgroup):
+    for r in (*selected, *([outgroup] if outgroup is not None else [])):
         family, genus, species = r.family or "", r.genus or "", r.species or ""
         rows.append(
             SelectionRow(
@@ -926,13 +982,23 @@ def _select_via_api(
     logger,
     workdir: Path | None = None,
     counts: dict[str, int] | None = None,
-) -> tuple[list[GenomeRecord], GenomeRecord, dict[str, GenomeDetails]]:
-    taxon = _target_taxon(params)
-    logger.info("Querying GTDB API for genomes in %s", taxon)
+) -> tuple[list[GenomeRecord], GenomeRecord | None, dict[str, GenomeDetails]]:
     sp_reps = params.dataset == "rep"
-    rows = _api_genomes_detail(taxon, sp_reps, logger)
-    if not rows:
-        raise UserInputError(f"GTDB API returned no genomes for {taxon}. Check the target name.")
+    rows: list[dict] = []
+    seen: set[str] = set()
+    # One query per species given (-ts a,b), else one for the target taxon.
+    for species in _species_or_none(params):
+        taxon = _target_taxon(replace(params, target_species=species))
+        logger.info("Querying GTDB API for genomes in %s", taxon)
+        found = _api_genomes_detail(taxon, sp_reps, logger)
+        if not found:
+            raise UserInputError(
+                f"GTDB API returned no genomes for {taxon}. Check the target name."
+            )
+        for row in found:
+            if row["gid"] not in seen:
+                seen.add(row["gid"])
+                rows.append(row)
     if workdir is not None:
         write_api_genomes(workdir / GTDB_API_GENOMES, rows)
 
@@ -975,6 +1041,8 @@ def _select_via_api(
         )
         selected_acc.add(acc)
 
+    if params.no_outgroup:
+        return records, None, details
     outgroup, outgroup_details = _select_outgroup_via_api(params, rows, selected_acc, logger)
     details[outgroup.accession] = outgroup_details
     return records, outgroup, details
@@ -1013,12 +1081,10 @@ def _select_outgroup_via_api(
             ) from exc
         tax_row = card.get("metadataTaxonomy", {})
         field = _rank_field(params.level)
-        _refuse_outgroup_in_target(
-            params.outgroup_accession,
-            params.level,
-            rows[0].get(field, ""),
-            tax_row.get(field, ""),
-        )
+        for target in sorted({row.get(field, "") for row in rows}):
+            _refuse_outgroup_in_target(
+                params.outgroup_accession, params.level, target, tax_row.get(field, "")
+            )
         completeness, contamination = _api_quality(card)
         record = _record_from_tax(
             params.outgroup_accession,
@@ -1044,8 +1110,8 @@ def _select_outgroup_via_api(
             continue
         if not row.get("gtdbIsRep", False):
             continue
-        # must be outside the selected sub-taxon
-        if row.get(_rank_field(params.level)) == rows[0].get(_rank_field(params.level)):
+        # must be outside the selected sub-taxa (every species given)
+        if row.get(_rank_field(params.level)) in {r.get(_rank_field(params.level)) for r in rows}:
             continue
         card = _api_cards_by_accession([row["gid"]], logger)[row["gid"]]
         completeness, contamination = _api_quality(card) if card else (None, None)

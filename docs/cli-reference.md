@@ -66,7 +66,7 @@ is 'vmetadata --source'. --platform filters the sequencing platform with
 | `-l`, `--level` |  | Taxonomic rank of the target: family, genus or species. |
 | `-tf`, `--target-family` |  | Restrict the selection to this family. |
 | `-tg`, `--target-genus` |  | Restrict the selection to this genus. |
-| `-ts`, `--target-species` |  | Restrict the selection to this species. |
+| `-ts`, `--target-species` |  | Restrict the selection to this species. On the GTDB chain, repeat it or separate names by commas to select several species of the target genus. |
 | `-r`, `--release` |  | GTDB release (tsv source). |
 | `--gtdb-version` |  | GTDB table: bac120 or ar53 (tsv source). |
 | `--metadata-source` | `tsv` | Source of the GTDB metadata: tsv (the metadata table) or api (the GTDB API). |
@@ -216,8 +216,9 @@ The --source option is called --metadata-source in 'run'.
 | `--gtdb-version` |  | GTDB table: bac120 or ar53 (tsv source). |
 | `-tf`, `--target-family` |  | Restrict the selection to this family. |
 | `-tg`, `--target-genus` |  | Restrict the selection to this genus. |
-| `-ts`, `--target-species` |  | Restrict the selection to this species. |
+| `-ts`, `--target-species` |  | Restrict the selection to this species. Repeat it, or separate names by commas, to select several species of the target genus (with --level species). |
 | `--outgroup-accession` |  | Accession to fetch and set aside as the outgroup. |
+| `--no-outgroup` | off | Select no outgroup: none is chosen or downloaded. Root the tree with phylo --root midpoint, or leave it unrooted. |
 | `--metadata-path` |  | Use this GTDB metadata table instead of downloading. With --source tsv, -r/--release and --gtdb-version are still required. |
 | `--nodownload` | off | Reuse a GTDB table already present in the workdir. |
 | `--limit` |  | Keep at most N GTDB genomes, round-robin over species by CheckM quality. |

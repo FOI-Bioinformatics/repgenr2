@@ -185,6 +185,16 @@ def test_stale_outgroup_files_pruned(ctx, monkeypatch) -> None:
     assert names == ["Francisellaceae_Francisella_philomiragia_GCF_000010.1.fasta"]
 
 
+def test_selection_without_outgroup_removes_an_earlier_outgroup(ctx, monkeypatch) -> None:
+    """metadata --no-outgroup: the outgroup of an earlier selection is removed."""
+    _fake_run_cmd(monkeypatch)
+    genome.run(ctx, GenomeParams())
+    assert list(ctx.outgroup_dir.iterdir())
+    ctx.manifest.replace_genomes(_SELECTED)
+    genome.run(ctx, GenomeParams())
+    assert not [p for p in ctx.outgroup_dir.iterdir() if p.suffix == ".fasta"]
+
+
 def test_html_download_not_shipped_and_recorded_missing(ctx, monkeypatch) -> None:
     """A non-FASTA body (HTML error page) is never moved into genomes/ and the
     accession lands in missing_accessions.txt instead of failing the stage."""

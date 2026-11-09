@@ -65,6 +65,7 @@ def metadata_params(
     target_genus: Any = _UNSET,
     target_species: Any = _UNSET,
     outgroup_accession: Any = _UNSET,
+    no_outgroup: Any = _UNSET,
     metadata_path: Any = _UNSET,
     nodownload: Any = _UNSET,
     limit: Any = _UNSET,
@@ -85,13 +86,23 @@ def metadata_params(
         version=version,
         target_family=target_family,
         target_genus=target_genus,
-        target_species=target_species,
+        target_species=join_species(target_species),
         outgroup_accession=outgroup_accession,
+        no_outgroup=no_outgroup,
         metadata_path=metadata_path,
         nodownload=nodownload,
         limit=limit,
         drop_foreign=drop_foreign,
     )
+
+
+def join_species(value: Any) -> Any:
+    """-ts given several times (a list) as one comma-separated value; a single
+    name, None or _UNSET unchanged."""
+    if isinstance(value, list | tuple):
+        names = [n.strip() for v in value for n in str(v).split(",") if n.strip()]
+        return ",".join(dict.fromkeys(names)) or None
+    return value
 
 
 def genome_params(

@@ -7,6 +7,16 @@ All notable changes to RepGenR2 are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- `metadata -ts` selects several species of the target genus: repeat it or
+  separate names by commas (`-ts tularensis -ts novicida`, with `--level
+  species`). The selection is their union, `--limit` caps it across them, and
+  the automatic outgroup lies outside all of them. `run -ts` does the same on
+  the GTDB chain.
+- `metadata --no-outgroup` selects no outgroup: `selection.tsv` holds the
+  ingroup only, `outgroup_accession.txt` is removed and `genome` downloads
+  none (removing one left by an earlier selection). `run --no-outgroup` now
+  also reaches the metadata stage. A run without the flag keeps its resume
+  fingerprint.
 - The `simple` SNP typer writes `snp/reference_coverage.tsv`, the fraction
   of the reference each genome covers (until now only in the log); the
   `snptype` report step shows it as a table and histogram.

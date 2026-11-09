@@ -18,6 +18,7 @@ from .base import (
     HELP_KEEPER,
     HELP_LEVEL,
     HELP_LIMIT,
+    HELP_METADATA_NO_OUTGROUP,
     HELP_METADATA_PATH,
     HELP_NODOWNLOAD,
     HELP_NUM_PROCESSES,
@@ -35,7 +36,7 @@ from .base import (
     HELP_TARGET_FAMILY,
     HELP_TARGET_GENUS,
     HELP_TARGET_REPS,
-    HELP_TARGET_SPECIES,
+    HELP_TARGET_SPECIES_GTDB,
     HELP_THREADS,
     HELP_VIRUS,
     HELP_WORKDIR,
@@ -65,12 +66,13 @@ def metadata(
         None, "-tf", "--target-family", help=HELP_TARGET_FAMILY
     ),
     target_genus: str | None = typer.Option(None, "-tg", "--target-genus", help=HELP_TARGET_GENUS),
-    target_species: str | None = typer.Option(
-        None, "-ts", "--target-species", help=HELP_TARGET_SPECIES
+    target_species: list[str] | None = typer.Option(
+        None, "-ts", "--target-species", help=HELP_TARGET_SPECIES_GTDB
     ),
     outgroup_accession: str | None = typer.Option(
         None, "--outgroup-accession", help=HELP_OUTGROUP_ACCESSION
     ),
+    no_outgroup: bool = typer.Option(False, "--no-outgroup", help=HELP_METADATA_NO_OUTGROUP),
     metadata_path: str | None = typer.Option(None, "--metadata-path", help=HELP_METADATA_PATH),
     nodownload: bool = typer.Option(False, "--nodownload", help=HELP_NODOWNLOAD),
     limit: int | None = typer.Option(
@@ -103,6 +105,7 @@ def metadata(
             target_genus=target_genus,
             target_species=target_species,
             outgroup_accession=outgroup_accession,
+            no_outgroup=no_outgroup,
             metadata_path=metadata_path,
             nodownload=nodownload,
             limit=limit,

@@ -77,7 +77,7 @@ from .base import (
     HELP_TARGET_FAMILY,
     HELP_TARGET_GENUS,
     HELP_TARGET_REPS,
-    HELP_TARGET_SPECIES,
+    HELP_TARGET_SPECIES_RUN,
     HELP_THREADS,
     HELP_WORKDIR_CREATED,
     PANEL_PIPELINE,
@@ -306,8 +306,8 @@ def run(
         None, "-tf", "--target-family", help=HELP_TARGET_FAMILY
     ),
     target_genus: str | None = typer.Option(None, "-tg", "--target-genus", help=HELP_TARGET_GENUS),
-    target_species: str | None = typer.Option(
-        None, "-ts", "--target-species", help=HELP_TARGET_SPECIES
+    target_species: list[str] | None = typer.Option(
+        None, "-ts", "--target-species", help=HELP_TARGET_SPECIES_RUN
     ),
     release: str | None = typer.Option(None, "-r", "--release", help=HELP_GTDB_RELEASE),
     gtdb_version: str | None = typer.Option(None, "--gtdb-version", help=HELP_GTDB_VERSION),
@@ -497,6 +497,7 @@ def run(
         gene_selection_extra,
         genome_params,
         ingest_params,
+        join_species,
         metadata_params,
         phylo_params,
         reads_params,
@@ -523,6 +524,12 @@ def run(
         _require_choice(metadata_source, METADATA_SOURCES, "--metadata-source")
         _require_choice(viral_source, VIRAL_SOURCES, "--viral-source")
         _require_choice(dataset, METADATA_DATASETS, "--dataset")
+        target_species = join_species(target_species)
+        if target_species and "," in target_species and (viral or reads):
+            raise UserInputError(
+                "Several species (-ts) can be selected on the GTDB chain only, not with "
+                "--viral or --reads."
+            )
         tree2tax_params(naming=naming)
         if level is not None:
             _require_choice(level, METADATA_LEVELS, "--level")
@@ -752,6 +759,7 @@ def run(
                 target_genus=target_genus,
                 target_species=target_species,
                 outgroup_accession=outgroup_accession,
+                no_outgroup=no_outgroup,
                 metadata_path=metadata_path,
                 nodownload=nodownload,
                 limit=limit,
