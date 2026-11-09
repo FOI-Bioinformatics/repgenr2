@@ -17,6 +17,7 @@ from ...core.contracts import (
     READS_SKETCHES_DIR,
     READS_SKETCHES_TSV,
     READS_TSV,
+    glob_visible,
     read_reads,
     read_reads_sketches,
 )
@@ -32,7 +33,7 @@ from ..tables import write_table
 
 def _variant_files(workdir: Path, folder: str, name: str) -> list[Path]:
     root = workdir / folder
-    return sorted(root.glob(f"*/{name}")) if root.is_dir() else []
+    return glob_visible(root, f"*/{name}") if root.is_dir() else []
 
 
 def sources(workdir: Path) -> list[Path]:

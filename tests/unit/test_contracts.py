@@ -6,6 +6,7 @@ from pathlib import Path
 
 from repgenr.core.contracts import (
     REASON_UNSPECIFIED,
+    glob_visible,
     list_fasta,
     parse_genome_filename,
     read_clusters,
@@ -176,3 +177,12 @@ def test_newick_is_complete_accepts_one_tree_only() -> None:
     assert not newick_is_complete("((a,b),c); extra")
     assert not newick_is_complete("((a,b),c);\n((a,c),b);\n")
     assert not newick_is_complete("(a,[open comment b);")
+
+
+def test_glob_visible_skips_dotfiles(tmp_path: Path) -> None:
+    (tmp_path / "sub").mkdir()
+    for name in ("b.aln", "a.aln", "._a.aln", "sub/c.aln", "sub/._c.aln"):
+        (tmp_path / name).write_bytes(b"x")
+    assert [p.name for p in glob_visible(tmp_path, "*.aln")] == ["a.aln", "b.aln"]
+    found = glob_visible(tmp_path, "*.aln", recursive=True)
+    assert [p.relative_to(tmp_path).as_posix() for p in found] == ["a.aln", "b.aln", "sub/c.aln"]

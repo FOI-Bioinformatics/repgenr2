@@ -10,6 +10,11 @@ All notable changes to RepGenR2 are documented here. The format follows
 - `--preset` failed with "'TyperOption' object has no attribute 'type'"
   under typer 0.29, which no longer builds on click; the preset values are
   converted through typer's own conversion when click's is absent.
+- On a macOS exFAT volume the AppleDouble files (`._<name>`) that macOS
+  writes beside each file were read as outputs: the core-gene route failed
+  with a UnicodeDecodeError on `._*.aln`. Tool outputs are now listed
+  without dotfiles (cactus, SibeliaZ, OrthoFinder, PPanGGOLiN, skDER,
+  sourmash, the phylogeny and reads report steps, and the viral sources).
 
 ### Added
 - `metadata -ts` selects several species of the target genus: repeat it or

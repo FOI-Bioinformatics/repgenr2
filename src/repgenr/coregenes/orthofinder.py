@@ -42,6 +42,7 @@ from pathlib import Path
 
 from ..core.binaries import BinarySpec
 from ..core.containers import run_tool
+from ..core.contracts import glob_visible
 from ..core.errors import UserInputError, WorkdirError
 from ..core.plugins import ToolCapabilities
 from .base import CoreGeneBuilder, CoreGeneParams, CoreGeneResult, annotation_sidecars
@@ -169,7 +170,7 @@ def _inflation(raw: object) -> float | None:
 
 
 def _orthogroups_table(results: Path) -> Path:
-    found = sorted(results.glob("Results_*/Orthogroups/Orthogroups.tsv"))
+    found = glob_visible(results, "Results_*/Orthogroups/Orthogroups.tsv")
     if not found:
         raise WorkdirError(
             f"orthofinder wrote no Orthogroups.tsv under {results}; its log there says why."

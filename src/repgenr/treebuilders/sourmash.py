@@ -33,7 +33,7 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 
 from ..core.containers import run_tool
-from ..core.contracts import atomic_replace, genus_spread, record_name
+from ..core.contracts import atomic_replace, genus_spread, glob_visible, record_name
 from ..core.errors import UserInputError, WorkdirError
 from ..core.plugins import parse_extra_int, preflight, tool_available
 from ..core.process import write_fofn
@@ -242,7 +242,7 @@ class SourmashBuilder(TreeBuilder):
         # Skip macOS AppleDouble companions ("._*") that appear on exFAT/NTFS volumes.
         sigs = [
             p
-            for p in (sorted(sig_dir.glob("*.sig")) + sorted(sig_dir.glob("*.sig.gz")))
+            for p in (glob_visible(sig_dir, "*.sig") + glob_visible(sig_dir, "*.sig.gz"))
             if not p.name.startswith("._")
         ]
         if not sigs:
