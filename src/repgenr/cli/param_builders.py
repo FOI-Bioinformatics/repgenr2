@@ -612,10 +612,21 @@ def apply_preset(ctx: Any, preset: str | None) -> dict[str, Any]:
         if param.multiple:
             preset_lists.setdefault(name, []).append(str(raw))
         elif not _given(ctx, name):
-            values[name] = True if param.is_flag else param.type(raw, param, ctx)
+            values[name] = True if param.is_flag else _convert(param, raw, ctx)
     for name, preset_values in preset_lists.items():
         values[name] = [*preset_values, *values[name]]
     return values
+
+
+def _convert(param: Any, raw: Any, ctx: Any) -> Any:
+    """``raw`` converted as the option converts a value given on the command
+    line. Typer up to 0.28 builds its options on click (``param.type``);
+    typer 0.29 no longer uses click and converts through
+    ``get_runtime_param().coerce``."""
+    convert = getattr(param, "type", None)
+    if callable(convert):
+        return convert(raw, param, ctx)
+    return param.get_runtime_param().coerce(raw, param=param, ctx=ctx)
 
 
 def phylo_params(
