@@ -272,7 +272,12 @@ concatenation, from `tree/msa/partitions.json`. The genes share one tree.
 - `iqtree` is run with `-p` and a NEXUS partition file. Every partition gets
   the `--aligner-arg model=`, or `GTR+G` (`LG+G` for protein) without it;
   `model=MFP` runs ModelFinder per partition, which is slow.
-- `raxmlng` gets the same models in its partition file.
+- `raxmlng` gets the same models in its partition file, with branch
+  lengths scaled per partition. Its standard bootstrap fits every partition
+  model again for each replicate: on 300 genes of eight genomes the search
+  took 49 s and 100 replicates about 700 s (see
+  [verification.md](verification.md#partitioned-raxml-ng-on-eight-francisella-species-2026-11-09)).
+  A lower `-B`, or `iqtree` with UFBoot, takes less time.
 - `aster` builds one tree per partition (see below).
 - Other builders ignore the partitions with a warning.
 
