@@ -162,6 +162,7 @@ profiles are described in [docs/nextflow.md](docs/nextflow.md).
 | [docs/nextflow.md](docs/nextflow.md) | The Nextflow pipeline: structure, parameters, profiles, reads mode, scaling and process configuration. |
 | [docs/cli-reference.md](docs/cli-reference.md) | Every command and option, generated from the command tree. |
 | [docs/output.md](docs/output.md) | The files each stage writes. |
+| [docs/report.md](docs/report.md) | The run report: one HTML page and per-step tables and figures (`repgenr report`). |
 | [docs/developing.md](docs/developing.md) | Architecture, data contracts, and how to add a tool adapter. |
 | [docs/verification.md](docs/verification.md) | Which adapters have been run against their real tools, and measured runs. |
 | [docs/audit/](docs/audit/README.md) | Records: the CLI matrix, the command audit, the scaling and bias audit, the phylo methods audit and the phylo and tree2tax gap analysis. |
