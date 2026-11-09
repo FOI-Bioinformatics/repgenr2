@@ -17,6 +17,7 @@ from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 from ..core.context import WorkdirContext
 from ..core.contracts import (
@@ -44,6 +45,7 @@ from ..core.plugins import (
 from ..core.process import link_or_copy, remove_tree
 from ..core.resources import usable_cpus
 from ..core.sketches import adapter_sketches, workdir_provider
+from ..core.stage_stats import write_stats
 from ..dereplicators.base import (
     STATUS_REPRESENTATIVE,
     DerepParams,
@@ -232,10 +234,14 @@ def run(ctx: WorkdirContext, params: DereplicateParams) -> DerepResult:
         remove_tree(scratch)
     scratch.mkdir(parents=True, exist_ok=True)
 
+    # Counts of this run that the output tables do not hold, for the report.
+    stats: dict[str, Any] = {"tool": tool, "input_genomes": len(genomes)}
     if params.target_reps and params.target_reps > 0:
+        trace: dict = {}
         result = _search_target_reps(
-            adapter, genomes, scratch, derep_params, params, params.target_reps, logger
+            adapter, genomes, scratch, derep_params, params, params.target_reps, logger, trace
         )
+        stats["target_reps"] = trace
     else:
         result = _dereplicate_to_result(adapter, genomes, scratch, derep_params, params, logger)
     # How the tool computed the clustering (the sourmash back-end and ANI
@@ -276,6 +282,11 @@ def run(ctx: WorkdirContext, params: DereplicateParams) -> DerepResult:
             before,
             len(result.representatives),
         )
+        stats["reduce"] = {
+            "level": params.reduce,
+            "before": before,
+            "after": len(result.representatives),
+        }
 
     check_result_complete(result, [g.name for g in genomes])
     rows = [r for lineage in lineages for r in refined_rows(result, lineage)]
@@ -284,6 +295,8 @@ def run(ctx: WorkdirContext, params: DereplicateParams) -> DerepResult:
     # The summary reports quality whichever keeper rule was used, so a
     # --keeper tool run still shows where a member outscores the keeper.
     _write_contract(ctx, result, manifest_quality, n50, refined=rows)
+    stats["keeper_swaps"] = keeper_swaps
+    write_stats(ctx.derep_dir / DEREP_STATS, DEREP_STATS_KIND, stats)
     _update_manifest(ctx, result)
 
     ctx.config.record_stage(
@@ -333,6 +346,11 @@ _MAX_REDUCE_DEPTH = 50  # termination backstop; the shrink-guard stops much soon
 # Warn when the final pass of a chunked run compares more than this many chunks' worth.
 _FINAL_PASS_WARN_FACTOR = 4
 _MAX_TARGET_ITERS = 12  # binary-search steps for --target-reps
+
+# Counts of a dereplication that its tables do not hold (target-reps search,
+# taxonomy reduction, keeper swaps), for the report.
+DEREP_STATS = "derep_stats.json"
+DEREP_STATS_KIND = "dereplicate"
 
 
 def _resolve_pre_thresholds(params: DereplicateParams, secondary: float) -> tuple[float, float]:
@@ -518,6 +536,7 @@ def _search_target_reps(
     params: DereplicateParams,
     target: int,
     logger,
+    trace: dict | None = None,
 ) -> DerepResult:
     """Binary-search --secondary-ani to land near ``target`` representatives.
 
@@ -525,6 +544,8 @@ def _search_target_reps(
     stricter threshold keeps more reps), so we bisect: too few reps -> raise the
     threshold, too many -> lower it. Each step re-runs dereplication; capped at
     ``_MAX_TARGET_ITERS``. Returns the result whose count is closest to target.
+    ``trace``, when given, receives the threshold chosen, the count reached
+    and the number of iterations.
     """
     lo, hi = 0.80, 0.9999
     best: DerepResult | None = None
@@ -586,6 +607,13 @@ def _search_target_reps(
         achieved,
         target,
     )
+    if trace is not None:
+        trace.update(
+            requested=target,
+            achieved=achieved,
+            secondary_ani=best_ani,
+            iterations=len(seen),
+        )
     return best
 
 

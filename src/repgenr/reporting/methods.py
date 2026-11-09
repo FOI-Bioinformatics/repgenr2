@@ -29,14 +29,46 @@ CITATIONS: dict[str, tuple[str, str]] = {
 }
 
 # Parameters left out of the appendix: bookkeeping, not settings.
-_HIDDEN_PARAMS = frozenset({"source_states", "selected_count", "downloaded", "total"})
+_HIDDEN_PARAMS = frozenset(
+    {"source_states", "selected_count", "downloaded", "total", "keeper_swaps"}
+)
+
+
+# Tool names as their authors write them.
+DISPLAY_NAMES: dict[str, str] = {
+    "drep": "dRep",
+    "skder": "skDER",
+    "galah": "galah",
+    "sourmash": "sourmash",
+    "iqtree": "IQ-TREE",
+    "raxmlng": "RAxML-NG",
+    "fasttree": "FastTree",
+    "veryfasttree": "VeryFastTree",
+    "mashtree": "Mashtree",
+    "ska2": "SKA2",
+    "skani": "skani",
+    "gubbins": "Gubbins",
+    "panaroo": "Panaroo",
+    "ppanggolin": "PPanGGOLiN",
+    "prokka": "Prokka",
+    "bakta": "Bakta",
+}
+
+
+def display(tool: str | None) -> str:
+    return DISPLAY_NAMES.get(tool or "", tool or "")
 
 
 def _version(m: MethodsInfo, tool: str | None) -> str:
+    """' 3.7.1', or ' (container image quay.io/...)' for a tool run from an image."""
     if not tool:
         return ""
     v = m.tool_versions.get(tool)
-    return f" {v}" if v else ""
+    if not v:
+        return ""
+    if "/" in v or "@sha256:" in v:
+        return f" (container image {v})"
+    return f" {v}"
 
 
 def _metadata(m: MethodsInfo) -> tuple[str, list[str]]:
@@ -83,10 +115,57 @@ def _ingest(m: MethodsInfo) -> tuple[str, list[str]]:
     return text, []
 
 
+def _ani(value: Any) -> str | None:
+    return f"{100 * float(value):g}%" if isinstance(value, int | float) else None
+
+
+def _dereplicate(m: MethodsInfo) -> tuple[str, list[str]]:
+    p = m.params
+    tool = display(m.tool) or "the chosen tool"
+    text = f"Genomes were dereplicated with {tool}{_version(m, m.tool)}"
+    parts = []
+    if _ani(p.get("primary_ani")):
+        parts.append(f"a primary ANI threshold of {_ani(p['primary_ani'])}")
+    if _ani(p.get("secondary_ani")):
+        parts.append(f"a secondary ANI threshold of {_ani(p['secondary_ani'])}")
+    if parts:
+        text += " with " + " and ".join(parts)
+    text += "."
+    if p.get("target_reps"):
+        text += (
+            f" The secondary threshold was searched to approach {p['target_reps']} representatives."
+        )
+    keeper = p.get("keeper_effective") or p.get("keeper")
+    if keeper and keeper != "tool":
+        text += f" The representative of each cluster was chosen by the '{keeper}' keeper rule."
+    if p.get("reduce") and p["reduce"] != "none":
+        text += f" One representative was then kept per {p['reduce']}."
+    return text, []
+
+
+def _derep_refine(m: MethodsInfo) -> tuple[str, list[str]]:
+    text = "Selected lineages were dereplicated again at a finer threshold"
+    if _ani(m.params.get("secondary_ani")):
+        text += f" ({_ani(m.params['secondary_ani'])} ANI)"
+    return text + ".", []
+
+
+def _glance(m: MethodsInfo) -> tuple[str, list[str]]:
+    tool = display(m.tool) or "the chosen tool"
+    return (
+        f"Pairwise similarities between all genomes were computed with {tool}"
+        f"{_version(m, m.tool)}.",
+        [],
+    )
+
+
 _TEMPLATES: dict[str, Callable[[MethodsInfo], tuple[str, list[str]]]] = {
     "metadata": _metadata,
     "genome": _genome,
     "ingest": _ingest,
+    "glance": _glance,
+    "dereplicate": _dereplicate,
+    "derep_refine": _derep_refine,
 }
 
 
@@ -96,7 +175,7 @@ def sentence(m: MethodsInfo) -> tuple[str, list[str]]:
     if template is not None:
         return template(m)
     if m.tool:
-        return f"The {m.stage} stage used {m.tool}{_version(m, m.tool)}.", []
+        return f"The {m.stage} stage used {display(m.tool)}{_version(m, m.tool)}.", []
     return f"The {m.stage} stage was run.", []
 
 

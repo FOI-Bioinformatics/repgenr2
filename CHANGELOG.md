@@ -20,6 +20,14 @@ All notable changes to RepGenR2 are documented here. The format follows
   follow.
 - `selection_stats.json`: the candidate genomes a metadata `--limit` cut
   chose from, which were only in the log.
+- Report steps `glance` (summary of the pairwise similarities, histogram
+  with the dereplication thresholds) and `dereplication` (genomes per
+  status with the `fail_qc` reasons, largest and multi-species clusters,
+  genomes and representatives per species; cluster sizes, quality by
+  status with the dRep filter, filter reasons). `glance_stats.json` and
+  `derep/derep_stats.json` keep the numbers that were only in the log
+  (pairwise summary and histogram; `--target-reps` search, `--reduce`
+  counts, keeper swaps).
 - Selection summary, as RepGenR 1 wrote it: `metadata_summary.tsv`
   (genomes per family, genus and species of the ingroup) and the plots
   `metadata_summary_number_in_level.png` and
@@ -244,6 +252,8 @@ All notable changes to RepGenR2 are documented here. The format follows
   existing core-gene alignment is rebuilt once.
 
 ### Changed
+- glance draws its plots with the matplotlib Figure API instead of pyplot,
+  so no display backend is involved.
 - The plugin discovery test reads the entry points from `pyproject.toml` and checks every tool family, so a newly registered adapter is covered without editing the test. The manifest schema comment lists the `source` values the stages write.
 - CLI help: option help is capped at about 35 words, and a default computed
   at run time ends the help with "Default: <rule>." The preset override

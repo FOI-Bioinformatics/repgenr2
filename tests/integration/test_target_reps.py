@@ -58,6 +58,24 @@ def test_target_reps_lands_near_target(anidep_workdir) -> None:
     assert len(res.genome_status) == 10  # all genomes accounted
 
 
+def test_target_reps_search_is_written_to_derep_stats(anidep_workdir) -> None:
+    from repgenr.core.stage_stats import read_stats
+    from repgenr.stages.dereplicate import DEREP_STATS, DEREP_STATS_KIND
+
+    res = run(anidep_workdir, DereplicateParams(tool="anidep", target_reps=9))
+    stats = read_stats(anidep_workdir.derep_dir / DEREP_STATS, DEREP_STATS_KIND)
+    assert stats is not None
+    assert stats["tool"] == "anidep" and stats["input_genomes"] == 10
+    search = stats["target_reps"]
+    assert search["requested"] == 9
+    assert search["achieved"] == len(res.representatives)
+    assert 0.8 <= search["secondary_ani"] <= 1.0 and search["iterations"] >= 1
+    # A run without the search rewrites the file without it.
+    run(anidep_workdir, DereplicateParams(tool="anidep", secondary_ani=0.9))
+    stats = read_stats(anidep_workdir.derep_dir / DEREP_STATS, DEREP_STATS_KIND)
+    assert "target_reps" not in stats and stats["keeper_swaps"] == 0
+
+
 def test_target_reps_off_uses_secondary_ani(anidep_workdir) -> None:
     # target_reps=0 -> no search; use --secondary-ani directly (0.9 -> keep 9 of 10)
     res = run(anidep_workdir, DereplicateParams(tool="anidep", secondary_ani=0.9))
