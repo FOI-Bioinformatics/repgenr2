@@ -56,6 +56,8 @@ class StepSpec:
 
 # In pipeline order: the order of the sections of the HTML report.
 STEPS: tuple[StepSpec, ...] = (
+    StepSpec("reads", "Sequencing runs", ("reads", "reads_sketch", "reads_screen"), "reads"),
+    StepSpec("assembly", "Genome assembly", ("assemble",), "assembly"),
     StepSpec(
         "selection",
         "Genome selection",

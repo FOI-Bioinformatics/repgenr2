@@ -49,6 +49,7 @@ WD/
   virus_metadata_base.tsv         viral metadata table (vmetadata)
   virus_metadata_ncbi_summary.tsv genomes and sequences per NCBI taxon (vmetadata, BV-BRC)
   reads.tsv                       selected sequencing runs (reads)
+  reads_stats.json                runs remaining after each filter (reads)
   reads_sketches/<variant>/       reads sketches and index (reads-sketch)
   reads_screen/<variant>/         reads screen decisions (reads-screen)
   selection.tsv                   the selected genomes (entry stages)
@@ -764,6 +765,8 @@ appear in the page in this order:
 
 | Step | Written after | Tables (TSV) | Figures |
 |---|---|---|---|
+| `reads` | reads, reads-sketch, reads-screen | `run_selection.tsv` (runs remaining after each filter); `runs_by_platform.tsv` (runs and median Gb per platform, instrument and layout); `sketch_status_<variant>.tsv`; `screen_<variant>.tsv` (runs per decision and reason) | `bases_per_run` (by platform); `screen_fraction_<variant>` (with the minimum fraction); `screen_decisions_<variant>` |
+| `assembly` | assemble | `assembly_metrics.tsv` (per assembler, median and quartiles of contigs, length, N50, coverage, completeness, contamination); `taxonomy_flags.tsv`; `excused_runs.tsv` (runs without a genome per step and reason) | `contiguity` (N50 against length, by taxonomy flag); `assembly_quality`; `coverage` |
 | `selection` | metadata, ingest, vgenome, genome, assemble | `selection_counts.tsv` (candidates, selected, outgroup, GTDB species representatives, genome files present, accessions not obtained); `genomes_per_taxon.tsv` (`level`, `name`, `genomes`); `assembly_quality.tsv` (completeness and contamination: genomes, min, q1, median, q3, max) | `genomes_per_species` (the 30 largest species, the rest combined); `assembly_quality` (contamination against completeness) |
 | `glance` | glance | `pairwise_similarity.tsv` (measure, genomes, pairs, min, q1, median, q3, max) | `similarity_histogram` (with the dereplication ANI thresholds where in range) |
 | `dereplication` | dereplicate, derep-refine, cluster-summary | `genome_status.tsv` (genomes per status, `fail_qc` per reason); `largest_clusters.tsv` (20 largest clusters with species names and representative quality); `multispecies_clusters.tsv` (clusters whose genomes carry more than one species name); `species_reduction.tsv` (genomes and representatives per species) | `cluster_sizes`; `quality_by_status` (with the dRep filter for a dRep run); `fail_qc_reasons`; `species_reduction` (30 species with most genomes) |
@@ -790,6 +793,10 @@ only values the stages recorded.
 holds counts the selection table does not: `candidates` (the genomes that
 matched the target before a `--limit` cut), `limit` and `source`. The
 metadata stage fills it; the other entry stages write it empty.
+
+`reads_stats.json` (kind `reads`) holds `candidates`, `selected` and
+`funnel`, the runs remaining after each filter of the reads stage in the
+order applied.
 
 `glance_stats.json` (kind `glance`) holds the tool, the measure, the
 genomes and pairs compared, the plot range, min, q1, median, q3 and max of
