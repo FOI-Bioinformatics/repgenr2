@@ -501,7 +501,7 @@ def manifest_accessions(ctx: WorkdirContext) -> tuple[dict[str, str], set[str]]:
 
 def run(ctx: WorkdirContext, params: DerepRefineParams) -> DerepResult:
     """Refine the dereplication on disk with the settings of its record."""
-    from .derep_keeper import N50Lookup
+    from .derep_keeper import save_n50_cache, workdir_n50_lookup
     from .dereplicate import (
         _update_manifest,
         _write_contract,
@@ -616,7 +616,7 @@ def run(ctx: WorkdirContext, params: DerepRefineParams) -> DerepResult:
         "derep-refine",
     )
     scratch = ctx.scratch_dir / "derep_refine"
-    n50 = N50Lookup([ctx.genomes_dir], workers=params.threads)
+    n50 = workdir_n50_lookup(ctx.genomes_dir, ctx.scratch_dir, workers=params.threads)
     keeper = str(rec.get("keeper", "quality"))
     refined = result
     for i, lineage in enumerate(lineages):
@@ -639,6 +639,7 @@ def run(ctx: WorkdirContext, params: DerepRefineParams) -> DerepResult:
         lineages,
     )
     _write_contract(ctx, refined, manifest_quality, n50, refined=rows)
+    save_n50_cache(n50, ctx.genomes_dir, ctx.scratch_dir)
     _update_manifest(ctx, refined)
     remove_tree(scratch)
     ctx.config.record_stage(

@@ -309,10 +309,17 @@ def _unpack(ctx: WorkdirContext, run_path: Path) -> None:
         summarise_clusters,
         taxonomy_lookup,
     )
-    from .derep_keeper import N50_MAX_WORKERS, N50Lookup, warn_missing_n50
+    from .derep_keeper import (
+        N50_MAX_WORKERS,
+        save_n50_cache,
+        warn_missing_n50,
+        workdir_n50_lookup,
+    )
     from .dereplicate import quality_lookup
 
-    n50 = N50Lookup([ctx.genomes_dir], workers=min(usable_cpus(), N50_MAX_WORKERS))
+    n50 = workdir_n50_lookup(
+        ctx.genomes_dir, ctx.scratch_dir, workers=min(usable_cpus(), N50_MAX_WORKERS)
+    )
     write_cluster_summary(
         ctx.derep_dir / CLUSTER_SUMMARY_TSV,
         summarise_clusters(
@@ -325,6 +332,7 @@ def _unpack(ctx: WorkdirContext, run_path: Path) -> None:
         ),
     )
     warn_missing_n50(n50, ctx.logger)
+    save_n50_cache(n50, ctx.genomes_dir, ctx.scratch_dir)
     tool, params, versions = carried if carried else (None, {}, None)
     ctx.config.record_stage(
         "dereplicate",
