@@ -55,6 +55,10 @@ if TYPE_CHECKING:
     from ..maskers.base import Masker
 
 
+# Per genome, the fraction of the reference covered (typers that measure it).
+REFERENCE_COVERAGE = "reference_coverage.tsv"
+
+
 @dataclass
 class SnptypeParams:
     tool: str = "simple"
@@ -295,6 +299,7 @@ def _publish_typed(
         ("variants.vcf", result.vcf),
         ("snp_distance_matrix.tsv", result.snp_distance_matrix),
         ("full_alignment.fasta", result.full_alignment),
+        (REFERENCE_COVERAGE, result.reference_coverage),
     ):
         if produced is None:
             (snp_dir / name).unlink(missing_ok=True)
@@ -304,6 +309,9 @@ def _publish_typed(
     if result.snp_distance_matrix is not None:
         with atomic_path(snp_dir / "snp_distance_matrix.tsv") as tmp:
             shutil.copy2(result.snp_distance_matrix, tmp)
+    if result.reference_coverage is not None:
+        with atomic_path(snp_dir / REFERENCE_COVERAGE) as tmp:
+            shutil.copy2(result.reference_coverage, tmp)
     full_alignment_out: Path | None = None
     constant_sites: tuple[int, int, int, int] | None = None
     # The alignment the constant columns are counted from: the published

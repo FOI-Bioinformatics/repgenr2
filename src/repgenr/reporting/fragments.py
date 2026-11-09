@@ -18,7 +18,7 @@ from pathlib import Path
 from .. import __version__
 from ..core.config import Config, StageRecord
 from ..core.contracts import atomic_path
-from ..core.inputs import file_digest
+from ..core.inputs import dir_stat_digest, file_digest
 from .model import STEP_JSON, MethodsInfo, StepReport
 from .registry import StepInput, StepSpec
 
@@ -52,6 +52,11 @@ def _sources(
     for path in spec.sources(workdir):
         if path.is_file():
             out[path.relative_to(workdir).as_posix()] = file_digest(path)
+        elif path.is_dir():
+            # A directory of many files (genome sketches): names, sizes, times.
+            out[path.relative_to(workdir).as_posix() + "/"] = dir_stat_digest(
+                path, fasta_only=False
+            )
     for stage in spec.stages:
         if stage in records:
             out[f"#record:{stage}"] = _record_digest(records[stage])

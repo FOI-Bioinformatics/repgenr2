@@ -30,9 +30,10 @@ from ...dereplicators.base import STATUS_CONTAINED, STATUS_FAIL_QC, STATUS_REPRE
 from ...stages.dereplicate import DEREP_STATS, DEREP_STATS_KIND
 from .. import style
 from ..figures import bar_height, horizontal_bars, integer_ticks, log_scale, render
+from ..member_ani import member_anis
 from ..model import FigureRef, KeyNumber, StepReport
 from ..registry import StepInput
-from ..tables import write_table
+from ..tables import describe, write_table
 
 TOP_CLUSTERS = 20
 TOP_SPECIES = 30
@@ -57,6 +58,9 @@ def sources(workdir: Path) -> list[Path]:
         d / REFINED_TSV,
         d / DEREP_STATS,
         workdir / SELECTION_TSV,
+        # The genome sketches the member ANI is estimated from (a directory:
+        # digested by file names, sizes and times).
+        workdir / "sketches",
     ]
 
 
@@ -211,7 +215,91 @@ def collect(inp: StepInput) -> StepReport:
         report.notes.append(
             "selection.tsv was not found, so species names and assembly quality are not shown."
         )
+    _member_ani(report, out, clusters, wd / "sketches", record, inp.formats)
     return report
+
+
+def _member_ani(report: StepReport, out: Path, clusters, sketches: Path, record, formats) -> None:
+    """Table and figure of the ANI of each member to its representative,
+    estimated from the genome sketches."""
+    if not any(clusters.values()):
+        return
+    if not sketches.is_dir():
+        report.notes.append(
+            "The ANI of members to their representatives is estimated from the genome "
+            "sketches, and this working directory has none (repgenr sketch -wd writes them)."
+        )
+        return
+    rows, missing = member_anis(clusters, sketches)
+    known = [r.ani for r in rows if r.ani is not None]
+    secondary = record.params.get("secondary_ani") if record else None
+    ordered = sorted(rows, key=lambda r: (r.ani is not None, r.ani or 0.0, r.member))
+    report.tables.append(
+        write_table(
+            out,
+            "member_ani",
+            "ANI of each member to its representative, estimated from the genome sketches "
+            "(average containment at k=31, scaled=1000), lowest first; empty where the "
+            "sketches share too few hashes or a sketch is missing.",
+            ["representative", "member", "ani", "shared_hashes"],
+            [
+                (
+                    r.representative,
+                    r.member,
+                    None if r.ani is None else round(r.ani, 5),
+                    r.shared_hashes,
+                )
+                for r in ordered
+            ],  # fmt: skip
+            numeric=["ani", "shared_hashes"],
+        )
+    )
+    if known:
+        d = describe(known)
+        report.key_numbers.append(KeyNumber("Lowest member ANI", round(d["min"] or 0.0, 4)))
+        text = (
+            f"Estimated from the genome sketches, members share a median ANI of "
+            f"{d['median']:.4f} with their representative (lowest {d['min']:.4f})"
+        )
+        if isinstance(secondary, int | float):
+            below = sum(a < secondary for a in known)
+            text += (
+                f"; {below:,} of {len(known):,} lie below the secondary threshold of {secondary:g}"
+            )
+        report.summary.append(text + ".")
+    unknown = len(rows) - len(known)
+    if unknown:
+        report.notes.append(
+            f"{unknown:,} of {len(rows):,} members have no sketch ANI to their representative "
+            f"({missing:,} genomes without a sketch; the others share too few hashes)."
+        )
+    if len(known) >= 3:
+        report.figures.append(_member_ani_figure(out, known, secondary, formats))
+
+
+def _member_ani_figure(out: Path, values: list[float], secondary, formats) -> FigureRef:
+    def draw(fig) -> None:
+        ax = fig.add_subplot()
+        ax.hist(values, bins=40, color=style.PRIMARY, linewidth=0)
+        if isinstance(secondary, int | float):
+            ax.axvline(float(secondary), color="black", lw=0.6, ls="--")
+        ax.set_xlabel("ANI to the representative (sketch estimate)")
+        ax.set_ylabel("Members")
+        integer_ticks(ax.yaxis)
+
+    files = render(out, "member_ani", draw, formats=formats)
+    caption = (
+        "ANI of each member to its representative, estimated from the genome sketches "
+        "(average containment at k=31)."
+    )
+    if isinstance(secondary, int | float):
+        caption += " Dashed line: the secondary ANI threshold of the dereplication."
+    return FigureRef(
+        id="member_ani",
+        caption=caption,
+        alt="Histogram of member-to-representative ANI.",
+        files=files,
+    )
 
 
 def _size(row: ClusterSummaryRow) -> int:

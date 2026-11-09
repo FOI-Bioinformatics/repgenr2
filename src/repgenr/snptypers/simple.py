@@ -138,7 +138,7 @@ class SimpleSnpTyper(SnpTyper):
             logger=logger,
         )
         consensuses.update(zip((genome_name(g) for g in others), called, strict=True))
-        _log_coverage(consensuses, ref_name, logger)
+        coverage = _log_coverage(consensuses, ref_name, logger)
 
         full_fasta = out_dir / "full_alignment.fasta"
         with open(full_fasta, "w", encoding="utf-8") as fo:
@@ -180,6 +180,7 @@ class SimpleSnpTyper(SnpTyper):
             snp_distance_matrix=snp_matrix,
             masked=False,
             full_alignment=full_fasta,
+            reference_coverage=_write_coverage(coverage, ref_name, out_dir),
         )
 
 
@@ -414,7 +415,9 @@ def _common_length(consensuses: dict[str, str]) -> int:
     return min((len(s) for s in consensuses.values()), default=0)
 
 
-def _log_coverage(consensuses: dict[str, str], ref_name: str, logger: logging.Logger) -> None:
+def _log_coverage(
+    consensuses: dict[str, str], ref_name: str, logger: logging.Logger
+) -> dict[str, float]:
     """Log the fraction of the reference's bases each genome has a base at.
 
     One line per genome, a summary line, and a warning for each genome below
@@ -423,7 +426,7 @@ def _log_coverage(consensuses: dict[str, str], ref_name: str, logger: logging.Lo
     """
     ref_bases = _base_count(consensuses[ref_name])
     if ref_bases == 0:
-        return
+        return {}
     fractions: dict[str, float] = {}
     for name, seq in consensuses.items():
         if name == ref_name:
@@ -431,7 +434,7 @@ def _log_coverage(consensuses: dict[str, str], ref_name: str, logger: logging.Lo
         fractions[name] = _base_count(seq) / ref_bases
         logger.info("%s: %.1f%% of the reference covered", name, 100 * fractions[name])
     if not fractions:
-        return
+        return fractions
     values = sorted(fractions.values())
     logger.info(
         "Reference coverage across %d genome(s): minimum %.1f%%, median %.1f%%, maximum %.1f%%",
@@ -450,6 +453,19 @@ def _log_coverage(consensuses: dict[str, str], ref_name: str, logger: logging.Lo
                 100 * fraction,
                 ref_name,
             )
+    return fractions
+
+
+def _write_coverage(fractions: dict[str, float], ref_name: str, out_dir: Path) -> Path | None:
+    """Write reference_coverage.tsv: each genome's covered fraction of the
+    reference, the reference itself first (1.0); None when nothing was measured."""
+    if not fractions:
+        return None
+    path = out_dir / "reference_coverage.tsv"
+    lines = ["genome\tcovered_fraction\tis_reference", f"{ref_name}\t1.0000\t1"]
+    lines += [f"{name}\t{value:.4f}\t0" for name, value in fractions.items()]
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return path
 
 
 def _base_count(seq: str) -> int:
