@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 from contextlib import contextmanager
+from typing import Any, cast
 
 # Okabe-Ito: blue, orange, bluish green, vermillion, reddish purple, sky
 # blue, yellow, grey.
@@ -62,9 +63,10 @@ def context() -> Iterator[None]:
     import matplotlib as mpl
     from cycler import cycler
 
-    rc = dict(RC)
+    rc: dict[str, Any] = dict(RC)
     rc["axes.prop_cycle"] = cycler(color=list(PALETTE))
-    with mpl.rc_context(rc):
+    # matplotlib types the keys as a Literal of the known rc names.
+    with mpl.rc_context(cast(Any, rc)):
         yield
 
 
