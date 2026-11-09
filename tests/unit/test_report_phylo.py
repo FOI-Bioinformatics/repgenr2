@@ -138,6 +138,16 @@ def test_phylogeny_and_alignment_steps(tmp_path: Path) -> None:
     assert "2 of 3 core genes (ppanggolin)" in aln.summary[0]
 
 
+def test_phylogeny_without_a_record_names_no_builder(tmp_path: Path) -> None:
+    wd = tmp_path / "nf"
+    (wd / "tree").mkdir(parents=True)
+    (wd / "tree" / "tree.nwk").write_text(NEWICK + "\n")
+    refresh_step(wd, BY_NAME["phylogeny"], formats=("png",))
+    rep = read_fragment(wd / "report" / "phylogeny")
+    assert rep.summary[0].startswith("The tree holds 4 genomes")
+    assert "unrecorded" not in rep.summary[0]
+
+
 def test_phylo_methods_and_version_aliases() -> None:
     m = MethodsInfo(
         "phylo",
@@ -189,3 +199,17 @@ def test_snptype_step_heatmap_and_cap(tmp_path: Path) -> None:
     rep = read_fragment(big / "report" / "snptype")
     assert [f.id for f in rep.figures] == ["snp_distance_histogram"]
     assert any("No distance heatmap" in n for n in rep.notes)
+
+
+def test_species_colours_never_use_the_grey_of_other_species() -> None:
+    from matplotlib.figure import Figure
+
+    from repgenr.reporting import style
+    from repgenr.reporting.treeplot import GROUP_COLOURS, MAX_GROUPS
+
+    assert style.MUTED not in GROUP_COLOURS and MAX_GROUPS == 7
+    leaves = [f"t{i}" for i in range(20)]
+    tree = _tree("(" + ",".join(f"{n}:0.1" for n in leaves) + ");")
+    groups = {n: f"sp{i % 10}" for i, n in enumerate(leaves)}
+    drawn = draw_tree(Figure(), tree, labels={}, groups=groups, outgroup=None, unit="u")
+    assert drawn["groups_shown"] == 7 and drawn["groups_total"] == 10

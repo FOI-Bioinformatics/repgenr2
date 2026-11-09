@@ -23,8 +23,10 @@ MAX_LABELLED = 400
 MAX_LEAVES = 20_000
 # Support values are written as numbers up to this many leaves.
 MAX_SUPPORT_NUMBERS = 100
-# Leaf groups (species) coloured in the strip; the others are grey.
-MAX_GROUPS = 8
+# Leaf groups (species) coloured at the tips: the palette without its grey,
+# which marks the other species.
+GROUP_COLOURS = tuple(c for c in style.PALETTE if c != style.MUTED)
+MAX_GROUPS = len(GROUP_COLOURS)
 
 
 @dataclass(frozen=True)
@@ -121,7 +123,7 @@ def draw_tree(
         if g:
             counts[g] = counts.get(g, 0) + 1
     shown = [g for g, _ in sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))][:MAX_GROUPS]
-    colour = {g: style.color(i) for i, g in enumerate(shown)}
+    colour = {g: GROUP_COLOURS[i] for i, g in enumerate(shown)}
     tip_x = [lay.x[id(leaf)] for leaf in lay.leaves]
     tip_y = [lay.y[id(leaf)] for leaf in lay.leaves]
     tip_c = [colour.get(groups.get(_name(leaf), ""), style.MUTED) for leaf in lay.leaves]
