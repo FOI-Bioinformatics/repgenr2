@@ -774,7 +774,7 @@ appear in the page in this order:
 | `dereplication` | dereplicate, derep-refine, cluster-summary | `genome_status.tsv` (genomes per status, `fail_qc` per reason); `largest_clusters.tsv` (20 largest clusters with species names and representative quality); `multispecies_clusters.tsv` (clusters whose genomes carry more than one species name); `species_reduction.tsv` (genomes and representatives per species); `member_ani.tsv` (`representative`, `member`, `ani`, `shared_hashes`: the ANI of each member to its representative estimated from the genome sketches, lowest first) | `cluster_sizes`; `quality_by_status` (with the dRep filter for a dRep run); `fail_qc_reasons`; `species_reduction` (30 species with most genomes); `member_ani` (with the secondary ANI threshold) |
 | `snptype` | snptype | `snp_alignment.tsv` (variable columns, constant sites, masking, core fraction); `snp_distances.tsv` (pairwise SNP distances: min, quartiles, max); `reference_coverage.tsv` (`simple` typer: fraction of the reference each genome covers, lowest first) | `snp_distance_histogram`; `snp_distance_heatmap` (up to 300 genomes, in the leaf order of the tree); `reference_coverage` |
 | `alignment` | phylo | `alignment_summary.tsv` (source, tool, genomes; for core genes the columns, variable and informative sites, genes kept and available, threshold, identity) | core-gene route: `gene_occupancy`, `informative_by_rank`, `gene_length_informative` |
-| `phylogeny` | phylo | `tree_summary.tsv` (leaves, builder, model, rooting, outgroup, bootstrap, support median and shares at 95 and 70, tree length, root-to-tip distances) | `tree` (ladderised phylogram or cladogram; support as numbers up to 100 leaves, as circles above; tip colours for the 8 species with most genomes; leaf labels up to 400 leaves; none above 20,000 leaves); `support`; `root_to_tip` |
+| `phylogeny` | phylo | `tree_summary.tsv` (leaves, builder, model, rooting, outgroup, bootstrap, support median and shares at 95 and 70, tree length, root-to-tip distances) | `tree` (ladderised phylogram or cladogram; support as numbers up to 100 leaves, as circles above; tip colours for the 7 species with most genomes (others grey); leaf labels up to 400 leaves; none above 20,000 leaves); `support`; `root_to_tip` |
 | `tree2tax` | tree2tax | `tree2tax_settings.tsv` (collapse settings and nodes collapsed, naming, rank bands); `nodes_per_rank.tsv` (with `--ranks`); `internal_nodes.tsv` (leaves below the internal nodes) | `node_sizes`; `node_support` (with the collapse threshold); `node_red` (by rank) |
 
 Each step folder holds:
@@ -843,7 +843,7 @@ prose.
 ```json
 {
   "schema": "repgenr.status/1",
-  "repgenr": "2.1.0",
+  "repgenr": "2.2.0",
   "workdir": "/data/wd",
   "pipeline": "local",
   "stages": [
@@ -886,7 +886,7 @@ prose.
 ```json
 {
   "schema": "repgenr.doctor/1",
-  "repgenr": "2.1.0",
+  "repgenr": "2.2.0",
   "workdir": "/data/wd",
   "quick": false,
   "findings": [

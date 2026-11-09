@@ -107,7 +107,7 @@ Notes on the table:
 |---|---|---|
 | Machine A | macOS on Apple Silicon, 11 cores, 18 GB (recorded for the genus-scale run); Docker Desktop with Rosetta for amd64 images; tools from conda; several working directories on an external volume | Live suite, reads and polishing, genus-scale run, SNP route, gzipped inputs |
 | Machine B | An Apple Silicon laptop running macOS; cores and memory not recorded | Core-gene route (2026-10-15 and 2026-10-21), sourmash back-ends |
-| Machine C | Apple M3 Pro, 11 cores, 18 GB, macOS (Darwin 25.2); tools from conda | Partitioned RAxML-NG (2026-11-09) |
+| Machine C | Apple M3 Pro, 11 cores, 18 GB, macOS (Darwin 25.2); tools from conda; an external exFAT volume | Partitioned RAxML-NG and the Brucella end-to-end runs (2026-11-09) |
 
 The records do not state whether machines A, B and C are the same computer;
 the description of A fits C.
@@ -123,6 +123,7 @@ times.
 | Wolbachia, four genomes | Two supergroup-A genomes with wBm (supergroup D) and wOo (supergroup C) | Panaroo identity |
 | Wolbachia, 24 genomes | 24 complete Wolbachia genomes from NCBI | Core-gene route, GTDB markers, sourmash back-ends |
 | Francisella, eight species | Complete NCBI RefSeq genomes: GCF_000008985.1 (F. tularensis SCHU S4), GCF_000833355.1 (F. tularensis subsp. novicida), GCF_000195555.1 (F. hispaniensis), GCF_003347135.1 (F. opportunistica), GCF_001275365.1 (F. persica), GCF_018135955.1 (F. philomiragia), GCF_000505725.1 (F. orientalis), GCF_018972105.1 (F. salimarina) | Partitioned RAxML-NG |
+| Brucella genus | GTDB r232 genus Brucella: 1785 genomes of 44 species (44 species representatives) | End-to-end runs before 2.2.0 |
 | SRR25474756 | Mycoplasmopsis arginini, Illumina MiSeq paired, 134 MB | Assembly, Nextflow reads mode |
 | SRR28800588 | Mycoplasmoides genitalium, MinION, 85 MB | Polishing, Nextflow reads mode |
 
@@ -699,6 +700,51 @@ partitioned protein tree of the 398 PPanGGOLiN genes.
   more, favours the single model. These eight genomes do not show which
   topology is correct.
 
+### End-to-end runs on the Brucella genus (2026-11-09)
+
+Run before release 2.2.0 on machine C, from the GTDB r232 table
+(`--metadata-path`, cached on the external volume).
+
+* **CLI, whole genus:** `repgenr run -r 232.0 --gtdb-version bac120
+  --metadata-path ... -d all -l genus -tg Brucella --tool sourmash
+  --treebuilder mashtree -t 8`, working directory on the exFAT volume. Tools:
+  NCBI datasets 18.30.1, sourmash 4.9.4, Mashtree 1.4.6.
+
+| Stage | Result | Time |
+|---|---|---|
+| metadata | 1785 genomes of 44 species; outgroup GCA_019912385.1 (Rhizobiaceae, JAIOIW01) | under 1 min |
+| genome | 1785 genomes downloaded in one batch | 12.5 min |
+| dereplicate | 167 representatives; 85 singleton clusters, the largest 1305 genomes; the keeper rule replaced the tool's choice in 52 clusters | 4.1 min |
+| phylo | Mashtree tree of 168 leaves, rooted on the outgroup | 32 s |
+| tree2tax | 334 relations, 1786 accessions mapped | 1 s |
+| report | five steps, 2.5 MB page | |
+
+The total was 1057 s. From the genome sketches, members share a median ANI
+of 0.9964 with their representative (lowest 0.9871); 16 of 1618 lie below
+the secondary threshold of 0.99, which a greedy clustering on another
+member's ANI can leave. The tree figure groups the species as in GTDB.
+
+* **Nextflow, species representatives:** `nextflow run nextflow/main.nf
+  --metadata_args "-r 232.0 --gtdb-version bac120 --metadata-path ... -d rep
+  -l genus -tg Brucella" --derep_tool sourmash --derep_process_size 15
+  --phylo_args "--treebuilder mashtree"` with Nextflow 26.04.7, the standard
+  profile. Nine tasks in 71 s: METADATA, GENOME, two DEREP_CHUNK, DEREP_MERGE,
+  PHYLO, TREE2TAX and REPORT; 44 representatives, 88 tree2tax relations, and
+  `report/` with the selection, dereplication, phylogeny and tree2tax steps.
+
+  The first attempt, with the work and results directories on the exFAT
+  volume, failed when Nextflow published `dereplicate/merged/`: macOS keeps
+  extended attributes on exFAT in `._*` files, and the copy met one that had
+  gone (`NoSuchFileException: .../merged/._representatives`). With the work
+  and results directories on the internal APFS disk the run completed. The
+  CLI skips `._*` files and ran on the same volume. See
+  [Platform notes](#platform-notes).
+
+Found and fixed for 2.2.0: the phylogeny summary of a Nextflow report named
+"an unrecorded tree builder" (it now leaves the builder out when no stage
+record names it), and the eighth species colour of the tree figure was the
+grey used for the other species (seven colours now).
+
 ### Gzipped inputs (2026-10-08)
 
 * **Data:** gzipped genomes from `pureclone_20` (three or four `.fasta.gz`
@@ -730,6 +776,12 @@ macOS wrapper waited in `xargs` with no `spoa` process and an almost empty
 MAF. This stall does not depend on gzip and is unresolved.
 
 ## Platform notes
+
+- Nextflow on macOS with its work or results directory on an exFAT
+  volume can fail to publish a directory, because macOS writes `._*` files
+  for extended attributes there (seen 2026-11-09, Brucella run above). Keep
+  the Nextflow work and results directories on APFS, or on a Linux file
+  system on a cluster.
 
 The macOS and Apple Silicon notes are in [install.md](install.md): the
 osx-64 satellites under Rosetta and the platforms of each environment

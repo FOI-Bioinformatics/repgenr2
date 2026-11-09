@@ -119,7 +119,10 @@ def collect(inp: StepInput) -> StepReport:
                 f"{100 * sum(s >= hi for s in supports) / len(supports):.0f}%",
             )
         )
-    text = f"The tree of {len(leaves):,} genomes was built with {_display(builder)}"
+    # Without a stage record (a Nextflow run) the builder is not known.
+    text = f"The tree holds {len(leaves):,} genomes"
+    if builder:
+        text = f"The tree of {len(leaves):,} genomes was built with {_display(builder)}"
     root = params.get("root")
     if root == "outgroup" and outgroup:
         text += f" and rooted on the outgroup {outgroup}"

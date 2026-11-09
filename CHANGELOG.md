@@ -6,6 +6,49 @@ All notable changes to RepGenR2 are documented here. The format follows
 
 ## [Unreleased]
 
+## [2.2.0] - 2026-11-09
+
+The first release from FOI-Bioinformatics/repgenr2. In summary:
+
+- **Project:** renamed RepGenR2; the distribution is `repgenr2`, while the
+  `repgenr` command and import package keep their names. Uninstall an older
+  `repgenr` distribution first.
+- **Entry paths:** genomes from sequencing runs (`reads`, `reads-sketch`,
+  `reads-screen`, `assemble` with polishing, CheckM2 and taxonomy checks);
+  local genomes and earlier working directories (`ingest --genomes-dir`,
+  `--from-workdir`, `--viral`); taxon counts before a run (`census`);
+  several species of one genus (`-ts`) and runs without an outgroup
+  (`--no-outgroup`).
+- **Genome sketches** (`sketches/`, k=21/31/51) shared by dereplication,
+  glance and tree building.
+- **Dereplication:** keeper score with N50 and `--keeper gtdb`, lineage
+  refinement (`--refine`, `derep-refine`), `cluster_summary.tsv`, stored
+  runs (`derep-stock`), and the reason a genome failed the quality filter.
+- **Phylogeny:** the core-gene route (Panaroo, PPanGGOLiN, SCARAP,
+  OrthoFinder, GTDB marker genes) with gene selection, trimming and
+  partitioned models; ASTER species trees; VeryFastTree, rapidNJ, skani and
+  ska2 tree builders; presets and `phylo-advise`; rooting options.
+- **tree2tax:** collapse by support, length or diameter, node naming, RED
+  rank bands and `tree2tax_nodes.tsv` for FlexTaxD.
+- **Reports:** `repgenr report` writes one HTML page with numbered tables
+  and figures per step, methods, versions and parameters, and per-step
+  folders of TSV tables and PNG/SVG figures; the Nextflow pipeline publishes
+  the same report. The RepGenR 1 output files (selection summary and plots,
+  lineage table) are written again.
+- **Nextflow:** reads mode, split alignment and tree tasks, the core-gene
+  route, chunked reads sketching, refinement and the run report.
+- **Working directories:** a 2.1.0 working directory is read: its manifest
+  is migrated to schema version 4 when a stage opens it, and some stages
+  (`snptype`, `ingest` and `tree2tax` among them) run once more because what
+  their resume fingerprint covers changed.
+
+Before the release the pipeline was run end to end on the Brucella genus
+(GTDB r232): the CLI chain on all 1785 genomes and the Nextflow pipeline on
+the 44 species representatives
+([verification.md](docs/verification.md#end-to-end-runs-on-the-brucella-genus-2026-11-09)).
+
+The full list of changes follows.
+
 ### Changed
 - `dereplicate`, `derep-refine`, `cluster-summary` and `derep-stock` keep the
   N50 of each genome in `scratch/n50_cache.tsv` (keyed by file name, size and
@@ -375,6 +418,10 @@ All notable changes to RepGenR2 are documented here. The format follows
   every run failed a warning instead of an error.
 
 ### Fixed
+- Report: the phylogeny summary of a Nextflow report named "an unrecorded
+  tree builder"; it now leaves the builder out when no stage record names
+  it. The tree figure coloured its eighth species with the grey of the
+  other species; it colours seven.
 - `iqtree` with `--partitioned`: the partition file is a NEXUS `sets` block
   of charsets with no model, and the model of every partition is passed as
   `-m`: `--aligner-arg model=` when given, else `GTR+G` (`LG+G` for a
