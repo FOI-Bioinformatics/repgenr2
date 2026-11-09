@@ -3,7 +3,7 @@
 Generated from `tests/audit/cli_matrix.yaml` by `scripts/render_cli_matrix.py`;
 `tests/unit/test_cli_matrix.py` keeps both in step with the command tree.
 
-39 commands, 490 flags (490 with a live test or an n/a reason, 0 pending).
+40 commands, 498 flags (491 with a live test or an n/a reason, 7 pending).
 
 ## Global flags
 
@@ -622,6 +622,21 @@ dispatch: `query`
 |---|---|---|---|---|---|---|
 | `--workdir` | -wd | n/a: query command, no stage parameters | none | n/a: workdir command; the Nextflow layer uses the stateless steps | tests/live/test_smoke.py::test_offline_chain_sourmash_mashtree | docs/cli-reference.md, docs/usage.md, docs/output.md, docs/audit/cli-matrix.md |
 | `--json` |  | n/a: query command, no stage parameters | none | n/a: workdir command; the Nextflow layer uses the stateless steps | tests/live/test_aux_commands.py::test_doctor_and_status_json_and_quick | docs/cli-reference.md, docs/usage.md, docs/output.md, docs/audit/cli-matrix.md |
+
+## report
+
+dispatch: `query`
+
+| flag | aliases | param | validated | nextflow | live | docs |
+|---|---|---|---|---|---|---|
+| `--workdir` | -wd | n/a: query command, no stage parameters | none | n/a: the REPORT process of the pipeline calls it (PR-F) | tests/live/test_smoke.py::test_offline_chain_sourmash_mashtree | docs/cli-reference.md, docs/usage.md, docs/output.md, docs/audit/cli-matrix.md |
+| `--out` | -o | n/a: query command, no stage parameters | none | n/a: the REPORT process of the pipeline calls it (PR-F) | todo: PR-F | docs/cli-reference.md, docs/usage.md, docs/output.md, docs/audit/cli-matrix.md |
+| `--steps` |  | n/a: query command, no stage parameters | choice | n/a: the REPORT process of the pipeline calls it (PR-F) | todo: PR-F | docs/cli-reference.md, docs/usage.md, docs/audit/cli-matrix.md |
+| `--no-refresh` |  | n/a: query command, no stage parameters | none | n/a: the REPORT process of the pipeline calls it (PR-F) | todo: PR-F | docs/cli-reference.md, docs/usage.md, docs/audit/cli-matrix.md |
+| `--fragments-only` |  | n/a: query command, no stage parameters | none | n/a: the REPORT process of the pipeline calls it (PR-F) | todo: PR-F | docs/cli-reference.md, docs/usage.md, docs/audit/cli-matrix.md |
+| `--figure-formats` |  | n/a: query command, no stage parameters | choice | n/a: the REPORT process of the pipeline calls it (PR-F) | todo: PR-F | docs/cli-reference.md, docs/usage.md, docs/output.md, docs/audit/cli-matrix.md |
+| `--from-fragments` |  | n/a: query command, no stage parameters | none | n/a: the REPORT process of the pipeline calls it (PR-F) | todo: PR-F | docs/cli-reference.md, docs/usage.md, docs/output.md, docs/audit/cli-matrix.md |
+| `--title` |  | n/a: query command, no stage parameters | none | n/a: the REPORT process of the pipeline calls it (PR-F) | todo: PR-F | docs/cli-reference.md, docs/usage.md, docs/audit/cli-matrix.md |
 
 ## tree2tax
 

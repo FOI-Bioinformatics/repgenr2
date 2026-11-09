@@ -15,7 +15,7 @@ tools suit a dataset. Every option is listed in
 ## Contents
 
 1. [Introduction](#introduction): stages, working directory, threads,
-   `run`, resume, `status` and `doctor`
+   `run`, resume, `status`, `doctor` and the report
 2. [Building the genome set](#building-the-genome-set): census, GTDB,
    local genomes, sequencing reads, viruses, genome sketches
 3. [Dereplication and representative selection](#dereplication-and-representative-selection)
@@ -108,6 +108,26 @@ a resume fingerprint (from an earlier version, or restored by `derep-stock`)
 is shown as `[done]` with a note that its next run recomputes it. Both
 commands take `--json` (see [output.md](output.md#status-and-doctor)).
 A malformed `repgenr.yaml` makes `status` and every stage exit 3.
+
+### Reports
+
+`repgenr report -wd WD` writes `WD/report/report.html`, one page with the
+results of the run: a summary of key numbers, numbered tables and figures
+per step, a methods paragraph built from the stage records, the software
+versions and the parameters. Each step also has a folder `report/<step>/`
+with its tables as TSV and its figures as PNG (300 dpi) and SVG, for use in
+a manuscript; `--figure-formats png,svg,pdf` adds PDF. A stage refreshes
+the folders of its steps when it finishes or is skipped, and `report`
+rebuilds the ones that are missing or whose data changed (`--no-refresh`
+uses them as they are). `--steps selection` limits the page to some steps,
+`--out FILE` writes it elsewhere and `--title` sets its title.
+`--fragments-only` writes the step folders without the page, and
+`--from-fragments DIR` builds the page from step folders without a working
+directory (the Nextflow pipeline does this). `repgenr run` writes the page
+at the end of the chain. The page embeds its figures and tables, needs no
+network connection and prints on A4. The steps and their contents are
+listed in [output.md](output.md#report). A step that cannot be reported is
+named in a warning and in the page; the stage and the command still exit 0.
 
 ## Building the genome set
 

@@ -78,6 +78,13 @@ def test_offline_chain_sourmash_mashtree(
     second = run_repgenr("dereplicate", "-wd", wd, "--tool", "sourmash", "-t", "2")
     assert "skipping" in second.stderr + second.stdout
 
+    # The stages wrote the selection report; the command writes the page.
+    assert (wd / "report" / "selection" / "step.json").is_file()
+    run_repgenr("report", "-wd", wd)
+    page = (wd / "report" / "report.html").read_text(encoding="utf-8")
+    for text in (">Genome selection</h2>", "Figure 1.", ">Methods</h2>"):
+        assert text in page
+
 
 def test_run_local_chain(run_repgenr, synthetic_set, tmp_path: Path) -> None:
     """`run --genomes-dir` is the ingest chain in one command, and a second run skips."""

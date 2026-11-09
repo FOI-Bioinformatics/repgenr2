@@ -11,7 +11,10 @@ metadata command wrote them:
   family, genus and species.
 * ``metadata_summary_number_per_level.png``: distinct taxa per level.
 
-The outgroup is not counted. ``metadata_selected.tsv`` (written by the
+The outgroup is not counted. ``selection_stats.json`` holds the counts of
+the selection that ``selection.tsv`` does not (the candidates before a
+``--limit`` cut); it is rewritten with every selection, empty when the stage
+reports none. ``metadata_selected.tsv`` (written by the
 metadata stage with the GTDB and NCBI lineages) is trimmed here to the
 accessions still selected, so another entry stage never leaves rows of
 genomes that left the selection.
@@ -22,16 +25,20 @@ from __future__ import annotations
 import csv
 import logging
 from collections import Counter
-from collections.abc import Collection, Iterable, Sequence
+from collections.abc import Collection, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 from .contracts import SelectionRow, atomic_path, atomic_replace
+from .stage_stats import write_stats
 
 SUMMARY_TSV = "metadata_summary.tsv"
 PLOT_IN_LEVEL = "metadata_summary_number_in_level.png"
 PLOT_PER_LEVEL = "metadata_summary_number_per_level.png"
 METADATA_SELECTED_TSV = "metadata_selected.tsv"
+SELECTION_STATS = "selection_stats.json"
+SELECTION_STATS_KIND = "selection"
 
 LEVELS = ("family", "genus", "species")
 UNCLASSIFIED = "unclassified"
@@ -109,11 +116,14 @@ def write_selection_summary(
     logger: logging.Logger,
     *,
     full_species: FullSpecies = False,
+    stats: Mapping[str, Any] | None = None,
 ) -> None:
     """Write the summary table and plots of ``rows``; remove them when the
     selection holds no ingroup genome. Trim ``metadata_selected.tsv``.
-    ``full_species`` as in :func:`count_taxa` (the viral stages)."""
+    ``full_species`` as in :func:`count_taxa` (the viral stages). ``stats``
+    (for example ``candidates``) goes to ``selection_stats.json``."""
     _trim_metadata_selected(workdir, {r.accession for r in rows})
+    write_stats(workdir / SELECTION_STATS, SELECTION_STATS_KIND, stats or {})
     counts = count_taxa(rows, full_species=full_species)
     paths = [workdir / name for name in (SUMMARY_TSV, PLOT_IN_LEVEL, PLOT_PER_LEVEL)]
     if not counts:

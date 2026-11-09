@@ -28,6 +28,7 @@ Contents:
 - [snptype](#snptype)
 - [phylo](#phylo)
 - [tree2tax](#tree2tax)
+- [Report](#report)
 - [Machine-readable output](#machine-readable-output)
 - [Nextflow output directory](#nextflow-output-directory)
 - [Files of RepGenR 1](#files-of-repgenr-1)
@@ -86,6 +87,10 @@ WD/
   tree2tax.tsv                    taxonomy for FlexTaxD (tree2tax)
   tree2tax_nodes.tsv              per-node table (tree2tax)
   genomes_map.tsv                 accession to node (tree2tax)
+  selection_stats.json            counts of the selection (entry stages)
+  report/                         the report (every stage, repgenr report)
+    report.html
+    <step>/                       tables (TSV), figures (PNG, SVG), step.json
 ```
 
 ## Files shared across stages
@@ -748,6 +753,42 @@ stateless step without `--keep-root` or an outgroup.
 `genomes_map.tsv` has one row per representative (its own leaf), per
 dereplicated member with `--include-dereplicated` (its representative's
 leaf), and, for a grouped viral isolate, per member segment accession.
+
+## Report
+
+`repgenr report -wd WD` (see [usage.md](usage.md#reports)) writes
+`report/report.html` and one folder per step that has results. The steps
+appear in the page in this order:
+
+| Step | Written after | Tables (TSV) | Figures |
+|---|---|---|---|
+| `selection` | metadata, ingest, vgenome, genome, assemble | `selection_counts.tsv` (candidates, selected, outgroup, GTDB species representatives, genome files present, accessions not obtained); `genomes_per_taxon.tsv` (`level`, `name`, `genomes`); `assembly_quality.tsv` (completeness and contamination: genomes, min, q1, median, q3, max) | `genomes_per_species` (the 30 largest species, the rest combined); `assembly_quality` (contamination against completeness) |
+
+Each step folder holds:
+
+- `step.json` (schema `repgenr.report-step/1`): the title, summary
+  sentences, key numbers, the captions of the tables and figures, the
+  records of the stages behind the step (tool, versions, parameters,
+  completion time), the digests of the files the step was built from, and
+  the repgenr version. A step is rebuilt when one of these files, a stage
+  record, the figure formats or the repgenr version changed.
+- one TSV per table, with unformatted numbers;
+- each figure as `<name>.png` (300 dpi) and `<name>.svg` (text kept as
+  text), and `<name>.pdf` with `--figure-formats png,svg,pdf`. Figures carry
+  no date, so the same data give the same files.
+
+The page shows the first 25 rows of each table, with the whole table
+embedded as a TSV download up to 2 MB. Figures are embedded as PNG.
+Quartiles are computed by the inclusive method. The methods paragraph uses
+only values the stages recorded.
+
+`selection_stats.json` (`{"v": 1, "kind": "selection", "values": {...}}`)
+holds counts the selection table does not: `candidates` (the genomes that
+matched the target before a `--limit` cut), `limit` and `source`. The
+metadata stage fills it; the other entry stages write it empty.
+
+`--from-fragments` reads step folders written elsewhere and writes the page
+without a working directory.
 
 ## Machine-readable output
 

@@ -338,7 +338,7 @@ PANEL_STEPS = "Nextflow data-channel steps"
 # Panel -> commands in display order. The single source of truth for the
 # grouped --help, the rendered command reference, and the panel test.
 COMMAND_PANELS: dict[str, tuple[str, ...]] = {
-    PANEL_PIPELINE: ("run", "status", "phylo-advise"),
+    PANEL_PIPELINE: ("run", "status", "report", "phylo-advise"),
     PANEL_ENTRY: (
         "metadata",
         "genome",
@@ -1495,6 +1495,9 @@ def _run_stage(stage_name: str, ctx: WorkdirContext, params, logger) -> None:
                         "writes the missing ones.",
                         ctx.workdir,
                     )
+                # A skipped stage still brings its report up to date (a
+                # workdir from before the report, or a deleted fragment).
+                _refresh_report(ctx, stage_name, logger)
                 return
             # The fingerprint excludes outputs, so check them separately: a
             # deliverable deleted by hand must be rebuilt, not skipped.
@@ -1613,6 +1616,21 @@ def _run_stage(stage_name: str, ctx: WorkdirContext, params, logger) -> None:
         record.inputs = digests
         record.bin_dirs = bindirs.used()
         ctx.save_config()
+    _refresh_report(ctx, stage_name, logger)
+
+
+def _refresh_report(ctx: WorkdirContext, stage_name: str, logger: logging.Logger) -> None:
+    """Refresh the report fragments (report/<step>/) the stage feeds.
+
+    The report is written beside the results: a failure is logged as a
+    warning and never fails the stage.
+    """
+    try:
+        from ..reporting.hooks import refresh_for_stage
+
+        refresh_for_stage(ctx.workdir, stage_name, logger)
+    except Exception as exc:  # noqa: BLE001 - see docstring
+        logger.warning("Could not refresh the report of stage '%s': %s", stage_name, exc)
 
 
 def _provisional_params(params: object) -> dict[str, Any]:

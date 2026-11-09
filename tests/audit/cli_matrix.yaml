@@ -4831,6 +4831,102 @@ commands:
         nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
         live: tests/live/test_aux_commands.py::test_doctor_and_status_json_and_quick
         observable: one repgenr.status/1 JSON object on stdout
+  report:
+    dispatch: query
+    base_args:
+    - -wd
+    - '{wd}'
+    flags:
+      --workdir:
+        aliases:
+        - -wd
+        param: 'n/a: query command, no stage parameters'
+        validated: none
+        docs:
+        - docs/cli-reference.md
+        - docs/usage.md
+        - docs/output.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'n/a: the REPORT process of the pipeline calls it (PR-F)'
+        live: tests/live/test_smoke.py::test_offline_chain_sourmash_mashtree
+        observable: report/report.html with the step sections, Figure 1 and Methods
+      --out:
+        aliases:
+        - -o
+        param: 'n/a: query command, no stage parameters'
+        validated: none
+        docs:
+        - docs/cli-reference.md
+        - docs/usage.md
+        - docs/output.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'n/a: the REPORT process of the pipeline calls it (PR-F)'
+        live: 'todo: PR-F'
+        observable: the HTML page at the given path
+      --steps:
+        param: 'n/a: query command, no stage parameters'
+        validated: choice
+        reported_as: report step
+        docs:
+        - docs/cli-reference.md
+        - docs/usage.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'n/a: the REPORT process of the pipeline calls it (PR-F)'
+        live: 'todo: PR-F'
+        observable: only the named step sections
+      --no-refresh:
+        param: 'n/a: query command, no stage parameters'
+        validated: none
+        docs:
+        - docs/cli-reference.md
+        - docs/usage.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'n/a: the REPORT process of the pipeline calls it (PR-F)'
+        live: 'todo: PR-F'
+        observable: the page from the fragments on disk
+      --fragments-only:
+        param: 'n/a: query command, no stage parameters'
+        validated: none
+        docs:
+        - docs/cli-reference.md
+        - docs/usage.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'n/a: the REPORT process of the pipeline calls it (PR-F)'
+        live: 'todo: PR-F'
+        observable: report/<step>/ folders and no HTML page
+      --figure-formats:
+        param: 'n/a: query command, no stage parameters'
+        validated: choice
+        reported_as: figure format
+        docs:
+        - docs/cli-reference.md
+        - docs/usage.md
+        - docs/output.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'n/a: the REPORT process of the pipeline calls it (PR-F)'
+        live: 'todo: PR-F'
+        observable: PDF figures beside PNG and SVG
+      --from-fragments:
+        param: 'n/a: query command, no stage parameters'
+        validated: none
+        docs:
+        - docs/cli-reference.md
+        - docs/usage.md
+        - docs/output.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'n/a: the REPORT process of the pipeline calls it (PR-F)'
+        live: 'todo: PR-F'
+        observable: one page from fragment folders of separate tasks
+      --title:
+        param: 'n/a: query command, no stage parameters'
+        validated: none
+        docs:
+        - docs/cli-reference.md
+        - docs/usage.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'n/a: the REPORT process of the pipeline calls it (PR-F)'
+        live: 'todo: PR-F'
+        observable: the page title
   tree2tax:
     dispatch: stage
     base_args:
