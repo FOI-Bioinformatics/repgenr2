@@ -154,6 +154,30 @@ record still exits 3 and leaves stdout empty.
 | `-wd`, `--workdir` | required | Working directory. |
 | `--json` | off | Print one versioned JSON object on stdout instead of the text report (schema in docs/output.md); exit codes are unchanged. |
 
+### report
+
+Write the scientific report of a run: tables, figures and methods.
+
+Each step with results (the genome selection first) gets a folder
+report/<step>/ with TSV tables, figures in PNG and SVG, and step.json.
+These are rebuilt when missing or when their data changed; stages also
+refresh them when they finish. The HTML page report/report.html puts
+them together, numbered, with a methods paragraph, the software versions
+and the parameters from repgenr.yaml. It is self-contained (figures and
+table downloads are embedded) and prints on A4. A step that cannot be
+reported is named in a warning; the command still writes the page.
+
+| option | default | description |
+|---|---|---|
+| `-wd`, `--workdir` |  | Working directory. |
+| `--out`, `-o` |  | The HTML report to write. Default: <wd>/report/report.html. |
+| `--steps` |  | Report only these steps, comma-separated. Steps: selection. Default: every step with results. |
+| `--no-refresh` | off | Use the step reports on disk as they are; do not rebuild missing or stale ones. |
+| `--fragments-only` | off | Write the step reports (report/<step>/) and no HTML page. |
+| `--figure-formats` | `png,svg` | Figure formats, comma-separated: png, svg, pdf. The HTML embeds SVG, else PNG. |
+| `--from-fragments` |  | Build the HTML page from these step-report folders (or folders holding them) instead of a working directory. Repeatable; needs --out. |
+| `--title` |  | Title of the HTML report. |
+
 ### phylo-advise
 
 Suggest a phylo route and tree builder for the genome set of a workdir.

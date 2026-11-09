@@ -856,7 +856,26 @@ def run(
         ),
     )
 
+    report_path = _write_run_report(workdir)
     typer.echo(
         f"\nPipeline complete. Deliverables in {workdir}: "
         "tree2tax.tsv, genomes_map.tsv, tree/tree.nwk"
+        + (f"; report: {report_path}" if report_path else "")
     )
+
+
+def _write_run_report(workdir: Path) -> Path | None:
+    """Write report/report.html after a complete chain; None on failure
+    (logged as a warning: the results are written)."""
+    from .. import reporting
+
+    logger = logging.getLogger("repgenr")
+    try:
+        reporting.refresh(workdir, logger=logger)
+        fragments = reporting.collect_fragments([reporting.fragments_dir(workdir)])
+        target = reporting.fragments_dir(workdir) / reporting.REPORT_HTML
+        prov = reporting.new_provenance(workdir)
+        return reporting.write_html(target, fragments, prov, logger)
+    except Exception as exc:  # noqa: BLE001 - see docstring
+        logger.warning("Could not write the run report: %s", exc)
+        return None

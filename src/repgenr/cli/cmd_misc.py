@@ -1,5 +1,5 @@
-"""Auxiliary commands: status, doctor, markers-db, census, glance, derep-unpack, derep-stock,
-sketch, list-tools."""
+"""Auxiliary commands: status, report, doctor, markers-db, census, glance, derep-unpack,
+derep-stock, sketch, list-tools."""
 
 from __future__ import annotations
 
@@ -10,6 +10,7 @@ from typing import Any
 import typer
 
 from ..core.errors import UserInputError
+from ..reporting.registry import STEP_NAMES as REPORT_STEP_NAMES
 from .base import (
     _RUN_STATE,
     DEFAULT_THREADS,
@@ -1089,3 +1090,149 @@ def _where(reg, name: str) -> tuple[str, str | None]:
     if image is None:
         return " [host]", None
     return f" [image {image}]", image
+
+
+_HELP_REPORT_STEPS = (
+    "Report only these steps, comma-separated. Steps: {steps}. Default: every step with results."
+)
+
+
+@app.command(rich_help_panel=PANEL_PIPELINE)
+def report(
+    workdir: Path | None = typer.Option(None, "-wd", "--workdir", help=HELP_WORKDIR),
+    out: Path | None = typer.Option(
+        None, "--out", "-o", help="The HTML report to write. Default: <wd>/report/report.html."
+    ),
+    steps: str | None = typer.Option(
+        None, "--steps", help=_HELP_REPORT_STEPS.format(steps=", ".join(REPORT_STEP_NAMES))
+    ),
+    no_refresh: bool = typer.Option(
+        False,
+        "--no-refresh",
+        help="Use the step reports on disk as they are; do not rebuild missing or stale ones.",
+    ),
+    fragments_only: bool = typer.Option(
+        False,
+        "--fragments-only",
+        help="Write the step reports (report/<step>/) and no HTML page.",
+    ),
+    figure_formats: str = typer.Option(
+        "png,svg",
+        "--figure-formats",
+        help="Figure formats, comma-separated: png, svg, pdf. The HTML embeds SVG, else PNG.",
+    ),
+    from_fragments: list[Path] | None = typer.Option(
+        None,
+        "--from-fragments",
+        help=(
+            "Build the HTML page from these step-report folders (or folders holding them) "
+            "instead of a working directory. Repeatable; needs --out."
+        ),
+    ),
+    title: str | None = typer.Option(None, "--title", help="Title of the HTML report."),
+) -> None:
+    """Write the scientific report of a run: tables, figures and methods.
+
+    Each step with results (the genome selection first) gets a folder
+    report/<step>/ with TSV tables, figures in PNG and SVG, and step.json.
+    These are rebuilt when missing or when their data changed; stages also
+    refresh them when they finish. The HTML page report/report.html puts
+    them together, numbered, with a methods paragraph, the software versions
+    and the parameters from repgenr.yaml. It is self-contained (figures and
+    table downloads are embedded) and prints on A4. A step that cannot be
+    reported is named in a warning; the command still writes the page.
+    """
+    from .. import reporting
+    from ..core.config import CONFIG_FILENAME, Config
+    from ..core.errors import WorkdirError
+    from ..core.logging import configure_logging
+    from ..reporting.figures import FORMATS
+
+    logger = configure_logging(None, level=_RUN_STATE["log_level"])
+    try:
+        wanted = _report_steps(steps)
+        formats = tuple(f.strip() for f in figure_formats.split(",") if f.strip())
+        for fmt in formats:
+            _require_choice(fmt, frozenset(FORMATS), "figure format")
+        if not formats:
+            raise UserInputError("--figure-formats names no format.")
+        if from_fragments:
+            if workdir is not None:
+                raise UserInputError("Give either -wd or --from-fragments, not both.")
+            if out is None:
+                raise UserInputError("--from-fragments needs --out.")
+            if fragments_only:
+                raise UserInputError("--fragments-only needs -wd, not --from-fragments.")
+        elif workdir is None:
+            raise UserInputError("Give -wd (a working directory) or --from-fragments.")
+    except UserInputError as exc:
+        typer.echo(f"ERROR {exc}", err=True)
+        raise typer.Exit(code=exc.exit_code) from exc
+
+    if from_fragments:
+        missing = [str(p) for p in from_fragments if not p.is_dir()]
+        if missing:
+            err = WorkdirError(f"No such report folder: {', '.join(missing)}")
+            typer.echo(f"ERROR {err}", err=True)
+            raise typer.Exit(code=err.exit_code)
+        fragments = reporting.collect_fragments(from_fragments, wanted)
+        prov = reporting.new_provenance(None, title)
+        assert out is not None
+        reporting.write_html(out, fragments, prov, logger)
+        typer.echo(f"Report written to {out} ({len(fragments)} step(s)).")
+        return
+
+    assert workdir is not None
+    require_existing_workdir(workdir)
+    states: dict[str, str] = {}
+    if not no_refresh:
+        states = reporting.refresh(workdir, wanted, formats=formats, logger=logger)
+    if fragments_only:
+        written = sorted(s for s, st in states.items() if st in ("written", "current"))
+        typer.echo(f"Step reports in {workdir / 'report'}: {', '.join(written) or 'none'}.")
+        return
+    fragments = (
+        reporting.collect_fragments([reporting.fragments_dir(workdir)], wanted)
+        if (reporting.fragments_dir(workdir).is_dir())
+        else []
+    )
+    prov = reporting.new_provenance(workdir, title)
+    failed = sorted(s for s, st in states.items() if st == "failed")
+    if failed:
+        prov.notes.append(
+            "These steps could not be reported (see the warnings): " + ", ".join(failed) + "."
+        )
+    if (workdir / CONFIG_FILENAME).exists():
+        try:
+            cfg = Config.load(workdir)
+            status_report = _status_report(workdir, cfg)
+            prov.stages = [
+                (s["name"], s["state"], s["tool"] or "", _minute(s["completed"]))
+                for s in status_report["stages"]
+                if s["state"] != "pending"
+            ]
+        except WorkdirError as exc:
+            prov.notes.append(f"The run record could not be read: {exc}")
+    else:
+        prov.notes.append(f"The working directory has no {CONFIG_FILENAME}; provenance is unknown.")
+    target = out or (reporting.fragments_dir(workdir) / reporting.REPORT_HTML)
+    reporting.write_html(target, fragments, prov, logger)
+    typer.echo(f"Report written to {target} ({len(fragments)} step(s)).")
+
+
+def _minute(stamp: str | None) -> str:
+    """An ISO timestamp cut to the minute ('2026-11-09 09:18')."""
+    return stamp.replace("T", " ")[:16] if stamp else ""
+
+
+def _report_steps(value: str | None) -> tuple[str, ...] | None:
+    from ..reporting import STEP_NAMES
+
+    if value is None:
+        return None
+    names = tuple(s.strip() for s in value.split(",") if s.strip())
+    for name in names:
+        _require_choice(name, frozenset(STEP_NAMES), "report step")
+    if not names:
+        raise UserInputError("--steps names no step.")
+    return names

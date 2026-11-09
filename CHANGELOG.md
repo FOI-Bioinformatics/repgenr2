@@ -7,6 +7,19 @@ All notable changes to RepGenR2 are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- `repgenr report -wd WD`: one self-contained HTML page with the results
+  of a run (summary of key numbers, numbered tables and figures per step,
+  methods text from the stage records, software versions and parameters),
+  and per step a folder `report/<step>/` with the tables as TSV and the
+  figures as PNG (300 dpi) and SVG (`--figure-formats` adds PDF). Stages
+  refresh the folders of their steps when they finish or are skipped; a
+  report failure is a warning and never fails a stage. `repgenr run` writes
+  the page at the end of the chain. `--from-fragments` builds the page from
+  step folders without a working directory. This first step is the genome
+  selection (counts, genomes per taxon, assembly quality); the other steps
+  follow.
+- `selection_stats.json`: the candidate genomes a metadata `--limit` cut
+  chose from, which were only in the log.
 - Selection summary, as RepGenR 1 wrote it: `metadata_summary.tsv`
   (genomes per family, genus and species of the ingroup) and the plots
   `metadata_summary_number_in_level.png` and

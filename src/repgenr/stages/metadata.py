@@ -91,6 +91,8 @@ def run(ctx: WorkdirContext, params: MetadataParams) -> int:
     _validate(params)
 
     api_query_date: str | None = None
+    # Candidate genomes before a --limit cut, for selection_stats.json.
+    counts: dict[str, int] = {}
     if params.source == "api":
         # The API exposes no GTDB release number (its /meta/version is the
         # software version), so the date of the query is recorded in its place.
@@ -111,18 +113,27 @@ def run(ctx: WorkdirContext, params: MetadataParams) -> int:
                 "Use --source tsv to pin a release or to read a local table.",
                 ", ".join(ignored),
             )
-        selected, outgroup, details = _select_via_api(params, logger, ctx.workdir)
+        selected, outgroup, details = _select_via_api(params, logger, ctx.workdir, counts)
     else:
         # A table run leaves no API answer behind for census to read.
         (ctx.workdir / GTDB_API_GENOMES).unlink(missing_ok=True)
-        selected, outgroup, details = _select_via_tsv(ctx, params, logger)
+        selected, outgroup, details = _select_via_tsv(ctx, params, logger, counts)
 
     logger.info("Selected %d genomes; outgroup: %s", len(selected), outgroup.accession)
     _populate_manifest(ctx, selected, outgroup)
     _write_outgroup_file(ctx, outgroup.accession)
     rows = _write_selection(ctx, selected, outgroup)
     write_metadata_selected(ctx.workdir, rows, details)
-    write_selection_summary(ctx.workdir, rows, logger)
+    write_selection_summary(
+        ctx.workdir,
+        rows,
+        logger,
+        stats={
+            "source": f"gtdb-{params.source}",
+            "candidates": counts.get("candidates", len(selected)),
+            "limit": params.limit,
+        },
+    )
 
     ctx.config.record_stage(
         "metadata",
@@ -191,7 +202,7 @@ def _validate(params: MetadataParams) -> None:
 
 
 def _select_via_tsv(
-    ctx: WorkdirContext, params: MetadataParams, logger
+    ctx: WorkdirContext, params: MetadataParams, logger, counts: dict[str, int] | None = None
 ) -> tuple[list[GenomeRecord], GenomeRecord, dict[str, GenomeDetails]]:
     metadata_file = _obtain_metadata(ctx, params, logger)
     accessions = _parse_metadata(metadata_file, params, logger)
@@ -202,7 +213,7 @@ def _select_via_tsv(
             f"Target not found in GTDB: family={params.target_family} "
             f"genus={params.target_genus} species={params.target_species} at level {params.level}"
         )
-    selected = _select(accessions, target_levels, params.limit, logger)
+    selected = _select(accessions, target_levels, params.limit, logger, counts)
     outgroup_acc, outgroup_data = _pick_outgroup(accessions, selected, target_levels, params)
 
     records = [
@@ -564,15 +575,24 @@ def _log_limit(limit: int | None, candidates: Sequence[_Candidate], kept: Sequen
         )
 
 
-def _select(accessions: dict[str, dict], target_levels: dict[str, str], limit: int | None, logger):
+def _select(
+    accessions: dict[str, dict],
+    target_levels: dict[str, str],
+    limit: int | None,
+    logger,
+    counts: dict[str, int] | None = None,
+):
     """Every genome matching the target, cut to ``limit`` by species-stratified
-    quality ranking (never by file order)."""
+    quality ranking (never by file order). ``counts["candidates"]`` is set to
+    the number of matching genomes before the cut."""
     matching = {
         acc: data
         for acc, data in accessions.items()
         if not data.get("outgroup_only")
         and all(data["tax"][lvl] == val for lvl, val in target_levels.items())
     }
+    if counts is not None:
+        counts["candidates"] = len(matching)
     if not limit or len(matching) <= limit:
         return matching
     candidates = [
@@ -902,7 +922,10 @@ def read_api_genomes(path: Path) -> list[dict]:
 
 
 def _select_via_api(
-    params: MetadataParams, logger, workdir: Path | None = None
+    params: MetadataParams,
+    logger,
+    workdir: Path | None = None,
+    counts: dict[str, int] | None = None,
 ) -> tuple[list[GenomeRecord], GenomeRecord, dict[str, GenomeDetails]]:
     taxon = _target_taxon(params)
     logger.info("Querying GTDB API for genomes in %s", taxon)
@@ -916,6 +939,8 @@ def _select_via_api(
     # Quality for every candidate first: the cut below ranks on it.
     cards = _api_cards_by_accession([row["gid"] for row in rows], logger)
     quality = {acc: _api_quality(card) if card else (None, None) for acc, card in cards.items()}
+    if counts is not None:
+        counts["candidates"] = len(rows)
     if params.limit and len(rows) > params.limit:
         candidates = [
             _Candidate(
