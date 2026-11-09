@@ -28,6 +28,12 @@ All notable changes to RepGenR2 are documented here. The format follows
   `derep/derep_stats.json` keep the numbers that were only in the log
   (pairwise summary and histogram; `--target-reps` search, `--reduce`
   counts, keeper swaps).
+- Report steps `reads` (runs remaining after each filter, runs per
+  platform, sketch status, screen decisions; sequence per run, matched
+  fraction of the screen) and `assembly` (metrics per assembler as median
+  and quartiles, taxonomy flags, runs without a genome; N50 against
+  length, completeness against contamination, coverage).
+  `reads_stats.json` keeps the counts of the reads filters.
 - Selection summary, as RepGenR 1 wrote it: `metadata_summary.tsv`
   (genomes per family, genus and species of the ingroup) and the plots
   `metadata_summary_number_in_level.png` and

@@ -52,6 +52,11 @@ DISPLAY_NAMES: dict[str, str] = {
     "ppanggolin": "PPanGGOLiN",
     "prokka": "Prokka",
     "bakta": "Bakta",
+    "spades": "SPAdes",
+    "flye": "Flye",
+    "medaka": "Medaka",
+    "racon": "Racon",
+    "checkm2": "CheckM2",
 }
 
 
@@ -159,7 +164,55 @@ def _glance(m: MethodsInfo) -> tuple[str, list[str]]:
     )
 
 
+def _reads(m: MethodsInfo) -> tuple[str, list[str]]:
+    p = m.params
+    target = p.get("target_species") or p.get("target_genus") or p.get("target_family")
+    text = "Whole-genome sequencing runs"
+    if target:
+        text += f" of {target}"
+    text += " were selected from the European Nucleotide Archive"
+    filters = []
+    if p.get("platform") and p["platform"] != "any":
+        filters.append(f"{p['platform']} runs")
+    if p.get("min_bases"):
+        filters.append(f"at least {int(p['min_bases']):,} bases")
+    if p.get("max_bases"):
+        filters.append(f"at most {int(p['max_bases']):,} bases")
+    if p.get("drop_selection"):
+        filters.append("library selection not " + ", ".join(p["drop_selection"]))
+    if filters:
+        text += " (" + "; ".join(filters) + ")"
+    text += "."
+    if p.get("one_per_sample"):
+        text += " One run was kept per biosample."
+    return text, []
+
+
+def _assemble(m: MethodsInfo) -> tuple[str, list[str]]:
+    p = m.params
+    tools = p.get("assemblers_used") or ([m.tool] if m.tool else [])
+    names = ", ".join(f"{display(t)}{_version(m, t)}" for t in tools) or "the chosen assembler"
+    text = f"Runs were assembled with {names}."
+    polishers = p.get("polishers_used") or []
+    if polishers:
+        text += (
+            " Assemblies were polished with "
+            + ", ".join(f"{display(t)}{_version(m, t)}" for t in polishers)
+            + "."
+        )
+    if p.get("checkm2_db"):
+        text += (
+            f" Completeness and contamination were estimated with CheckM2{_version(m, 'checkm2')}."
+        )
+    if p.get("classifier_effective"):
+        c = p["classifier_effective"]
+        text += f" Assemblies were classified with {display(c)}{_version(m, c)}."
+    return text, []
+
+
 _TEMPLATES: dict[str, Callable[[MethodsInfo], tuple[str, list[str]]]] = {
+    "reads": _reads,
+    "assemble": _assemble,
     "metadata": _metadata,
     "genome": _genome,
     "ingest": _ingest,

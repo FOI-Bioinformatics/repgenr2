@@ -20,8 +20,13 @@ from ..core.context import WorkdirContext
 from ..core.contracts import READS_TSV, ReadRow, sanitise_taxon_tokens, write_reads
 from ..core.errors import UserInputError
 from ..core.ncbi_taxonomy import get_taxon_data_from_entrez
+from ..core.stage_stats import write_stats
 
 PLATFORMS = ("any", "illumina", "ont", "pacbio")
+# Runs remaining after each filter of the selection, for the report.
+READS_STATS = "reads_stats.json"
+READS_STATS_KIND = "reads"
+
 _ENA_PLATFORM = {"illumina": "ILLUMINA", "ont": "OXFORD_NANOPORE", "pacbio": "PACBIO_SMRT"}
 _LONG_READ = {"OXFORD_NANOPORE", "PACBIO_SMRT"}
 
@@ -84,14 +89,18 @@ def run(ctx: WorkdirContext, params: ReadsParams) -> int:
     candidates = len(rows)
     logger.info("ENA returned %d whole-genome sequencing runs", candidates)
 
-    rows = _filter(rows, params, logger)
+    # Runs remaining after each filter, for reads_stats.json and the report.
+    funnel: list[tuple[str, int]] = [("whole-genome runs returned by ENA", candidates)]
+    rows = _filter(rows, params, logger, funnel)
     if params.one_per_sample:
         rows = _best_per_sample(rows)
+        funnel.append(("one run per biosample", len(rows)))
     # Ties broken by accession, so --max-runs keeps the same runs whatever
     # order the portal returns them in.
     rows.sort(key=lambda r: (-r.bases, r.run_accession))
     if params.max_runs is not None:
         rows = rows[: params.max_runs]
+        funnel.append((f"at most {params.max_runs} runs (--max-runs)", len(rows)))
     if not rows:
         raise UserInputError(
             f"No sequencing runs selected ({candidates} candidates before filtering"
@@ -100,6 +109,11 @@ def run(ctx: WorkdirContext, params: ReadsParams) -> int:
 
     rows = _label(rows, logger)
     write_reads(ctx.workdir / READS_TSV, rows)
+    write_stats(
+        ctx.workdir / READS_STATS,
+        READS_STATS_KIND,
+        {"candidates": candidates, "selected": len(rows), "funnel": funnel},
+    )
     ctx.config.record_stage(
         "reads",
         params={
@@ -185,11 +199,25 @@ def _dedupe(rows: list[ReadRow]) -> list[ReadRow]:
     return out
 
 
-def _filter(rows: list[ReadRow], params: ReadsParams, logger: logging.Logger) -> list[ReadRow]:
+def _filter(
+    rows: list[ReadRow],
+    params: ReadsParams,
+    logger: logging.Logger,
+    funnel: list[tuple[str, int]] | None = None,
+) -> list[ReadRow]:
+    """The runs that pass the platform, base-count and library filters;
+    ``funnel`` receives the runs remaining after each filter that is set."""
     wanted = _ENA_PLATFORM.get(params.platform)
     kept = [
         r for r in rows if (wanted is None or r.platform == wanted) and r.bases >= params.min_bases
     ]
+    if funnel is not None and (wanted is not None or params.min_bases):
+        label = []
+        if wanted is not None:
+            label.append(f"platform {params.platform}")
+        if params.min_bases:
+            label.append(f"at least {params.min_bases:,} bases")
+        funnel.append((" and ".join(label), len(kept)))
     if params.max_bases is not None:
         over = [r for r in kept if r.bases > params.max_bases]
         if over:
@@ -202,6 +230,8 @@ def _filter(rows: list[ReadRow], params: ReadsParams, logger: logging.Logger) ->
                 max(over, key=lambda r: r.bases).run_accession,
             )
         kept = [r for r in kept if r.bases <= params.max_bases]
+        if funnel is not None:
+            funnel.append((f"at most {params.max_bases:,} bases", len(kept)))
     drop = {s.upper() for s in params.drop_selection}
     if drop:
         amplified = [r for r in kept if r.library_selection.upper() in drop]
@@ -214,6 +244,8 @@ def _filter(rows: list[ReadRow], params: ReadsParams, logger: logging.Logger) ->
                 + (" ..." if len(amplified) > 5 else ""),
             )
         kept = [r for r in kept if r.library_selection.upper() not in drop]
+        if funnel is not None:
+            funnel.append((f"library selection not {', '.join(sorted(drop))}", len(kept)))
     return kept
 
 

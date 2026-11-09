@@ -64,6 +64,19 @@ def integer_ticks(axis: Any) -> None:
     axis.set_major_locator(MaxNLocator(integer=True))
 
 
+def log_scale(axis: Any, which: str) -> None:
+    """A logarithmic ``which`` ("x" or "y") axis labelled with plain numbers
+    (0.5, 1, 2, 5, 100) rather than powers of ten."""
+    from matplotlib.ticker import FuncFormatter, LogLocator
+
+    ax = axis
+    (ax.set_xscale if which == "x" else ax.set_yscale)("log")
+    target = ax.xaxis if which == "x" else ax.yaxis
+    target.set_major_locator(LogLocator(base=10, subs=(1.0, 2.0, 5.0)))
+    target.set_major_formatter(FuncFormatter(lambda v, _: f"{v:g}"))
+    target.set_minor_formatter(FuncFormatter(lambda v, _: ""))
+
+
 def truncate(label: str, limit: int = MAX_LABEL) -> str:
     """``label`` cut to ``limit`` characters, ending in '...' when cut."""
     return label if len(label) <= limit else label[: limit - 3].rstrip() + "..."

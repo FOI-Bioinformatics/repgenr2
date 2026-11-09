@@ -29,7 +29,7 @@ from ...core.stage_stats import read_stats
 from ...dereplicators.base import STATUS_CONTAINED, STATUS_FAIL_QC, STATUS_REPRESENTATIVE
 from ...stages.dereplicate import DEREP_STATS, DEREP_STATS_KIND
 from .. import style
-from ..figures import bar_height, horizontal_bars, integer_ticks, render
+from ..figures import bar_height, horizontal_bars, integer_ticks, log_scale, render
 from ..model import FigureRef, KeyNumber, StepReport
 from ..registry import StepInput
 from ..tables import write_table
@@ -303,12 +303,12 @@ def _size_figure(out: Path, sizes: list[int], formats) -> FigureRef:
 
             bins = np.unique(np.logspace(0, np.log10(max(xs) + 1), 30).astype(int))
             ax.hist(sizes, bins=bins, color=style.PRIMARY, linewidth=0)
-            ax.set_xscale("log")
+            log_scale(ax, "x")
             ax.set_xlabel("Genomes per cluster (log scale)")
         ax.set_ylabel("Clusters")
         integer_ticks(ax.yaxis)
         if max(counts.values()) > 50 * min(counts.values()):
-            ax.set_yscale("log")
+            log_scale(ax, "y")
             ax.set_ylabel("Clusters (log scale)")
 
     files = render(out, "cluster_sizes", draw, formats=formats)
