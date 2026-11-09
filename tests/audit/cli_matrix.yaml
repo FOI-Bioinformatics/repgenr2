@@ -1809,6 +1809,16 @@ commands:
         - docs/audit/cli-matrix.md
         nextflow: params.metadata_args
         live: tests/live/test_network.py::test_api_species_limit_and_explicit_outgroup
+      --no-outgroup:
+        param: MetadataParams.no_outgroup
+        validated: none
+        docs:
+        - docs/cli-reference.md
+        - docs/usage.md
+        - docs/audit/cli-matrix.md
+        nextflow: params.metadata_args
+        live: tests/live/test_network.py::test_api_several_species_without_outgroup
+        observable: selection.tsv without an outgroup row; no outgroup_accession.txt
       --metadata-path:
         param: MetadataParams.metadata_path
         value: '{alt_file}'

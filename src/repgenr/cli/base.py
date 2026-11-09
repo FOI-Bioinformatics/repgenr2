@@ -75,6 +75,18 @@ HELP_TARGET_GENUS = "Restrict the selection to this genus."
 HELP_TARGET_SPECIES = "Restrict the selection to this species."
 HELP_OUTGROUP_ACCESSION = "Accession to fetch and set aside as the outgroup."
 HELP_NO_OUTGROUP = "Do not root with an outgroup."
+HELP_TARGET_SPECIES_GTDB = (
+    "Restrict the selection to this species. Repeat it, or separate names by commas, to "
+    "select several species of the target genus (with --level species)."
+)
+HELP_TARGET_SPECIES_RUN = (
+    "Restrict the selection to this species. On the GTDB chain, repeat it or separate "
+    "names by commas to select several species of the target genus."
+)
+HELP_METADATA_NO_OUTGROUP = (
+    "Select no outgroup: none is chosen or downloaded. Root the tree with phylo --root "
+    "midpoint, or leave it unrooted."
+)
 HELP_ADVISE_JSON = (
     "Print one versioned JSON object (repgenr.phylo-advise/1) on stdout instead of the text."
 )
@@ -1110,8 +1122,17 @@ def _phylo_fingerprint_params(payload: dict) -> dict:
 
 # Stage-specific views of the parameters before they are hashed, for settings
 # that some tools of a family ignore: stage -> callable(dict) -> dict.
+def _metadata_fingerprint_params(payload: dict) -> dict:
+    """--no-outgroup off is left out, so records from before the flag existed
+    still skip."""
+    if not payload.get("no_outgroup"):
+        payload = {k: v for k, v in payload.items() if k != "no_outgroup"}
+    return payload
+
+
 _FINGERPRINT_NORMALISERS: dict[str, Any] = {
     "phylo": _phylo_fingerprint_params,
+    "metadata": _metadata_fingerprint_params,
 }
 
 

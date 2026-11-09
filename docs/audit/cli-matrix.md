@@ -3,7 +3,7 @@
 Generated from `tests/audit/cli_matrix.yaml` by `scripts/render_cli_matrix.py`;
 `tests/unit/test_cli_matrix.py` keeps both in step with the command tree.
 
-40 commands, 499 flags (492 with a live test or an n/a reason, 7 pending).
+40 commands, 500 flags (493 with a live test or an n/a reason, 7 pending).
 
 ## Global flags
 
@@ -281,6 +281,7 @@ dispatch: `stage`
 | `--target-genus` | -tg | MetadataParams.target_genus | none | params.metadata_args | tests/live/test_network.py::test_api_genus_representatives | docs/usage.md, docs/cli-reference.md, docs/audit/cli-matrix.md |
 | `--target-species` | -ts | MetadataParams.target_species | none | params.metadata_args | tests/live/test_network.py::test_api_species_limit_and_explicit_outgroup | docs/cli-reference.md, docs/audit/cli-matrix.md |
 | `--outgroup-accession` |  | MetadataParams.outgroup_accession | none | params.metadata_args | tests/live/test_network.py::test_api_species_limit_and_explicit_outgroup | docs/cli-reference.md, docs/audit/cli-matrix.md |
+| `--no-outgroup` |  | MetadataParams.no_outgroup | none | params.metadata_args | tests/live/test_network.py::test_api_several_species_without_outgroup | docs/cli-reference.md, docs/usage.md, docs/audit/cli-matrix.md |
 | `--metadata-path` |  | MetadataParams.metadata_path | none | params.metadata_args | tests/live/test_network.py::test_tsv_nodownload_and_metadata_path_reuse_the_table | docs/cli-reference.md, docs/audit/cli-matrix.md |
 | `--nodownload` |  | MetadataParams.nodownload | none | params.metadata_args | tests/live/test_network.py::test_tsv_nodownload_and_metadata_path_reuse_the_table | docs/cli-reference.md, docs/audit/cli-matrix.md |
 | `--limit` |  | MetadataParams.limit | range | params.metadata_args | tests/live/test_network.py::test_api_species_limit_and_explicit_outgroup | docs/cli-reference.md, docs/audit/scaling-audit.md, docs/usage.md, docs/audit/cli-matrix.md |

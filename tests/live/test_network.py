@@ -52,6 +52,34 @@ def test_api_species_limit_and_explicit_outgroup(species_cache: Path) -> None:
     assert "--limit" in log_text(species_cache) or "limit" in log_text(species_cache).lower()
 
 
+def test_api_several_species_without_outgroup(run_repgenr, tmp_path: Path) -> None:
+    """-ts given twice (and as a comma list) selects both species; --no-outgroup
+    leaves no outgroup row and no outgroup_accession.txt."""
+    wd = tmp_path / "two"
+    run_repgenr(
+        "metadata", "-wd", wd, "-d", "rep", "-l", "species", "-tg", "Francisella",
+        "-ts", "tularensis", "-ts", "philomiragia", "--source", "api", "--no-outgroup",
+    )  # fmt: skip
+    ingroup, outgroup = _rows(wd)
+    species = {r.species for r in ingroup}
+    assert {"tularensis", "philomiragia"} <= {s.split("_")[0] for s in species}, species
+    assert outgroup == []
+    assert not (wd / "outgroup_accession.txt").exists()
+    record = Config.load(wd).stages["metadata"].params
+    assert record["no_outgroup"] is True and record["outgroup"] is None
+
+    # With an outgroup it lies outside both species.
+    wd2 = tmp_path / "two_og"
+    run_repgenr(
+        "metadata", "-wd", wd2, "-d", "rep", "-l", "species", "-tg", "Francisella",
+        "-ts", "tularensis,philomiragia", "--source", "api",
+    )  # fmt: skip
+    ingroup2, outgroup2 = _rows(wd2)
+    assert {r.accession for r in ingroup2} == {r.accession for r in ingroup}
+    assert len(outgroup2) == 1
+    assert outgroup2[0].species.split("_")[0] not in {"tularensis", "philomiragia"}
+
+
 def test_api_target_family_widens_the_selection(run_repgenr, tmp_path: Path) -> None:
     wd = tmp_path / "fam"
     run_repgenr(

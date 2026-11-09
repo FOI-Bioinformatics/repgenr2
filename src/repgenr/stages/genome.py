@@ -19,7 +19,13 @@ from ..core import process
 from ..core.binaries import BinarySpec
 from ..core.containers import run_tool_with_retries
 from ..core.context import WorkdirContext
-from ..core.contracts import FASTA_SUFFIXES, MISSING_ACCESSIONS_TXT, atomic_path, genome_filename
+from ..core.contracts import (
+    FASTA_SUFFIXES,
+    MISSING_ACCESSIONS_TXT,
+    atomic_path,
+    genome_filename,
+    list_fasta,
+)
 from ..core.errors import ToolExecutionError, WorkdirError
 from ..core.http import NCBI_DATASETS_URL, require_reachable, verify_md5
 from ..core.integrity import looks_like_fasta
@@ -120,6 +126,12 @@ def run(ctx: WorkdirContext, params: GenomeParams) -> int:
 
     if outgroup:
         _download_outgroup(ctx, outgroup[0], logger)
+    elif ctx.outgroup_dir.is_dir():
+        # A selection without an outgroup (metadata --no-outgroup): an
+        # outgroup left by an earlier selection would still reach the tree.
+        for path in list_fasta(ctx.outgroup_dir):
+            path.unlink()
+            logger.info("Removed the outgroup %s of an earlier selection", path.name)
 
     # record filenames back into the manifest (one batched transaction)
     for g in selected:

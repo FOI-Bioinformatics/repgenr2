@@ -205,10 +205,29 @@ target is raised and a species epithet lowered, so `-tg francisella -ts
 Tularensis` finds `s__Francisella tularensis`. Suffixes such as
 `Bacillus_A` must be typed as GTDB spells them. An unknown taxon exits 2.
 
+**Several species.** `-ts` can be repeated, or given several names
+separated by commas, to select several species of one genus at
+`--level species`:
+
+```bash
+repgenr metadata -wd $WD -r 232.0 --gtdb-version bac120 -d all -l species \
+    -tg francisella -ts tularensis -ts novicida -ts hispaniensis
+```
+
+The selection is the union of the species. `--limit` caps it across them,
+taking the best genome of each species first. On the API path each species
+is one query. `run` takes `-ts` the same way on the GTDB chain; with
+`--viral` or `--reads` a single species is accepted.
+
 **The outgroup.** An outgroup is chosen from the parent taxon, outside the
-target. `--outgroup-accession` names one instead, which must also lie
-outside the target. A target genome that `-d rep` or `--limit` left out of
-the selection is still not an outgroup candidate.
+target; with several species, outside all of them. `--outgroup-accession`
+names one instead, which must also lie outside the target. A target genome
+that `-d rep` or `--limit` left out of the selection is still not an
+outgroup candidate. `--no-outgroup` selects none: `selection.tsv` holds the
+ingroup only, `outgroup_accession.txt` is removed and `genome` downloads no
+outgroup (and removes one left by an earlier selection). Build the tree with
+`phylo --no-outgroup --root midpoint`, or leave it unrooted; `run
+--no-outgroup` passes the choice to every stage.
 
 **Limiting the selection.** `--limit N` caps the selection at N genomes,
 taken round-robin across species: the best genome of every species first,
