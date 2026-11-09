@@ -19,7 +19,11 @@ A database directory holds::
     version.json     {"v": 1, "sets", "gtdbtk_lists", "fetched", "interpro_api", "n_models"}
 
 The directory is written in full beside its destination and renamed into
-place, so an interrupted download leaves no partial database. A download
+place, so an interrupted download leaves no partial database. The models
+fetched so far are kept in ``.<name>.fetched/`` beside it, one file per
+family, so a download that stops (a family InterPro does not serve this
+time) fetches only the missing families when it is run again; the folder is
+removed once the database is written. A download
 stopped between moving an earlier database aside and renaming the new one
 into place leaves the earlier one beside the destination; the next download
 renames it back before it starts.
@@ -298,22 +302,55 @@ def _default_fetcher(timeout: float) -> Fetcher:
 
 
 def _fetch_one(accession: str, fetch: Fetcher, retries: int, backoff: float) -> MarkerModel | str:
-    """The family's model, or the reason it could not be fetched after the retries."""
+    """The family's model, or the reason it could not be fetched after the retries.
+
+    A 404 is retried like any other failure: InterPro answers 404 now and then
+    for families it serves (seen for different families on successive runs,
+    2026-11-09), and the marker lists name only families that exist.
+    """
     from ..core.http import HTTPStatusError
 
     reason = ""
     for attempt in range(1, max(1, retries) + 1):
         try:
             return parse_model(accession, fetch(marker_url(accession)))
-        except HTTPStatusError as exc:
-            reason = str(exc)
-            if exc.status == 404:
-                break  # no such entry; a retry gives the same answer
-        except WorkdirError as exc:
+        except (HTTPStatusError, WorkdirError) as exc:
             reason = str(exc)
         if attempt < retries and backoff > 0:
             time.sleep(backoff * attempt)
     return reason
+
+
+def fetched_dir(out: Path) -> Path:
+    """Where the models of an unfinished download into ``out`` are kept."""
+    return out.with_name(f".{out.name}.fetched")
+
+
+def _load_fetched(folder: Path, wanted: Sequence[str], logger: logging.Logger) -> dict:
+    """The models an earlier, unfinished download kept in ``folder``; a file
+    that does not parse is removed and fetched again."""
+    models: dict[str, MarkerModel] = {}
+    if not folder.is_dir():
+        return models
+    for acc in wanted:
+        path = folder / f"{acc}.hmm"
+        if not path.is_file():
+            continue
+        try:
+            models[acc] = parse_model(acc, path.read_text(encoding="utf-8"))
+        except (OSError, WorkdirError):
+            path.unlink(missing_ok=True)
+    if models:
+        logger.info("Reusing %d models kept by an earlier download in %s", len(models), folder)
+    return models
+
+
+def _keep_fetched(folder: Path, model: MarkerModel) -> None:
+    """Keep one fetched model (atomically, one file per family)."""
+    folder.mkdir(parents=True, exist_ok=True)
+    tmp = folder / f".{model.accession}.hmm.tmp"
+    tmp.write_text(model.text, encoding="utf-8")
+    os.replace(tmp, folder / f"{model.accession}.hmm")
 
 
 def _write_db(staging: Path, sets: Sequence[str], models: dict[str, MarkerModel]) -> None:
@@ -424,6 +461,9 @@ def download(
     have_sets, models = _existing_models(out)
     all_sets = [s for s in MARKER_SETS if s in have_sets or s in requested]
     needed = list(dict.fromkeys(acc for s in all_sets for acc in load_marker_list(s)))
+    keep = fetched_dir(out)
+    kept = _load_fetched(keep, [a for a in needed if a not in models], logger)
+    models.update(kept)
     todo = [acc for acc in needed if acc not in models]
     logger.info(
         "Marker database %s: %d families for %s; %d present, %d to fetch from InterPro",
@@ -439,17 +479,35 @@ def download(
 
     fetcher = fetch if fetch is not None else _default_fetcher(timeout)
     started = time.monotonic()
-    results = parallel_map(
-        lambda acc: _fetch_one(acc, fetcher, retries, backoff), todo, threads, logger=logger
+
+    def fetch_and_keep(acc: str) -> MarkerModel | str:
+        result = _fetch_one(acc, fetcher, retries, backoff)
+        if isinstance(result, MarkerModel):
+            _keep_fetched(keep, result)
+        return result
+
+    results = dict(
+        zip(todo, parallel_map(fetch_and_keep, todo, threads, logger=logger), strict=True)
     )
-    failed = {acc: r for acc, r in zip(todo, results, strict=True) if isinstance(r, str)}
+    failed = [acc for acc, r in results.items() if isinstance(r, str)]
     if failed:
-        listed = "; ".join(f"{acc} ({why})" for acc, why in sorted(failed.items()))
+        # A second pass, one family at a time after a pause: InterPro's
+        # failures are mostly brief.
+        logger.info("Fetching %d families again, one at a time", len(failed))
+        if backoff > 0:
+            time.sleep(backoff * retries)
+        for acc in failed:
+            results[acc] = fetch_and_keep(acc)
+    failed = sorted(acc for acc, r in results.items() if isinstance(r, str))
+    if failed:
+        listed = "; ".join(f"{acc} ({results[acc]})" for acc in failed)
         raise WorkdirError(
             f"{len(failed)} of {len(todo)} marker models could not be fetched after "
-            f"{retries} attempts: {listed}. Nothing was written; re-run the download."
+            f"{retries} attempts and a second pass: {listed}. The database was not written; "
+            f"the {len(kept) + len(todo) - len(failed)} models fetched are kept in {keep}, "
+            "and a re-run of the download fetches only the rest."
         )
-    for acc, r in zip(todo, results, strict=True):
+    for acc, r in results.items():
         assert isinstance(r, MarkerModel)
         models[acc] = r
 
@@ -465,6 +523,7 @@ def download(
     except BaseException:
         shutil.rmtree(staging, ignore_errors=True)
         raise
+    shutil.rmtree(keep, ignore_errors=True)
     n_pfam = sum(1 for acc in needed if models[acc].source == "pfam")
     logger.info(
         "Marker database written to %s: %d fetched, %d reused, %d models (%d Pfam with GA, "

@@ -6,6 +6,16 @@ All notable changes to RepGenR2 are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+- `dereplicate`, `derep-refine`, `cluster-summary` and `derep-stock` keep the
+  N50 of each genome in `scratch/n50_cache.tsv` (keyed by file name, size and
+  modification time) and read a genome only when it is new or changed. The
+  representatives folder is brought up to date in place: a representative
+  already there is not linked or copied again. On a working directory on an
+  exFAT volume, where every representative is a copy, `derep-refine` of the
+  1305-genome Brucella melitensis lineage took 30 s instead of 249 s, with
+  the same result.
+
 ### Fixed
 - `--preset` failed with "'TyperOption' object has no attribute 'type'"
   under typer 0.29, which no longer builds on click; the preset values are
@@ -15,6 +25,13 @@ All notable changes to RepGenR2 are documented here. The format follows
   with a UnicodeDecodeError on `._*.aln`. Tool outputs are now listed
   without dotfiles (cactus, SibeliaZ, OrthoFinder, PPanGGOLiN, skDER,
   sourmash, the phylogeny and reads report steps, and the viral sources).
+- `markers-db download` failed now and then on a 404 from InterPro for a
+  family it serves (a different family on each run), and a failure threw
+  away every model fetched. A 404 is now retried like other failures, the
+  families that failed are fetched once more one at a time, and the models
+  fetched so far are kept in `.<name>.fetched/` beside `--output`, so a
+  re-run fetches only the missing ones; the folder is removed once the
+  database is written.
 
 ### Added
 - `metadata -ts` selects several species of the target genus: repeat it or
