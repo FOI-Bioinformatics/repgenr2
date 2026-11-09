@@ -68,11 +68,13 @@ WD/
   sketches/                       sourmash sketches, one per genome
   glance_*.pdf, glance_*.png      overview plots (glance)
   glance_wd/                      glance working files (--keep-files)
+  glance_stats.json               pairwise similarity summary and histogram (glance)
   derep/                          dereplication (dereplicate)
     representatives/
     clusters.tsv
     genome_status.tsv
     cluster_summary.tsv
+    derep_stats.json              counts of the run (dereplicate)
     refined.tsv                   (only after --refine or derep-refine)
     unpacked/<representative>/    (derep-unpack)
     stock/<name>/                 (derep-stock)
@@ -763,6 +765,8 @@ appear in the page in this order:
 | Step | Written after | Tables (TSV) | Figures |
 |---|---|---|---|
 | `selection` | metadata, ingest, vgenome, genome, assemble | `selection_counts.tsv` (candidates, selected, outgroup, GTDB species representatives, genome files present, accessions not obtained); `genomes_per_taxon.tsv` (`level`, `name`, `genomes`); `assembly_quality.tsv` (completeness and contamination: genomes, min, q1, median, q3, max) | `genomes_per_species` (the 30 largest species, the rest combined); `assembly_quality` (contamination against completeness) |
+| `glance` | glance | `pairwise_similarity.tsv` (measure, genomes, pairs, min, q1, median, q3, max) | `similarity_histogram` (with the dereplication ANI thresholds where in range) |
+| `dereplication` | dereplicate, derep-refine, cluster-summary | `genome_status.tsv` (genomes per status, `fail_qc` per reason); `largest_clusters.tsv` (20 largest clusters with species names and representative quality); `multispecies_clusters.tsv` (clusters whose genomes carry more than one species name); `species_reduction.tsv` (genomes and representatives per species) | `cluster_sizes`; `quality_by_status` (with the dRep filter for a dRep run); `fail_qc_reasons`; `species_reduction` (30 species with most genomes) |
 
 Each step folder holds:
 
@@ -786,6 +790,16 @@ only values the stages recorded.
 holds counts the selection table does not: `candidates` (the genomes that
 matched the target before a `--limit` cut), `limit` and `source`. The
 metadata stage fills it; the other entry stages write it empty.
+
+`glance_stats.json` (kind `glance`) holds the tool, the measure, the
+genomes and pairs compared, the plot range, min, q1, median, q3 and max of
+the pairwise similarities in range, and the counts and edges of a
+100-bin histogram, so the report draws it after the pairwise table is
+removed. `derep/derep_stats.json` (kind `dereplicate`) holds the tool, the
+input genomes, the keeper swaps, and, when they ran, the `--target-reps`
+search (`requested`, `achieved`, the `secondary_ani` chosen, `iterations`)
+and the `--reduce` step (`level`, `before`, `after`). derep-refine leaves
+it as the dereplicate run wrote it.
 
 `--from-fragments` reads step folders written elsewhere and writes the page
 without a working directory.

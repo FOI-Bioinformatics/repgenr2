@@ -57,6 +57,13 @@ def render(
     return files
 
 
+def integer_ticks(axis: Any) -> None:
+    """Ticks at whole numbers only, for an axis of counts."""
+    from matplotlib.ticker import MaxNLocator
+
+    axis.set_major_locator(MaxNLocator(integer=True))
+
+
 def truncate(label: str, limit: int = MAX_LABEL) -> str:
     """``label`` cut to ``limit`` characters, ending in '...' when cut."""
     return label if len(label) <= limit else label[: limit - 3].rstrip() + "..."
@@ -85,6 +92,8 @@ def horizontal_bars(
     ax.set_yticklabels([truncate(label) for label in labels])
     ax.set_xlabel(xlabel)
     ax.tick_params(axis="y", length=0)
+    if all(float(v).is_integer() for v in values):
+        integer_ticks(ax.xaxis)
     if annotate:
         ax.bar_label(bars, labels=[f"{v:,.0f}" for v in values], padding=2, fontsize=6)
         ax.margins(x=0.12)

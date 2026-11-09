@@ -22,6 +22,7 @@ from ..core.errors import MissingBinaryError, UserInputError, WorkdirError
 from ..core.plugins import AUTO
 from ..core.process import remove_tree
 from ..core.sketches import adapter_sketches, workdir_provider
+from ..core.stage_stats import write_stats
 
 # File names predate the sourmash backend and stay fixed; the plots' axes name
 # the measure the chosen tool reports.
@@ -34,6 +35,12 @@ GLANCE_OUTPUTS = (
 # --tool auto: dRep first (the original glance tool), then sourmash; any other
 # compare-capable adapter ranks after these, alphabetically.
 _AUTO_PREFERENCE = ("drep", "sourmash")
+
+# The pairwise similarities in numbers (summary and histogram counts), kept
+# when the pairwise table is removed, for the report.
+GLANCE_STATS = "glance_stats.json"
+GLANCE_STATS_KIND = "glance"
+HISTOGRAM_BINS = 100
 
 
 @dataclass
@@ -151,10 +158,16 @@ def run(ctx: WorkdirContext, params: GlanceParams) -> Path:
             out_pdf.name,
         )
 
+    values: list[float] = []
     if result.similarity_csv is not None:
-        _plot(result.similarity_csv, ctx.workdir, params, logger, result.measure)
+        values = _plot(result.similarity_csv, ctx.workdir, params, logger, result.measure)
     else:
         logger.warning("No similarity table produced; skipping plots")
+    write_stats(
+        ctx.workdir / GLANCE_STATS,
+        GLANCE_STATS_KIND,
+        similarity_stats(values, params, result.measure, len(genomes), params.tool),
+    )
 
     if not params.keep_files and glance_wd.exists():
         remove_tree(glance_wd)
@@ -208,31 +221,61 @@ def _pair_similarities(mdb: Path, low: float, high: float) -> list[float]:
     return values
 
 
+def similarity_stats(
+    values: list[float], params: GlanceParams, measure: str, n_genomes: int, tool: str
+) -> dict:
+    """Summary and histogram counts of the pairwise similarities in range."""
+    import numpy as np
+
+    from ..reporting.tables import describe
+
+    out: dict = {
+        "tool": tool,
+        "measure": measure,
+        "genomes": n_genomes,
+        "pairs": len(values),
+        "range": [params.plot_min, params.plot_max],
+        **{k: v for k, v in describe(values).items() if k != "n"},
+    }
+    if values:
+        counts, edges = np.histogram(values, bins=HISTOGRAM_BINS)
+        out["histogram"] = {
+            "counts": [int(c) for c in counts],
+            "edges": [round(float(e), 6) for e in edges],
+        }
+    return out
+
+
 def _plot(
     mdb: Path, workdir: Path, params: GlanceParams, logger, measure: str = "MASH ANI"
-) -> None:
-    from matplotlib import pyplot as plt
+) -> list[float]:
+    """Draw the box plot and histogram; return the similarities in range.
+
+    Drawn with the Figure API (no pyplot), so no display backend is needed.
+    """
+    from matplotlib.figure import Figure
 
     values = _pair_similarities(mdb, params.plot_min, params.plot_max)
     if not values:
         logger.warning("No similarity values in range; skipping plots")
-        return
+        return values
 
     title = f"{measure}, all-vs-all ({len(values)} genome pairs)"
-    fig, ax = plt.subplots()
+    fig = Figure()
+    ax = fig.add_subplot()
     ax.boxplot(values)
     ax.set_xticklabels([""])
     ax.set_ylabel(measure)
     ax.set_title(title)
     fig.tight_layout()
     fig.savefig(workdir / "glance_MASH_ANI_similarity_boxplot.png")
-    plt.close(fig)
 
-    fig, ax = plt.subplots()
-    ax.hist(values, bins=100)
+    fig = Figure()
+    ax = fig.add_subplot()
+    ax.hist(values, bins=HISTOGRAM_BINS)
     ax.set_xlabel(measure)
     ax.set_ylabel("Genome pairs")
     ax.set_title(title)
     fig.tight_layout()
     fig.savefig(workdir / "glance_MASH_ANI_similarity_histogram.png")
-    plt.close(fig)
+    return values

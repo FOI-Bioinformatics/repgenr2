@@ -62,6 +62,13 @@ STEPS: tuple[StepSpec, ...] = (
         ("metadata", "vmetadata", "vgenome", "ingest", "genome", "assemble"),
         "selection",
     ),
+    StepSpec("glance", "Pairwise similarity (glance)", ("glance",), "glance"),
+    StepSpec(
+        "dereplication",
+        "Dereplication",
+        ("dereplicate", "derep_refine", "cluster_summary"),
+        "dereplication",
+    ),
 )
 
 STEP_NAMES: tuple[str, ...] = tuple(s.name for s in STEPS)
