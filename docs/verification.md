@@ -60,7 +60,7 @@ is given only where one was recorded.
 | masker | gubbins | real tool, live suite | yes | yes | 2026-09-10 | [live suite](#the-live-suite): test_species_set, test_container_runs; [divergence limits](#gubbins-divergence-limits-2026-09-10) | not recorded |
 | tree builder | iqtree | real tool, live suite | yes | yes | 2026-10-21 | [live suite](#the-live-suite): test_species_set, test_container_runs; [core-gene runs](#gene-selection-partitions-trimming-protein-and-aster-2026-10-21) | IQ-TREE 3.1.2 and 3.1.4 (osx-arm64) |
 | tree builder | fasttree | real tool, live suite | yes | yes | 2026-10-21 | [live suite](#the-live-suite): test_species_set, test_container_runs; ASTER gene trees | FastTree 2.2.0 (osx-arm64) |
-| tree builder | raxmlng | real tool, live suite | yes | yes | 2026-09-10 | [live suite](#the-live-suite): test_species_set, test_container_runs | not recorded |
+| tree builder | raxmlng | real tool, live suite | yes | yes | 2026-11-09 | [live suite](#the-live-suite): test_species_set, test_container_runs, test_partitioned_trees; [partitioned model](#partitioned-raxml-ng-on-eight-francisella-species-2026-11-09) | RAxML-NG 2.0.2 (osx-arm64) |
 | tree builder | mashtree | real tool, live suite | yes | yes | 2026-10-08 | [live suite](#the-live-suite): test_treebuilders_offline, test_species_set, test_container_runs; [genus-scale run](#genus-scale-run-2026-09-10) | not recorded |
 | tree builder | sourmash | real tool, live suite | yes | yes | 2026-10-08 | [live suite](#the-live-suite): test_treebuilders_offline, test_container_runs | not recorded |
 | tree builder | veryfasttree | fake binary only | no | no | none | offline contract test | none |
@@ -107,8 +107,10 @@ Notes on the table:
 |---|---|---|
 | Machine A | macOS on Apple Silicon, 11 cores, 18 GB (recorded for the genus-scale run); Docker Desktop with Rosetta for amd64 images; tools from conda; several working directories on an external volume | Live suite, reads and polishing, genus-scale run, SNP route, gzipped inputs |
 | Machine B | An Apple Silicon laptop running macOS; cores and memory not recorded | Core-gene route (2026-10-15 and 2026-10-21), sourmash back-ends |
+| Machine C | Apple M3 Pro, 11 cores, 18 GB, macOS (Darwin 25.2); tools from conda | Partitioned RAxML-NG (2026-11-09) |
 
-The records do not state whether machines A and B are the same computer.
+The records do not state whether machines A, B and C are the same computer;
+the description of A fits C.
 Amd64-only images ran under emulation on both, which lengthens their wall
 times.
 
@@ -120,6 +122,7 @@ times.
 | Wolbachia, three genomes | Supergroup A: wMel, wRi, wHa | Core-gene route |
 | Wolbachia, four genomes | Two supergroup-A genomes with wBm (supergroup D) and wOo (supergroup C) | Panaroo identity |
 | Wolbachia, 24 genomes | 24 complete Wolbachia genomes from NCBI | Core-gene route, GTDB markers, sourmash back-ends |
+| Francisella, eight species | Complete NCBI RefSeq genomes: GCF_000008985.1 (F. tularensis SCHU S4), GCF_000833355.1 (F. tularensis subsp. novicida), GCF_000195555.1 (F. hispaniensis), GCF_003347135.1 (F. opportunistica), GCF_001275365.1 (F. persica), GCF_018135955.1 (F. philomiragia), GCF_000505725.1 (F. orientalis), GCF_018972105.1 (F. salimarina) | Partitioned RAxML-NG |
 | SRR25474756 | Mycoplasmopsis arginini, Illumina MiSeq paired, 134 MB | Assembly, Nextflow reads mode |
 | SRR28800588 | Mycoplasmoides genitalium, MinION, 85 MB | Polishing, Nextflow reads mode |
 
@@ -620,8 +623,9 @@ current software passes GTR+G, and they were not rerun.
   column apart in 19 genomes. The tree length of run 6 is 0.663 against
   0.869 for the baseline.
 
-Not run: `--preset family`, RAxML-NG with partitions, the other core-gene
-builders, the Nextflow route, and a comparison of support values.
+Not run: `--preset family`, the other core-gene builders, the Nextflow
+route, and a comparison of support values. RAxML-NG with partitions was
+run on 2026-11-09 (below).
 
 #### GTDB marker genes (2026-10-21)
 
@@ -651,6 +655,49 @@ kept. The four splits found only in the markers tree have bootstrap
 supports of 45 to 93, and three of the four baseline splits it lacks have
 support 100 in the baseline. The tree is also four splits from the
 partitioned protein tree of the 398 PPanGGOLiN genes.
+
+#### Partitioned RAxML-NG on eight Francisella species (2026-11-09)
+
+* **Data:** the eight Francisella genomes of the data-set table, downloaded
+  from NCBI with `datasets` by accession, staged with `repgenr ingest
+  --genomes-dir` and annotated with `repgenr annotate --tool prokka
+  --all-genomes -t 10 -p 5` (261 s for the eight).
+* **Tools and versions:** Prokka 1.15.6, PPanGGOLiN 2.3.2, RAxML-NG 2.0.2
+  and IQ-TREE 3.1.2 (osx-arm64, conda). Trees compared with dendropy 5.0.8
+  (unrooted Robinson-Foulds distance, five non-trivial splits per tree).
+* **Conditions:** machine C, one run at a time. The alignment came from
+  `repgenr phylo --all-genomes --msa-source coregene --coregene ppanggolin
+  --max-core-genes 300 --gene-rank informative --partitioned --treebuilder
+  raxmlng -B 100 --no-outgroup --root midpoint -t 10`. The two other rows
+  used `repgenr phylo-build --msa` on a copy of that alignment and its
+  `partitions.json`.
+* **Alignment:** 700 soft-core genes at `--core-threshold` 0.95, of which
+  300 were kept; 449734 columns, 138752 variable and 93996
+  parsimony-informative sites. PPanGGOLiN and the alignment of the genes
+  took 40 s. RAxML-NG read 300 partitions (72161 site patterns), and the
+  last partition ends at the alignment length.
+
+| Run | Model | Bootstrap | Tree builder time | Log-likelihood | AIC | BIC | Tree length | RF to run 1 |
+|---|---|---|---|---|---|---|---|---|
+| 1 RAxML-NG, partitioned | GTR+G per gene, branch lengths scaled per partition | 100 standard | 747 s | -1566774.5 | 3139573 | 3172754 | 0.694 | 0 |
+| 2 IQ-TREE, partitioned (`-p`) | GTR+G per gene, edge-proportional | 1000 UFBoot | 78 s (run) | -1566929.5 | 3139883 | 3173065 | 0.690 | 0 |
+| 3 RAxML-NG, one model | GTR+G | 100 standard | 54 s (run) | -1573880.9 | 3147806 | 3148048 | 0.693 | 2 |
+
+* **Partition model:** RAxML-NG estimated substitution rates, base
+  frequencies (`+FO`), a gamma shape and a branch-length scaler (`+B`) for
+  each of the 300 partitions, and wrote them to `raxml.raxml.bestModel`.
+* **Time:** in run 1 the three ML searches took 49 s and the 100 bootstrap
+  replicates the remaining 698 s. With partitions, the standard bootstrap
+  re-estimates 300 models per replicate.
+* **Topology:** runs 1 and 2 agree, with support 99 or 100 at every split.
+  Run 3 differs at one split: it places F. hispaniensis outside a group of
+  F. tularensis with F. opportunistica and F. persica (support 66), where
+  the partitioned trees join F. hispaniensis with F. tularensis (support
+  100) and F. opportunistica with F. persica.
+* **Model fit:** the partitioned model has the higher log-likelihood and
+  the lower AIC; BIC, which penalises its 3000 or so additional parameters
+  more, favours the single model. These eight genomes do not show which
+  topology is correct.
 
 ### Gzipped inputs (2026-10-08)
 

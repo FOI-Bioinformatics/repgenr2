@@ -348,6 +348,12 @@ All notable changes to RepGenR2 are documented here. The format follows
   variables; the host runs the tool in it).
 
 ### Documentation
+- `docs/verification.md`: partitioned RAxML-NG on 300 PPanGGOLiN core genes
+  of eight Francisella species, against IQ-TREE `-p` and a single-model
+  RAxML-NG run. `docs/phylogeny.md` notes that RAxML-NG's standard bootstrap
+  over a partition model takes most of the run time. New live test
+  `tests/live/test_partitioned_trees.py` runs `phylo-build --partitioned`
+  with the real `raxml-ng` and `iqtree3` on a simulated two-gene alignment.
 - `docs/cli-reference.md`: the generated header explains the default column
   and the Nextflow step panel. `docs/developing.md` puts "Adding an adapter"
   after the family table, gives `ToolCapabilities` as a field table, merges
