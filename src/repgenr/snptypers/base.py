@@ -42,6 +42,10 @@ class SnpResult:
     # Usable for constant-site counting, not for masking; the stage counts
     # it and removes it. None when the typer writes no such alignment.
     all_sites_alignment: Path | None = None
+    # Per genome, the fraction of the reference's bases it has a base at
+    # (reference_coverage.tsv: genome, covered_fraction); None when the typer
+    # does not measure it.
+    reference_coverage: Path | None = None
     # Constant A, C, G, T columns of the whole-genome alignment, for the tree
     # builder's ascertainment-bias correction; None when there is no such
     # alignment to count them from.

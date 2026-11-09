@@ -21,12 +21,20 @@ from ..tables import describe, write_table
 SNP_DIR = "snp"
 STATS = "alignment_stats.json"
 MATRIX = "snp_distance_matrix.tsv"
+COVERAGE = "reference_coverage.tsv"
+# Below this covered fraction the simple typer warns (most of the genome is N).
+LOW_COVERAGE = 0.5
 # No heatmap above this many genomes; the histogram is always drawn.
 MAX_HEATMAP = 300
 
 
 def sources(workdir: Path) -> list[Path]:
-    return [workdir / SNP_DIR / STATS, workdir / SNP_DIR / MATRIX, workdir / "tree" / "tree.nwk"]
+    return [
+        workdir / SNP_DIR / STATS,
+        workdir / SNP_DIR / MATRIX,
+        workdir / SNP_DIR / COVERAGE,
+        workdir / "tree" / "tree.nwk",
+    ]
 
 
 def present(workdir: Path) -> bool:
@@ -109,7 +117,66 @@ def collect(inp: StepInput) -> StepReport:
             f"The core-SNP alignment holds {stats.get('variable_sites', 0):,} variable columns. "
             "The SNP typer wrote no distance matrix."
         )
+    if (snp / COVERAGE).is_file():
+        _coverage(report, inp.out_dir, snp / COVERAGE, inp.formats)
     return report
+
+
+def _coverage(report: StepReport, out: Path, path: Path, formats) -> None:
+    """Table and figure of the fraction of the reference each genome covers."""
+    with open(path, encoding="utf-8", newline="") as fo:
+        rows = [r for r in csv.DictReader(fo, delimiter="\t") if r.get("is_reference") != "1"]
+    values = [(r["genome"], float(r["covered_fraction"])) for r in rows]
+    if not values:
+        return
+    values.sort(key=lambda gv: (gv[1], gv[0]))
+    low = [g for g, v in values if v < LOW_COVERAGE]
+    report.key_numbers.append(KeyNumber("Lowest reference coverage", f"{100 * values[0][1]:.1f}%"))
+    fractions = [v for _, v in values]
+    median = float(describe(fractions)["median"] or 0.0)
+    text = (
+        f"The genomes cover {100 * fractions[0]:.1f}% to {100 * fractions[-1]:.1f}% of the "
+        f"reference (median {100 * median:.1f}%)"
+    )
+    if low:
+        text += f"; {len(low):,} cover less than {100 * LOW_COVERAGE:.0f}%"
+    report.summary.append(text + ".")
+    report.tables.append(
+        write_table(
+            out,
+            "reference_coverage",
+            "Fraction of the reference genome at which each genome has a base, lowest first. "
+            "The rest of a genome's alignment is N.",
+            ["genome", "covered_fraction"],
+            [(g, round(v, 4)) for g, v in values],
+            numeric=["covered_fraction"],
+        )
+    )
+    if low:
+        report.notes.append(
+            f"{len(low):,} genomes cover less than {100 * LOW_COVERAGE:.0f}% of the reference; "
+            "a genome this divergent may suit an alignment-free tree better."
+        )
+
+    def draw(fig) -> None:
+        ax = fig.add_subplot()
+        ax.hist([100 * v for _, v in values], bins=30, range=(0, 100), color=style.PRIMARY,
+                linewidth=0)  # fmt: skip
+        ax.axvline(100 * LOW_COVERAGE, color="black", lw=0.6, ls="--")
+        ax.set_xlabel("Reference covered (%)")
+        ax.set_ylabel("Genomes")
+        integer_ticks(ax.yaxis)
+
+    files = render(out, "reference_coverage", draw, formats=formats)
+    report.figures.append(
+        FigureRef(
+            "reference_coverage",
+            "Fraction of the reference each genome covers; dashed line at "
+            f"{100 * LOW_COVERAGE:.0f}%, below which most of a genome's alignment is N.",
+            "Histogram of reference coverage.",
+            files,
+        )
+    )
 
 
 def _order(workdir: Path, names: list[str], matrix: list[list[float]]) -> list[int]:

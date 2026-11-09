@@ -572,6 +572,7 @@ writes the same files under `tree/msa/` (see [phylo](#phylo)).
 | `snp/core_snp.fasta` | Core-SNP (variable-site) alignment; masked in place with `--mask`. |
 | `snp/full_alignment.fasta` | Whole-genome alignment in reference coordinates (snippy, parsnp, simple); the input of `--mask`. In the `simple` typer's alignment, positions where a genome has no aligned base are N. |
 | `snp/snp_distance_matrix.tsv` | `simple` typer only: pairwise SNP distances over sites where both genomes have A, C, G or T; `NA` without such a site. Computed before masking. |
+| `snp/reference_coverage.tsv` | `simple` typer only: `genome`, `covered_fraction` (the fraction of the reference's bases the genome has a base at), `is_reference` (1 for the reference, listed first with 1.0). Removed when a later typer does not write it. |
 | `snp/variants.vcf` | The typer's variant calls (snippy); for `ska2 --tool-arg lo=true`, the indels `ska lo` recovered. |
 | `snp/alignment_stats.json`, `tree/msa/alignment_stats.json` | Constant-site counts of the alignment beside it (keys below). Absent for `ska2 lo=true`. |
 | `snp/masker_tree.nwk`, `tree/msa/masker_tree.nwk` | With `--mask gubbins`: Gubbins' final tree of the alignment beside it. Removed when a later run does not mask. |
@@ -769,8 +770,8 @@ appear in the page in this order:
 | `assembly` | assemble | `assembly_metrics.tsv` (per assembler, median and quartiles of contigs, length, N50, coverage, completeness, contamination); `taxonomy_flags.tsv`; `excused_runs.tsv` (runs without a genome per step and reason) | `contiguity` (N50 against length, by taxonomy flag); `assembly_quality`; `coverage` |
 | `selection` | metadata, ingest, vgenome, genome, assemble | `selection_counts.tsv` (candidates, selected, outgroup, GTDB species representatives, genome files present, accessions not obtained); `genomes_per_taxon.tsv` (`level`, `name`, `genomes`); `assembly_quality.tsv` (completeness and contamination: genomes, min, q1, median, q3, max) | `genomes_per_species` (the 30 largest species, the rest combined); `assembly_quality` (contamination against completeness) |
 | `glance` | glance | `pairwise_similarity.tsv` (measure, genomes, pairs, min, q1, median, q3, max) | `similarity_histogram` (with the dereplication ANI thresholds where in range) |
-| `dereplication` | dereplicate, derep-refine, cluster-summary | `genome_status.tsv` (genomes per status, `fail_qc` per reason); `largest_clusters.tsv` (20 largest clusters with species names and representative quality); `multispecies_clusters.tsv` (clusters whose genomes carry more than one species name); `species_reduction.tsv` (genomes and representatives per species) | `cluster_sizes`; `quality_by_status` (with the dRep filter for a dRep run); `fail_qc_reasons`; `species_reduction` (30 species with most genomes) |
-| `snptype` | snptype | `snp_alignment.tsv` (variable columns, constant sites, masking, core fraction); `snp_distances.tsv` (pairwise SNP distances: min, quartiles, max) | `snp_distance_histogram`; `snp_distance_heatmap` (up to 300 genomes, in the leaf order of the tree) |
+| `dereplication` | dereplicate, derep-refine, cluster-summary | `genome_status.tsv` (genomes per status, `fail_qc` per reason); `largest_clusters.tsv` (20 largest clusters with species names and representative quality); `multispecies_clusters.tsv` (clusters whose genomes carry more than one species name); `species_reduction.tsv` (genomes and representatives per species); `member_ani.tsv` (`representative`, `member`, `ani`, `shared_hashes`: the ANI of each member to its representative estimated from the genome sketches, lowest first) | `cluster_sizes`; `quality_by_status` (with the dRep filter for a dRep run); `fail_qc_reasons`; `species_reduction` (30 species with most genomes); `member_ani` (with the secondary ANI threshold) |
+| `snptype` | snptype | `snp_alignment.tsv` (variable columns, constant sites, masking, core fraction); `snp_distances.tsv` (pairwise SNP distances: min, quartiles, max); `reference_coverage.tsv` (`simple` typer: fraction of the reference each genome covers, lowest first) | `snp_distance_histogram`; `snp_distance_heatmap` (up to 300 genomes, in the leaf order of the tree); `reference_coverage` |
 | `alignment` | phylo | `alignment_summary.tsv` (source, tool, genomes; for core genes the columns, variable and informative sites, genes kept and available, threshold, identity) | core-gene route: `gene_occupancy`, `informative_by_rank`, `gene_length_informative` |
 | `phylogeny` | phylo | `tree_summary.tsv` (leaves, builder, model, rooting, outgroup, bootstrap, support median and shares at 95 and 70, tree length, root-to-tip distances) | `tree` (ladderised phylogram or cladogram; support as numbers up to 100 leaves, as circles above; tip colours for the 8 species with most genomes; leaf labels up to 400 leaves; none above 20,000 leaves); `support`; `root_to_tip` |
 | `tree2tax` | tree2tax | `tree2tax_settings.tsv` (collapse settings and nodes collapsed, naming, rank bands); `nodes_per_rank.tsv` (with `--ranks`); `internal_nodes.tsv` (leaves below the internal nodes) | `node_sizes`; `node_support` (with the collapse threshold); `node_red` (by rank) |
@@ -811,6 +812,14 @@ input genomes, the keeper swaps, and, when they ran, the `--target-reps`
 search (`requested`, `achieved`, the `secondary_ani` chosen, `iterations`)
 and the `--reduce` step (`level`, `before`, `after`). derep-refine leaves
 it as the dereplicate run wrote it.
+
+The member ANI of the `dereplication` step is not reported by the
+dereplicators; the report estimates it from the genome sketches
+(`sketches/<record name>.sig.zip`) as the average containment of the two
+sketches at k=31 (scaled=1000), ANI = c^(1/31), the estimate
+`dereplicate --tool sourmash` clusters on. A pair whose sketches share fewer
+than 30 hashes and fewer than a tenth of the smaller sketch has no estimate,
+and without `sketches/` the table is left out with a note.
 
 `--from-fragments` reads step folders written elsewhere and writes the page
 without a working directory.

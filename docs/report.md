@@ -48,8 +48,8 @@ The steps appear in the page in pipeline order:
 | `assembly` | assemble | contiguity, completeness and coverage per assembler; runs without a genome and why |
 | `selection` | metadata, ingest, vgenome, genome, assemble | candidates and selected genomes; genomes per taxon; assembly quality |
 | `glance` | glance | distribution of the pairwise similarity, with the dereplication thresholds |
-| `dereplication` | dereplicate, derep-refine, cluster-summary | status of every genome and the quality-filter reasons; cluster sizes; clusters joining several species; genomes and representatives per species |
-| `snptype` | snptype | core-SNP alignment; pairwise SNP distances as a histogram and heatmap |
+| `dereplication` | dereplicate, derep-refine, cluster-summary | status of every genome and the quality-filter reasons; cluster sizes; clusters joining several species; genomes and representatives per species; ANI of each member to its representative (from the sketches) |
+| `snptype` | snptype | core-SNP alignment; pairwise SNP distances as a histogram and heatmap; reference coverage per genome (`simple` typer) |
 | `alignment` | phylo | source and size of the alignment; occupancy and informative sites of the core genes |
 | `phylogeny` | phylo | tree summary (model, support, root-to-tip distances); the tree |
 | `tree2tax` | tree2tax | collapsed nodes, nodes per rank, node size, support and RED |
@@ -91,10 +91,14 @@ carry no date, so the same data give the same files.
 - The methods paragraph uses only values a stage recorded. A setting that
   was not recorded is left out, not guessed, and it should be checked
   against the parameters in the appendix before it is used in a manuscript.
-- The ANI of each member to its representative is not reported: the
-  dereplicators do not keep it (except in `refined.tsv`).
-- The `simple` SNP typer logs how much of the reference each genome covers
-  but does not write it to a file, so the report does not show it.
+- The ANI of each member to its representative is estimated from the
+  genome sketches (average containment at k=31, scaled=1000), not taken
+  from the dereplicator, which does not keep it; it needs `sketches/`, and a
+  pair sharing too few hashes has no estimate. It is the quantity
+  `dereplicate --tool sourmash` uses, and can differ from the ANI of
+  another dereplicator (skani, dRep's ANImf).
+- The fraction of the reference each genome covers is reported for the
+  `simple` SNP typer only; the other typers do not measure it.
 - Large sets are drawn within limits: bar charts show the 30 largest
   groups; the SNP heatmap is drawn for up to 300 genomes; tree leaf labels
   are drawn up to 400 leaves (above that a colour per species remains) and

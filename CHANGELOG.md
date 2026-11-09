@@ -7,6 +7,13 @@ All notable changes to RepGenR2 are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- The `simple` SNP typer writes `snp/reference_coverage.tsv`, the fraction
+  of the reference each genome covers (until now only in the log); the
+  `snptype` report step shows it as a table and histogram.
+- The `dereplication` report step shows the ANI of each member to its
+  representative, estimated from the genome sketches (average containment
+  at k=31, the estimate of `dereplicate --tool sourmash`), as a table and a
+  histogram with the secondary threshold.
 - `repgenr report -wd WD`: one self-contained HTML page with the results
   of a run (summary of key numbers, numbered tables and figures per step,
   methods text from the stage records, software versions and parameters),

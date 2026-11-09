@@ -140,11 +140,14 @@ class _AllOutputsTyper(_FullTyper):
         vcf.write_text("##fileformat=VCFv4.2\n")
         matrix = out_dir / "dist.tsv"
         matrix.write_text("\ta\na\t0\n")
+        coverage = out_dir / "cov.tsv"
+        coverage.write_text("genome\tcovered_fraction\tis_reference\na\t1.0\t1\n")
         return SnpResult(
             core_snp_fasta=base.core_snp_fasta,
             full_alignment=base.full_alignment,
             vcf=vcf,
             snp_distance_matrix=matrix,
+            reference_coverage=coverage,
         )
 
 
@@ -156,12 +159,18 @@ def test_rerun_with_another_typer_drops_stale_optional_outputs(
     register_tool(registry, "alltyper", _AllOutputsTyper)
     ctx = WorkdirContext(workdir, create=True)
     run(ctx, SnptypeParams(tool="alltyper", all_genomes=True))
-    for name in ("variants.vcf", "snp_distance_matrix.tsv", "full_alignment.fasta"):
+    optional = (
+        "variants.vcf",
+        "snp_distance_matrix.tsv",
+        "full_alignment.fasta",
+        "reference_coverage.tsv",
+    )
+    for name in optional:
         assert (ctx.snp_dir / name).exists()
 
     result = run(ctx, SnptypeParams(tool="faketyper", all_genomes=True))
     assert result.vcf is None and result.snp_distance_matrix is None
-    for name in ("variants.vcf", "snp_distance_matrix.tsv", "full_alignment.fasta"):
+    for name in optional:
         assert not (ctx.snp_dir / name).exists(), name
 
 
