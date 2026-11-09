@@ -6,6 +6,7 @@
 
 include { METADATA } from '../../modules/local/dataflow/metadata'
 include { GENOME   } from '../../modules/local/dataflow/genome'
+include { optional_files } from './report_inputs'
 
 workflow ACQUIRE {
     take:
@@ -41,5 +42,7 @@ workflow ACQUIRE {
     outgroup           = ch_outgroup
     selection          = METADATA.out.selection
     outgroup_accession = METADATA.out.outgroup_accession
+    // The selection summary and lineage table, for the run report ([] when absent).
+    summary            = optional_files(METADATA.out.selection, METADATA.out.report)
     versions           = ch_versions
 }

@@ -101,3 +101,23 @@ def test_report_usage_errors(tmp_path: Path) -> None:
         assert message in result.output, (argv, result.output)
     missing = _runner.invoke(app, ["report", "-wd", str(tmp_path / "absent")])
     assert missing.exit_code == 3
+
+
+def test_versions_yml_fills_the_software_table(tmp_path: Path) -> None:
+    wd = _ingest(tmp_path)
+    (wd / "repgenr.yaml").unlink()  # as in a Nextflow task: no stage records
+    yml = tmp_path / "software_versions.yml"
+    yml.write_text(
+        '"BACTERIAL:PHYLO":\n    repgenr: 2.1.0\n    mashtree: 1.4.6\n'
+        '"BACTERIAL:TREE2TAX":\n    repgenr: 2.1.0\n    dendropy: 5.0.8\n'
+    )
+    result = _runner.invoke(app, ["report", "-wd", str(wd), "--versions-yml", str(yml)])
+    assert result.exit_code == 0, result.output
+    text = (wd / "report" / "report.html").read_text()
+    for row in ("<td>mashtree</td><td>1.4.6</td>", "<td>dendropy</td><td>5.0.8</td>"):
+        assert row in text
+    bad = tmp_path / "bad.yml"
+    bad.write_text("a: [unclosed\n")
+    result = _runner.invoke(app, ["report", "-wd", str(wd), "--versions-yml", str(bad)])
+    assert result.exit_code == 0
+    assert "could not be read from bad.yml" in (wd / "report" / "report.html").read_text()

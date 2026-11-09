@@ -1130,6 +1130,14 @@ def report(
         ),
     ),
     title: str | None = typer.Option(None, "--title", help="Title of the HTML report."),
+    versions_yml: Path | None = typer.Option(
+        None,
+        "--versions-yml",
+        help=(
+            "A Nextflow software_versions.yml whose tool versions fill the software table "
+            "when the steps carry no stage records."
+        ),
+    ),
 ) -> None:
     """Write the scientific report of a run: tables, figures and methods.
 
@@ -1177,6 +1185,7 @@ def report(
             raise typer.Exit(code=err.exit_code)
         fragments = reporting.collect_fragments(from_fragments, wanted)
         prov = reporting.new_provenance(None, title)
+        _add_versions(prov, versions_yml)
         assert out is not None
         reporting.write_html(out, fragments, prov, logger)
         typer.echo(f"Report written to {out} ({len(fragments)} step(s)).")
@@ -1197,6 +1206,7 @@ def report(
         else []
     )
     prov = reporting.new_provenance(workdir, title)
+    _add_versions(prov, versions_yml)
     failed = sorted(s for s, st in states.items() if st == "failed")
     if failed:
         prov.notes.append(
@@ -1218,6 +1228,19 @@ def report(
     target = out or (reporting.fragments_dir(workdir) / reporting.REPORT_HTML)
     reporting.write_html(target, fragments, prov, logger)
     typer.echo(f"Report written to {target} ({len(fragments)} step(s)).")
+
+
+def _add_versions(prov: Any, path: Path | None) -> None:
+    import yaml
+
+    from .. import reporting
+
+    if path is None:
+        return
+    try:
+        prov.versions = reporting.read_versions_yml(path)
+    except (OSError, ValueError, yaml.YAMLError) as exc:
+        prov.notes.append(f"The software versions could not be read from {path.name}: {exc}")
 
 
 def _minute(stamp: str | None) -> str:

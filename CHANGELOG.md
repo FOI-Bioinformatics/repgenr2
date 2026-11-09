@@ -41,6 +41,13 @@ All notable changes to RepGenR2 are documented here. The format follows
   figure with support values, species colours and a scale bar).
 - Report step `tree2tax` (settings and collapsed nodes, nodes per rank,
   leaves below the internal nodes; node sizes, support and RED by rank).
+- Nextflow: a final `REPORT` task writes the run report to `report/`
+  (`report.html` and one folder per step) from the selection, the
+  dereplication, the tree, the tree2tax tables and, in reads mode, the
+  assembly tables; `--report false` skips it, and a failure of the task is
+  ignored. `repgenr report --versions-yml` fills the software table from
+  `software_versions.yml`. The viral `metadata/` folder now also holds
+  `selection.tsv`.
 - Selection summary, as RepGenR 1 wrote it: `metadata_summary.tsv`
   (genomes per family, genus and species of the ingroup) and the plots
   `metadata_summary_number_in_level.png` and

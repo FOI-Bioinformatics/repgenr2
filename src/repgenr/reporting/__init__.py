@@ -124,5 +124,22 @@ def fragments_dir(workdir: Path) -> Path:
     return report_dir(workdir)
 
 
+def read_versions_yml(path: Path) -> list[tuple[str, str]]:
+    """(software, version) from a Nextflow ``software_versions.yml``: one map
+    per process of tool -> version. A tool reported with different versions
+    by different processes is listed once per process."""
+    import yaml
+
+    from ..core.versions import merge_stage_versions
+
+    data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    per_process = {
+        str(proc): {str(k): str(v) for k, v in (tools or {}).items()}
+        for proc, tools in data.items()
+        if isinstance(tools, dict)
+    }
+    return sorted(merge_stage_versions(per_process).items())
+
+
 def known_step(name: str) -> bool:
     return name in BY_NAME

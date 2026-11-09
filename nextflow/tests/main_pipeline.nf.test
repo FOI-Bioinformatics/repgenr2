@@ -19,8 +19,11 @@ nextflow_pipeline {
             assert path("$outputDir/genomes_map.tsv").exists()
             assert path("$outputDir/phylo/tree/tree.nwk").exists()
             assert path("$outputDir/pipeline_info/software_versions.yml").exists()
+            // The run report is published as report/.
+            assert path("$outputDir/report/report.html").exists()
             def names = workflow.trace.succeeded().collect { t -> t.name }
             assert names.any { n -> n.contains(':METADATA (') }
+            assert names.any { n -> n.startsWith('REPORT (') }
             assert names.any { n -> n.contains(':TREE2TAX (') }
         }
     }
@@ -39,6 +42,7 @@ nextflow_pipeline {
             assert path("$outputDir/tree2tax.tsv").exists()
             def names = workflow.trace.succeeded().collect { t -> t.name }
             assert names.any { n -> n.contains(':VACQUIRE (') }
+            assert names.any { n -> n.startsWith('REPORT (') }
             assert !names.any { n -> n.contains(':METADATA (') }
         }
     }
@@ -58,6 +62,7 @@ nextflow_pipeline {
             assert path("$outputDir/reads/selection.tsv").exists()
             def names = workflow.trace.succeeded().collect { t -> t.name }
             assert names.any { n -> n.contains(':READS_SELECT (') }
+            assert names.any { n -> n.startsWith('REPORT (') }
             assert names.any { n -> n.contains(':READS_ASSEMBLE (') }
             assert !names.any { n -> n.contains(':METADATA (') }
         }

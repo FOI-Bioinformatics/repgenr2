@@ -64,6 +64,13 @@
                     "help_text": "The alignment then survives a change of tree builder or bootstrap, and the two halves request their own resources. Only for tree builders that consume an alignment; leave it off for mashtree or sourmash.",
                     "fa_icon": "fas fa-code-branch"
                 },
+                "report": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Write the run report: report/report.html and one folder of tables and figures per step.",
+                    "help_text": "A final task runs repgenr report on the selection, the dereplication, the tree and the tree2tax tables (and the assembly tables in reads mode) and publishes report/. A failure of this task is ignored, so the results are kept. Set to false to skip it.",
+                    "fa_icon": "fas fa-file-alt"
+                },
                 "sketch": {
                     "type": "boolean",
                     "default": false,

@@ -143,6 +143,13 @@ def test_main_bacterial_test_profile(run_nextflow) -> None:
         assert (meta / name).is_file(), name
     summary = (meta / "metadata_summary.tsv").read_text(encoding="utf-8")
     assert "species\tFrancisella " in summary
+    # The run report, written by the REPORT task from the published files.
+    report = out / "report"
+    page = (report / "report.html").read_text(encoding="utf-8")
+    for step in ("selection", "dereplication", "phylogeny", "tree2tax"):
+        assert (report / step / "step.json").is_file(), step
+        assert f'id="step-{step}"' in page, step
+    assert "<h3>Software versions</h3>" in page
 
 
 @pytest.mark.network
@@ -168,6 +175,9 @@ def test_main_viral_mode(run_nextflow) -> None:
     ]
     species = [name for level, name, _ in rows if level == "species"]
     assert species and not any(name.startswith("Hepatovirus Hepatovirus") for name in species)
+    report = out / "report"
+    for step in ("selection", "dereplication", "phylogeny", "tree2tax"):
+        assert (report / step / "step.json").is_file(), step
 
 
 @pytest.mark.container

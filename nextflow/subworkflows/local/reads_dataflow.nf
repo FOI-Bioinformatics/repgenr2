@@ -15,6 +15,7 @@ include { PHYLO               } from '../../modules/local/dataflow/phylo'
 include { PHYLO_MSA           } from '../../modules/local/dataflow/phylo_msa'
 include { PHYLO_TREE          } from '../../modules/local/dataflow/phylo_tree'
 include { TREE2TAX            } from '../../modules/local/dataflow/tree2tax'
+include { tree2tax_files      } from './report_inputs'
 
 workflow READS_DATAFLOW {
     take:
@@ -96,5 +97,12 @@ workflow READS_DATAFLOW {
     tree        = ch_tree
     tree2tax    = TREE2TAX.out.tree2tax
     genomes_map = TREE2TAX.out.genomes_map
+    // As bacterial_dataflow, with the assembly tables.
+    report_in   = ACQUIRE_READS.out.selection
+        .join(ACQUIRE_READS.out.summary, by: 0)
+        .join(DEREPLICATE_SCATTER.out.reps, by: 0)
+        .join(ch_tree, by: 0)
+        .join(tree2tax_files(TREE2TAX.out.tree2tax, TREE2TAX.out.genomes_map, TREE2TAX.out.nodes), by: 0)
+        .join(ACQUIRE_READS.out.assembly, by: 0)
     versions    = ch_versions
 }

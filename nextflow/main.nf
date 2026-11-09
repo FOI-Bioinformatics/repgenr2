@@ -14,6 +14,7 @@ include { BACTERIAL_DATAFLOW } from './subworkflows/local/bacterial_dataflow'
 include { VIRAL_DATAFLOW     } from './subworkflows/local/viral_dataflow'
 include { READS_DATAFLOW     } from './subworkflows/local/reads_dataflow'
 include { PUBLISH_VERSIONS   } from './subworkflows/local/publish_versions'
+include { REPORT             } from './modules/local/dataflow/report'
 include { run_meta           } from './subworkflows/local/run_meta'
 
 workflow {
@@ -56,18 +57,28 @@ workflow {
     def ch_meta = channel.value(run_meta(params))
 
     def ch_versions = channel.empty()
+    def ch_report_in = channel.empty()
     if (params.mode == 'viral') {
         VIRAL_DATAFLOW(ch_meta)
         ch_versions = VIRAL_DATAFLOW.out.versions
+        ch_report_in = VIRAL_DATAFLOW.out.report_in
     }
     else if (params.mode == 'reads') {
         READS_DATAFLOW(ch_meta)
         ch_versions = READS_DATAFLOW.out.versions
+        ch_report_in = READS_DATAFLOW.out.report_in
     }
     else {
         BACTERIAL_DATAFLOW(ch_meta)
         ch_versions = BACTERIAL_DATAFLOW.out.versions
+        ch_report_in = BACTERIAL_DATAFLOW.out.report_in
     }
 
     PUBLISH_VERSIONS(ch_versions)
+
+    // The run report (report/report.html and one folder per step), written
+    // from the files the pipeline produced; params.report = false skips it.
+    if (params.report) {
+        REPORT(ch_report_in, PUBLISH_VERSIONS.out.yml.ifEmpty([]))
+    }
 }

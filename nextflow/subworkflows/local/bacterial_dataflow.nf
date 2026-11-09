@@ -26,6 +26,7 @@ include { PHYLO               } from '../../modules/local/dataflow/phylo'
 include { PHYLO_MSA           } from '../../modules/local/dataflow/phylo_msa'
 include { PHYLO_TREE          } from '../../modules/local/dataflow/phylo_tree'
 include { TREE2TAX            } from '../../modules/local/dataflow/tree2tax'
+include { tree2tax_files      } from './report_inputs'
 
 workflow BACTERIAL_DATAFLOW {
     take:
@@ -117,5 +118,12 @@ workflow BACTERIAL_DATAFLOW {
     tree        = ch_tree
     tree2tax    = TREE2TAX.out.tree2tax
     genomes_map = TREE2TAX.out.genomes_map
+    // [meta, selection, summary files, derep dir, tree, tree2tax files, assembly files]
+    report_in   = ACQUIRE.out.selection
+        .join(ACQUIRE.out.summary, by: 0)
+        .join(DEREPLICATE_SCATTER.out.reps, by: 0)
+        .join(ch_tree, by: 0)
+        .join(tree2tax_files(TREE2TAX.out.tree2tax, TREE2TAX.out.genomes_map, TREE2TAX.out.nodes), by: 0)
+        .map { m, sel, summ, reps, tree, t2t -> tuple(m, sel, summ, reps, tree, t2t, []) }
     versions    = ch_versions
 }

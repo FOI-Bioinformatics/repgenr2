@@ -24,6 +24,7 @@ include { READS_SCREEN   } from '../../modules/local/dataflow/reads_screen'
 include { READS_ASSEMBLE } from '../../modules/local/dataflow/reads_assemble'
 include { GENOME_QC      } from '../../modules/local/dataflow/genome_qc'
 include { READS_GATHER   } from '../../modules/local/dataflow/reads_gather'
+include { optional_files } from './report_inputs'
 
 workflow ACQUIRE_READS {
     take:
@@ -134,5 +135,10 @@ workflow ACQUIRE_READS {
     selection          = READS_GATHER.out.selection
     outgroup_accession = READS_GATHER.out.outgroup_accession
     reads              = READS_SELECT.out.reads
+    // For the run report: the selection summary, and the assembly tables.
+    summary            = optional_files(READS_GATHER.out.selection, READS_GATHER.out.summary)
+    assembly           = optional_files(READS_GATHER.out.selection, READS_GATHER.out.excused)
+        .join(READS_GATHER.out.assembly_stats, by: 0)
+        .map { meta, excused, stats -> tuple(meta, [stats] + excused) }
     versions           = ch_versions
 }
