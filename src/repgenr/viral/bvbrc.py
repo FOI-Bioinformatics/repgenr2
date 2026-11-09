@@ -23,7 +23,7 @@ from Bio import SeqIO
 from Bio.SeqRecord import SeqRecord
 
 from ..core.context import WorkdirContext
-from ..core.contracts import SELECTION_TSV, SelectionRow, write_selection
+from ..core.contracts import SELECTION_TSV, SelectionRow, glob_visible, write_selection
 from ..core.errors import UserInputError, WorkdirError
 from ..core.manifest import record_from_selection
 from ..core.process import staged_dir
@@ -374,7 +374,7 @@ def _determine_outgroup(
         _write_record(sequences[rec.name], genomes_dir / f"{prefix}_{rec.name}.fasta")
         written[rec.taxid] = written.get(rec.taxid, 0) + 1
 
-    genome_files = sorted(genomes_dir.glob("*.fasta"))
+    genome_files = glob_visible(genomes_dir, "*.fasta")
     matrix = _outgroup.run_distance_matrix(
         builder, genome_files, int(mean(length_range)), outgroup_wd, logger
     )

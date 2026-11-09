@@ -148,6 +148,19 @@ def list_fasta(source: Path) -> list[Path]:
     )
 
 
+def glob_visible(directory: Path, pattern: str, *, recursive: bool = False) -> list[Path]:
+    """Sorted matches of ``pattern`` under ``directory``, without dotfiles.
+
+    Unlike a shell, :meth:`pathlib.Path.glob` matches names that start with
+    a dot, and macOS writes a ``._`` AppleDouble file beside every file on a
+    volume without extended attributes (exFAT, NTFS, SMB shares). Read as a
+    tool's output, such a file holds binary data under a name like
+    ``._gene.aln``. Every listing of tool output goes through here.
+    """
+    found = directory.rglob(pattern) if recursive else directory.glob(pattern)
+    return sorted(p for p in found if not p.name.startswith("."))
+
+
 def genome_filename(family: str, genus: str, species: str, accession: str) -> str:
     """Canonical genome FASTA filename. One definition so the metadata selection,
     the genome download and every downstream stage agree on the same names.

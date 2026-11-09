@@ -42,7 +42,8 @@ WD/
   repgenr.yaml                    provenance record (all stages)
   repgenr.log                     run log (all stages)
   manifest.sqlite                 genome manifest
-  scratch/                        working files, one subdirectory per stage
+  scratch/                        working files, one subdirectory per stage;
+                                  n50_cache.tsv keeps genome N50 values between runs
   <version>_metadata_r<major>.*   GTDB table (metadata)
   gtdb_api_genomes.tsv            GTDB API candidates (metadata --source api)
   virus_download_wd/              viral records (vmetadata)

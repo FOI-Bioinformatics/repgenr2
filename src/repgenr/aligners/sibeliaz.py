@@ -16,7 +16,7 @@ from ..converters.maf_to_fasta import maf_to_fasta
 from ..core.binaries import BinarySpec
 from ..core.bindirs import host_which
 from ..core.containers import get_config, run_tool
-from ..core.contracts import MSA_FASTA, record_name
+from ..core.contracts import MSA_FASTA, glob_visible, record_name
 from ..core.errors import WorkdirError
 from ..core.plugins import ToolCapabilities
 from ..core.process import is_gzip, warn_argv_bytes
@@ -112,7 +112,7 @@ class SibeliazAligner(Aligner):
         maf = out_dir / "alignment.maf"
         if not maf.exists():
             # SibeliaZ writes blocks_coords.gff + alignment.maf; locate the MAF
-            candidates = sorted(out_dir.rglob("*.maf"))
+            candidates = glob_visible(out_dir, "*.maf", recursive=True)
             if not candidates:
                 raise WorkdirError("SibeliaZ did not produce a MAF file")
             maf = candidates[0]

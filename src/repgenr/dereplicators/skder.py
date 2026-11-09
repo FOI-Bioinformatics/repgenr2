@@ -57,7 +57,7 @@ from pathlib import Path
 
 from ..core.binaries import BinarySpec
 from ..core.containers import run_tool
-from ..core.contracts import FASTA_SUFFIXES, list_fasta
+from ..core.contracts import FASTA_SUFFIXES, glob_visible, list_fasta
 from ..core.errors import ToolExecutionError, UserInputError, WorkdirError
 from ..core.logging import capped_names, console_extra
 from ..core.plugins import ToolCapabilities
@@ -425,7 +425,7 @@ def _iter_edges(result_dir: Path) -> Iterator[tuple[str, str, float, float, floa
     """
     edge_file = result_dir / "Skani_Triangle_Edge_Output.txt"
     if not edge_file.exists():
-        matches = sorted(result_dir.rglob("*Edge_Output*.txt"))
+        matches = glob_visible(result_dir, "*Edge_Output*.txt", recursive=True)
         if not matches:
             return
         edge_file = matches[0]

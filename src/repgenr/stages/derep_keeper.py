@@ -172,6 +172,67 @@ class N50Lookup:
         return {name: n50 for name, n50 in self._cache.items() if n50 is not None}
 
 
+# N50 values of a workdir's genomes kept between runs, so dereplicate,
+# derep-refine, cluster-summary and derep-stock read a genome once until it
+# changes. Keyed by file name, size and modification time; under scratch/,
+# since it holds nothing a stage hands on.
+N50_CACHE = "n50_cache.tsv"
+_N50_CACHE_HEADER = "genome\tsize\tmtime_ns\tn50"
+
+
+def _stat_key(path: Path) -> tuple[int, int] | None:
+    try:
+        st = path.stat()
+    except OSError:
+        return None
+    return st.st_size, st.st_mtime_ns
+
+
+def workdir_n50_lookup(genomes_dir: Path, scratch_dir: Path, *, workers: int) -> N50Lookup:
+    """An N50Lookup over ``genomes_dir`` seeded from the cache in
+    ``scratch_dir``: a value is reused only while the genome file has the
+    size and modification time it had when the value was read."""
+    known: dict[str, int] = {}
+    path = scratch_dir / N50_CACHE
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        lines = []
+    if lines and lines[0] == _N50_CACHE_HEADER:
+        for line in lines[1:]:
+            parts = line.split("\t")
+            if len(parts) != 4:
+                continue
+            name, size, mtime, n50 = parts
+            try:
+                key = (int(size), int(mtime))
+                value = int(n50)
+            except ValueError:
+                continue
+            if _stat_key(genomes_dir / name) == key:
+                known[name] = value
+    return N50Lookup([genomes_dir], known=known, workers=workers)
+
+
+def save_n50_cache(lookup: N50Lookup, genomes_dir: Path, scratch_dir: Path) -> None:
+    """Keep the N50 values ``lookup`` knows for the genomes still in
+    ``genomes_dir``, with their file's size and modification time. A failure
+    to write is ignored: the cache only saves reading time."""
+    from ..core.contracts import atomic_replace
+
+    rows = [_N50_CACHE_HEADER]
+    for name, n50 in sorted(lookup.computed().items()):
+        key = _stat_key(genomes_dir / name)
+        if key is not None:
+            rows.append(f"{name}\t{key[0]}\t{key[1]}\t{n50}")
+    try:
+        scratch_dir.mkdir(parents=True, exist_ok=True)
+        with atomic_replace(scratch_dir / N50_CACHE) as fo:
+            fo.write("\n".join(rows) + "\n")
+    except OSError:
+        pass
+
+
 def warn_missing_n50(lookup: N50Lookup, logger: logging.Logger) -> None:
     """WARNING naming the scored genomes whose file was not found: their keeper
     score and ``rep_n50`` carry no N50 term."""

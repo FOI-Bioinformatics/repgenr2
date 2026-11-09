@@ -56,7 +56,7 @@ import numpy as np
 import numpy.typing as npt
 
 from ..core.containers import run_tool
-from ..core.contracts import record_name
+from ..core.contracts import glob_visible, record_name
 from ..core.errors import MissingBinaryError, ToolExecutionError, WorkdirError
 from ..core.plugins import ToolCapabilities, parse_extra_int
 from ..core.process import write_fofn
@@ -723,7 +723,7 @@ def _read_zip_indexes(
 ) -> dict[Path, dict[str, tuple[int, int]]]:
     """Sketched zips in ``sketch_cache`` made with these parameters -> name: file key."""
     out: dict[Path, dict[str, tuple[int, int]]] = {}
-    for index in sorted(sketch_cache.glob(f"signatures-*{_INDEX_SUFFIX}")):
+    for index in glob_visible(sketch_cache, f"signatures-*{_INDEX_SUFFIX}"):
         zip_path = index.with_name(index.name[: -len(_INDEX_SUFFIX)] + ".zip")
         try:
             data = json.loads(index.read_text(encoding="utf-8"))

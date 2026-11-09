@@ -47,6 +47,7 @@ from pathlib import Path
 
 from ..core.binaries import BinarySpec
 from ..core.containers import run_tool
+from ..core.contracts import glob_visible
 from ..core.errors import UserInputError, WorkdirError
 from ..core.plugins import ToolCapabilities, parse_extra_bool
 from .base import CoreGeneBuilder, CoreGeneParams, CoreGeneResult, GeneAlignment
@@ -159,10 +160,13 @@ class PPanGGOLiNBuilder(CoreGeneBuilder):
         soft_core = f"{params.core_threshold:g}"
         tables_dir = out_dir / "tables"
         msa_dir = out_dir / "msa"
-        alignments = sorted(msa_dir.glob("*_genome_alignment.aln"))
+        alignments = glob_visible(msa_dir, "*_genome_alignment.aln")
         source = _msa_source(params.alphabet)
         families = [
-            p for d in msa_dir.glob(f"msa_*_{source}") for p in d.glob("*.aln") if p.is_file()
+            p
+            for d in glob_visible(msa_dir, f"msa_*_{source}")
+            for p in glob_visible(d, "*.aln")
+            if p.is_file()
         ]
         core_genes = len(families)
         if not alignments or core_genes == 0 or not _has_columns(alignments[0]):
@@ -184,7 +188,7 @@ class PPanGGOLiNBuilder(CoreGeneBuilder):
             )
         tables = [tables_dir / t for t in TABLES if (tables_dir / t).is_file()]
         partitions_dir = tables_dir / "partitions"
-        tables += sorted(p for p in partitions_dir.glob("*.txt") if p.is_file())
+        tables += [p for p in glob_visible(partitions_dir, "*.txt") if p.is_file()]
         return CoreGeneResult(
             alignment=alignments[0],
             tables=tables,

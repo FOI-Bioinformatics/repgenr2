@@ -10,7 +10,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from ...core.contracts import SELECTION_TSV, read_selection, record_name
+from ...core.contracts import SELECTION_TSV, glob_visible, read_selection, record_name
 from ...tree.support import parse_support
 from .. import style
 from ..figures import integer_ticks, render
@@ -34,7 +34,7 @@ UNITS = {
 
 def sources(workdir: Path) -> list[Path]:
     tree_dir = workdir / "tree"
-    found = sorted(tree_dir.glob("*.iqtree")) + sorted(tree_dir.glob("*.bestModel"))
+    found = glob_visible(tree_dir, "*.iqtree") + glob_visible(tree_dir, "*.bestModel")
     return [workdir / TREE, workdir / SELECTION_TSV, *found]
 
 
@@ -50,7 +50,7 @@ def _load(path: Path):
 
 def _model(workdir: Path) -> str:
     tree_dir = workdir / "tree"
-    for path in sorted(tree_dir.glob("*.iqtree")):
+    for path in glob_visible(tree_dir, "*.iqtree"):
         text = path.read_text(encoding="utf-8", errors="replace")
         m = re.search(r"Best-fit model according to \w+: (\S+)", text) or re.search(
             r"Model of substitution: (\S+)", text
@@ -59,7 +59,7 @@ def _model(workdir: Path) -> str:
             return m.group(1)
         if "partition" in text.lower():
             return "partitioned (see the IQ-TREE report)"
-    for path in sorted(tree_dir.glob("*.bestModel")):
+    for path in glob_visible(tree_dir, "*.bestModel"):
         lines = [ln for ln in path.read_text(encoding="utf-8").splitlines() if ln.strip()]
         # "GTR{1.4/6.3/...}+FU{...}+G4m{0.34}+BU{0.92}, gene = 1-1470": the
         # model with its estimated values left out.

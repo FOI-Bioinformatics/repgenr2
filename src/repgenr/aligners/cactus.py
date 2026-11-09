@@ -18,7 +18,7 @@ from ..converters.hal_to_maf import hal_to_maf
 from ..converters.maf_to_fasta import maf_to_fasta
 from ..core.binaries import BinarySpec
 from ..core.containers import run_tool
-from ..core.contracts import MSA_FASTA, record_name, rename_fasta_records
+from ..core.contracts import MSA_FASTA, glob_visible, record_name, rename_fasta_records
 from ..core.errors import WorkdirError
 from ..core.plugins import ToolCapabilities
 from .base import Aligner, AlignParams, AlignResult
@@ -114,7 +114,7 @@ def _sample_name(genome: Path) -> str:
 
 
 def _find_hal(results: Path) -> Path | None:
-    candidates = sorted(results.rglob("*.hal"))
+    candidates = glob_visible(results, "*.hal", recursive=True)
     if not candidates:
         return None
     # Prefer the combined pangenome HAL (``*.full.hal``) over per-chromosome HALs

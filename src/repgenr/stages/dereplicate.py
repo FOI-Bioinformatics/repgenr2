@@ -57,13 +57,14 @@ from ..dereplicators.base import (
 )
 from .cluster_summary import gtdb_lookup, summarise_clusters, taxonomy_lookup
 from .derep_keeper import (
-    N50Lookup,
     N50Of,
     choose_keeper,
     log_unpromoted,
     prefer_gtdb_representatives,
     prefetch_n50,
     rescore_representatives,
+    save_n50_cache,
+    workdir_n50_lookup,
 )
 from .derep_refine import (
     Lineage,
@@ -250,7 +251,7 @@ def run(ctx: WorkdirContext, params: DereplicateParams) -> DerepResult:
     tool_settings = dict(result.settings)
 
     # N50 per genome for the keeper score and the summary, each genome read once.
-    n50 = N50Lookup([ctx.genomes_dir], workers=params.threads)
+    n50 = workdir_n50_lookup(ctx.genomes_dir, ctx.scratch_dir, workers=params.threads)
     lineages: list[Lineage] = []
     if params.refine or params.refine_file:
         lineages, result = _refine(
@@ -295,6 +296,7 @@ def run(ctx: WorkdirContext, params: DereplicateParams) -> DerepResult:
     # The summary reports quality whichever keeper rule was used, so a
     # --keeper tool run still shows where a member outscores the keeper.
     _write_contract(ctx, result, manifest_quality, n50, refined=rows)
+    save_n50_cache(n50, ctx.genomes_dir, ctx.scratch_dir)
     stats["keeper_swaps"] = keeper_swaps
     write_stats(ctx.derep_dir / DEREP_STATS, DEREP_STATS_KIND, stats)
     _update_manifest(ctx, result)
@@ -1117,8 +1119,18 @@ def _write_contract(
     refined: Sequence[RefinedRow] = (),
 ) -> None:
     rep_dir = ctx.representatives_dir
-    if rep_dir.exists():
-        remove_tree(rep_dir)
+    # Brought up to date in place rather than rebuilt: on a file system
+    # without hard links (exFAT) every representative is a copy, and a
+    # refinement that keeps most representatives would copy them all again.
+    wanted = {rep.name for rep in result.representatives}
+    if rep_dir.is_dir():
+        for entry in list(rep_dir.iterdir()):
+            if entry.name in wanted and entry.is_file():
+                continue
+            if entry.is_dir() and not entry.is_symlink():
+                remove_tree(entry)
+            else:
+                entry.unlink(missing_ok=True)
     rep_dir.mkdir(parents=True, exist_ok=True)
 
     for rep in result.representatives:
@@ -1135,7 +1147,11 @@ def _write_contract(
                 f"Representative genome is empty: {rep.name} ({source}). An "
                 "upstream download or staging step produced a zero-length genome."
             )
-        link_or_copy(source, rep_dir / rep.name)
+        target = rep_dir / rep.name
+        if _same_content(source, target):
+            continue
+        target.unlink(missing_ok=True)
+        link_or_copy(source, target)
 
     write_clusters(ctx.derep_dir / CLUSTERS_TSV, result.clusters)
     write_genome_status(ctx.derep_dir / GENOME_STATUS_TSV, result.genome_status, result.qc_reasons)
@@ -1156,6 +1172,21 @@ def _write_contract(
             refined={r.representative for r in refined if r.status == STATUS_REPRESENTATIVE},
         ),
     )
+
+
+def _same_content(source: Path, target: Path) -> bool:
+    """Whether ``target`` already holds ``source``: the same file (a hard
+    link), or a copy with the same size and modification time (``copy2``
+    keeps the time; exFAT stores it to 10 ms)."""
+    try:
+        if not target.is_file():
+            return False
+        if source.samefile(target):
+            return True
+        a, b = source.stat(), target.stat()
+    except OSError:
+        return False
+    return a.st_size == b.st_size and abs(a.st_mtime - b.st_mtime) < 0.02
 
 
 def _update_manifest(ctx: WorkdirContext, result: DerepResult) -> None:

@@ -288,3 +288,27 @@ def test_the_dna_alphabet_keeps_the_dna_source(tmp_path: Path, monkeypatch) -> N
     msa = calls[-1]
     assert msa[msa.index("--source") + 1] == "dna"
     assert {ga.path.parent.name for ga in result.gene_alignments} == {"msa_softcore_dna"}
+
+
+def test_appledouble_files_are_ignored(tmp_path: Path, monkeypatch) -> None:
+    """macOS writes ``._<name>`` beside each file on exFAT; the builder must
+    not read them as alignments."""
+    calls: list[list[str]] = []
+    fake = _fake(calls)
+
+    def run_tool(caps, cmd, **k):
+        rc = fake(caps, cmd, **k)
+        out = Path(str(cmd[list(map(str, cmd)).index("-o") + 1]))
+        for path in list(out.rglob("*")):
+            if path.is_file():
+                (path.parent / f"._{path.name}").write_bytes(b"\x00\x05\x16\x07\xb0\xff")
+        return rc
+
+    monkeypatch.setattr(mod, "run_tool", run_tool)
+    result = mod.PPanGGOLiNBuilder().call(
+        _gffs(tmp_path), tmp_path / "out", CoreGeneParams(threads=1, core_threshold=0.9), _LOG
+    )
+    assert result.alignment.name == "softcore_0.9_genome_alignment.aln"
+    assert result.core_genes == 150
+    assert not any(ga.path.name.startswith(".") for ga in result.gene_alignments)
+    assert not any(t.name.startswith(".") for t in result.tables)
