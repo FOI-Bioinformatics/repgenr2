@@ -3,7 +3,7 @@
 Generated from `tests/audit/cli_matrix.yaml` by `scripts/render_cli_matrix.py`;
 `tests/unit/test_cli_matrix.py` keeps both in step with the command tree.
 
-40 commands, 498 flags (491 with a live test or an n/a reason, 7 pending).
+40 commands, 499 flags (492 with a live test or an n/a reason, 7 pending).
 
 ## Global flags
 
@@ -637,6 +637,7 @@ dispatch: `query`
 | `--figure-formats` |  | n/a: query command, no stage parameters | choice | n/a: the REPORT process of the pipeline calls it (PR-F) | todo: PR-F | docs/cli-reference.md, docs/usage.md, docs/output.md, docs/audit/cli-matrix.md |
 | `--from-fragments` |  | n/a: query command, no stage parameters | none | n/a: the REPORT process of the pipeline calls it (PR-F) | todo: PR-F | docs/cli-reference.md, docs/usage.md, docs/output.md, docs/audit/cli-matrix.md |
 | `--title` |  | n/a: query command, no stage parameters | none | n/a: the REPORT process of the pipeline calls it (PR-F) | todo: PR-F | docs/cli-reference.md, docs/usage.md, docs/audit/cli-matrix.md |
+| `--versions-yml` |  | n/a: query command, no stage parameters | none | module: REPORT passes pipeline_info/software_versions.yml | tests/live/test_nextflow.py::test_main_bacterial_test_profile | docs/cli-reference.md, docs/usage.md, docs/nextflow.md, docs/audit/cli-matrix.md |
 
 ## tree2tax
 

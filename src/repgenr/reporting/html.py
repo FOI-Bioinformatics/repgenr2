@@ -39,6 +39,9 @@ class Provenance:
     # (stage, state, tool, completed)
     stages: list[tuple[str, str, str, str]] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
+    # (software, version) from a Nextflow software_versions.yml, used when the
+    # step reports carry no stage records (the pipeline keeps no repgenr.yaml).
+    versions: list[tuple[str, str]] = field(default_factory=list)
 
 
 _CSS = """
@@ -271,7 +274,7 @@ def build_html(fragments: list[tuple[Path, StepReport]], prov: Provenance) -> st
                 f"<td>{_e(completed)}</td></tr>"
             )
         out.append("</tbody></table></div>")
-    versions = software_versions(records)
+    versions = software_versions(records) or sorted(set(prov.versions))
     if versions:
         out.append('<h3>Software versions</h3><div class="tablewrap"><table><thead><tr>')
         out.append("<th>software</th><th>version</th></tr></thead><tbody>")

@@ -177,6 +177,7 @@ reported is named in a warning; the command still writes the page.
 | `--figure-formats` | `png,svg` | Figure formats, comma-separated: png, svg, pdf. The HTML embeds SVG, else PNG. |
 | `--from-fragments` |  | Build the HTML page from these step-report folders (or folders holding them) instead of a working directory. Repeatable; needs --out. |
 | `--title` |  | Title of the HTML report. |
+| `--versions-yml` |  | A Nextflow software_versions.yml whose tool versions fill the software table when the steps carry no stage records. |
 
 ### phylo-advise
 

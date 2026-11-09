@@ -68,11 +68,22 @@ description; parameters are validated against it at launch. The most used:
 | `--derep_keeper` | `quality` | Representative choice: `quality`, `gtdb` or `tool`, from `selection.tsv`. |
 | `--phylo_args` | `--treebuilder mashtree` | Phylogeny route, settings and rooting. |
 | `--tree2tax_args` | (empty) | tree2tax arguments; dereplicated genomes are listed by default. |
+| `--report` | `true` | Write the run report to `report/` (see below); `false` skips it. |
 
 `--tree2tax_args` gains `--no-outgroup` when `--phylo_args` contains it, and
 `--keep-root` with `--root midpoint`. With `--group-segments` in
 `--vgenome_args`, `genomes_map.tsv` lists the segment accessions of each
 isolate.
+
+A final `REPORT` task writes the report of the run: it stages the
+selection, the dereplication directory, the tree, the tree2tax tables and,
+in reads mode, the assembly tables into a working directory, runs
+`repgenr report` on it and publishes `report/report.html` with one folder of
+tables and figures per step ([usage.md](usage.md#reports)). The pipeline
+keeps no `repgenr.yaml`, so the methods paragraph of this report is empty;
+the software table comes from `pipeline_info/software_versions.yml`
+(`repgenr report --versions-yml`). A
+failure of the task is ignored, so the results are kept.
 
 ### Passing parameters
 

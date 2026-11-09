@@ -121,7 +121,9 @@ the folders of its steps when it finishes or is skipped, and `report`
 rebuilds the ones that are missing or whose data changed (`--no-refresh`
 uses them as they are). `--steps selection` limits the page to some steps,
 `--out FILE` writes it elsewhere and `--title` sets its title.
-`--fragments-only` writes the step folders without the page, and
+`--fragments-only` writes the step folders without the page,
+`--versions-yml FILE` fills the software table from a Nextflow
+`software_versions.yml`, and
 `--from-fragments DIR` builds the page from step folders without a working
 directory (the Nextflow pipeline does this). `repgenr run` writes the page
 at the end of the chain. The page embeds its figures and tables, needs no

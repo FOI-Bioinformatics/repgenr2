@@ -12,7 +12,7 @@ workflow PUBLISH_VERSIONS {
     ch_versions   // channel: versions.yml fragments from every process
 
     main:
-    ch_versions
+    def ch_yml = ch_versions
         .map { f -> f.text }
         .unique()
         .collectFile(
@@ -20,4 +20,7 @@ workflow PUBLISH_VERSIONS {
             storeDir: "${params.outdir}/pipeline_info",
             sort: true,
         )
+
+    emit:
+    yml = ch_yml   // the published file, for the run report
 }

@@ -954,7 +954,7 @@ The pipeline publishes under `--outdir` (default `results/`):
 
 | Path | Content |
 |------|---------|
-| `metadata/` | Bacterial mode: `selection.tsv`, `outgroup_accession.txt`, `metadata_selected.tsv` and the selection summary (`metadata_summary.tsv` and its two plots). Viral mode: the selection summary, and `virus_metadata_ncbi_summary.tsv` on the BV-BRC path. |
+| `metadata/` | Bacterial mode: `selection.tsv`, `outgroup_accession.txt`, `metadata_selected.tsv` and the selection summary (`metadata_summary.tsv` and its two plots). Viral mode: `selection.tsv`, the selection summary, and `virus_metadata_ncbi_summary.tsv` on the BV-BRC path. |
 | `reads/` | Reads mode: `reads.tsv`, `selection.tsv`, `assembly_stats.tsv`, `outgroup_accession.txt`, `excused_runs.tsv`, the selection summary, and `screen_reads.tsv` with `--assemble_args '--screen-reads'`. |
 | `reads/qc/` | `quality.tsv` (`run_accession`, `completeness`, `contamination`) and `classification.tsv` (`run_accession`, `taxonomy`, `rank`, `score`, `db_version`) of the QC step. |
 | `reads/reads_sketches/<variant>/` | With the reads sketch step: the sketches and `reads_sketches.tsv` ([reads-sketch](#reads-sketch)). |
@@ -965,6 +965,7 @@ The pipeline publishes under `--outdir` (default `results/`):
 | `annotations/<record>/` | With `--msa-source coregene` in `--phylo_args`: one directory per `ANNOTATE` task, without the index ([annotate](#annotate)). |
 | `phylo/` | `tree/` (tree and builder files) and the alignment under `align/` or `tree/msa/`. With `phylo_split_msa`, also `msa.fasta`, `alignment_stats.json` and `partitions.json`. |
 | `tree2tax.tsv`, `tree2tax_nodes.tsv`, `genomes_map.tsv` | tree2tax output ([tree2tax](#tree2tax)). |
+| `report/` | The run report: `report.html` and one folder per step ([Report](#report)), written by the `REPORT` task (`--report false` skips it). |
 | `pipeline_info/` | Execution reports (below). |
 
 `pipeline_info/` holds, per run, timestamped files:

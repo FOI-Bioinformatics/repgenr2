@@ -52,7 +52,7 @@ process VACQUIRE {
         cp wd/segments.tsv segments.tsv
     fi
     mkdir -p report
-    for f in metadata_summary.tsv metadata_summary_number_in_level.png \\
+    for f in selection.tsv metadata_summary.tsv metadata_summary_number_in_level.png \\
              metadata_summary_number_per_level.png virus_metadata_ncbi_summary.tsv; do
         if [ -f wd/\$f ]; then cp wd/\$f report/\$f; fi
     done

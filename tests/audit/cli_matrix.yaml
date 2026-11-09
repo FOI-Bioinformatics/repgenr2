@@ -4927,6 +4927,17 @@ commands:
         nextflow: 'n/a: the REPORT process of the pipeline calls it (PR-F)'
         live: 'todo: PR-F'
         observable: the page title
+      --versions-yml:
+        param: 'n/a: query command, no stage parameters'
+        validated: none
+        docs:
+        - docs/cli-reference.md
+        - docs/usage.md
+        - docs/nextflow.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'module: REPORT passes pipeline_info/software_versions.yml'
+        live: tests/live/test_nextflow.py::test_main_bacterial_test_profile
+        observable: the software table of the Nextflow run report
   tree2tax:
     dispatch: stage
     base_args:
