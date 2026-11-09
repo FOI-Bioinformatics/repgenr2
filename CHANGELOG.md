@@ -6,6 +6,16 @@ All notable changes to RepGenR2 are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+- `dereplicate`, `derep-refine`, `cluster-summary` and `derep-stock` keep the
+  N50 of each genome in `scratch/n50_cache.tsv` (keyed by file name, size and
+  modification time) and read a genome only when it is new or changed. The
+  representatives folder is brought up to date in place: a representative
+  already there is not linked or copied again. On a working directory on an
+  exFAT volume, where every representative is a copy, `derep-refine` of the
+  1305-genome Brucella melitensis lineage took 30 s instead of 249 s, with
+  the same result.
+
 ### Added
 - `metadata -ts` selects several species of the target genus: repeat it or
   separate names by commas (`-ts tularensis -ts novicida`, with `--level

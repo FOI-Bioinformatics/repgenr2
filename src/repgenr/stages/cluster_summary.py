@@ -35,12 +35,13 @@ from ..core.resources import usable_cpus
 from ..dereplicators.base import STATUS_REPRESENTATIVE
 from .derep_keeper import (
     N50_MAX_WORKERS,
-    N50Lookup,
     N50Of,
     best_score,
     choose_keeper,
     prefetch_n50,
+    save_n50_cache,
     warn_missing_n50,
+    workdir_n50_lookup,
 )
 
 Quality = Mapping[str, tuple[float, float]]
@@ -217,7 +218,9 @@ def run(ctx: WorkdirContext, params: ClusterSummaryParams) -> Path:
     quality = quality_lookup(ctx)
     if not quality:
         logger.info("No assembly quality in the manifest; quality columns are left blank")
-    n50 = N50Lookup([ctx.genomes_dir], workers=min(usable_cpus(), N50_MAX_WORKERS))
+    n50 = workdir_n50_lookup(
+        ctx.genomes_dir, ctx.scratch_dir, workers=min(usable_cpus(), N50_MAX_WORKERS)
+    )
     rows = summarise_clusters(
         clusters,
         quality,
@@ -227,6 +230,7 @@ def run(ctx: WorkdirContext, params: ClusterSummaryParams) -> Path:
         refined=refined_representatives(ctx.derep_dir),
     )
     warn_missing_n50(n50, logger)
+    save_n50_cache(n50, ctx.genomes_dir, ctx.scratch_dir)
     out = ctx.derep_dir / CLUSTER_SUMMARY_TSV
     write_cluster_summary(out, rows)
     ctx.config.record_stage(
