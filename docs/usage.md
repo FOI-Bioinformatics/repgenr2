@@ -128,7 +128,7 @@ uses them as they are). `--steps selection` limits the page to some steps,
 directory (the Nextflow pipeline does this). `repgenr run` writes the page
 at the end of the chain. The page embeds its figures and tables, needs no
 network connection and prints on A4. The steps and their contents are
-listed in [output.md](output.md#report). A step that cannot be reported is
+listed in [report.md](report.md) and [output.md](output.md#report). A step that cannot be reported is
 named in a warning and in the page; the stage and the command still exit 0.
 
 ## Building the genome set

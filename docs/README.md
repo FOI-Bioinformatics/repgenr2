@@ -18,11 +18,13 @@ project overview is in the [repository README](../README.md).
 7. [cli-reference.md](cli-reference.md): every command and option,
    generated from the command tree.
 8. [output.md](output.md): the files each stage writes and their columns.
-9. [developing.md](developing.md): architecture, data contracts and adding
-   a tool adapter.
-10. [verification.md](verification.md): which adapters have been run against
+9. [report.md](report.md): the run report, one HTML page with tables and
+   figures per step, and the step folders for a manuscript.
+10. [developing.md](developing.md): architecture, data contracts and adding
+    a tool adapter.
+11. [verification.md](verification.md): which adapters have been run against
     their real tools, and the measured runs.
-11. [audit/](audit/README.md): the records behind the current design.
+12. [audit/](audit/README.md): the records behind the current design.
 
 The changelog ([CHANGELOG.md](../CHANGELOG.md)) and the citations
 ([CITATIONS.md](../CITATIONS.md)) are at the repository root.

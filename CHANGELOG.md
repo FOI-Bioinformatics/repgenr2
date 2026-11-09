@@ -391,6 +391,8 @@ All notable changes to RepGenR2 are documented here. The format follows
   variables; the host runs the tool in it).
 
 ### Documentation
+- `docs/report.md`: the run report, its steps, the HTML page, the tables
+  and figures for a manuscript, and its limits.
 - `docs/verification.md`: partitioned RAxML-NG on 300 PPanGGOLiN core genes
   of eight Francisella species, against IQ-TREE `-p` and a single-model
   RAxML-NG run. `docs/phylogeny.md` notes that RAxML-NG's standard bootstrap
