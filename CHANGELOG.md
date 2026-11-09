@@ -7,6 +7,9 @@ All notable changes to RepGenR2 are documented here. The format follows
 ## [Unreleased]
 
 ### Fixed
+- `--preset` failed with "'TyperOption' object has no attribute 'type'"
+  under typer 0.29, which no longer builds on click; the preset values are
+  converted through typer's own conversion when click's is absent.
 - `markers-db download` failed now and then on a 404 from InterPro for a
   family it serves (a different family on each run), and a failure threw
   away every model fetched. A 404 is now retried like other failures, the
