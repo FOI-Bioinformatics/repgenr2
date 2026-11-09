@@ -74,6 +74,7 @@ STEPS: tuple[StepSpec, ...] = (
     StepSpec("snptype", "SNP typing", ("snptype",), "snptype"),
     StepSpec("alignment", "Alignment", ("phylo",), "alignment"),
     StepSpec("phylogeny", "Phylogeny", ("phylo",), "phylogeny"),
+    StepSpec("tree2tax", "Taxonomy from the tree (tree2tax)", ("tree2tax",), "tree2tax"),
 )
 
 STEP_NAMES: tuple[str, ...] = tuple(s.name for s in STEPS)

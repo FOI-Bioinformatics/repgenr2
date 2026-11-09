@@ -39,6 +39,8 @@ All notable changes to RepGenR2 are documented here. The format follows
   alignment; core-gene occupancy and informative sites) and `phylogeny`
   (tree summary with model, support and root-to-tip distances; a tree
   figure with support values, species colours and a scale bar).
+- Report step `tree2tax` (settings and collapsed nodes, nodes per rank,
+  leaves below the internal nodes; node sizes, support and RED by rank).
 - Selection summary, as RepGenR 1 wrote it: `metadata_summary.tsv`
   (genomes per family, genus and species of the ingroup) and the plots
   `metadata_summary_number_in_level.png` and

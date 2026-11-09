@@ -57,6 +57,7 @@ DISPLAY_NAMES: dict[str, str] = {
     "medaka": "Medaka",
     "racon": "Racon",
     "checkm2": "CheckM2",
+    "dendropy": "DendroPy",
 }
 
 
@@ -280,7 +281,28 @@ def _phylo(m: MethodsInfo) -> tuple[str, list[str]]:
     return text.strip(), []
 
 
+def _tree2tax(m: MethodsInfo) -> tuple[str, list[str]]:
+    p = m.params
+    text = "The rooted tree was converted into a node taxonomy for FlexTaxD"
+    if m.tool_versions.get("dendropy"):
+        text += f" with DendroPy {m.tool_versions['dendropy']}"
+    text += "."
+    rules = []
+    if isinstance(p.get("collapse_support"), int | float):
+        rules.append(f"support below {p['collapse_support']:g}")
+    if isinstance(p.get("collapse_length"), int | float):
+        rules.append(f"branch length below {p['collapse_length']:g}")
+    if rules:
+        text += " Internal nodes with " + " or ".join(rules) + " were collapsed."
+    if isinstance(p.get("collapse_diameter"), int | float):
+        text += f" Clades within a leaf-to-leaf distance of {p['collapse_diameter']:g} were merged."
+    if p.get("ranks"):
+        text += " Ranks were assigned from relative evolutionary divergence (RED) bands."
+    return text, []
+
+
 _TEMPLATES: dict[str, Callable[[MethodsInfo], tuple[str, list[str]]]] = {
+    "tree2tax": _tree2tax,
     "snptype": _snptype,
     "phylo": _phylo,
     "reads": _reads,
