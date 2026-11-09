@@ -6,6 +6,15 @@ All notable changes to RepGenR2 are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+- `markers-db download` failed now and then on a 404 from InterPro for a
+  family it serves (a different family on each run), and a failure threw
+  away every model fetched. A 404 is now retried like other failures, the
+  families that failed are fetched once more one at a time, and the models
+  fetched so far are kept in `.<name>.fetched/` beside `--output`, so a
+  re-run fetches only the missing ones; the folder is removed once the
+  database is written.
+
 ### Added
 - `metadata -ts` selects several species of the target genus: repeat it or
   separate names by commas (`-ts tularensis -ts novicida`, with `--level

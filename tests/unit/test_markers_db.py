@@ -143,22 +143,59 @@ def test_download_writes_index_hmms_and_version(tmp_path: Path) -> None:
     assert not list(tmp_path.glob(".db.*"))
 
 
-def test_failed_fetch_leaves_no_directory(tmp_path: Path) -> None:
+def test_failed_fetch_writes_no_database_and_keeps_the_fetched_models(tmp_path: Path) -> None:
     out = tmp_path / "db"
     fetch = FakeFetcher(fail={"TIGR00006", "PF00380"})
-    with pytest.raises(WorkdirError, match="2 of 120.*PF00380.*TIGR00006"):
+    with pytest.raises(WorkdirError, match="2 of 120.*PF00380.*TIGR00006.*118 models fetched"):
         _download(out, ["bac120"], fetch, retries=2)
     assert not out.exists()
-    assert list(tmp_path.iterdir()) == []
-    # 503 is retried: each failing family was asked for twice.
-    assert fetch.calls.count("TIGR00006") == 2
+    kept = mdb.fetched_dir(out)
+    assert sorted(p.name for p in tmp_path.iterdir()) == [kept.name]
+    assert len(list(kept.glob("*.hmm"))) == 118
+    # 503 is retried: twice in the first pass and twice in the second.
+    assert fetch.calls.count("TIGR00006") == 4
+
+    # The re-run fetches the two missing families only, then removes the folder.
+    again = FakeFetcher()
+    _download(out, ["bac120"], again)
+    assert sorted(again.calls) == ["PF00380", "TIGR00006"]
+    assert not kept.exists() and mdb.read_version(out)["n_models"]["bac120"] == 120
 
 
-def test_not_found_is_not_retried(tmp_path: Path) -> None:
+def test_not_found_is_retried(tmp_path: Path) -> None:
+    """InterPro answers 404 now and then for families it serves."""
     fetch = FakeFetcher(fail={"PF00380"}, status=404)
     with pytest.raises(WorkdirError, match="PF00380"):
         _download(tmp_path / "db", ["bac120"], fetch, retries=3)
-    assert fetch.calls.count("PF00380") == 1
+    assert fetch.calls.count("PF00380") == 6
+
+
+def test_a_brief_failure_is_overcome_by_the_second_pass(tmp_path: Path) -> None:
+    class Flaky(FakeFetcher):
+        def __call__(self, url: str) -> bytes:
+            acc = url.rsplit("/", 1)[1].split("?")[0]
+            if acc == "PF00380" and self.calls.count(acc) < 3:
+                with self._lock:
+                    self.calls.append(acc)
+                raise HTTPStatusError(f"HTTP request failed: {url}", 404)
+            return super().__call__(url)
+
+    fetch = Flaky()
+    out = _download(tmp_path / "db", ["bac120"], fetch, retries=3)
+    assert mdb.read_version(out)["n_models"]["bac120"] == 120
+    assert fetch.calls.count("PF00380") == 4
+    assert not mdb.fetched_dir(out).exists()
+
+
+def test_a_damaged_kept_model_is_fetched_again(tmp_path: Path) -> None:
+    out = tmp_path / "db"
+    kept = mdb.fetched_dir(out)
+    kept.mkdir()
+    (kept / "PF00380.hmm").write_text("not a model\n")
+    (kept / "TIGR00006.hmm").write_text(_hmm_text("TIGR00006"))
+    fetch = FakeFetcher()
+    _download(out, ["bac120"], fetch)
+    assert "PF00380" in fetch.calls and "TIGR00006" not in fetch.calls
 
 
 def test_failed_rerun_keeps_earlier_database(tmp_path: Path) -> None:
@@ -168,7 +205,7 @@ def test_failed_rerun_keeps_earlier_database(tmp_path: Path) -> None:
     with pytest.raises(WorkdirError):
         _download(out, ["ar53"], FakeFetcher(fail={"PF04919"}), retries=1)
     assert mdb.markers_db_version(out) == before
-    assert sorted(p.name for p in tmp_path.iterdir()) == ["db"]
+    assert sorted(p.name for p in tmp_path.iterdir()) == [mdb.fetched_dir(out).name, "db"]
 
 
 def test_rerun_skips_present_families_and_keeps_sets(tmp_path: Path) -> None:
