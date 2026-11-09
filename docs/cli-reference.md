@@ -171,7 +171,7 @@ reported is named in a warning; the command still writes the page.
 |---|---|---|
 | `-wd`, `--workdir` |  | Working directory. |
 | `--out`, `-o` |  | The HTML report to write. Default: <wd>/report/report.html. |
-| `--steps` |  | Report only these steps, comma-separated. Steps: reads, assembly, selection, glance, dereplication, snptype, alignment, phylogeny. Default: every step with results. |
+| `--steps` |  | Report only these steps, comma-separated. Steps: reads, assembly, selection, glance, dereplication, snptype, alignment, phylogeny, tree2tax. Default: every step with results. |
 | `--no-refresh` | off | Use the step reports on disk as they are; do not rebuild missing or stale ones. |
 | `--fragments-only` | off | Write the step reports (report/<step>/) and no HTML page. |
 | `--figure-formats` | `png,svg` | Figure formats, comma-separated: png, svg, pdf. The HTML embeds SVG, else PNG. |

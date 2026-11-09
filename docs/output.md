@@ -773,6 +773,7 @@ appear in the page in this order:
 | `snptype` | snptype | `snp_alignment.tsv` (variable columns, constant sites, masking, core fraction); `snp_distances.tsv` (pairwise SNP distances: min, quartiles, max) | `snp_distance_histogram`; `snp_distance_heatmap` (up to 300 genomes, in the leaf order of the tree) |
 | `alignment` | phylo | `alignment_summary.tsv` (source, tool, genomes; for core genes the columns, variable and informative sites, genes kept and available, threshold, identity) | core-gene route: `gene_occupancy`, `informative_by_rank`, `gene_length_informative` |
 | `phylogeny` | phylo | `tree_summary.tsv` (leaves, builder, model, rooting, outgroup, bootstrap, support median and shares at 95 and 70, tree length, root-to-tip distances) | `tree` (ladderised phylogram or cladogram; support as numbers up to 100 leaves, as circles above; tip colours for the 8 species with most genomes; leaf labels up to 400 leaves; none above 20,000 leaves); `support`; `root_to_tip` |
+| `tree2tax` | tree2tax | `tree2tax_settings.tsv` (collapse settings and nodes collapsed, naming, rank bands); `nodes_per_rank.tsv` (with `--ranks`); `internal_nodes.tsv` (leaves below the internal nodes) | `node_sizes`; `node_support` (with the collapse threshold); `node_red` (by rank) |
 
 Each step folder holds:
 
