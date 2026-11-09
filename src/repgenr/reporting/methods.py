@@ -60,6 +60,28 @@ DISPLAY_NAMES: dict[str, str] = {
 }
 
 
+# Tool name -> the binary its version is recorded under, where they differ.
+BINARY_NAMES: dict[str, str] = {
+    "raxmlng": "raxml-ng",
+    "gubbins": "run_gubbins.py",
+    "ska2": "ska",
+    "aster": "wastral",
+}
+
+
+def tool_version(versions: dict[str, str], tool: str) -> str | None:
+    """The recorded version of ``tool``: under its name, the name of its
+    binary, or either in another letter case (dRep, FastTree)."""
+    for key in (tool, BINARY_NAMES.get(tool, "")):
+        if key and key in versions:
+            return versions[key]
+    lowered = {k.lower(): v for k, v in versions.items()}
+    for key in (tool, BINARY_NAMES.get(tool, "")):
+        if key and key.lower() in lowered:
+            return lowered[key.lower()]
+    return None
+
+
 def display(tool: str | None) -> str:
     return DISPLAY_NAMES.get(tool or "", tool or "")
 
@@ -68,7 +90,7 @@ def _version(m: MethodsInfo, tool: str | None) -> str:
     """' 3.7.1', or ' (container image quay.io/...)' for a tool run from an image."""
     if not tool:
         return ""
-    v = m.tool_versions.get(tool)
+    v = tool_version(m.tool_versions, tool)
     if not v:
         return ""
     if "/" in v or "@sha256:" in v:
@@ -210,7 +232,57 @@ def _assemble(m: MethodsInfo) -> tuple[str, list[str]]:
     return text, []
 
 
+def _snptype(m: MethodsInfo) -> tuple[str, list[str]]:
+    text = (
+        f"Core SNPs were called with {display(m.tool) or 'the chosen typer'}{_version(m, m.tool)}"
+    )
+    if m.params.get("reference"):
+        text += f" against {m.params['reference']}"
+    text += "."
+    if m.params.get("mask"):
+        mask = m.params["mask"]
+        text += f" Recombination was masked with {display(mask)}{_version(m, mask)}."
+    return text, []
+
+
+def _phylo(m: MethodsInfo) -> tuple[str, list[str]]:
+    p = m.params
+    source = p.get("msa_source")
+    tool = display(m.tool) or "the chosen tree builder"
+    if source == "coregene":
+        builder = p.get("coregene")
+        text = (
+            f"Core genes were identified with {display(builder)}{_version(m, builder)}"
+            if builder
+            else "Core genes were identified"
+        )
+        if isinstance(p.get("core_threshold"), int | float):
+            text += f" (present in at least {100 * p['core_threshold']:g}% of the genomes)"
+        text += ", aligned and concatenated."
+        if p.get("partitioned"):
+            text += " Each gene was given its own substitution model."
+    elif source == "snptype":
+        typer = p.get("snptyper")
+        text = f"A core-SNP alignment was built with {display(typer)}{_version(m, typer)}."
+    elif source == "aligner":
+        aligner = p.get("aligner")
+        text = f"A whole-genome alignment was built with {display(aligner)}{_version(m, aligner)}."
+    else:
+        text = ""
+    text += f" The tree was inferred with {tool}{_version(m, m.tool)}"
+    if p.get("bootstrap"):
+        text += f" with {p['bootstrap']} bootstrap replicates"
+    text += "."
+    if p.get("root") == "outgroup" and p.get("outgroup"):
+        text += f" It was rooted on the outgroup {p['outgroup']}."
+    elif p.get("root") == "midpoint":
+        text += " It was rooted at the midpoint."
+    return text.strip(), []
+
+
 _TEMPLATES: dict[str, Callable[[MethodsInfo], tuple[str, list[str]]]] = {
+    "snptype": _snptype,
+    "phylo": _phylo,
     "reads": _reads,
     "assemble": _assemble,
     "metadata": _metadata,

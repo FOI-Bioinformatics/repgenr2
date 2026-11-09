@@ -44,6 +44,7 @@ from ..core.contracts import (
 )
 from ..core.errors import UserInputError, WorkdirError
 from ..tree.rooting import ROOT_MIDPOINT, root_on_outgroup
+from ..tree.support import parse_support
 
 NAMING_LEAFSET = "leafset"
 NAMING_LCA = "lca"
@@ -609,20 +610,8 @@ class _CollapseStats:
     by_length: int = 0
 
 
-def _parse_support(label: str | None) -> float | None:
-    """The support value of a node label, None when it holds none.
-
-    IQ-TREE run with both ``-alrt`` and ``-B`` writes ``SH-aLRT/UFBoot``
-    (for example ``87.3/98``); the last field, the ultrafast bootstrap, is
-    read, so the value is the one a ``-B``-only run writes. A label with a
-    single field is read as it is.
-    """
-    if label is None:
-        return None
-    try:
-        return float(label.rsplit("/", 1)[-1])
-    except ValueError:
-        return None
+# Kept under its old name for the callers below and the tests.
+_parse_support = parse_support
 
 
 def _collapse_by_diameter(
