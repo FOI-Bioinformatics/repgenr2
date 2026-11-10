@@ -2,8 +2,9 @@
 
 Reads ``selection.tsv`` and, when present, ``metadata_summary.tsv`` (which
 names viral species as the entry stage did), ``selection_stats.json``
-(candidates before a ``--limit`` cut), ``missing_accessions.txt`` and the
-genome folder.
+(candidates before a ``--limit`` cut), ``missing_accessions.txt``,
+``outgroup_choice.tsv`` (the candidates of an automatic outgroup choice) and
+the genome folder.
 """
 
 from __future__ import annotations
@@ -18,6 +19,7 @@ from ...core.contracts import (
     list_fasta,
     read_selection,
 )
+from ...core.outgroup_choice import OUTGROUP_CHOICE_TSV, read_choice
 from ...core.selection_summary import (
     SELECTION_STATS,
     SELECTION_STATS_KIND,
@@ -41,6 +43,7 @@ def sources(workdir: Path) -> list[Path]:
         workdir / SUMMARY_TSV,
         workdir / SELECTION_STATS,
         workdir / MISSING_ACCESSIONS_TXT,
+        workdir / OUTGROUP_CHOICE_TSV,
     ]
 
 
@@ -156,6 +159,10 @@ def collect(inp: StepInput) -> StepReport:
             )
         )
 
+    choice = read_choice(wd)
+    if choice:
+        _outgroup_choice(report, out, choice)
+
     if species:
         report.figures.append(_species_figure(out, species, inp.formats))
     if len(with_quality) >= 2:
@@ -163,6 +170,52 @@ def collect(inp: StepInput) -> StepReport:
     if not with_quality and ingroup:
         report.notes.append("The selection carries no completeness or contamination values.")
     return report
+
+
+def _outgroup_choice(report: StepReport, out: Path, rows: list[dict[str, str]]) -> None:
+    chosen = rows[0]
+    mode = chosen.get("mode", "")
+    if mode == "sister":
+        how = (
+            "the genome of best assembly quality in the group nearest the target in the "
+            "GTDB reference tree"
+        )
+        if chosen.get("group") not in ("", "1"):
+            how += f" (group {chosen['group']} out, the nearer groups having no genome of "
+            how += "sufficient quality)"
+    else:
+        how = "the genome of best assembly quality among the representatives of the parent taxon"
+    report.summary.append(
+        f"The outgroup {chosen['accession']} ({chosen['species']}) was chosen as {how}, "
+        f"from {_n(len(rows), 'candidate')}."
+    )
+    columns = [
+        "accession",
+        "species",
+        "chosen",
+        "group",
+        "tree_distance",
+        "completeness",
+        "contamination",
+        "n50",
+        "contigs",
+        "isolate",
+        "type_material",
+    ]
+    report.tables.append(
+        write_table(
+            out,
+            "outgroup_candidates",
+            "Outgroup candidates, the chosen genome first, then by assembly quality. "
+            "group: 1 for the group sister to the target in the GTDB reference tree, 2 "
+            "for the next group out, and so on; tree_distance: path length to the "
+            "target's common ancestor (substitutions per site of the GTDB marker "
+            "alignment).",
+            columns,
+            ([r.get(c, "") for c in columns] for r in rows),
+            numeric=["group", "tree_distance", "completeness", "contamination", "n50", "contigs"],
+        )
+    )
 
 
 def _n(count: int, singular: str, plural: str | None = None) -> str:

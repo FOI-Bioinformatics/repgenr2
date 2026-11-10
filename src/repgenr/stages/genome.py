@@ -29,9 +29,10 @@ from ..core.contracts import (
 from ..core.errors import ToolExecutionError, WorkdirError
 from ..core.http import NCBI_DATASETS_URL, require_reachable, verify_md5
 from ..core.integrity import looks_like_fasta
+from ..core.outgroup_choice import check_outgroup_distance
 from ..core.plugins import ToolCapabilities, preflight
 from ..core.process import check_free_disk, remove_tree
-from ..core.sketches import require_sourmash_if_requested, sketch_stage_genomes
+from ..core.sketches import require_sourmash_if_requested, sketch_stage_genomes, sketches_dir
 
 _DATASETS = BinarySpec("datasets", version_args=("--version",))
 DATASETS_CAPS = ToolCapabilities(
@@ -139,6 +140,11 @@ def run(ctx: WorkdirContext, params: GenomeParams) -> int:
     manifest.upsert_many(list(selected))
 
     sketches, sketch_versions = sketch_stage_genomes(ctx, params.sketch, "genome", logger)
+    outgroups = list_fasta(ctx.outgroup_dir) if ctx.outgroup_dir.is_dir() else []
+    if outgroups and sketches_dir(ctx.workdir).is_dir():
+        check_outgroup_distance(
+            list_fasta(ctx.genomes_dir), outgroups, sketches_dir(ctx.workdir), logger
+        )
     ctx.config.record_stage(
         "genome",
         tool="datasets",

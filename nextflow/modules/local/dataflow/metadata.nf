@@ -36,7 +36,8 @@ process METADATA {
     cp metadata_wd/outgroup_accession.txt outgroup_accession.txt
     mkdir -p report
     for f in metadata_summary.tsv metadata_summary_number_in_level.png \\
-             metadata_summary_number_per_level.png metadata_selected.tsv; do
+             metadata_summary_number_per_level.png metadata_selected.tsv \\
+             outgroup_choice.tsv; do
         if [ -f metadata_wd/\$f ]; then cp metadata_wd/\$f report/\$f; fi
     done
 

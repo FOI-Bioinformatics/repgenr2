@@ -161,6 +161,52 @@ def test_tsv_nodownload_and_metadata_path_reuse_the_table(
     assert {r.accession for r in _rows(fresh)[0]} == {r.accession for r in _rows(tsv_cache)[0]}
 
 
+def test_tsv_outgroup_modes_choose_from_the_gtdb_tree(
+    run_repgenr, tsv_cache: Path, copy_of, tmp_path: Path
+) -> None:
+    """Francisella (GTDB r232): --outgroup-mode sister takes a genome near the
+    genus in the GTDB tree, quality the best genome of the family, first the
+    first representative in table order."""
+    import csv
+
+    from repgenr.core.outgroup_choice import OUTGROUP_CHOICE_TSV
+
+    def choice(wd: Path) -> list[dict]:
+        with open(wd / OUTGROUP_CHOICE_TSV, encoding="utf-8", newline="") as fo:
+            return list(csv.DictReader(fo, delimiter="\t"))
+
+    base = ["metadata", "-d", "rep", "-l", "genus", "-tg", "Francisella", "--source", "tsv"]
+    base += ["-r", GTDB_RELEASE, "--gtdb-version", "bac120", "--nodownload"]
+    wd = copy_of(tsv_cache)
+    run_repgenr("--force", *base[:1], "-wd", wd, *base[1:], "--outgroup-mode", "sister")
+    tree = wd / f"bac120_r{GTDB_RELEASE.split('.')[0]}.tree"
+    assert tree.is_file()
+    rows = choice(wd)
+    assert rows[0]["chosen"] == "yes" and rows[0]["mode"] == "sister"
+    # The sister group of Francisella in r232 is one metagenome-assembled
+    # genome; an isolate of the next group out is taken instead.
+    assert rows[0]["accession"] == "GCF_000379445.1"  # Fangia hongkongensis
+    assert rows[0]["group"] == "2" and rows[0]["isolate"] == "yes"
+    assert "metagenome-assembled" in rows[0]["reason"]
+    assert float(rows[0]["tree_distance"]) > 0
+    sister = _rows(wd)[1][0].accession
+    assert sister == rows[0]["accession"]
+
+    # The same choice from a tree given by path, in a fresh workdir.
+    fresh = tmp_path / "fresh"
+    table = next(tsv_cache.glob("bac120_metadata_r*.tsv.gz"))
+    run_repgenr(
+        *base[:1], "-wd", fresh, *base[1:-1], "--metadata-path", table, "--gtdb-tree-path", tree
+    )
+    assert not (fresh / tree.name).exists()
+    assert _rows(fresh)[1][0].accession == sister
+
+    run_repgenr("--force", *base[:1], "-wd", wd, *base[1:], "--outgroup-mode", "quality")
+    assert choice(wd)[0]["mode"] == "quality"
+    run_repgenr("--force", *base[:1], "-wd", wd, *base[1:], "--outgroup-mode", "first")
+    assert not (wd / OUTGROUP_CHOICE_TSV).exists()
+
+
 # --- genome ---------------------------------------------------------------------
 
 

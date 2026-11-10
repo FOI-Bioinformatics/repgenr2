@@ -73,6 +73,8 @@ is 'vmetadata --source'. --platform filters the sequencing platform with
 | `--metadata-path` |  | Use this GTDB metadata table instead of downloading. With --source tsv, -r/--release and --gtdb-version are still required. |
 | `--nodownload` | off | Reuse a GTDB table already present in the workdir. |
 | `--outgroup-accession` |  | Accession to fetch and set aside as the outgroup. |
+| `--outgroup-mode` | `sister` | How the outgroup is chosen when --outgroup-accession is not given: sister (the best-quality representative of the group nearest the target in the GTDB reference tree), quality (the best-quality representative of the parent taxon) or first (the first representative of the parent taxon in table order, as before 2.3.0). |
+| `--gtdb-tree-path` |  | GTDB reference tree (e.g. bac120_r232.tree) for --outgroup-mode sister, instead of downloading it into the workdir. Required for sister with --source api. |
 | `--limit` |  | Keep at most N GTDB genomes, round-robin over species by CheckM quality. |
 | `--target` |  | Virus taxon to select (viral), as vmetadata --target takes it. |
 | `--viral-source` | `ncbi_virus` | ncbi_virus or bvbrc. |
@@ -219,6 +221,8 @@ The --source option is called --metadata-source in 'run'.
 | `-ts`, `--target-species` |  | Restrict the selection to this species. Repeat it, or separate names by commas, to select several species of the target genus (with --level species). |
 | `--outgroup-accession` |  | Accession to fetch and set aside as the outgroup. |
 | `--no-outgroup` | off | Select no outgroup: none is chosen or downloaded. Root the tree with phylo --root midpoint, or leave it unrooted. |
+| `--outgroup-mode` | `sister` | How the outgroup is chosen when --outgroup-accession is not given: sister (the best-quality representative of the group nearest the target in the GTDB reference tree), quality (the best-quality representative of the parent taxon) or first (the first representative of the parent taxon in table order, as before 2.3.0). |
+| `--gtdb-tree-path` |  | GTDB reference tree (e.g. bac120_r232.tree) for --outgroup-mode sister, instead of downloading it into the workdir. Required for sister with --source api. |
 | `--metadata-path` |  | Use this GTDB metadata table instead of downloading. With --source tsv, -r/--release and --gtdb-version are still required. |
 | `--nodownload` | off | Reuse a GTDB table already present in the workdir. |
 | `--limit` |  | Keep at most N GTDB genomes, round-robin over species by CheckM quality. |

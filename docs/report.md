@@ -46,7 +46,7 @@ The steps appear in the page in pipeline order:
 |---|---|---|
 | `reads` | reads, reads-sketch, reads-screen | runs remaining after each filter; runs per platform; sketch status and screen decisions |
 | `assembly` | assemble | contiguity, completeness and coverage per assembler; runs without a genome and why |
-| `selection` | metadata, ingest, vgenome, genome, assemble | candidates and selected genomes; genomes per taxon; assembly quality |
+| `selection` | metadata, ingest, vgenome, genome, assemble | candidates and selected genomes; genomes per taxon; assembly quality; the outgroup candidates and why the outgroup was chosen |
 | `glance` | glance | distribution of the pairwise similarity, with the dereplication thresholds |
 | `dereplication` | dereplicate, derep-refine, cluster-summary | status of every genome and the quality-filter reasons; cluster sizes; clusters joining several species; genomes and representatives per species; ANI of each member to its representative (from the sketches) |
 | `snptype` | snptype | core-SNP alignment; pairwise SNP distances as a histogram and heatmap; reference coverage per genome (`simple` typer) |

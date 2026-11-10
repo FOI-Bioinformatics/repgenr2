@@ -67,6 +67,22 @@ def _no_real_sourmash_sketches(request: pytest.FixtureRequest, monkeypatch) -> N
     monkeypatch.setattr(sketches, "tool_available", lambda caps: False)
 
 
+@pytest.fixture(autouse=True)
+def _no_gtdb_tree_download(request: pytest.FixtureRequest, monkeypatch) -> None:
+    """The metadata stage downloads the GTDB reference tree for the outgroup
+    choice; outside the live suite the download fails, so the stage falls
+    back to the quality rule. Tests of the sister choice pass a tree file."""
+    if request.node.get_closest_marker("live"):
+        return
+    from repgenr.core import gtdb_tree
+    from repgenr.core.errors import WorkdirError
+
+    def no_download(url, dest, logger):
+        raise WorkdirError("no GTDB tree download in unit tests")
+
+    monkeypatch.setattr(gtdb_tree, "_fetch", no_download)
+
+
 @pytest.fixture
 def workdir(tmp_path: Path) -> Path:
     return tmp_path / "wd"
