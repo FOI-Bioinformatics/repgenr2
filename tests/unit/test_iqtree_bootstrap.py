@@ -320,3 +320,12 @@ def test_asc_without_a_model_notes_modelfinder_above_200_sequences(
     with caplog.at_level(logging.INFO, logger=_LOG.name):
         mod.IqtreeBuilder().build(small, tmp_path / "o2", TreeParams(extra={"asc": "lewis"}), _LOG)
     assert "ModelFinder" not in caplog.text
+
+
+def test_a_partitioned_run_leaves_the_outgroup_to_phylo(tmp_path: Path, monkeypatch) -> None:
+    """IQ-TREE 3.1 aborts when -o names a taxon absent from a partition; phylo
+    roots the tree on the outgroup afterwards instead."""
+    cmd = _run_capturing(tmp_path, monkeypatch, TreeParams(partitions=_PARTS, outgroup="og"))
+    assert "-o" not in cmd
+    cmd = _run_capturing(tmp_path, monkeypatch, TreeParams(outgroup="og"))
+    assert cmd[cmd.index("-o") + 1] == "og"
