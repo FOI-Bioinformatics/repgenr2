@@ -19,16 +19,20 @@ from ...core.contracts import (
     SELECTION_TSV,
     ClusterSummaryRow,
     SelectionRow,
+    accession_from_filename,
     read_cluster_summary,
     read_clusters,
     read_genome_status,
     read_genome_status_reasons,
+    read_refined,
     read_selection,
+    record_name,
 )
 from ...core.stage_stats import read_stats
 from ...dereplicators.base import STATUS_CONTAINED, STATUS_FAIL_QC, STATUS_REPRESENTATIVE
 from ...stages.dereplicate import DEREP_STATS, DEREP_STATS_KIND
 from .. import style
+from ..ani_cutoffs import DEFAULT_THRESHOLDS, MAX_GENOMES, ani_matrix, cutoff_table
 from ..figures import bar_height, horizontal_bars, integer_ticks, log_scale, render
 from ..member_ani import member_anis
 from ..model import FigureRef, KeyNumber, StepReport
@@ -216,7 +220,139 @@ def collect(inp: StepInput) -> StepReport:
             "selection.tsv was not found, so species names and assembly quality are not shown."
         )
     _member_ani(report, out, clusters, wd / "sketches", record, inp.formats)
+    _ani_cutoffs(report, out, clusters, wd, record, inp.formats)
     return report
+
+
+def _ani_cutoffs(report: StepReport, out: Path, clusters, wd: Path, record, formats) -> None:
+    """Table and figure of the number of clusters at a range of ANI
+    thresholds, for choosing the threshold of a next dereplication."""
+    sketches = wd / "sketches"
+    genomes = sorted(set(clusters) | {m for members in clusters.values() for m in members})
+    if len(genomes) < 2 or not sketches.is_dir():
+        return
+    if len(genomes) > MAX_GENOMES:
+        report.notes.append(
+            f"The clusters at other ANI thresholds are not estimated above {MAX_GENOMES:,} "
+            f"genomes ({len(genomes):,} here)."
+        )
+        return
+    matrix = ani_matrix(genomes, sketches)
+    if len(matrix.names) < 2:
+        return
+    params = record.params if record else {}
+    secondary = params.get("secondary_ani")
+    # The ANI is blank in refined.tsv files written before the column existed.
+    lineages: dict[str, tuple[float | None, list[str]]] = {}
+    for row in read_refined(_derep(wd) / REFINED_TSV):
+        label = accession_from_filename(row.seed) or record_name(row.seed)
+        ani = float(row.ani) if str(row.ani).strip() else None
+        lineages.setdefault(label, (ani, []))[1].append(row.genome)
+    marks = [float(secondary)] if isinstance(secondary, int | float) else []
+    marks += [ani for ani, _ in lineages.values() if ani is not None]
+    thresholds = sorted(set(DEFAULT_THRESHOLDS) | set(marks))
+    overall = cutoff_table(matrix, thresholds)
+    per_lineage = {
+        label: cutoff_table(matrix, thresholds, subset=members)
+        for label, (_, members) in lineages.items()
+    }
+    columns = ["ani", "clusters", "singletons", "largest_cluster"]
+    columns += [f"clusters_lineage_{label}" for label in per_lineage]
+    table_rows = []
+    for i, r in enumerate(overall):
+        cells = [r.ani, r.clusters, r.singletons, r.largest]
+        cells += [rows[i].clusters for rows in per_lineage.values()]
+        table_rows.append(cells)
+    caption = (
+        "Clusters a dereplication would give at each ANI threshold, estimated from the "
+        "genome sketches (average containment at k=31, scaled=1000) with the greedy rule "
+        "of dereplicate --tool sourmash, over the genomes that passed the quality filter"
+    )
+    if per_lineage:
+        caption += "; for each refined lineage (named by its seed), the clusters of its genomes"
+    report.tables.append(
+        write_table(
+            out,
+            "ani_cutoffs",
+            caption + ".",
+            columns,
+            table_rows,
+            numeric=[c for c in columns if c != "ani"],
+            note=(
+                "Estimates, not reruns of the dereplicator. Above about 0.999 they rest on "
+                "few hashes (at scaled=1000 a 3 Mb genome has about 3,000), so neighbouring "
+                "thresholds can give the same count."
+            ),
+        )
+    )
+    if isinstance(secondary, int | float):
+        at = next(r for r in overall if r.ani == float(secondary))
+        text = (
+            f"At the secondary ANI of {secondary:g} the sketch estimate gives {at.clusters:,} "
+            f"clusters"
+        )
+        if at.clusters != len(clusters):
+            gave = "with its refined lineages" if per_lineage else "with its own ANI"
+            text += f" (the dereplication gave {len(clusters):,}, {gave})"
+        others = [r for r in overall if r.ani in (0.99, 0.999, 0.9999) and r.ani != secondary]
+        if others:
+            text += "; " + ", ".join(f"{r.clusters:,} at {r.ani:g}" for r in others)
+        report.summary.append(text + " (table ani_cutoffs).")
+    report.figures.append(_ani_cutoffs_figure(out, overall, per_lineage, marks, formats))
+
+
+def _ani_cutoffs_figure(out: Path, overall, per_lineage, marks, formats) -> FigureRef:
+    import math
+
+    def x(ani: float) -> float:
+        return -math.log10(1.0 - ani) if ani < 1 else 5.0
+
+    def draw(fig) -> None:
+        ax = fig.add_subplot()
+        xs = [x(r.ani) for r in overall]
+        ax.plot(
+            xs,
+            [r.clusters for r in overall],
+            marker="o",
+            ms=3,
+            lw=1,
+            color=style.PRIMARY,
+            label="all genomes",
+        )
+        for i, (label, rows) in enumerate(per_lineage.items()):
+            ax.plot(
+                xs,
+                [r.clusters for r in rows],
+                marker="s",
+                ms=2.5,
+                lw=0.8,
+                color=style.PALETTE[(i + 1) % len(style.PALETTE)],
+                label=f"lineage {label}",
+            )
+        for m in marks:
+            ax.axvline(x(m), color="black", lw=0.6, ls="--")
+        ax.set_xticks(xs)
+        ax.set_xticklabels([f"{r.ani:g}" for r in overall], rotation=60, ha="right")
+        ax.set_xlabel("ANI threshold")
+        ax.set_ylabel("Clusters")
+        if max(r.clusters for r in overall) >= 20 * max(1, min(r.clusters for r in overall)):
+            log_scale(ax, "y")
+        if per_lineage:
+            ax.legend(frameon=False, fontsize=6)
+
+    files = render(out, "ani_cutoffs", draw, formats=formats, height=2.8)
+    caption = (
+        "Clusters at each ANI threshold, estimated from the genome sketches with the greedy "
+        "rule of the sourmash dereplicator."
+    )
+    if marks:
+        caption += " Dashed lines: the thresholds of this dereplication."
+    return FigureRef(
+        id="ani_cutoffs",
+        caption=caption,
+        alt="Number of clusters against the ANI threshold.",
+        files=files,
+    )
 
 
 def _member_ani(report: StepReport, out: Path, clusters, sketches: Path, record, formats) -> None:
