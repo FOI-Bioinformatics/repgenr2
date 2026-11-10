@@ -48,7 +48,7 @@ The steps appear in the page in pipeline order:
 | `assembly` | assemble | contiguity, completeness and coverage per assembler; runs without a genome and why |
 | `selection` | metadata, ingest, vgenome, genome, assemble | candidates and selected genomes; genomes per taxon; assembly quality; the outgroup candidates and why the outgroup was chosen |
 | `glance` | glance | distribution of the pairwise similarity, with the dereplication thresholds |
-| `dereplication` | dereplicate, derep-refine, cluster-summary | status of every genome and the quality-filter reasons; cluster sizes; clusters joining several species; genomes and representatives per species; ANI of each member to its representative (from the sketches) |
+| `dereplication` | dereplicate, derep-refine, cluster-summary | status of every genome and the quality-filter reasons; cluster sizes; clusters joining several species; genomes and representatives per species; ANI of each member to its representative (from the sketches); clusters at a range of ANI thresholds, overall and per refined lineage, to choose the threshold of a next run |
 | `snptype` | snptype | core-SNP alignment; pairwise SNP distances as a histogram and heatmap; reference coverage per genome (`simple` typer) |
 | `alignment` | phylo | source and size of the alignment; occupancy and informative sites of the core genes |
 | `phylogeny` | phylo | tree summary (model, support, root-to-tip distances); the tree |
@@ -97,6 +97,15 @@ carry no date, so the same data give the same files.
   pair sharing too few hashes has no estimate. It is the quantity
   `dereplicate --tool sourmash` uses, and can differ from the ANI of
   another dereplicator (skani, dRep's ANImf).
+- The clusters at other ANI thresholds (`ani_cutoffs`) are estimated from
+  the same sketches with the greedy rule of `dereplicate --tool sourmash`;
+  for a sourmash run they reproduce its count at its own threshold, for the
+  other dereplicators they are an estimate. Above about 0.999 they rest on
+  few hashes (a 3 Mb genome has about 3,000 at scaled=1000), so neighbouring
+  thresholds can give the same count. They are not estimated above 5,000
+  genomes. On the Brucella genus (GTDB r232, 1785 genomes) the estimate
+  matched the sourmash run at 0.99 (167 clusters) and the refinements of the
+  B. melitensis lineage at 0.999 and 0.9995 (39 and 68 clusters).
 - The fraction of the reference each genome covers is reported for the
   `simple` SNP typer only; the other typers do not measure it.
 - Large sets are drawn within limits: bar charts show the 30 largest

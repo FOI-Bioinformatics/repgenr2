@@ -6,6 +6,15 @@ All notable changes to RepGenR2 are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+- The `dereplication` report step tabulates and draws how many clusters a
+  dereplication would give at ANI thresholds from 0.95 to 0.9999 (and at
+  the thresholds of the run), overall and for each refined lineage, as a
+  guide to the threshold of a next run (`ani_cutoffs.tsv`, figure
+  `ani_cutoffs`). The counts are estimated from the genome sketches with the
+  greedy rule of `dereplicate --tool sourmash`; on the Brucella genus they
+  matched the sourmash run at 0.99 and the refinements at 0.999 and 0.9995.
+
 ### Fixed
 - A partitioned IQ-TREE run (`phylo --partitioned`) is no longer given the
   outgroup with `-o`. IQ-TREE 3.1 roots every partition on it when it writes
