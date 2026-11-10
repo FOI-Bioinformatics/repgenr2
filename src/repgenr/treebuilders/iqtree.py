@@ -178,8 +178,18 @@ class IqtreeBuilder(TreeBuilder):
         if not asc and constant is not None:
             cmd += ["-fconst", format_counts(constant, ",")]
             logger.info("iqtree: constant sites added as -fconst %s", format_counts(constant, ","))
-        if params.outgroup:
+        if params.outgroup and params.partitions is None:
             cmd += ["-o", params.outgroup]
+        elif params.outgroup:
+            # IQ-TREE 3.1 roots every partition's subtree on -o when it
+            # reports the tree, and aborts (Assertion `root' failed in
+            # PhyloTree::setRootNode) when the outgroup has only gaps in a
+            # partition, i.e. lacks that core gene. phylo roots the tree on
+            # the outgroup afterwards, so -o is left out here.
+            logger.info(
+                "iqtree: partitioned run without -o; the tree is rooted on the outgroup "
+                "after IQ-TREE"
+            )
         if params.bootstrap > 0:
             cmd += ["-B", str(params.bootstrap)]
         if alrt is not None:

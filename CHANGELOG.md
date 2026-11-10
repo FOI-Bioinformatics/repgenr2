@@ -6,6 +6,15 @@ All notable changes to RepGenR2 are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+- A partitioned IQ-TREE run (`phylo --partitioned`) is no longer given the
+  outgroup with `-o`. IQ-TREE 3.1 roots every partition on it when it writes
+  its report and aborts ("Assertion `root' failed") when the outgroup lacks
+  one of the core genes, after the whole search: the Brucella core-gene tree
+  (206 genomes, 200 genes, the outgroup absent from 111) failed this way
+  after 3.5 hours. `phylo` roots the tree on the outgroup afterwards, as it
+  does for the other tree builders.
+
 ### Changed
 - `metadata` chooses the outgroup from the GTDB reference tree
   (`--outgroup-mode sister`, the default): a species representative of the
