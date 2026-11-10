@@ -13,6 +13,7 @@ from .base import (
     HELP_DATASET,
     HELP_DEREP_TOOL_ARG,
     HELP_GTDB_RELEASE,
+    HELP_GTDB_TREE_PATH,
     HELP_GTDB_VERSION,
     HELP_KEEP_FILES,
     HELP_KEEPER,
@@ -23,6 +24,7 @@ from .base import (
     HELP_NODOWNLOAD,
     HELP_NUM_PROCESSES,
     HELP_OUTGROUP_ACCESSION,
+    HELP_OUTGROUP_MODE,
     HELP_PRE_PRIMARY_ANI,
     HELP_PRE_SECONDARY_ANI,
     HELP_PRIMARY_ANI,
@@ -73,6 +75,8 @@ def metadata(
         None, "--outgroup-accession", help=HELP_OUTGROUP_ACCESSION
     ),
     no_outgroup: bool = typer.Option(False, "--no-outgroup", help=HELP_METADATA_NO_OUTGROUP),
+    outgroup_mode: str = typer.Option("sister", "--outgroup-mode", help=HELP_OUTGROUP_MODE),
+    gtdb_tree_path: str | None = typer.Option(None, "--gtdb-tree-path", help=HELP_GTDB_TREE_PATH),
     metadata_path: str | None = typer.Option(None, "--metadata-path", help=HELP_METADATA_PATH),
     nodownload: bool = typer.Option(False, "--nodownload", help=HELP_NODOWNLOAD),
     limit: int | None = typer.Option(
@@ -106,6 +110,8 @@ def metadata(
             target_species=target_species,
             outgroup_accession=outgroup_accession,
             no_outgroup=no_outgroup,
+            outgroup_mode=outgroup_mode,
+            gtdb_tree_path=gtdb_tree_path,
             metadata_path=metadata_path,
             nodownload=nodownload,
             limit=limit,

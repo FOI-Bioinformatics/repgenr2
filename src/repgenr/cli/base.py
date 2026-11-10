@@ -128,6 +128,16 @@ HELP_METADATA_PATH = (
     "-r/--release and --gtdb-version are still required."
 )
 HELP_NODOWNLOAD = "Reuse a GTDB table already present in the workdir."
+HELP_OUTGROUP_MODE = (
+    "How the outgroup is chosen when --outgroup-accession is not given: sister (the "
+    "best-quality representative of the group nearest the target in the GTDB reference "
+    "tree), quality (the best-quality representative of the parent taxon) or first (the "
+    "first representative of the parent taxon in table order, as before 2.3.0)."
+)
+HELP_GTDB_TREE_PATH = (
+    "GTDB reference tree (e.g. bac120_r232.tree) for --outgroup-mode sister, instead of "
+    "downloading it into the workdir. Required for sister with --source api."
+)
 HELP_LIMIT = "Keep at most N GTDB genomes, round-robin over species by CheckM quality."
 HELP_DATASET = "GTDB dataset: all or rep."
 HELP_LEVEL = "Taxonomic rank of the target: family, genus or species."
@@ -450,6 +460,12 @@ def _annotator_database(params: Any) -> Path | None:
 
 
 def _metadata_inputs(ctx: WorkdirContext, params: Any) -> list[Path]:
+    tree = getattr(params, "gtdb_tree_path", None)
+    trees = [Path(tree).expanduser()] if tree else []
+    return trees + _metadata_table_inputs(ctx, params)
+
+
+def _metadata_table_inputs(ctx: WorkdirContext, params: Any) -> list[Path]:
     if getattr(params, "metadata_path", None):
         return [Path(params.metadata_path)]
     release = getattr(params, "release", None)

@@ -6,6 +6,36 @@ All notable changes to RepGenR2 are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+- `metadata` chooses the outgroup from the GTDB reference tree
+  (`--outgroup-mode sister`, the default): a species representative of the
+  group sister to the target, i.e. the closest genus to a genus or the
+  closest family to a family, taken by assembly quality (isolates before
+  metagenome-assembled genomes, then CheckM2 completeness - 5 x
+  contamination, type material and contig N50). When the sister group holds
+  metagenome-assembled or single-cell genomes only, an isolate of the next
+  group out is preferred. Until now the outgroup was the first species
+  representative of the parent taxon in table order, which for the Brucella
+  genus (GTDB r232) was a metagenome-assembled genome of the genus JAIOIW01
+  at a path length of 0.106 from Brucella; the new rule gives
+  Paenochrobactrum pullorum GCF_041929845.1 at 0.038. The tree of the
+  release (about 9 MB) is downloaded into the working directory once, or
+  given with `--gtdb-tree-path`; without it the outgroup is the
+  best-quality representative of the parent taxon (`--outgroup-mode
+  quality`). `--outgroup-mode first` keeps the earlier rule. A working
+  directory from 2.2.0 reruns `metadata` once, and its automatic outgroup
+  can change.
+
+### Added
+- `outgroup_choice.tsv` lists the outgroup candidates with their group and
+  path length in the GTDB tree and their quality; the report's selection
+  step shows it, and the methods paragraph states the rule. `run` passes
+  `--outgroup-mode` and `--gtdb-tree-path` on, and the Nextflow METADATA
+  task publishes the file.
+- `genome` estimates the ANI of the outgroup to the selected genomes from
+  the sketches and warns when it reaches 95%, which indicates an outgroup
+  within the target.
+
 ## [2.2.0] - 2026-11-09
 
 The first release from FOI-Bioinformatics/repgenr2. In summary:

@@ -219,11 +219,48 @@ taking the best genome of each species first. On the API path each species
 is one query. `run` takes `-ts` the same way on the GTDB chain; with
 `--viral` or `--reads` a single species is accepted.
 
-**The outgroup.** An outgroup is chosen from the parent taxon, outside the
-target; with several species, outside all of them. `--outgroup-accession`
-names one instead, which must also lie outside the target. A target genome
-that `-d rep` or `--limit` left out of the selection is still not an
-outgroup candidate. `--no-outgroup` selects none: `selection.tsv` holds the
+**The outgroup.** By default (`--outgroup-mode sister`) the outgroup is a
+GTDB species representative of the group sister to the target in the GTDB
+reference tree: the closest genus to a genus, the closest family to a
+family, the closest species to a species. GTDB draws its ranks on this tree,
+so the sister group is the nearest relative at the rank of the target.
+Within that group the genome of best assembly quality is taken: an isolate
+before a metagenome-assembled or single-cell genome, then the highest
+CheckM2 completeness - 5 x contamination, then type material, then the
+larger contig N50. A group whose genomes are all below 50% completeness or
+above 10% contamination is passed over for the next group out. When the
+nearest group holds metagenome-assembled or single-cell genomes only, an
+isolate of the next group out is taken instead, if there is one: any group
+outside the target roots the tree, and an isolate assembly is usually less
+fragmented. For the Francisella genus the sister group is one
+metagenome-assembled genome (CAZAJS01, contig N50 16 kb), and the rule takes
+Fangia hongkongensis GCF_000379445.1 (N50 175 kb) from the next group, at a
+similar path length (0.18 against 0.21).
+`outgroup_choice.tsv` lists every candidate considered, with its group, its
+path length to the target in the tree and its quality, and the report's
+selection step shows it.
+
+The tree of the release (`bac120_r232.tree`, about 9 MB) is downloaded
+into the working directory once; `--gtdb-tree-path` names a local copy, and
+is needed for the sister choice with `--source api`. When the tree cannot be
+obtained, or the target is not in it, the outgroup is the best-quality
+representative of the parent taxon (`--outgroup-mode quality` does this
+directly). `--outgroup-mode first` takes the first representative of the
+parent taxon in table order, the rule of RepGenR2 2.2.0 and earlier; for the
+Brucella genus (GTDB r232) that rule gave a metagenome-assembled genome of
+the genus JAIOIW01, at a path length of 0.106 from Brucella, where the
+sister rule gives Paenochrobactrum pullorum GCF_041929845.1 at 0.038.
+
+ANI is not used to choose the outgroup: between genera it lies around or
+below 80%, where the sketch estimates have too few shared k-mers to be
+reliable. It is used as a check instead: after the download, `genome`
+estimates the ANI of the outgroup to every selected genome from the sketches
+and warns when one reaches 95%, which indicates an outgroup within the
+target.
+
+`--outgroup-accession` names an outgroup instead, which must also lie
+outside the target. A target genome that `-d rep` or `--limit` left out of
+the selection is still not an outgroup candidate. `--no-outgroup` selects none: `selection.tsv` holds the
 ingroup only, `outgroup_accession.txt` is removed and `genome` downloads no
 outgroup (and removes one left by an earlier selection). Build the tree with
 `phylo --no-outgroup --root midpoint`, or leave it unrooted; `run

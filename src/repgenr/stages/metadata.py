@@ -27,7 +27,7 @@ from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
 
-from ..core import http
+from ..core import gtdb_tree, http
 from ..core.context import WorkdirContext
 from ..core.contracts import (
     SELECTION_TSV,
@@ -37,10 +37,20 @@ from ..core.contracts import (
     sanitise_taxon_tokens,
     write_selection,
 )
-from ..core.errors import UserInputError, WorkdirError
+from ..core.errors import RepGenRError, UserInputError, WorkdirError
 from ..core.executors import parallel_map
 from ..core.integrity import refuse_foreign_rows
 from ..core.manifest import GenomeRecord
+from ..core.outgroup_choice import (
+    DEFAULT_OUTGROUP_MODE,
+    OUTGROUP_MODES,
+    Candidate,
+    Choice,
+    choose_by_groups,
+    choose_by_quality,
+    read_choice,
+    write_choice,
+)
 from ..core.selection_summary import (
     GenomeDetails,
     write_metadata_selected,
@@ -82,6 +92,11 @@ class MetadataParams:
     # Select no outgroup: selection.tsv holds the ingroup only and no
     # outgroup is downloaded (root the tree with phylo --root midpoint).
     no_outgroup: bool = False
+    # How an automatic outgroup is chosen: sister (the nearest group in the
+    # GTDB reference tree), quality (the parent taxon) or first (table order).
+    outgroup_mode: str = DEFAULT_OUTGROUP_MODE
+    # A local GTDB reference tree (bac120_r232.tree) instead of a download.
+    gtdb_tree_path: str | None = None
     metadata_path: str | None = None
     nodownload: bool = False
     limit: int | None = None
@@ -96,6 +111,8 @@ def run(ctx: WorkdirContext, params: MetadataParams) -> int:
     _validate(params)
 
     api_query_date: str | None = None
+    # Written again below when an outgroup is chosen automatically.
+    write_choice(ctx.workdir, None)
     # Candidate genomes before a --limit cut, for selection_stats.json.
     counts: dict[str, int] = {}
     if params.source == "api":
@@ -161,11 +178,25 @@ def run(ctx: WorkdirContext, params: MetadataParams) -> int:
             "selected_count": len(selected),
             "outgroup": outgroup.accession if outgroup is not None else None,
             "no_outgroup": params.no_outgroup,
+            "outgroup_mode": params.outgroup_mode,
+            # The rule that chose the outgroup: sister, quality (also when
+            # sister fell back), first, or named (--outgroup-accession).
+            "outgroup_rule": _applied_rule(ctx, params, outgroup),
+            "gtdb_tree_path": params.gtdb_tree_path,
         },
         completed=datetime.now(UTC).isoformat(),
     )
     ctx.save_config()
     return len(selected)
+
+
+def _applied_rule(ctx: WorkdirContext, params: MetadataParams, outgroup) -> str | None:
+    if outgroup is None:
+        return None
+    if params.outgroup_accession:
+        return "named"
+    rows = read_choice(ctx.workdir)
+    return rows[0]["mode"] if rows else "first"
 
 
 def _species_or_none(params: MetadataParams) -> list[str | None]:
@@ -231,6 +262,13 @@ def _validate(params: MetadataParams) -> None:
         )
     if len(species) > 1 and not params.target_genus:
         raise UserInputError("Several species (-ts) need their genus (-tg).")
+    if params.outgroup_mode not in OUTGROUP_MODES:
+        raise UserInputError(
+            f"--outgroup-mode must be one of {', '.join(OUTGROUP_MODES)}; "
+            f"got {params.outgroup_mode!r}."
+        )
+    if params.gtdb_tree_path and not Path(params.gtdb_tree_path).expanduser().is_file():
+        raise UserInputError(f"--gtdb-tree-path not found: {params.gtdb_tree_path}")
     if params.no_outgroup and params.outgroup_accession:
         raise UserInputError("Give either --outgroup-accession or --no-outgroup, not both.")
     if params.level == "genus" and not params.target_genus:
@@ -268,7 +306,17 @@ def _select_via_tsv(
     details = {acc: data["details"] for acc, data in selected.items()}
     if params.no_outgroup:
         return records, None, details
-    outgroup_acc, outgroup_data = _pick_outgroup(accessions, selected, targets, params)
+    outgroup_acc, outgroup_data, choice = _pick_outgroup(
+        accessions,
+        selected,
+        targets,
+        params,
+        tree_loader=lambda: _reference_tree(ctx, params, logger),
+        logger=logger,
+    )
+    write_choice(ctx.workdir, choice)
+    if choice is not None:
+        _log_choice(choice, logger)
 
     outgroup = _record_from_tax(
         outgroup_acc,
@@ -347,6 +395,36 @@ def _check_reused_release(workdir: Path, params: MetadataParams, table: Path, lo
             f"not {params.release}. Pass -r {recorded}, or drop --nodownload to download "
             f"release {params.release}."
         )
+
+
+def _reference_tree(ctx: WorkdirContext, params: MetadataParams, logger) -> gtdb_tree.ReferenceTree:
+    path = gtdb_tree.obtain_reference_tree(
+        ctx.workdir,
+        params.release,
+        params.version,
+        tree_path=params.gtdb_tree_path,
+        nodownload=params.nodownload,
+        logger=logger,
+    )
+    logger.info("Reading the GTDB reference tree %s", path.name)
+    return gtdb_tree.read_tree(path)
+
+
+def _log_choice(choice: Choice, logger) -> None:
+    c = choice.chosen
+    where = f", path length {c.distance:.3f} to the target in the GTDB tree" if c.distance else ""
+    logger.info(
+        "Outgroup %s (%s): %s; completeness %s, contamination %s, N50 %s%s "
+        "(%d candidates in outgroup_choice.tsv)",
+        c.accession,
+        c.species,
+        choice.reason,
+        c.completeness,
+        c.contamination,
+        c.n50,
+        where,
+        len(choice.considered),
+    )
 
 
 def _obtain_metadata(ctx: WorkdirContext, params: MetadataParams, logger) -> Path:
@@ -478,9 +556,22 @@ def _parse_metadata(path: Path, params: MetadataParams, logger) -> dict[str, dic
                 "outgroup_only": outgroup_only,
                 "completeness": completeness,
                 "contamination": contamination,
+                # Kept for the choice of an outgroup among representatives.
+                "choice": _choice_fields(fields, idx) if is_rep else None,
             }
     logger.info("Parsed %d accessions", len(accessions))
     return accessions
+
+
+def _choice_fields(fields: list[str], idx: dict[str, int]) -> dict:
+    n50 = _opt_column(fields, idx, "n50_contigs")
+    contigs = _opt_column(fields, idx, "contig_count")
+    return {
+        "n50": int(n50) if n50 is not None else None,
+        "contigs": int(contigs) if contigs is not None else None,
+        "category": sys.intern(_text_column(fields, idx, "ncbi_genome_category")),
+        "type_material": sys.intern(_text_column(fields, idx, "gtdb_type_designation_ncbi_taxa")),
+    }
 
 
 def _text_column(fields: list[str], idx: dict[str, int], name: str) -> str:
@@ -656,11 +747,13 @@ def _select(
     return {c.accession: matching[c.accession] for c in kept}
 
 
-def _pick_outgroup(accessions, selected, targets, params):
+def _pick_outgroup(accessions, selected, targets, params, *, tree_loader=None, logger=None):
+    """The outgroup accession, its table row and the :class:`Choice` behind an
+    automatic pick (None for a named outgroup). See
+    :mod:`repgenr.core.outgroup_choice` for the modes."""
     if isinstance(targets, dict):
         targets = [targets]
     target_vals = {t[params.level] for t in targets}
-    target_levels = targets[0]
     if params.outgroup_accession:
         if params.outgroup_accession not in accessions:
             raise UserInputError(
@@ -672,23 +765,107 @@ def _pick_outgroup(accessions, selected, targets, params):
             _refuse_outgroup_in_target(
                 params.outgroup_accession, params.level, target, data["tax"][params.level]
             )
-        return params.outgroup_accession, data
+        return params.outgroup_accession, data, None
 
-    # A representative one level above the selection level, outside the target
-    # taxon itself: under --limit, genomes of the target that the cap left out
-    # are neither selected nor an outgroup.
-    levels = list(target_levels)
+    def in_target(data) -> bool:
+        return any(all(data["tax"].get(k) == v for k, v in t.items()) for t in targets)
+
+    def eligible(acc, data) -> bool:
+        # Under --limit, genomes of the target that the cap left out are
+        # neither selected nor an outgroup.
+        return data["is_rep"] and acc not in selected and not in_target(data)
+
+    levels = list(targets[0])
     upper = levels[-2] if len(levels) >= 2 else levels[-1]
     upper_val = next(iter(selected.values()))["tax"][upper]
+    mode = getattr(params, "outgroup_mode", DEFAULT_OUTGROUP_MODE)
+    choice = None
+    if mode == "sister":
+        choice = _sister_choice(accessions, in_target, eligible, tree_loader, logger)
+    if choice is None and mode in ("sister", "quality"):
+        parent = [
+            _choice_candidate(acc, data)
+            for acc, data in accessions.items()
+            if eligible(acc, data) and data["tax"][upper] == upper_val
+        ]
+        choice = choose_by_quality(parent)
+    if choice is not None:
+        return choice.chosen.accession, accessions[choice.chosen.accession], choice
+    # --outgroup-mode first: the first representative one rank up, in table order.
     for acc, data in accessions.items():
-        if acc in selected or data["tax"][params.level] in target_vals:
-            continue
-        if data["tax"][upper] == upper_val and data["is_rep"]:
-            return acc, data
+        if eligible(acc, data) and data["tax"][upper] == upper_val:
+            return acc, data, None
     raise WorkdirError(
         "Could not determine an outgroup; specify --outgroup-accession, or select none "
         "with --no-outgroup."
     )
+
+
+def _choice_candidate(acc: str, data: dict, group: int | None = None, distance=None) -> Candidate:
+    q = data.get("choice") or {}
+    return Candidate(
+        accession=acc,
+        species=data["tax"].get("species_name") or data["tax"].get("species", ""),
+        completeness=data.get("completeness"),
+        contamination=data.get("contamination"),
+        n50=q.get("n50"),
+        contigs=q.get("contigs"),
+        category=q.get("category", ""),
+        type_material=q.get("type_material", ""),
+        group=group,
+        distance=distance,
+    )
+
+
+def _sister_choice(accessions, in_target, eligible, tree_loader, logger) -> Choice | None:
+    """The best genome of the nearest group outside the target in the GTDB
+    tree; None (with a warning) when the tree cannot place the target."""
+    if tree_loader is None:
+        return None
+    try:
+        tree = tree_loader()
+    except (RepGenRError, OSError, ValueError) as exc:
+        if logger:
+            logger.warning(
+                "The GTDB reference tree is not available (%s); choosing the outgroup "
+                "by quality within the parent taxon. Give the tree with --gtdb-tree-path "
+                "for the sister-group choice.",
+                exc,
+            )
+        return None
+    target = [acc for acc, data in accessions.items() if data["is_rep"] and in_target(data)]
+    placement = gtdb_tree.place(tree, target)
+    if placement is None:
+        if logger:
+            logger.warning(
+                "None of the %d target representatives is in the GTDB reference tree; "
+                "choosing the outgroup by quality within the parent taxon.",
+                len(target),
+            )
+        return None
+    if logger:
+        logger.info(
+            "Target placed in the GTDB reference tree (%d of %d representatives)",
+            placement.found,
+            len(target),
+        )
+        if placement.intruders:
+            logger.warning(
+                "The target is not a single clade in the GTDB reference tree: %d other "
+                "representatives lie within it. The outgroup is taken from outside "
+                "that whole clade.",
+                placement.intruders,
+            )
+
+    def groups():
+        for number, ring in enumerate(gtdb_tree.sister_rings(tree, placement), 1):
+            yield [
+                _choice_candidate(acc, accessions[acc], number, dist)
+                for acc, dist in ring
+                if acc in accessions and eligible(acc, accessions[acc])
+            ]
+
+    return choose_by_groups(groups())
 
 
 def _refuse_outgroup_in_selection(accession: str, selected) -> None:
@@ -1002,6 +1179,8 @@ def _select_via_api(
     if workdir is not None:
         write_api_genomes(workdir / GTDB_API_GENOMES, rows)
 
+    # The target's representatives before a --limit cut, to place it in the tree.
+    target_reps = [row["gid"] for row in rows if row.get("gtdbIsRep")]
     # Quality for every candidate first: the cut below ranks on it.
     cards = _api_cards_by_accession([row["gid"] for row in rows], logger)
     quality = {acc: _api_quality(card) if card else (None, None) for acc, card in cards.items()}
@@ -1043,7 +1222,9 @@ def _select_via_api(
 
     if params.no_outgroup:
         return records, None, details
-    outgroup, outgroup_details = _select_outgroup_via_api(params, rows, selected_acc, logger)
+    outgroup, outgroup_details = _select_outgroup_via_api(
+        params, rows, selected_acc, logger, target_reps=target_reps, workdir=workdir
+    )
     details[outgroup.accession] = outgroup_details
     return records, outgroup, details
 
@@ -1066,7 +1247,13 @@ def _api_genomes_detail(taxon: str, sp_reps_only: bool, logger) -> list[dict]:
 
 
 def _select_outgroup_via_api(
-    params: MetadataParams, rows: list[dict], selected_acc: set[str], logger
+    params: MetadataParams,
+    rows: list[dict],
+    selected_acc: set[str],
+    logger,
+    *,
+    target_reps: Sequence[str] = (),
+    workdir: Path | None = None,
 ) -> tuple[GenomeRecord, GenomeDetails]:
     # Explicit outgroup: fetch its card for taxonomy.
     if params.outgroup_accession:
@@ -1095,36 +1282,139 @@ def _select_outgroup_via_api(
         )
         return record, _api_details(tax_row, card)
 
-    # Otherwise pick a representative from the parent taxon (one rank up) that is
-    # not part of the selection. Use the same rank order as the TSV path.
-    parent_rank = {"species": "genus", "genus": "family", "family": "class"}[params.level]
-    parent_field = {"genus": "gtdbGenus", "family": "gtdbFamily", "class": "gtdbClass"}[parent_rank]
-    parent_taxon = rows[0].get(parent_field)
-    if not parent_taxon:
-        raise WorkdirError("Could not determine a parent taxon for outgroup selection.")
+    level_field = _rank_field(params.level)
+    target_vals = {r.get(level_field) for r in rows}
 
-    logger.info("Selecting outgroup from parent taxon %s", parent_taxon)
-    parent_rows = _api_genomes_detail(parent_taxon, sp_reps_only=True, logger=logger)
-    for row in parent_rows:
-        if row["gid"] in selected_acc:
-            continue
-        if not row.get("gtdbIsRep", False):
-            continue
-        # must be outside the selected sub-taxa (every species given)
-        if row.get(_rank_field(params.level)) in {r.get(_rank_field(params.level)) for r in rows}:
-            continue
-        card = _api_cards_by_accession([row["gid"]], logger)[row["gid"]]
+    def outside(gid: str, tax_row: dict) -> bool:
+        return gid not in selected_acc and tax_row.get(level_field) not in target_vals
+
+    def record_for(gid: str, tax_row: dict, card: dict) -> tuple[GenomeRecord, GenomeDetails]:
         completeness, contamination = _api_quality(card) if card else (None, None)
         record = _record_from_tax(
-            row["gid"],
-            _normalize_api_tax(row),
+            gid,
+            _normalize_api_tax(tax_row),
             is_outgroup=True,
             completeness=completeness,
             contamination=contamination,
             gtdb_representative=True,
         )
-        return record, _api_details(row, card)
-    raise WorkdirError("Could not determine an outgroup via the API; specify --outgroup-accession.")
+        return record, _api_details(tax_row, card or {})
+
+    mode = params.outgroup_mode
+    choice: Choice | None = None
+    taxonomy: dict[str, dict] = {}
+    cards: dict[str, dict] = {}
+    if mode == "sister" and params.gtdb_tree_path:
+        tree = gtdb_tree.read_tree(Path(params.gtdb_tree_path).expanduser())
+        placement = gtdb_tree.place(tree, target_reps)
+        if placement is None:
+            logger.warning(
+                "None of the target representatives is in %s; choosing the outgroup "
+                "by quality within the parent taxon.",
+                params.gtdb_tree_path,
+            )
+        else:
+
+            def groups():
+                for number, ring in enumerate(gtdb_tree.sister_rings(tree, placement), 1):
+                    near = ring[:_API_OUTGROUP_CARDS]
+                    fetched = _api_cards_by_accession([acc for acc, _ in near], logger)
+                    group = []
+                    for acc, dist in near:
+                        card = fetched.get(acc) or {}
+                        tax_row = card.get("metadataTaxonomy") or {}
+                        if not card or not outside(acc, tax_row):
+                            continue
+                        cards[acc], taxonomy[acc] = card, tax_row
+                        group.append(_card_candidate(acc, card, tax_row, number, dist))
+                    yield group
+
+            choice = choose_by_groups(groups())
+    elif mode == "sister":
+        logger.warning(
+            "--source api: the sister-group choice of the outgroup needs the GTDB "
+            "reference tree (--gtdb-tree-path); choosing by quality within the parent taxon."
+        )
+
+    if choice is None:
+        # The parent taxon (one rank up), outside the selected sub-taxa.
+        parent_rank = {"species": "genus", "genus": "family", "family": "class"}[params.level]
+        parent_field = {"genus": "gtdbGenus", "family": "gtdbFamily", "class": "gtdbClass"}[
+            parent_rank
+        ]
+        parent_taxon = rows[0].get(parent_field)
+        if not parent_taxon:
+            raise WorkdirError("Could not determine a parent taxon for outgroup selection.")
+        logger.info("Selecting outgroup from parent taxon %s", parent_taxon)
+        parent_rows = [
+            row
+            for row in _api_genomes_detail(parent_taxon, sp_reps_only=True, logger=logger)
+            if row.get("gtdbIsRep", False) and outside(row["gid"], row)
+        ]
+        if not parent_rows:
+            raise WorkdirError(
+                "Could not determine an outgroup via the API; specify --outgroup-accession."
+            )
+        if mode == "first":
+            row = parent_rows[0]
+            card = _api_cards_by_accession([row["gid"]], logger).get(row["gid"]) or {}
+            return record_for(row["gid"], row, card)
+        if len(parent_rows) > _API_OUTGROUP_CARDS:
+            logger.info(
+                "Scoring the first %d of %d representatives of %s for the outgroup",
+                _API_OUTGROUP_CARDS,
+                len(parent_rows),
+                parent_taxon,
+            )
+        parent_rows = parent_rows[:_API_OUTGROUP_CARDS]
+        fetched = _api_cards_by_accession([row["gid"] for row in parent_rows], logger)
+        candidates = []
+        for row in parent_rows:
+            card = fetched.get(row["gid"]) or {}
+            cards[row["gid"]], taxonomy[row["gid"]] = card, row
+            candidates.append(_card_candidate(row["gid"], card, row))
+        choice = choose_by_quality(candidates)
+    if choice is None:
+        raise WorkdirError(
+            "Could not determine an outgroup via the API; specify --outgroup-accession."
+        )
+    if workdir is not None:
+        write_choice(workdir, choice)
+    _log_choice(choice, logger)
+    gid = choice.chosen.accession
+    return record_for(gid, taxonomy[gid], cards[gid])
+
+
+# Cards fetched per group (or from the parent taxon) to score outgroup candidates.
+_API_OUTGROUP_CARDS = 100
+
+
+def _card_candidate(
+    acc: str, card: dict, tax_row: dict, group: int | None = None, distance: float | None = None
+) -> Candidate:
+    completeness, contamination = _api_quality(card) if card else (None, None)
+    nucleotide = card.get("metadata_nucleotide") or {}
+    ncbi = card.get("metadata_ncbi") or {}
+
+    def as_int(value) -> int | None:
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return None
+
+    species = tax_row.get("gtdbSpecies", "")
+    return Candidate(
+        accession=acc,
+        species=species.split("__", 1)[-1],
+        completeness=completeness,
+        contamination=contamination,
+        n50=as_int(nucleotide.get("n50_contigs")),
+        contigs=as_int(nucleotide.get("contig_count")),
+        category=str(ncbi.get("ncbi_genome_category") or ""),
+        type_material=str(card.get("gtdbTypeDesignation") or ""),
+        group=group,
+        distance=distance,
+    )
 
 
 def _rank_field(level: str) -> str:

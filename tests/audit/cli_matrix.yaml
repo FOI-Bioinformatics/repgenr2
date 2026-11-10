@@ -1819,6 +1819,27 @@ commands:
         nextflow: params.metadata_args
         live: tests/live/test_network.py::test_api_several_species_without_outgroup
         observable: selection.tsv without an outgroup row; no outgroup_accession.txt
+      --outgroup-mode:
+        param: MetadataParams.outgroup_mode
+        value: quality
+        validated: choice
+        docs:
+        - docs/cli-reference.md
+        - docs/usage.md
+        - docs/audit/cli-matrix.md
+        nextflow: params.metadata_args
+        live: tests/live/test_network.py::test_tsv_outgroup_modes_choose_from_the_gtdb_tree
+        observable: outgroup_choice.tsv names the candidates and the chosen outgroup
+      --gtdb-tree-path:
+        param: MetadataParams.gtdb_tree_path
+        value: '{alt_file}'
+        validated: none
+        docs:
+        - docs/cli-reference.md
+        - docs/usage.md
+        - docs/audit/cli-matrix.md
+        live: tests/live/test_network.py::test_tsv_outgroup_modes_choose_from_the_gtdb_tree
+        nextflow: params.metadata_args
       --metadata-path:
         param: MetadataParams.metadata_path
         value: '{alt_file}'
@@ -4023,6 +4044,27 @@ commands:
         - docs/audit/cli-matrix.md
         nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
         live: tests/live/test_network.py::test_run_bacterial_chain_end_to_end
+      --outgroup-mode:
+        param: MetadataParams.outgroup_mode
+        value: quality
+        validated: choice
+        docs:
+        - docs/cli-reference.md
+        - docs/usage.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
+        live: tests/live/test_network.py::test_tsv_outgroup_modes_choose_from_the_gtdb_tree
+        observable: outgroup_choice.tsv names the candidates and the chosen outgroup
+      --gtdb-tree-path:
+        param: MetadataParams.gtdb_tree_path
+        value: '{alt_file}'
+        validated: none
+        docs:
+        - docs/cli-reference.md
+        - docs/usage.md
+        - docs/audit/cli-matrix.md
+        live: tests/live/test_network.py::test_tsv_outgroup_modes_choose_from_the_gtdb_tree
+        nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
       --target:
         param: VmetadataParams.target
         value: adenoviridae

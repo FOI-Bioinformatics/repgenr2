@@ -45,6 +45,7 @@ WD/
   scratch/                        working files, one subdirectory per stage;
                                   n50_cache.tsv keeps genome N50 values between runs
   <version>_metadata_r<major>.*   GTDB table (metadata)
+  <version>_r<major>.tree         GTDB reference tree (metadata, --outgroup-mode sister)
   gtdb_api_genomes.tsv            GTDB API candidates (metadata --source api)
   virus_download_wd/              viral records (vmetadata)
   virus_metadata_base.tsv         viral metadata table (vmetadata)
@@ -58,6 +59,7 @@ WD/
   metadata_summary_*.png          plots of the summary (entry stages)
   metadata_selected.tsv           GTDB and NCBI lineage per genome (metadata)
   outgroup_accession.txt          outgroup accession
+  outgroup_choice.tsv             outgroup candidates and the choice (metadata)
   ncbi_acc_download_list.txt      accessions to download (genome)
   missing_accessions.txt          accessions not returned (genome)
   segments.tsv                    segment groups (vgenome --group-segments)
@@ -183,6 +185,7 @@ engine once.
 |------|---------|
 | `<version>_metadata_r<major>.tsv.gz` (or `.tar.gz`) | The downloaded GTDB table (`--source tsv` without `--metadata-path`). |
 | `<version>_metadata_r<major>.release` | The exact release the table was fetched for; `--nodownload` checks it before reuse. |
+| `<version>_r<major>.tree` | The GTDB reference tree of the release (e.g. `bac120_r232.tree`), downloaded for `--outgroup-mode sister` (the default) unless `--gtdb-tree-path` names one. Reused by later runs. |
 | `gtdb_api_genomes.tsv` | With `--source api`: the genomes the GTDB API returned for the target before `--limit`. `census -wd` counts them as candidates. Removed by a run with `--source tsv`. |
 | `virus_download_wd/` | Downloaded viral sequences, the tables `vgenome` selects from, and `download.source`, the source and target of `download.fa`. |
 | `virus_download_wd/virus_records.json` | NCBI Virus path: one record per sequence (keys below). |
@@ -241,6 +244,7 @@ These files form the genome set every later stage reads. On the reads path
 |------|---------|
 | `selection.tsv` | The selected genomes (columns below); the hand-off every later stage reads, and a resume input. Written by metadata, ingest, vgenome and assemble. |
 | `outgroup_accession.txt` | Accession of the outgroup, read by phylo and tree2tax. Absent without an outgroup. |
+| `outgroup_choice.tsv` | Written by metadata when it chooses the outgroup itself (`--outgroup-mode sister` or `quality`): every candidate considered, the chosen one first (columns below). Absent with `--outgroup-accession`, `--outgroup-mode first` or `--no-outgroup`. |
 | `genomes/` | One FASTA per selected accession. `genome` and `vgenome` write `.fasta`; `ingest` keeps the source names (`.fasta`, `.fa`, `.fna`, `.fas`, `.fasta.gz`, `.fna.gz`, `.fa.gz`). |
 | `outgroup/` | The outgroup genome. |
 | `ncbi_acc_download_list.txt` | Accessions `genome` will fetch (those without a FASTA in `genomes/`), one per line; the only output with `--accession-list-only`. |
@@ -250,6 +254,22 @@ These files form the genome set every later stage reads. On the reads path
 | `metadata_summary_number_in_level.png` | Bar plot of `metadata_summary.tsv`: genomes per family, genus and species. At most 60 bars per level, the largest; the title names a cut. |
 | `metadata_summary_number_per_level.png` | Bar plot of the number of distinct families, genera and species. |
 | `metadata_selected.tsv` | Written by metadata: one row per selected genome, outgroup included, with the lineages GTDB gives (columns below). Another entry stage keeps only the rows of genomes still selected and removes the file when none is. |
+
+`outgroup_choice.tsv`:
+
+| Column | Meaning |
+|--------|---------|
+| `accession` | GTDB species representative considered. |
+| `species` | Its GTDB species. |
+| `chosen` | `yes` for the outgroup, `no` otherwise. |
+| `group` | With `sister`: 1 for the group sister to the target in the GTDB reference tree, 2 for the next group out, and so on. Empty with `quality`. |
+| `tree_distance` | With `sister`: path length in the GTDB tree from the candidate to the common ancestor of the target's representatives (substitutions per site of the GTDB marker alignment). |
+| `completeness`, `contamination` | CheckM2 estimates from GTDB (%). |
+| `n50`, `contigs` | Contig N50 (bp) and number of contigs. |
+| `isolate` | `no` for a genome NCBI lists as derived from a metagenome, an environmental sample or a single cell. |
+| `type_material` | GTDB type designation, e.g. `type strain of species`. |
+| `mode` | The rule applied: `sister`, or `quality` (also when `sister` could not place the target or obtain the tree). |
+| `reason` | On the chosen row: which group it came from. |
 
 `metadata_summary.tsv`, ordered by level (family, genus, species), then by
 genome count, largest first, then by name. The outgroup is not counted.
@@ -769,7 +789,7 @@ appear in the page in this order:
 |---|---|---|---|
 | `reads` | reads, reads-sketch, reads-screen | `run_selection.tsv` (runs remaining after each filter); `runs_by_platform.tsv` (runs and median Gb per platform, instrument and layout); `sketch_status_<variant>.tsv`; `screen_<variant>.tsv` (runs per decision and reason) | `bases_per_run` (by platform); `screen_fraction_<variant>` (with the minimum fraction); `screen_decisions_<variant>` |
 | `assembly` | assemble | `assembly_metrics.tsv` (per assembler, median and quartiles of contigs, length, N50, coverage, completeness, contamination); `taxonomy_flags.tsv`; `excused_runs.tsv` (runs without a genome per step and reason) | `contiguity` (N50 against length, by taxonomy flag); `assembly_quality`; `coverage` |
-| `selection` | metadata, ingest, vgenome, genome, assemble | `selection_counts.tsv` (candidates, selected, outgroup, GTDB species representatives, genome files present, accessions not obtained); `genomes_per_taxon.tsv` (`level`, `name`, `genomes`); `assembly_quality.tsv` (completeness and contamination: genomes, min, q1, median, q3, max) | `genomes_per_species` (the 30 largest species, the rest combined); `assembly_quality` (contamination against completeness) |
+| `selection` | metadata, ingest, vgenome, genome, assemble | `selection_counts.tsv` (candidates, selected, outgroup, GTDB species representatives, genome files present, accessions not obtained); `genomes_per_taxon.tsv` (`level`, `name`, `genomes`); `assembly_quality.tsv` (completeness and contamination: genomes, min, q1, median, q3, max); `outgroup_candidates.tsv` (the rows of `outgroup_choice.tsv`, when metadata chose the outgroup) | `genomes_per_species` (the 30 largest species, the rest combined); `assembly_quality` (contamination against completeness) |
 | `glance` | glance | `pairwise_similarity.tsv` (measure, genomes, pairs, min, q1, median, q3, max) | `similarity_histogram` (with the dereplication ANI thresholds where in range) |
 | `dereplication` | dereplicate, derep-refine, cluster-summary | `genome_status.tsv` (genomes per status, `fail_qc` per reason); `largest_clusters.tsv` (20 largest clusters with species names and representative quality); `multispecies_clusters.tsv` (clusters whose genomes carry more than one species name); `species_reduction.tsv` (genomes and representatives per species); `member_ani.tsv` (`representative`, `member`, `ani`, `shared_hashes`: the ANI of each member to its representative estimated from the genome sketches, lowest first) | `cluster_sizes`; `quality_by_status` (with the dRep filter for a dRep run); `fail_qc_reasons`; `species_reduction` (30 species with most genomes); `member_ani` (with the secondary ANI threshold) |
 | `snptype` | snptype | `snp_alignment.tsv` (variable columns, constant sites, masking, core fraction); `snp_distances.tsv` (pairwise SNP distances: min, quartiles, max); `reference_coverage.tsv` (`simple` typer: fraction of the reference each genome covers, lowest first) | `snp_distance_histogram`; `snp_distance_heatmap` (up to 300 genomes, in the leaf order of the tree); `reference_coverage` |
@@ -964,7 +984,7 @@ The pipeline publishes under `--outdir` (default `results/`):
 
 | Path | Content |
 |------|---------|
-| `metadata/` | Bacterial mode: `selection.tsv`, `outgroup_accession.txt`, `metadata_selected.tsv` and the selection summary (`metadata_summary.tsv` and its two plots). Viral mode: `selection.tsv`, the selection summary, and `virus_metadata_ncbi_summary.tsv` on the BV-BRC path. |
+| `metadata/` | Bacterial mode: `selection.tsv`, `outgroup_accession.txt`, `outgroup_choice.tsv`, `metadata_selected.tsv` and the selection summary (`metadata_summary.tsv` and its two plots). Viral mode: `selection.tsv`, the selection summary, and `virus_metadata_ncbi_summary.tsv` on the BV-BRC path. |
 | `reads/` | Reads mode: `reads.tsv`, `selection.tsv`, `assembly_stats.tsv`, `outgroup_accession.txt`, `excused_runs.tsv`, the selection summary, and `screen_reads.tsv` with `--assemble_args '--screen-reads'`. |
 | `reads/qc/` | `quality.tsv` (`run_accession`, `completeness`, `contamination`) and `classification.tsv` (`run_accession`, `taxonomy`, `rank`, `score`, `db_version`) of the QC step. |
 | `reads/reads_sketches/<variant>/` | With the reads sketch step: the sketches and `reads_sketches.tsv` ([reads-sketch](#reads-sketch)). |

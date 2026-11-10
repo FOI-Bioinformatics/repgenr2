@@ -118,8 +118,23 @@ def _metadata(m: MethodsInfo) -> tuple[str, list[str]]:
     if p.get("dataset") == "rep":
         text += " Only GTDB species representatives were considered."
     if p.get("outgroup"):
-        text += f" Genome {p['outgroup']} was taken as the outgroup."
+        text += f" Genome {p['outgroup']} was taken as the outgroup"
+        text += _OUTGROUP_RULES.get(str(p.get("outgroup_rule")), "") + "."
     return text, ["gtdb"]
+
+
+_OUTGROUP_RULES = {
+    "sister": (
+        ": the GTDB species representative of best assembly quality (CheckM2 completeness"
+        " - 5 x contamination, isolates before metagenome-assembled genomes) in the group"
+        " sister to the target in the GTDB reference tree"
+    ),
+    "quality": (
+        ": the GTDB species representative of best assembly quality (CheckM2 completeness"
+        " - 5 x contamination, isolates before metagenome-assembled genomes) in the parent"
+        " taxon of the target"
+    ),
+}
 
 
 def _genome(m: MethodsInfo) -> tuple[str, list[str]]:

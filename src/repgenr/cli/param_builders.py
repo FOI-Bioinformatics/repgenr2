@@ -66,6 +66,8 @@ def metadata_params(
     target_species: Any = _UNSET,
     outgroup_accession: Any = _UNSET,
     no_outgroup: Any = _UNSET,
+    outgroup_mode: Any = _UNSET,
+    gtdb_tree_path: Any = _UNSET,
     metadata_path: Any = _UNSET,
     nodownload: Any = _UNSET,
     limit: Any = _UNSET,
@@ -77,6 +79,12 @@ def metadata_params(
     _require_choice(level, METADATA_LEVELS, "--level")
     if source is not _UNSET:
         _require_choice(source, METADATA_SOURCES, "--source")
+    if outgroup_mode is not _UNSET:
+        from ..core.outgroup_choice import OUTGROUP_MODES
+
+        _require_choice(outgroup_mode, set(OUTGROUP_MODES), "--outgroup-mode")
+    if isinstance(gtdb_tree_path, str):
+        gtdb_tree_path = _absolute(gtdb_tree_path)
     return _build(
         MetadataParams,
         dataset=dataset,
@@ -89,6 +97,8 @@ def metadata_params(
         target_species=join_species(target_species),
         outgroup_accession=outgroup_accession,
         no_outgroup=no_outgroup,
+        outgroup_mode=outgroup_mode,
+        gtdb_tree_path=gtdb_tree_path,
         metadata_path=metadata_path,
         nodownload=nodownload,
         limit=limit,

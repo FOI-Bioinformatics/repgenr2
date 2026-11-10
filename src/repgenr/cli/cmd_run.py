@@ -39,6 +39,7 @@ from .base import (
     HELP_GENE_RANK,
     HELP_GENE_TRIM,
     HELP_GTDB_RELEASE,
+    HELP_GTDB_TREE_PATH,
     HELP_GTDB_VERSION,
     HELP_INCLUDE_DEREPLICATED,
     HELP_KEEPER,
@@ -56,6 +57,7 @@ from .base import (
     HELP_NODE_BASENAME,
     HELP_NODOWNLOAD,
     HELP_OUTGROUP_ACCESSION,
+    HELP_OUTGROUP_MODE,
     HELP_PARTITIONED,
     HELP_PRE_PRIMARY_ANI,
     HELP_PRE_SECONDARY_ANI,
@@ -321,6 +323,8 @@ def run(
     outgroup_accession: str | None = typer.Option(
         None, "--outgroup-accession", help=HELP_OUTGROUP_ACCESSION
     ),
+    outgroup_mode: str = typer.Option("sister", "--outgroup-mode", help=HELP_OUTGROUP_MODE),
+    gtdb_tree_path: str | None = typer.Option(None, "--gtdb-tree-path", help=HELP_GTDB_TREE_PATH),
     limit: int | None = typer.Option(
         None,
         "--limit",
@@ -760,6 +764,8 @@ def run(
                 target_species=target_species,
                 outgroup_accession=outgroup_accession,
                 no_outgroup=no_outgroup,
+                outgroup_mode=outgroup_mode,
+                gtdb_tree_path=gtdb_tree_path,
                 metadata_path=metadata_path,
                 nodownload=nodownload,
                 limit=limit,
