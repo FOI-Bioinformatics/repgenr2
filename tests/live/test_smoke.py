@@ -85,6 +85,14 @@ def test_offline_chain_sourmash_mashtree(
     for text in (">Genome selection</h2>", "Figure 1.", ">Methods</h2>"):
         assert text in page
 
+    # iTOL files: one bar per leaf, the bars summing to every genome.
+    run_repgenr("itol", "-wd", wd)
+    bars = (wd / "tree" / "itol" / "bar_cluster_size.txt").read_text(encoding="utf-8")
+    sizes = [int(line.split("\t")[1]) for line in bars.split("DATA\n", 1)[1].splitlines()]
+    assert len(sizes) == len(reps) and sum(sizes) == len(truth["clusters"])
+    run_repgenr("itol", "-wd", wd, "--names", "gtdb", "--out", tmp_path / "itol")
+    assert (tmp_path / "itol" / "pie_cluster_species.txt").is_file()
+
 
 def test_run_local_chain(run_repgenr, synthetic_set, tmp_path: Path) -> None:
     """`run --genomes-dir` is the ingest chain in one command, and a second run skips."""

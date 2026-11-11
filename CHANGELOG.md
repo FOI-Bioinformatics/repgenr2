@@ -7,6 +7,13 @@ All notable changes to RepGenR2 are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- `repgenr itol -wd WD` writes iTOL annotation files for `tree/tree.nwk`
+  into `tree/itol/`: leaf labels with species, strain, accession and the
+  genomes of each cluster, a colour strip by species, a bar chart of the
+  cluster sizes and pie charts of the species within each cluster, with
+  NCBI (default) or GTDB (`--names gtdb`) species names.
+
+### Added
 - The `dereplication` report step tabulates and draws how many clusters a
   dereplication would give at ANI thresholds from 0.95 to 0.9999 (and at
   the thresholds of the run), overall and for each refined lineage, as a

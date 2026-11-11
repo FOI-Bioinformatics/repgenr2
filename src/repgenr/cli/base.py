@@ -360,7 +360,7 @@ PANEL_STEPS = "Nextflow data-channel steps"
 # Panel -> commands in display order. The single source of truth for the
 # grouped --help, the rendered command reference, and the panel test.
 COMMAND_PANELS: dict[str, tuple[str, ...]] = {
-    PANEL_PIPELINE: ("run", "status", "report", "phylo-advise"),
+    PANEL_PIPELINE: ("run", "status", "report", "itol", "phylo-advise"),
     PANEL_ENTRY: (
         "metadata",
         "genome",

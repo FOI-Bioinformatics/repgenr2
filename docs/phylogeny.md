@@ -480,6 +480,19 @@ carries that branch's support on both root branches. When the tree is
 rerooted, the builder's output is kept as `tree/tree.unrooted.nwk`, and the
 stage record holds the rooting.
 
+## Annotating the tree in iTOL
+
+`repgenr itol -wd $WD` writes annotation files for `tree/tree.nwk` into
+`tree/itol/` (see [output.md](output.md)): leaf labels with the species,
+strain, accession and the number of genomes of the leaf's cluster, a colour
+strip by species, a bar chart of the cluster sizes, and pie charts of the
+species of all genomes of each cluster. Species names are NCBI's by default
+(`--names gtdb` for GTDB's); a genome NCBI gives no species is named
+`<Genus> sp.` from the unfiltered NCBI taxonomy. Upload the tree to iTOL and
+drop the `.txt` files onto it. The pie charts show where a cluster joins
+genomes NCBI names as different species, which can point to mislabelled
+genomes or to a threshold that does not separate the species.
+
 ## Reusing an alignment across tree builders
 
 `phylo` stamps the alignment it builds with what produced it. A later run

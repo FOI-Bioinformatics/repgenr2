@@ -1100,6 +1100,41 @@ _HELP_REPORT_STEPS = (
 )
 
 
+@app.command(name="itol", rich_help_panel=PANEL_PIPELINE)
+def itol(
+    workdir: Path = typer.Option(..., "-wd", "--workdir", help=HELP_WORKDIR),
+    names: str = typer.Option(
+        "ncbi",
+        "--names",
+        help="Species names: ncbi (NCBI taxonomy; genomes without a species as "
+        "'<Genus> sp.') or gtdb.",
+    ),
+    out: Path | None = typer.Option(
+        None, "--out", "-o", help="Folder for the files. Default: <wd>/tree/itol."
+    ),
+) -> None:
+    """Write iTOL annotation files for tree/tree.nwk.
+
+    labels.txt names each leaf by species, strain, accession and the number
+    of genomes of its cluster; colorstrip_species.txt colours the leaves by
+    species; bar_cluster_size.txt draws the cluster sizes;
+    pie_cluster_species.txt shows the species of all genomes of each
+    cluster. clusters_species.tsv holds the same as a table. Upload the tree
+    to iTOL and drop the .txt files onto it.
+    """
+    from ..core.errors import RepGenRError
+    from ..reporting.itol import NAME_SOURCES, write_itol
+
+    try:
+        _require_choice(names, frozenset(NAME_SOURCES), "--names")
+        require_existing_workdir(workdir)
+        folder = write_itol(workdir, out, names)
+    except RepGenRError as exc:
+        typer.echo(f"ERROR {exc}", err=True)
+        raise typer.Exit(code=exc.exit_code) from exc
+    typer.echo(f"iTOL annotation files written to {folder}")
+
+
 @app.command(rich_help_panel=PANEL_PIPELINE)
 def report(
     workdir: Path | None = typer.Option(None, "-wd", "--workdir", help=HELP_WORKDIR),
