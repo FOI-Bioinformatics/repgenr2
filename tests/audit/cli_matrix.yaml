@@ -4883,6 +4883,47 @@ commands:
         nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
         live: tests/live/test_aux_commands.py::test_doctor_and_status_json_and_quick
         observable: one repgenr.status/1 JSON object on stdout
+  itol:
+    dispatch: query
+    base_args:
+    - -wd
+    - '{wd}'
+    flags:
+      --workdir:
+        aliases:
+        - -wd
+        param: 'n/a: query command, no stage parameters'
+        validated: none
+        docs:
+        - docs/cli-reference.md
+        - docs/output.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'n/a: workdir command; not part of the pipeline'
+        live: tests/live/test_smoke.py::test_offline_chain_sourmash_mashtree
+        observable: tree/itol/ with the five annotation files
+      --names:
+        param: 'n/a: query command, no stage parameters'
+        value: gtdb
+        validated: choice
+        docs:
+        - docs/cli-reference.md
+        - docs/phylogeny.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'n/a: workdir command; not part of the pipeline'
+        live: tests/live/test_smoke.py::test_offline_chain_sourmash_mashtree
+        observable: species names from the GTDB taxonomy
+      --out:
+        aliases:
+        - -o
+        param: 'n/a: query command, no stage parameters'
+        value: '{alt_dir}'
+        validated: none
+        docs:
+        - docs/cli-reference.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'n/a: workdir command; not part of the pipeline'
+        live: tests/live/test_smoke.py::test_offline_chain_sourmash_mashtree
+        observable: the files in the given folder
   report:
     dispatch: query
     base_args:

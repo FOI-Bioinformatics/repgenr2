@@ -181,6 +181,23 @@ reported is named in a warning; the command still writes the page.
 | `--title` |  | Title of the HTML report. |
 | `--versions-yml` |  | A Nextflow software_versions.yml whose tool versions fill the software table when the steps carry no stage records. |
 
+### itol
+
+Write iTOL annotation files for tree/tree.nwk.
+
+labels.txt names each leaf by species, strain, accession and the number
+of genomes of its cluster; colorstrip_species.txt colours the leaves by
+species; bar_cluster_size.txt draws the cluster sizes;
+pie_cluster_species.txt shows the species of all genomes of each
+cluster. clusters_species.tsv holds the same as a table. Upload the tree
+to iTOL and drop the .txt files onto it.
+
+| option | default | description |
+|---|---|---|
+| `-wd`, `--workdir` | required | Working directory. |
+| `--names` | `ncbi` | Species names: ncbi (NCBI taxonomy; genomes without a species as '<Genus> sp.') or gtdb. |
+| `--out`, `-o` |  | Folder for the files. Default: <wd>/tree/itol. |
+
 ### phylo-advise
 
 Suggest a phylo route and tree builder for the genome set of a workdir.

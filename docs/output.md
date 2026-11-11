@@ -90,6 +90,7 @@ WD/
     tree.nwk
     tree.unrooted.nwk
     msa/                          alignment cache of phylo
+    itol/                         iTOL annotation files (itol)
   tree2tax.tsv                    taxonomy for FlexTaxD (tree2tax)
   tree2tax_nodes.tsv              per-node table (tree2tax)
   genomes_map.tsv                 accession to node (tree2tax)
@@ -621,6 +622,7 @@ alignment, or for `ska2` an all-sites alignment counted in scratch:
 | `align/msa_source.json`, `tree/msa/msa_source.json` | Reuse stamp of the alignment: `v`, `key` (hash of the genome set and source settings), `artifact`, `artifact_digest`, `versions` and `records`. |
 | `tree/tree.nwk` | The tree, rooted as `phylo --root` asks: on the outgroup branch, at the midpoint, or not at all (`none`). |
 | `tree/tree.unrooted.nwk` | The builder's output as written, when phylo rerooted it. |
+| `tree/itol/` | Written by `repgenr itol`: `labels.txt` (LABELS: species, strain, accession and genomes of the cluster per leaf), `colorstrip_species.txt` (DATASET_COLORSTRIP: species of the representative), `bar_cluster_size.txt` (DATASET_SIMPLEBAR: genomes per cluster), `pie_cluster_species.txt` (DATASET_PIECHART: species of all genomes of the cluster) and `clusters_species.tsv` (`leaf`, `accession`, `species`, `strain`, `genomes`, `member_species`). |
 | `tree/` | The builder's own files (logs, bootstrap trees); replaced on a rebuild, `msa/` kept. |
 | `tree/partitions.txt` | With `--partitioned`: partition definitions given to `iqtree` (`-p`) or `raxmlng` (`--model`), one gene per line. |
 | `tree/gene_trees.nwk`, `tree/aster.nwk` | `--treebuilder aster`: the gene trees ASTER summarised, one Newick per line (IQ-TREE aBayes or FastTree SH-like supports), and ASTER's own output. |
