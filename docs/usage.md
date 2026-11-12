@@ -519,7 +519,8 @@ highest sketch ANI with (the estimate `--tool sourmash` clusters on, from
 `sketches/`). A member without an estimate, or with equal estimates, stays
 with the original representative. `--reduce` leaves pinned representatives
 apart. A pinned genome that fails quality control is left out with a
-warning. The pinned genomes are recorded in `repgenr.yaml`.
+warning. The pinned genomes are recorded in `repgenr.yaml`. `run --pin` and
+`run --pin-file` pass both to `dereplicate`.
 
 #### Finer resolution inside a lineage
 

@@ -95,6 +95,7 @@ SHARED_FLAGS: list[tuple[str, str, str]] = (
     + [("dereplicate", "run", f) for f in ("--reduce", "--target-reps")]
     + [("dereplicate", "run", "--allow-incomplete")]
     + [("dereplicate", "run", f) for f in ("--refine", "--refine-ani", "--refine-file")]
+    + [("dereplicate", "run", f) for f in ("--pin", "--pin-file")]
     + [("dereplicate", "derep-refine", f) for f in ("--refine", "--refine-ani", "--refine-file")]
     + [("dereplicate", "dereplicate-chunk", "--tool-arg")]
     + [("dereplicate", "dereplicate-refine", f) for f in ("--tool-arg", "--refine", "--refine-ani")]

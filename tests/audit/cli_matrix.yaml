@@ -4411,6 +4411,26 @@ commands:
         - docs/audit/cli-matrix.md
         nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
         live: 'n/a: forwarded to the stage builder unchanged (wiring test); the stage flag is covered offline'
+      --pin:
+        param: DereplicateParams.pin
+        value: GCA_000112
+        validated: stage
+        docs:
+        - docs/usage.md
+        - docs/cli-reference.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
+        live: 'n/a: forwarded to the stage builder unchanged (wiring test); the stage flag is covered offline'
+      --pin-file:
+        param: DereplicateParams.pin_file
+        value: '{file}'
+        validated: stage
+        docs:
+        - docs/usage.md
+        - docs/cli-reference.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
+        live: 'n/a: forwarded to the stage builder unchanged (wiring test); the stage flag is covered offline'
       --tool-arg:
         param: DereplicateParams.extra
         value: mode=greedy

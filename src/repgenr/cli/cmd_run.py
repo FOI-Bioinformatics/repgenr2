@@ -59,6 +59,8 @@ from .base import (
     HELP_OUTGROUP_ACCESSION,
     HELP_OUTGROUP_MODE,
     HELP_PARTITIONED,
+    HELP_PIN,
+    HELP_PIN_FILE,
     HELP_PRE_PRIMARY_ANI,
     HELP_PRE_SECONDARY_ANI,
     HELP_PRESET,
@@ -384,6 +386,8 @@ def run(
     refine: list[str] = typer.Option([], "--refine", help=HELP_REFINE),
     refine_ani: float | None = typer.Option(None, "--refine-ani", help=HELP_REFINE_ANI),
     refine_file: Path | None = typer.Option(None, "--refine-file", help=HELP_REFINE_FILE),
+    pin: list[str] = typer.Option([], "--pin", help=HELP_PIN),
+    pin_file: Path | None = typer.Option(None, "--pin-file", help=HELP_PIN_FILE),
     tool_arg: list[str] = typer.Option([], "--tool-arg", help=HELP_DEREP_TOOL_ARG),
     # --- SNP typing ---
     with_snptype: bool = typer.Option(
@@ -589,6 +593,8 @@ def run(
             refine=refine,
             refine_ani=refine_ani,
             refine_file=None if refine_file is None else str(refine_file.resolve()),
+            pin=pin,
+            pin_file=None if pin_file is None else str(pin_file.resolve()),
         )
         phylo_params(
             treebuilder=treebuilder,
@@ -795,6 +801,8 @@ def run(
             refine=refine,
             refine_ani=refine_ani,
             refine_file=None if refine_file is None else str(refine_file.resolve()),
+            pin=pin,
+            pin_file=None if pin_file is None else str(pin_file.resolve()),
         ),
     )
 
