@@ -25,6 +25,8 @@ from .base import (
     HELP_NUM_PROCESSES,
     HELP_OUTGROUP_ACCESSION,
     HELP_OUTGROUP_MODE,
+    HELP_PIN,
+    HELP_PIN_FILE,
     HELP_PRE_PRIMARY_ANI,
     HELP_PRE_SECONDARY_ANI,
     HELP_PRIMARY_ANI,
@@ -200,6 +202,8 @@ def dereplicate(
     refine: list[str] = typer.Option([], "--refine", help=HELP_REFINE),
     refine_ani: float | None = typer.Option(None, "--refine-ani", help=HELP_REFINE_ANI),
     refine_file: Path | None = typer.Option(None, "--refine-file", help=HELP_REFINE_FILE),
+    pin: list[str] = typer.Option([], "--pin", help=HELP_PIN),
+    pin_file: Path | None = typer.Option(None, "--pin-file", help=HELP_PIN_FILE),
 ) -> None:
     """Cluster genomes by ANI and select representatives."""
     from ..dereplicators.base import registry as _derep_registry
@@ -231,6 +235,8 @@ def dereplicate(
             refine=refine,
             refine_ani=refine_ani,
             refine_file=None if refine_file is None else str(refine_file.resolve()),
+            pin=pin,
+            pin_file=None if pin_file is None else str(pin_file.resolve()),
         )
 
     _run("dereplicate", workdir, build)

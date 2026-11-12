@@ -499,6 +499,29 @@ by score only with `--keeper quality` and known scores. A GTDB
 representative is preferred under `--keeper gtdb`. `--target-reps N` searches the secondary ANI to land near N
 representatives.
 
+#### Pinned representatives
+
+`--pin GENOME` (repeatable) or `--pin-file FILE` keeps the named genomes as
+representatives whatever the ANI clustering, for example the reference
+strains of biovars that share a cluster at the chosen `--secondary-ani`. A
+genome is given as a filename, a filename without its suffix, or an
+accession with its version. The pin file has one genome per line in its
+first tab-separated column; lines starting with `#` are skipped.
+
+```bash
+repgenr dereplicate -wd $WD --tool sourmash -sani 0.9995 --pin-file reference_strains.tsv
+```
+
+The pins are applied after the keeper rule and any `--refine`. A cluster
+holding pinned genomes is split: its representative and each pinned genome
+become representatives, and every other member joins the one it shares the
+highest sketch ANI with (the estimate `--tool sourmash` clusters on, from
+`sketches/`). A member without an estimate, or with equal estimates, stays
+with the original representative. `--reduce` leaves pinned representatives
+apart. A pinned genome that fails quality control is left out with a
+warning. The pinned genomes are recorded in `repgenr.yaml`. `run --pin` and
+`run --pin-file` pass both to `dereplicate`.
+
 #### Finer resolution inside a lineage
 
 `--refine SEED --refine-ani F` dereplicates the clusters that hold the

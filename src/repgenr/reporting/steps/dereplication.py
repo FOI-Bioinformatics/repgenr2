@@ -145,6 +145,14 @@ def collect(inp: StepInput) -> StepReport:
             f" The keeper rule replaced the representative chosen by the tool in "
             f"{stats['keeper_swaps']:,} clusters."
         )
+    pinned = stats.get("pinned")
+    if pinned:
+        text += (
+            f" {pinned['requested']:,} genomes were pinned as representatives; "
+            f"{pinned['promoted']:,} of them were members of another genome's cluster, "
+            "which was split, each member joining the candidate it shares the highest "
+            "sketch ANI with."
+        )
     report.summary.append(text)
 
     # Table: status, with the fail_qc reasons.
