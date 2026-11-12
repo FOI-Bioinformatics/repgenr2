@@ -3,7 +3,7 @@
 Generated from `tests/audit/cli_matrix.yaml` by `scripts/render_cli_matrix.py`;
 `tests/unit/test_cli_matrix.py` keeps both in step with the command tree.
 
-41 commands, 507 flags (500 with a live test or an n/a reason, 7 pending).
+41 commands, 509 flags (502 with a live test or an n/a reason, 7 pending).
 
 ## Global flags
 
@@ -103,6 +103,8 @@ dispatch: `stage`
 | `--refine` |  | DereplicateParams.refine | stage | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: covered offline in tests/unit/test_derep_refine.py (fake dereplicator) | docs/usage.md, docs/output.md, docs/cli-reference.md, docs/audit/cli-matrix.md |
 | `--refine-ani` |  | DereplicateParams.refine_ani | unit_interval | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: covered offline in tests/unit/test_derep_refine.py (fake dereplicator) | docs/usage.md, docs/cli-reference.md, docs/audit/cli-matrix.md |
 | `--refine-file` |  | DereplicateParams.refine_file | stage | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: covered offline in tests/integration/test_derep_refine_stage.py (fake dereplicator) | docs/usage.md, docs/cli-reference.md, docs/audit/cli-matrix.md |
+| `--pin` |  | DereplicateParams.pin | stage | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: covered offline in tests/integration/test_derep_refine_stage.py (fake dereplicator) | docs/usage.md, docs/cli-reference.md, docs/audit/cli-matrix.md |
+| `--pin-file` |  | DereplicateParams.pin_file | stage | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: covered offline in tests/integration/test_derep_refine_stage.py (fake dereplicator) | docs/usage.md, docs/cli-reference.md, docs/audit/cli-matrix.md |
 
 ## derep-refine
 

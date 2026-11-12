@@ -212,6 +212,7 @@ def resolve_seeds(
     *,
     accessions: Mapping[str, str] | None = None,
     outgroup: Collection[str] = (),
+    flag: str = "--refine",
 ) -> list[str]:
     """The genome filename of each seed, which may be a filename, a filename
     without its FASTA suffix, or an accession (from the filename or from
@@ -240,22 +241,21 @@ def resolve_seeds(
             files = sorted(by_accession.get(key, set()) & present)
             if len(files) > 1:
                 raise UserInputError(
-                    f"--refine {seed} names {len(files)} genomes ({', '.join(files)}); "
+                    f"{flag} {seed} names {len(files)} genomes ({', '.join(files)}); "
                     "give the filename."
                 )
             name = files[0] if files else None
         if name is None:
             if key in out_keys:
                 raise UserInputError(
-                    f"--refine {seed}: the outgroup is not dereplicated, so it cannot seed "
-                    "a lineage."
+                    f"{flag} {seed}: the outgroup is not dereplicated, so it cannot be named here."
                 )
             unknown.append(seed)
         elif name not in resolved:
             resolved.append(name)
     if unknown:
         raise UserInputError(
-            "--refine names genome(s) not under genomes/ (give a filename, a filename "
+            f"{flag} names genome(s) not under genomes/ (give a filename, a filename "
             f"without its suffix, or an accession): {', '.join(unknown)}"
         )
     return resolved

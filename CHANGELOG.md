@@ -6,6 +6,13 @@ All notable changes to RepGenR2 are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- `dereplicate --pin` and `--pin-file`: named genomes, such as the reference
+  strains of biovars, are kept as representatives whatever the ANI
+  clustering. A cluster holding pinned genomes is split, and each other
+  member joins the candidate it shares the highest sketch ANI with.
+
 ## [2.2.0] - 2026-11-11
 
 The first release from FOI-Bioinformatics/repgenr2. In summary:

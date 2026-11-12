@@ -429,3 +429,36 @@ def test_two_seeds_of_one_refined_coarse_cluster_at_two_anis_are_refused(
     refine_file.write_text(f"seed\tani\n{A111}\t0.9995\n{A121}\t0.9999\n", encoding="utf-8")
     with pytest.raises(UserInputError, match="share a cluster"):
         refine_run(ctx, DerepRefineParams(refine_file=str(refine_file)))
+
+
+def test_dereplicate_pin_splits_the_cluster_of_a_pinned_genome(
+    workdir: Path, genomes, tiered, monkeypatch, tmp_path: Path
+) -> None:
+    """--pin makes A112 and B221 representatives; the tiny genomes have no
+    ANI estimate, so the other members stay with the tool's representative."""
+    import repgenr.stages.dereplicate as stage
+
+    monkeypatch.setattr(stage, "workdir_provider", lambda *a, **k: lambda genomes: {})
+    pins = tmp_path / "pins.txt"
+    pins.write_text("# strains\nGCA_000221\n", encoding="utf-8")
+    ctx = _ctx(workdir)
+    run(ctx, DereplicateParams(tool="tiered", pin=["GCA_000112"], pin_file=str(pins)))
+    assert read_clusters(ctx.derep_dir / CLUSTERS_TSV) == {
+        A111: [A121],
+        A112: [],
+        B211: [B212],
+        B221: [],
+        C311: [],
+    }
+    assert sorted(p.name for p in ctx.representatives_dir.iterdir()) == sorted(
+        [A111, A112, B211, B221, C311]
+    )
+    rec = ctx.config.stages["dereplicate"]
+    assert rec.params["pin"] == sorted([A112, B221])
+    assert rec.params["pinned_promoted"] == 2
+    assert rec.params["pin_file"] == str(pins)
+
+
+def test_dereplicate_pin_refuses_an_unknown_genome(workdir: Path, genomes, tiered) -> None:
+    with pytest.raises(UserInputError, match="--pin names genome"):
+        run(_ctx(workdir), DereplicateParams(tool="tiered", pin=["GCA_999"]))

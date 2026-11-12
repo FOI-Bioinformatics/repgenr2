@@ -435,6 +435,8 @@ Cluster genomes by ANI and select representatives.
 | `--refine` |  | Seed of a lineage to keep at finer resolution (filename, stem or accession; repeatable): every cluster holding a seed is dereplicated again at --refine-ani. |
 | `--refine-ani` |  | Secondary ANI for the clusters of the --refine seeds; above --secondary-ani. |
 | `--refine-file` |  | TSV with the columns seed and ani: several lineages, each refined at its own ANI (the seeds of one ANI form one lineage). |
+| `--pin` |  | Genome kept as a cluster representative whatever the ANI clustering (filename, stem or accession; repeatable). Its cluster is split: each other member joins the representative or pinned genome it has the highest sketch ANI to. |
+| `--pin-file` |  | File of genomes to pin, one per line (first tab-separated column; '#' comments). |
 
 ### derep-refine
 

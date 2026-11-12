@@ -116,6 +116,10 @@ class DereplicateParams:
     refine_ani: float | None = None
     # A TSV of seed and ani: several lineages, each with its own ANI.
     refine_file: str | None = None
+    # Genomes kept as representatives whatever the clustering (derep_pin):
+    # filenames, stems or accessions, and a file of them, one per line.
+    pin: list[str] = field(default_factory=list)
+    pin_file: str | None = None
 
 
 def precheck(ctx: WorkdirContext, params: DereplicateParams) -> None:
@@ -137,6 +141,8 @@ def precheck(ctx: WorkdirContext, params: DereplicateParams) -> None:
     if params.refine or params.refine_file:
         # A refinement that cannot run must be refused before the coarse pass.
         _check_refine_request(ctx, params, genomes)
+    if params.pin or params.pin_file:
+        _pinned(ctx, params, genomes)
     elif params.refine_ani is not None:
         ctx.logger.warning(
             "--refine-ani %s is given without --refine seeds; ignored", params.refine_ani
@@ -182,6 +188,7 @@ def run(ctx: WorkdirContext, params: DereplicateParams) -> DerepResult:
     if params.refine or params.refine_file:
         # Also checked by precheck; here for callers that bypass the harness.
         _check_refine_request(ctx, params, genomes)
+    pinned = _pinned(ctx, params, genomes) if (params.pin or params.pin_file) else []
 
     tool = params.tool
     if tool == "auto":
@@ -260,9 +267,15 @@ def run(ctx: WorkdirContext, params: DereplicateParams) -> DerepResult:
     result, keeper_swaps, keeper_effective, quality, gtdb = apply_keeper(
         ctx, result, params.keeper, manifest_quality, n50, logger
     )
-    # The refined clusters share a species: --reduce must leave them apart.
+    promoted: list[str] = []
+    if pinned:
+        result, promoted = _pin(ctx, result, pinned, params.threads, logger)
+        stats["pinned"] = {"requested": len(pinned), "promoted": len(promoted)}
+    # The refined clusters share a species: --reduce must leave them apart,
+    # and so must the pinned genomes.
     in_lineage = {g for lineage in lineages for g in lineage.genomes}
     refined_reps = {rep for rep in result.clusters if rep in in_lineage}
+    refined_reps |= {rep for rep in result.clusters if rep in set(pinned)}
 
     if params.reduce != "none":
         before = len(result.representatives)
@@ -323,6 +336,8 @@ def run(ctx: WorkdirContext, params: DereplicateParams) -> DerepResult:
             "tool_args": dict(params.extra or {}),
             **(record_params(lineages, rows) if lineages else {}),
             **({"refine_file": params.refine_file} if params.refine_file else {}),
+            **({"pin": sorted(pinned), "pinned_promoted": len(promoted)} if pinned else {}),
+            **({"pin_file": params.pin_file} if params.pin_file else {}),
             **(params.extra or {}),
             # Written after the tool arguments, so an argument of that name
             # cannot hide it; empty for a tool that reports none.
@@ -491,6 +506,44 @@ def _refine(
         )
         result = splice(result, lineage, sub, paths, logger)
     return lineages, result
+
+
+def _pinned(ctx: WorkdirContext, params: DereplicateParams, genomes: Sequence[Path]) -> list[str]:
+    """The genome filenames of ``--pin`` and ``--pin-file``; unknown names
+    and the outgroup are refused."""
+    from .derep_pin import pinned_names, read_pin_file
+
+    names = list(params.pin)
+    if params.pin_file:
+        names += read_pin_file(Path(params.pin_file))
+    accessions, outgroup = manifest_accessions(ctx)
+    return pinned_names(names, genomes, accessions=accessions, outgroup=outgroup)
+
+
+def _pin(
+    ctx: WorkdirContext,
+    result: DerepResult,
+    pinned: Sequence[str],
+    threads: int,
+    logger: logging.Logger,
+) -> tuple[DerepResult, list[str]]:
+    """``--pin``: make the pinned genomes representatives (derep_pin)."""
+    from .derep_pin import pin_representatives, sketch_ani, split_genomes
+
+    names = split_genomes(result, pinned)
+    sketches: dict[str, Path] = {}
+    if names:
+        paths = [ctx.genomes_dir / n for n in names]
+        provided = workdir_provider(ctx, logger, threads, "dereplicate --pin")(paths)
+        sketches = {genome.name: sketch for genome, sketch in provided.items()}
+    result, promoted = pin_representatives(result, pinned, sketch_ani(sketches), logger)
+    logger.info(
+        "Pinned %d genome(s): %d were already representatives, %d were promoted",
+        len(pinned),
+        len(pinned) - len(promoted),
+        len(promoted),
+    )
+    return result, promoted
 
 
 def _check_refine_request(

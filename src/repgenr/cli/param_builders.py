@@ -395,6 +395,8 @@ def dereplicate_params(
     refine: Any = _UNSET,
     refine_ani: Any = _UNSET,
     refine_file: Any = _UNSET,
+    pin: Any = _UNSET,
+    pin_file: Any = _UNSET,
 ) -> DereplicateParams:
     from ..core.errors import UserInputError
     from ..dereplicators.base import registry as _derep_registry
@@ -440,6 +442,8 @@ def dereplicate_params(
         refine=refine,
         refine_ani=refine_ani,
         refine_file=refine_file,
+        pin=pin,
+        pin_file=pin_file,
     )
 
 
