@@ -29,6 +29,17 @@ nextflow run nextflow/main.nf --mode bacterial \
     --outdir results -profile standard
 ```
 
+The bacterial selection can also come from NCBI: every option of `metadata`
+is passed through `--metadata_args`, so `--source ncbi` and its filters need
+no parameter of their own. The `datasets` client that downloads the genomes
+answers the selection as well.
+
+```bash
+nextflow run nextflow/main.nf --mode bacterial \
+    --metadata_args '--source ncbi -d all -l genus -tg Francisella --assembly-level complete' \
+    --outdir results -profile standard
+```
+
 The pipeline needs Nextflow 26.04 or later ([install.md](install.md#nextflow)),
 and `repgenr` must be available to every process. `-stub` checks the wiring
 without external tools.
@@ -58,7 +69,7 @@ description; parameters are validated against it at launch. The most used:
 | Parameter | Default | Description |
 |-----------|---------|-------------|
 | `--outdir` | `results` | Published results and execution reports. |
-| `--mode` | `bacterial` | `bacterial` (GTDB), `viral` (NCBI Virus; BV-BRC with `--vmetadata_args "--source bvbrc"`) or `reads`. |
+| `--mode` | `bacterial` | `bacterial` (GTDB, or NCBI with `--source ncbi` in `--metadata_args`), `viral` (NCBI Virus; BV-BRC with `--vmetadata_args "--source bvbrc"`) or `reads`. |
 | `--metadata_args` | see config | Arguments for the bacterial metadata stage. |
 | `--vmetadata_args`, `--vgenome_args` | see config | Arguments for the viral stages. |
 | `--reads_args` | see config | Arguments for the reads stage. |

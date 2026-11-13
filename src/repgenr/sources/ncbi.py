@@ -338,6 +338,52 @@ def _candidate(genome: NcbiGenome) -> Candidate:
     )
 
 
+def candidates(
+    params: MetadataParams, scratch: Path, logger
+) -> tuple[list[Taxon], dict[str, NcbiGenome], dict[str, Taxon], dict[str, dict[str, str]]]:
+    """What NCBI holds for the target of ``params``: the resolved target
+    taxa, the genomes by accession, the taxonomy node of each genome's taxid
+    and the tax dict of each genome. Shared by the selection and by
+    ``repgenr census --source ncbi``."""
+    targets = [
+        ncbi_datasets.resolve_name(name, params.level, scratch, logger)
+        for name in target_names(params)
+    ]
+    flags = genome_flags(params, reference=params.dataset == "rep")
+    genomes: dict[str, NcbiGenome] = {}
+    for target in targets:
+        logger.info(
+            "Querying NCBI for the %s genomes of %s (taxid %s)",
+            _SOURCE_LABELS[params.assembly_source],
+            target.name,
+            target.tax_id,
+        )
+        found = _genomes(target.tax_id, flags, scratch, logger)
+        if not found:
+            raise UserInputError(
+                f"NCBI returned no genomes for {target.name} (taxid {target.tax_id}) "
+                f"with {' '.join(flags)}. Relax the filters, or pass "
+                "--assembly-source genbank for assemblies RefSeq does not hold."
+            )
+        for acc, genome in found.items():
+            genomes.setdefault(acc, genome)
+    if params.assembly_source == "all":
+        genomes = collapse_pairs(genomes)
+
+    taxa = ncbi_datasets.taxonomy({g.tax_id for g in genomes.values()}, scratch, logger)
+    unresolved = sorted({g.tax_id for g in genomes.values() if g.tax_id not in taxa})
+    if unresolved:
+        logger.warning(
+            "NCBI Taxonomy gave no classification for %d taxid(s) (%s); their genomes "
+            "are named '%s'.",
+            len(unresolved),
+            ", ".join(unresolved[:5]),
+            UNCLASSIFIED,
+        )
+    tax = {acc: tax_of(taxa.get(g.tax_id)) for acc, g in genomes.items()}
+    return targets, genomes, taxa, tax
+
+
 class NcbiSource(GenomeSource):
     name = "ncbi"
     manifest_source = MANIFEST_SOURCE
@@ -403,47 +449,12 @@ class NcbiSource(GenomeSource):
         scratch = ctx.scratch_dir / "ncbi_metadata"
         scratch.mkdir(parents=True, exist_ok=True)
 
-        targets = [
-            ncbi_datasets.resolve_name(name, params.level, scratch, logger)
-            for name in target_names(params)
-        ]
-        flags = genome_flags(params, reference=params.dataset == "rep")
-        genomes: dict[str, NcbiGenome] = {}
-        for target in targets:
-            logger.info(
-                "Querying NCBI for the %s genomes of %s (taxid %s)",
-                _SOURCE_LABELS[params.assembly_source],
-                target.name,
-                target.tax_id,
-            )
-            found = _genomes(target.tax_id, flags, scratch, logger)
-            if not found:
-                raise UserInputError(
-                    f"NCBI returned no genomes for {target.name} (taxid {target.tax_id}) "
-                    f"with {' '.join(flags)}. Relax the filters, or pass "
-                    "--assembly-source genbank for assemblies RefSeq does not hold."
-                )
-            for acc, genome in found.items():
-                genomes.setdefault(acc, genome)
-        if params.assembly_source == "all":
-            genomes = collapse_pairs(genomes)
-
-        taxa = ncbi_datasets.taxonomy({g.tax_id for g in genomes.values()}, scratch, logger)
-        unresolved = sorted({g.tax_id for g in genomes.values() if g.tax_id not in taxa})
-        if unresolved:
-            logger.warning(
-                "NCBI Taxonomy gave no classification for %d taxid(s) (%s); their genomes "
-                "are named '%s'.",
-                len(unresolved),
-                ", ".join(unresolved[:5]),
-                UNCLASSIFIED,
-            )
-        tax = {acc: tax_of(taxa.get(g.tax_id)) for acc, g in genomes.items()}
+        targets, genomes, taxa, tax = candidates(params, scratch, logger)
         write_genomes(ctx.workdir / NCBI_GENOMES, genomes, tax)
 
         counts["candidates"] = len(genomes)
         if params.limit and len(genomes) > params.limit:
-            candidates = [
+            ranked = [
                 LimitCandidate(
                     accession=acc,
                     species=tax[acc]["species"],
@@ -453,8 +464,8 @@ class NcbiSource(GenomeSource):
                 )
                 for acc, g in genomes.items()
             ]
-            kept = stratified_limit(candidates, params.limit)
-            log_limit(params.limit, candidates, kept, logger)
+            kept = stratified_limit(ranked, params.limit)
+            log_limit(params.limit, ranked, kept, logger)
             genomes = {c.accession: genomes[c.accession] for c in kept}
 
         records = [_record(g, tax[acc]) for acc, g in genomes.items()]

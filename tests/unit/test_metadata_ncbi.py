@@ -526,3 +526,46 @@ def test_methods_text_names_ncbi_and_not_gtdb() -> None:
     assert "Only NCBI reference genomes were considered." in text
     assert "the NCBI reference genome of best assembly quality (CheckM completeness" in text
     assert "GTDB" not in text and cited == ["datasets"]
+
+
+# --- census ---------------------------------------------------------------------
+
+
+def test_census_counts_the_refseq_assemblies_of_an_ncbi_genus(datasets, monkeypatch) -> None:
+    from repgenr.stages import census
+
+    monkeypatch.setattr("repgenr.core.plugins.preflight", lambda _caps: {"datasets": "18.14.0"})
+    monkeypatch.setattr("repgenr.core.http.require_reachable", lambda *_a, **_k: None)
+    params = census.CensusParams(target_genus="Francisella", source="ncbi")
+    result = census.taxon_census(params, census.validate(params), LOG)
+    assert result.source == "ncbi" and result.rank == "genus" and result.taxon == "Francisella"
+    by_name = {row["name"]: row for row in result.rows}
+    assert by_name["Francisella tularensis"]["genomes"] == 2
+    # The representatives column counts NCBI reference genomes.
+    assert by_name["Francisella philomiragia"]["representatives"] == 1
+    assert result.totals["genomes"] == 4 and result.totals["representatives"] == 2
+    assert census.NCBI_CENSUS_NOTE in result.notes
+    first = _genome_queries(datasets)[0]
+    assert first[first.index("--assembly-source") + 1] == "RefSeq"
+
+
+def test_census_of_a_workdir_counts_the_candidates_ncbi_returned(tmp_path, datasets) -> None:
+    from repgenr.stages import census
+
+    ctx = WorkdirContext(tmp_path / "wd", create=True)
+    metadata.run(ctx, _params(limit=1))
+    result = census.workdir_census(census.CensusParams(workdir=ctx.workdir), LOG)
+    assert result.mode == "candidates" and result.source == "ncbi"
+    assert result.totals["genomes"] == 2  # before --limit 1
+
+    # Without the kept answer the candidates fall back to the selection.
+    (ctx.workdir / ncbi.NCBI_GENOMES).unlink()
+    fallback = census.workdir_census(census.CensusParams(workdir=ctx.workdir), LOG)
+    assert fallback.source == "selection" and fallback.totals["genomes"] == 1
+
+
+def test_census_refuses_ncbi_as_a_viral_source() -> None:
+    from repgenr.stages import census
+
+    with pytest.raises(UserInputError, match="bacterial source"):
+        census.validate(census.CensusParams(viral=True, target="picornaviridae", source="ncbi"))
