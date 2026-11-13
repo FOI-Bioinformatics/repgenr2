@@ -61,6 +61,7 @@ from ..dereplicators.base import (
     check_result_complete,
     registry,
     run_quality,
+    single_representative,
 )
 from .cluster_summary import Taxonomy, summarise_clusters
 from .derep_keeper import (
@@ -320,7 +321,12 @@ def dereplicate_merge(params: MergeParams, logger: logging.Logger) -> DerepResul
         adapter, derep_params.extra, union, params.sketches_dir, logger, "dereplicate-merge"
     )
     scratch = _fresh(params.out_dir / "scratch")
-    if params.target_reps > 0:
+    if len(union) == 1:
+        logger.info(
+            "dereplicate-merge: the chunks left one representative; no merge pass is needed"
+        )
+        stage2 = single_representative(union[0])
+    elif params.target_reps > 0:
         # The search re-runs the merge pass per step; the stateless step has
         # no chunking of its own, so the single-pass settings apply.
         stage2 = _search_target_reps(

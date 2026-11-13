@@ -33,6 +33,11 @@ All notable changes to RepGenR2 are documented here. The format follows
 
 ### Fixed
 
+- `dereplicate-merge` (and the Nextflow `DEREP_MERGE` task): when the chunks
+  leave one representative, as for a few genomes of a clonal species, the
+  merge pass is skipped. skDER refuses fewer than two genomes, so the task
+  failed before.
+
 - `genome-fetch` (the download step of the Nextflow route) writes
   `missing_accessions.txt` for selected accessions NCBI served no genome
   for, as the `genome` stage does, and stops when the outgroup is not

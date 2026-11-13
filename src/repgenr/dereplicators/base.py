@@ -117,6 +117,20 @@ def combine_settings(results: Iterable[DerepResult]) -> dict:
     return combined
 
 
+def single_representative(genome: Path) -> DerepResult:
+    """The result of a merge pass over one genome: it represents itself.
+
+    A merge pass compares representatives of earlier passes. When those
+    passes left one, there is nothing to compare, and some tools (skDER)
+    refuse an input of fewer than two genomes.
+    """
+    return DerepResult(
+        representatives=[genome],
+        clusters={genome.name: []},
+        genome_status={genome.name: STATUS_REPRESENTATIVE},
+    )
+
+
 def check_result_complete(result: DerepResult, genome_names: Collection[str]) -> None:
     """Refuse a result that silently drops genomes.
 
