@@ -24,6 +24,15 @@
                     ]
                 ],
                 "2": [
+                    [
+                        {
+                            "id": "test",
+                            "mode": "bacterial"
+                        },
+                        "missing_accessions.txt:md5,d41d8cd98f00b204e9800998ecf8427e"
+                    ]
+                ],
+                "3": [
                     "versions.yml:md5,443b65f0aa22c543e0557491044953b2"
                 ],
                 "genomes": [
@@ -36,6 +45,15 @@
                             "Fam_Gen_sp1_GCF_000001.1.fasta:md5,9a5359767874a9770ac435769ff00d93",
                             "Fam_Gen_sp2_GCF_000002.1.fasta:md5,9a5359767874a9770ac435769ff00d93"
                         ]
+                    ]
+                ],
+                "missing": [
+                    [
+                        {
+                            "id": "test",
+                            "mode": "bacterial"
+                        },
+                        "missing_accessions.txt:md5,d41d8cd98f00b204e9800998ecf8427e"
                     ]
                 ],
                 "outgroup": [
@@ -52,10 +70,10 @@
                 ]
             }
         ],
-        "timestamp": "2026-09-06T08:07:51.152221",
+        "timestamp": "2026-11-13T20:00:51.923197",
         "meta": {
             "nf-test": "0.9.5",
-            "nextflow": "26.04.6"
+            "nextflow": "26.04.7"
         }
     }
 }

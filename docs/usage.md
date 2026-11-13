@@ -831,7 +831,9 @@ Virus source.
 **Genomes NCBI no longer serves** are recorded in `missing_accessions.txt`
 and excused by later stages, and a rerun asks for them again. An outgroup
 NCBI no longer serves exits 3; choose another with `metadata
---outgroup-accession`.
+--outgroup-accession`. The `genome-fetch` step of the Nextflow
+pipeline follows the same two rules and publishes the file under
+`metadata/`.
 
 **NCBI Entrez throttling** (BV-BRC path): set `NCBI_API_KEY`, and
 optionally `NCBI_EMAIL`.

@@ -8,8 +8,9 @@ an output directory -- no manifest, no shared workdir.
 
 Output layout under ``out_dir``::
 
-    genomes/   downloaded selected genomes (named by selection.tsv)
-    outgroup/  the outgroup genome, if the selection includes one
+    genomes/                downloaded selected genomes (named by selection.tsv)
+    outgroup/               the outgroup genome, if the selection includes one
+    missing_accessions.txt  selected accessions NCBI served no genome for
 """
 
 from __future__ import annotations
@@ -18,7 +19,7 @@ import logging
 from dataclasses import dataclass
 from pathlib import Path
 
-from ..core.contracts import read_selection
+from ..core.contracts import MISSING_ACCESSIONS_TXT, read_selection
 from ..core.errors import WorkdirError
 from ..core.plugins import preflight
 from ..core.versions import write_versions_fragment
@@ -53,9 +54,10 @@ def genome_fetch(params: GenomeFetchParams, logger: logging.Logger) -> int:
     outgroup = [r for r in rows if r.is_outgroup]
     scratch = params.out_dir / "scratch"
 
+    missing: list[str] = []
     if selected:
         filenames = {r.accession: r.filename for r in selected}
-        download_accessions(
+        missing = download_accessions(
             list(filenames),
             filenames,
             params.out_dir / "genomes",
@@ -63,9 +65,15 @@ def genome_fetch(params: GenomeFetchParams, logger: logging.Logger) -> int:
             logger,
             params.keep_files,
         )
+    # The same record the genome stage keeps, so the report and the
+    # completeness guard of the data-channel route can excuse these accessions.
+    params.out_dir.mkdir(parents=True, exist_ok=True)
+    (params.out_dir / MISSING_ACCESSIONS_TXT).write_text(
+        "".join(f"{acc}\n" for acc in sorted(missing)), encoding="utf-8"
+    )
     if outgroup:
         og_filenames = {r.accession: r.filename for r in outgroup}
-        download_accessions(
+        og_missing = download_accessions(
             list(og_filenames),
             og_filenames,
             params.out_dir / "outgroup",
@@ -73,11 +81,19 @@ def genome_fetch(params: GenomeFetchParams, logger: logging.Logger) -> int:
             logger,
             params.keep_files,
         )
+        if og_missing:
+            # A selection that names an outgroup must not continue without it:
+            # the tree would be built and rooted differently with no notice.
+            raise WorkdirError(
+                f"NCBI serves no assembly for the outgroup {', '.join(og_missing)}; "
+                "choose another with 'repgenr metadata --outgroup-accession'."
+            )
 
     logger.info(
-        "genome-fetch: requested %d genomes + %d outgroup into %s",
+        "genome-fetch: requested %d genomes + %d outgroup into %s (%d not served by NCBI)",
         len(selected),
         len(outgroup),
         params.out_dir,
+        len(missing),
     )
     return len(selected)
