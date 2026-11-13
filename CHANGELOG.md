@@ -13,6 +13,17 @@ All notable changes to RepGenR2 are documented here. The format follows
   clustering. A cluster holding pinned genomes is split, and each other
   member joins the candidate it shares the highest sketch ANI with.
 
+### Fixed
+
+- `genome-fetch` (the download step of the Nextflow route) writes
+  `missing_accessions.txt` for selected accessions NCBI served no genome
+  for, as the `genome` stage does, and stops when the outgroup is not
+  served. Before, both cases passed without a record. The Nextflow pipeline
+  publishes the file under `metadata/`.
+- `metadata`: the NCBI accession of a genome is left empty when the GTDB
+  table has no `ncbi_genbank_assembly_accession` column; it was filled with
+  the prefixed GTDB accession.
+
 ## [2.2.0] - 2026-11-11
 
 The first release from FOI-Bioinformatics/repgenr2. In summary:

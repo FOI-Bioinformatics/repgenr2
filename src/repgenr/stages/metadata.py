@@ -536,7 +536,8 @@ def _parse_metadata(path: Path, params: MetadataParams, logger) -> dict[str, dic
             contamination = _opt_column(
                 fields, idx, "checkm2_contamination", "checkm_contamination"
             )
-            accession_ncbi = fields[idx.get("ncbi_genbank_assembly_accession", 0)]
+            # Empty when the table lacks the column (not the GTDB accession).
+            accession_ncbi = _text_column(fields, idx, "ncbi_genbank_assembly_accession")
             accessions[accession] = {
                 "accession": accession,
                 "accession_ncbi": accession_ncbi,

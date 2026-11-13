@@ -886,3 +886,18 @@ def test_api_selection_records_the_gtdb_representative_flag(tmp_path, monkeypatc
     assert flags == {"GCF_000001.1": "1", "GCF_000002.1": "0", "GCF_000010.1": "1"}
     reps = {g.accession for g in ctx.manifest.all_genomes() if g.gtdb_representative}
     assert reps == {"GCF_000001.1"}
+
+
+def test_parse_metadata_without_the_genbank_column_leaves_the_ncbi_accession_empty(
+    tmp_path,
+) -> None:
+    # A table without ncbi_genbank_assembly_accession used to yield column 0,
+    # the prefixed GTDB accession, as the NCBI accession.
+    path = tmp_path / "bac120_metadata_r232.tsv.gz"
+    tax = _tax("Francisellaceae", "Francisella", "tularensis")
+    with gzip.open(path, "wt", encoding="utf-8") as fo:
+        fo.write("accession\tgtdb_genome_representative\tgtdb_taxonomy\n")
+        fo.write(f"RS_GCF_000001.1\tRS_GCF_000001.1\t{tax}\n")
+    accessions = metadata._parse_metadata(path, _params(path), logging.getLogger("test"))
+    assert accessions["GCF_000001.1"]["accession_ncbi"] == ""
+    assert accessions["GCF_000001.1"]["details"].accession_ncbi == ""
