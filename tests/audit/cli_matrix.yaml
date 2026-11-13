@@ -1899,6 +1899,55 @@ commands:
         - docs/audit/cli-matrix.md
         nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
         live: 'n/a: offline guard tests in tests/unit/test_foreign_rows.py'
+      --assembly-source:
+        param: MetadataParams.assembly_source
+        value: genbank
+        validated: choice
+        docs:
+        - docs/usage.md
+        - docs/cli-reference.md
+        - docs/audit/cli-matrix.md
+        nextflow: params.metadata_args
+        live: tests/live/test_network.py::test_ncbi_assembly_sources_and_filters
+        observable: selection.tsv holds GCF_ (refseq), GCA_ (genbank) or one accession per assembly (all)
+      --assembly-level:
+        param: MetadataParams.assembly_level
+        value: complete
+        validated: stage
+        docs:
+        - docs/usage.md
+        - docs/cli-reference.md
+        - docs/audit/cli-matrix.md
+        nextflow: params.metadata_args
+        live: tests/live/test_network.py::test_ncbi_refseq_species_selection_and_download
+      --include-atypical:
+        param: MetadataParams.include_atypical
+        validated: none
+        docs:
+        - docs/usage.md
+        - docs/cli-reference.md
+        - docs/audit/cli-matrix.md
+        nextflow: params.metadata_args
+        live: tests/live/test_network.py::test_ncbi_assembly_sources_and_filters
+      --exclude-mag:
+        param: MetadataParams.exclude_mag
+        validated: none
+        docs:
+        - docs/usage.md
+        - docs/cli-reference.md
+        - docs/audit/cli-matrix.md
+        nextflow: params.metadata_args
+        live: tests/live/test_network.py::test_ncbi_assembly_sources_and_filters
+      --released-before:
+        param: MetadataParams.released_before
+        value: '2020-01-01'
+        validated: stage
+        docs:
+        - docs/usage.md
+        - docs/cli-reference.md
+        - docs/audit/cli-matrix.md
+        nextflow: params.metadata_args
+        live: tests/live/test_network.py::test_ncbi_assembly_sources_and_filters
   phylo:
     dispatch: stage
     base_args:
@@ -4055,6 +4104,55 @@ commands:
         - docs/audit/cli-matrix.md
         nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
         live: tests/live/test_network.py::test_run_bacterial_chain_end_to_end
+      --assembly-source:
+        param: MetadataParams.assembly_source
+        value: genbank
+        validated: choice
+        docs:
+        - docs/cli-reference.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
+        live: 'n/a: forwarded to the stage builder unchanged (wiring test); the stage flag is covered
+          live'
+        observable: selection.tsv holds GCF_ (refseq), GCA_ (genbank) or one accession per assembly (all)
+      --assembly-level:
+        param: MetadataParams.assembly_level
+        value: complete
+        validated: stage
+        docs:
+        - docs/cli-reference.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
+        live: 'n/a: forwarded to the stage builder unchanged (wiring test); the stage flag is covered
+          live'
+      --include-atypical:
+        param: MetadataParams.include_atypical
+        validated: none
+        docs:
+        - docs/cli-reference.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
+        live: 'n/a: forwarded to the stage builder unchanged (wiring test); the stage flag is covered
+          live'
+      --exclude-mag:
+        param: MetadataParams.exclude_mag
+        validated: none
+        docs:
+        - docs/cli-reference.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
+        live: 'n/a: forwarded to the stage builder unchanged (wiring test); the stage flag is covered
+          live'
+      --released-before:
+        param: MetadataParams.released_before
+        value: '2020-01-01'
+        validated: stage
+        docs:
+        - docs/cli-reference.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
+        live: 'n/a: forwarded to the stage builder unchanged (wiring test); the stage flag is covered
+          live'
       --outgroup-accession:
         param: MetadataParams.outgroup_accession
         value: GCF_000001.1

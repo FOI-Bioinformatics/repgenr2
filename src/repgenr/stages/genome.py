@@ -16,7 +16,6 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 from ..core import process
-from ..core.binaries import BinarySpec
 from ..core.containers import run_tool_with_retries
 from ..core.context import WorkdirContext
 from ..core.contracts import (
@@ -29,17 +28,12 @@ from ..core.contracts import (
 from ..core.errors import ToolExecutionError, WorkdirError
 from ..core.http import NCBI_DATASETS_URL, require_reachable, verify_md5
 from ..core.integrity import looks_like_fasta
+from ..core.ncbi_datasets import DATASETS_CAPS
 from ..core.outgroup_choice import check_outgroup_distance
-from ..core.plugins import ToolCapabilities, preflight
+from ..core.plugins import preflight
 from ..core.process import check_free_disk, remove_tree
 from ..core.sketches import require_sourmash_if_requested, sketch_stage_genomes, sketches_dir
 
-_DATASETS = BinarySpec("datasets", version_args=("--version",))
-DATASETS_CAPS = ToolCapabilities(
-    name="datasets",
-    required_binaries=(_DATASETS,),
-    conda=("conda-forge::ncbi-datasets-cli",),
-)
 _DOWNLOAD_BATCH_SIZE = 5000  # accessions per datasets download/rehydrate call
 _EST_BYTES_PER_GENOME = 5_000_000  # rough peak-disk estimate (zip + extract + final)
 

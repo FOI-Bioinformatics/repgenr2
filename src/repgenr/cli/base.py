@@ -132,14 +132,39 @@ HELP_OUTGROUP_MODE = (
     "How the outgroup is chosen when --outgroup-accession is not given: sister (the "
     "best-quality representative of the group nearest the target in the GTDB reference "
     "tree), quality (the best-quality representative of the parent taxon) or first (the "
-    "first representative of the parent taxon in table order, as before 2.3.0)."
+    "first representative of the parent taxon in table order, as before 2.3.0). "
+    "--source ncbi has no reference tree: sister is chosen as quality, among the NCBI "
+    "reference genomes of the parent taxon."
 )
 HELP_GTDB_TREE_PATH = (
     "GTDB reference tree (e.g. bac120_r232.tree) for --outgroup-mode sister, instead of "
     "downloading it into the workdir. Required for sister with --source api."
 )
 HELP_LIMIT = "Keep at most N GTDB genomes, round-robin over species by CheckM quality."
-HELP_DATASET = "GTDB dataset: all or rep."
+HELP_DATASET = (
+    "Dataset: all genomes of the target, or rep: the GTDB species representatives "
+    "(with --source ncbi, the NCBI reference genomes)."
+)
+HELP_METADATA_SOURCE = (
+    "Where the genomes are selected from: tsv (the GTDB metadata table of a release), "
+    "api (the GTDB API, target only) or ncbi (NCBI through the datasets client, by NCBI "
+    "taxonomy; RefSeq by default)."
+)
+HELP_ASSEMBLY_SOURCE = (
+    "With --source ncbi: refseq (GCF_ assemblies), genbank (GCA_) or all (one entry per "
+    "assembly, GCF_ where both exist)."
+)
+HELP_ASSEMBLY_LEVEL = (
+    "With --source ncbi: keep only these assembly levels (complete, chromosome, scaffold, "
+    "contig; comma-separated)."
+)
+HELP_INCLUDE_ATYPICAL = (
+    "With --source ncbi: keep assemblies NCBI flags as atypical; they are left out by default."
+)
+HELP_EXCLUDE_MAG = "With --source ncbi: leave out metagenome-assembled genomes."
+HELP_RELEASED_BEFORE = (
+    "With --source ncbi: only assemblies released on or before this date (YYYY-MM-DD)."
+)
 HELP_LEVEL = "Taxonomic rank of the target: family, genus or species."
 HELP_ALL_GENOMES = "Use all genomes, not only the representatives."
 HELP_BOOTSTRAP = (

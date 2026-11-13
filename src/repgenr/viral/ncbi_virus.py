@@ -19,19 +19,12 @@ from dataclasses import asdict, dataclass, field, fields
 from pathlib import Path
 
 from ..core import process
-from ..core.binaries import BinarySpec
 from ..core.containers import run_tool, run_tool_with_retries
 from ..core.contracts import atomic_path
 from ..core.errors import MissingBinaryError, ToolExecutionError, WorkdirError
 from ..core.http import NCBI_DATASETS_URL, require_reachable
-from ..core.plugins import ToolCapabilities
+from ..core.ncbi_datasets import DATASETS_CAPS
 from ..core.process import remove_tree
-
-DATASETS_CAPS = ToolCapabilities(
-    name="datasets",
-    required_binaries=(BinarySpec("datasets", version_args=("--version",)),),
-    conda=("conda-forge::ncbi-datasets-cli",),
-)
 
 _ANONYMOUS = "ANONYMOUS"  # NCBI's value for non-segmented virus sequences
 

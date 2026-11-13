@@ -59,6 +59,7 @@ repgenr = "repgenr.cli.main:app"
 [project.entry-points."repgenr.sources"]
 tsv = "repgenr.sources.gtdb_table:GtdbTableSource"
 api = "repgenr.sources.gtdb_api:GtdbApiSource"
+ncbi = "repgenr.sources.ncbi:NcbiSource"
 
 [project.entry-points."repgenr.dereplicators"]
 drep = "repgenr.dereplicators.drep:DrepDereplicator"

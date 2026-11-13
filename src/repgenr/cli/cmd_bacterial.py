@@ -10,17 +10,22 @@ from .base import (
     DEFAULT_THREADS,
     HELP_ALIGNED_FRACTION,
     HELP_ALLOW_INCOMPLETE,
+    HELP_ASSEMBLY_LEVEL,
+    HELP_ASSEMBLY_SOURCE,
     HELP_DATASET,
     HELP_DEREP_TOOL_ARG,
+    HELP_EXCLUDE_MAG,
     HELP_GTDB_RELEASE,
     HELP_GTDB_TREE_PATH,
     HELP_GTDB_VERSION,
+    HELP_INCLUDE_ATYPICAL,
     HELP_KEEP_FILES,
     HELP_KEEPER,
     HELP_LEVEL,
     HELP_LIMIT,
     HELP_METADATA_NO_OUTGROUP,
     HELP_METADATA_PATH,
+    HELP_METADATA_SOURCE,
     HELP_NODOWNLOAD,
     HELP_NUM_PROCESSES,
     HELP_OUTGROUP_ACCESSION,
@@ -35,6 +40,7 @@ from .base import (
     HELP_REFINE,
     HELP_REFINE_ANI,
     HELP_REFINE_FILE,
+    HELP_RELEASED_BEFORE,
     HELP_SECONDARY_ANI,
     HELP_SKETCH,
     HELP_TARGET_FAMILY,
@@ -61,9 +67,7 @@ def metadata(
     workdir: Path = typer.Option(..., "-wd", "--workdir", help=HELP_WORKDIR_CREATED),
     dataset: str = typer.Option(..., "-d", "--dataset", help=HELP_DATASET),
     level: str = typer.Option(..., "-l", "--level", help=HELP_LEVEL),
-    source: str = typer.Option(
-        "tsv", "--source", help="tsv (download full table) or api (GTDB API, target only)."
-    ),
+    source: str = typer.Option("tsv", "--source", help=HELP_METADATA_SOURCE),
     release: str | None = typer.Option(None, "-r", "--release", help=HELP_GTDB_RELEASE),
     gtdb_version: str | None = typer.Option(None, "--gtdb-version", help=HELP_GTDB_VERSION),
     target_family: str | None = typer.Option(
@@ -93,8 +97,15 @@ def metadata(
         help="Discard genomes appended from sequencing runs (assemble --append) instead of "
         "refusing to overwrite the selection that holds them.",
     ),
+    assembly_source: str = typer.Option("refseq", "--assembly-source", help=HELP_ASSEMBLY_SOURCE),
+    assembly_level: str | None = typer.Option(None, "--assembly-level", help=HELP_ASSEMBLY_LEVEL),
+    include_atypical: bool = typer.Option(False, "--include-atypical", help=HELP_INCLUDE_ATYPICAL),
+    exclude_mag: bool = typer.Option(False, "--exclude-mag", help=HELP_EXCLUDE_MAG),
+    released_before: str | None = typer.Option(
+        None, "--released-before", help=HELP_RELEASED_BEFORE
+    ),
 ) -> None:
-    """Select a taxon's genomes from GTDB (full table or the GTDB API).
+    """Select a taxon's genomes from GTDB (table or API) or from NCBI.
 
     The --source option is called --metadata-source in 'run'.
     """
@@ -118,6 +129,11 @@ def metadata(
             nodownload=nodownload,
             limit=limit,
             drop_foreign=drop_foreign,
+            assembly_source=assembly_source,
+            assembly_level=assembly_level,
+            include_atypical=include_atypical,
+            exclude_mag=exclude_mag,
+            released_before=released_before,
         )
 
     _run("metadata", workdir, build, create=True)

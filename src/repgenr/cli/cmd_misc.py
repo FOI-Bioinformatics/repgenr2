@@ -94,6 +94,8 @@ def _gtdb_note(params: dict) -> str:
         return f"GTDB release {gtdb['gtdb_release']}"
     if "gtdb_api_query_date" in gtdb:
         return f"GTDB API queried {gtdb['gtdb_api_query_date']}"
+    if "ncbi_query_date" in gtdb:
+        return f"NCBI queried {gtdb['ncbi_query_date']}"
     return ""
 
 

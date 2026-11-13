@@ -34,7 +34,13 @@ from ..core.selection_summary import (
     write_metadata_selected,
     write_selection_summary,
 )
-from ..sources.base import GenomeSource, MetadataParams, registry, target_species_list
+from ..sources.base import (
+    SOURCE_OPTIONS,
+    GenomeSource,
+    MetadataParams,
+    registry,
+    target_species_list,
+)
 
 __all__ = ["MetadataParams", "gtdb_provenance", "run", "target_species_list"]
 
@@ -100,6 +106,7 @@ def run(ctx: WorkdirContext, params: MetadataParams) -> int:
             "gtdb_tree_path": params.gtdb_tree_path,
             **provenance,
         },
+        tool_versions=source.tool_versions or None,
         completed=datetime.now(UTC).isoformat(),
     )
     ctx.save_config()
@@ -122,6 +129,9 @@ def gtdb_provenance(params: dict) -> dict[str, str]:
     release number and names the UTC date of its query (``gtdb_api_query_date``).
     A record from before the query date was recorded yields nothing for the API.
     """
+    if params.get("source") == "ncbi":
+        queried = params.get("query_date")
+        return {"ncbi_query_date": str(queried)} if queried else {}
     if params.get("source") == "api":
         queried = params.get("api_query_date")
         return {"gtdb_api_query_date": str(queried)} if queried else {}
@@ -135,6 +145,16 @@ def _validate(params: MetadataParams) -> GenomeSource:
     if params.source not in names:
         raise UserInputError(f"--source must be one of: {', '.join(names)}.")
     source = registry.create(params.source)
+    unread = [
+        flag
+        for field, (flag, default) in SOURCE_OPTIONS.items()
+        if field not in source.options and getattr(params, field) != default
+    ]
+    if unread:
+        raise UserInputError(
+            f"{', '.join(unread)} cannot be used with --source {params.source}; "
+            "the option belongs to another selection source."
+        )
     source.validate(params)
     if not (params.target_genus or params.target_family):
         raise UserInputError("Supply --target-genus or --target-family.")
