@@ -29,7 +29,7 @@ workflow {
         Key parameters (see nextflow_schema.json and docs/nextflow.md for all):
           --outdir <DIR>         Published results (default: results)
           --mode bacterial|viral|reads  Pipeline to run (default: bacterial)
-          --metadata_args '<str>'  GTDB selection (bacterial)
+          --metadata_args '<str>'  GTDB or NCBI selection (bacterial)
           --vmetadata_args / --vgenome_args '<str>'  NCBI Virus selection (viral)
           --reads_args '<str>'   ENA/SRA run selection (reads); --assembler, --checkm2_db, --gtdb_sketch
           --reads_sketch, --reads_screen  Sketch the runs from the archive stream; screen them against GTDB before any download

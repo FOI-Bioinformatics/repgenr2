@@ -155,6 +155,9 @@ Allofrancisella (NCBI)        0        0                0    11           8     
 - `-tf/--target-family` or `-tg/--target-genus` counts the GTDB genomes and
   species representatives of a taxon, from the GTDB API (`--source api`,
   the default) or from a release table (`--source table -r 232.0`).
+  `--source ncbi` counts the RefSeq assemblies of the NCBI taxon instead,
+  named by NCBI taxonomy and without the assemblies NCBI flags as atypical;
+  its representatives column counts NCBI reference genomes.
   `--runs` adds the ENA sequencing runs per platform. A row with runs only
   is marked `(NCBI)` and left out of the GTDB totals; it may be a GTDB taxon
   under another name. Runs for a suffixed GTDB name such as `Bacillus_A`

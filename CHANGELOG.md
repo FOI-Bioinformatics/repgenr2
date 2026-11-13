@@ -17,6 +17,10 @@ All notable changes to RepGenR2 are documented here. The format follows
   reference genomes of the parent taxon; there is no release to pin, and
   the query date is recorded. `run --metadata-source ncbi` takes the same
   options. See "Bacteria from NCBI" in `docs/usage.md`.
+- `census --source ncbi` counts the RefSeq assemblies and reference genomes
+  of an NCBI family or genus, and `census -wd` counts the candidates of an
+  NCBI selection from `ncbi_genomes.tsv`. In the Nextflow pipeline the
+  source is selected through `--metadata_args '--source ncbi ...'`.
 - `dereplicate --pin` and `--pin-file`: named genomes, such as the reference
   strains of biovars, are kept as representatives whatever the ANI
   clustering. A cluster holding pinned genomes is split, and each other

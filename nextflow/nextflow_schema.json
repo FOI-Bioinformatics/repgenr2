@@ -36,7 +36,7 @@
                 "metadata_args": {
                     "type": "string",
                     "default": "-r 232.0 --gtdb-version bac120 -d rep -l genus -tg francisella",
-                    "description": "Arguments for the bacterial metadata stage (GTDB selection). Reaches the process as task.ext.args; a site config can override it with withName.",
+                    "description": "Arguments for the bacterial metadata stage: a GTDB selection, or an NCBI one with --source ncbi. Reaches the process as task.ext.args; a site config can override it with withName.",
                     "fa_icon": "fas fa-table"
                 },
                 "vmetadata_args": {

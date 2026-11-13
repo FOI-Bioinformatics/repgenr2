@@ -577,7 +577,7 @@ or an unsupported combination, 3 when a request fails or -wd does not exist.
 | `-tg`, `--target-genus` |  | Count this genus: one row per species. |
 | `--viral` | off | Count a viral taxon (NCBI Virus) instead of a GTDB taxon. |
 | `--target` |  | With --viral: the virus taxon, as vmetadata takes it (e.g. picornaviridae). |
-| `--source` |  | api (GTDB API) or table (GTDB metadata table, also 'tsv'); with --viral, ncbi_virus. bvbrc is counted only from a vmetadata workdir. Default: api, or ncbi_virus with --viral. |
+| `--source` |  | api (GTDB API), table (GTDB metadata table, also 'tsv') or ncbi (RefSeq assemblies by NCBI taxonomy); with --viral, ncbi_virus. bvbrc is counted only from a vmetadata workdir. Default: api, or ncbi_virus with --viral. |
 | `-r`, `--release` |  | GTDB release of the table source, e.g. 232.0. |
 | `--gtdb-version` |  | GTDB table of the table source: bac120 or ar53. Default: bac120. |
 | `--metadata-path` |  | Read this GTDB metadata table (.tsv.gz) instead of downloading the release table; with -wd, the table to count the candidates from. |

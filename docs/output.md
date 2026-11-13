@@ -948,7 +948,7 @@ order, depend on the mode:
 | `species` | family census | Distinct species of the genus (GTDB species with `--runs`; selected species in a working directory). |
 | `candidates` | selection | Genomes, sequence records or runs the entry stage chose from. |
 | `genomes` | GTDB, selection | GTDB genomes; in a working directory, selected genomes present in `genomes/`. |
-| `gtdb`, `sra`, `ncbi_virus`, `bvbrc`, `local` | selection | Selected genomes per manifest source; only sources present are listed. |
+| `gtdb`, `ncbi`, `sra`, `ncbi_virus`, `bvbrc`, `local` | selection | Selected genomes per manifest source; only sources present are listed. |
 | `representatives` | GTDB, selection | GTDB species representatives. |
 | `runs`, `biosamples`, `illumina`, `ont`, `pacbio`, `other` | `--runs` | ENA whole-genome sequencing runs, distinct biosamples, runs per platform; `other` holds every other platform, so the four add up to `runs`. |
 | `sequences`, `complete` | viral | Sequence records, and those marked complete (empty for BV-BRC). |
@@ -960,7 +960,7 @@ order, depend on the mode:
 
 - `schema` and `repgenr` (version);
 - `taxon`, `mode` (`taxon`, `candidates` or `selection`) and `source`
-  (`gtdb-api`, `gtdb-table`, `ncbi_virus`, `bvbrc`, `selection` or
+  (`gtdb-api`, `gtdb-table`, `ncbi`, `ncbi_virus`, `bvbrc`, `selection` or
   `selection.tsv`);
 - `rank` (family or genus) and `row_rank` (genus or species);
 - `totals`: genera, species and the header counts; in the selection mode

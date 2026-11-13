@@ -54,14 +54,14 @@ MODE_TAXON = "taxon"
 MODE_CANDIDATES = "candidates"
 MODE_SELECTION = "selection"
 
-BACTERIAL_SOURCES = ("api", "table")
+BACTERIAL_SOURCES = ("api", "table", "ncbi")
 VIRAL_SOURCES = ("ncbi_virus", "bvbrc")
 # The metadata stage calls the table source 'tsv'; census accepts both names.
 SOURCE_ALIASES = {"tsv": "table"}
 SOURCE_CHOICES = (*BACTERIAL_SOURCES, "tsv", *VIRAL_SOURCES)
 
 # Manifest sources in the order their columns appear.
-MANIFEST_SOURCES = ("gtdb", "sra", "ncbi_virus", "bvbrc", "local", "local_viral")
+MANIFEST_SOURCES = ("gtdb", "ncbi", "sra", "ncbi_virus", "bvbrc", "local", "local_viral")
 # ENA instrument platforms counted in their own column.
 _PLATFORM_COLUMNS = {"ILLUMINA": "illumina", "OXFORD_NANOPORE": "ont", "PACBIO_SMRT": "pacbio"}
 # Runs on any other platform (BGISEQ, ION_TORRENT, ...) are counted as 'other'.
@@ -71,6 +71,7 @@ CACHE_ENV = "REPGENR_CACHE_DIR"
 _CANDIDATE_LABELS = {
     "gtdb-table": "the genomes of the GTDB table under the metadata target",
     "gtdb-api": "the genomes the GTDB API returned for the metadata target",
+    "ncbi": "the assemblies NCBI returned for the metadata target",
     "ncbi_virus": "the NCBI Virus sequence records of vmetadata",
     "bvbrc": "the BV-BRC records of vmetadata",
     "reads": "the sequencing runs of reads.tsv",
@@ -338,6 +339,7 @@ def genome_census(
     runs: list[Run] | None = None,
     notes: list[str] | None = None,
     runs_taxon: str = "",
+    mark_run_only: bool = True,
 ) -> Census:
     """Genomes per genus or species, with the ENA runs beside them when given."""
     rows = _Rows(rank)
@@ -375,7 +377,7 @@ def genome_census(
         totals["biosamples"] = len({r.biosample or r.accession for r in runs})
     # Rows of runs alone carry an NCBI name with no GTDB genome under it.
     ncbi_only = set(rows.keys()) - with_genomes
-    for key in ncbi_only:
+    for key in ncbi_only if mark_run_only else ():
         rows.row(key)["name"] = _ncbi_label(rows.row(key)["name"])
     defaults = dict.fromkeys(columns[1:], 0)
     return Census(
@@ -656,6 +658,40 @@ def gtdb_api_items(rank: str, name: str, logger: logging.Logger) -> list[Item]:
     return items
 
 
+NCBI_CENSUS_NOTE = (
+    "Genomes are the RefSeq assemblies of the NCBI taxon, without those NCBI flags as "
+    "atypical; the representatives column counts NCBI reference genomes."
+)
+
+
+def ncbi_items(rank: str, name: str, logger: logging.Logger) -> list[Item]:
+    """The RefSeq assemblies of an NCBI family or genus, as ``metadata
+    --source ncbi`` would find them with its default options."""
+    import tempfile
+
+    from ..core.http import NCBI_DATASETS_URL, require_reachable
+    from ..core.ncbi_datasets import DATASETS_CAPS
+    from ..core.plugins import preflight
+    from ..sources import ncbi
+    from ..sources.base import MetadataParams
+
+    preflight(DATASETS_CAPS)
+    require_reachable(NCBI_DATASETS_URL, what="NCBI datasets")
+    mp = MetadataParams(
+        dataset="all",
+        level=rank,
+        source="ncbi",
+        target_family=name if rank == FAMILY else None,
+        target_genus=name if rank == GENUS else None,
+    )
+    with tempfile.TemporaryDirectory(prefix="repgenr_census_") as scratch:
+        _targets, genomes, _taxa, tax = ncbi.candidates(mp, Path(scratch), logger)
+    return _items_from_parsed(
+        {"accession": acc, "tax": tax[acc], "is_rep": genome.reference}
+        for acc, genome in genomes.items()
+    )
+
+
 def gtdb_table_items(
     table: Path,
     logger: logging.Logger,
@@ -788,7 +824,7 @@ def validate(params: CensusParams) -> str:
         source = source or "ncbi_virus"
         if source not in VIRAL_SOURCES:
             raise UserInputError(
-                f"--source {params.source} is a GTDB source; a viral census uses "
+                f"--source {params.source} is a bacterial source; a viral census uses "
                 f"{' or '.join(VIRAL_SOURCES)}."
             )
         if source == "bvbrc":
@@ -846,6 +882,9 @@ def taxon_census(params: CensusParams, source: str, logger: logging.Logger) -> C
     if source == "api":
         items = gtdb_api_items(rank, name, logger)
         label = "gtdb-api"
+    elif source == "ncbi":
+        items = ncbi_items(rank, name, logger)
+        label = "ncbi"
     else:
         table = obtain_table(params, logger)
         items = gtdb_table_items(
@@ -864,7 +903,7 @@ def taxon_census(params: CensusParams, source: str, logger: logging.Logger) -> C
                 f"No genomes of the genus {name} in the family {params.target_family}."
             )
     taxon = _gtdb_spelling(items, rank, name)
-    notes = []
+    notes = [NCBI_CENSUS_NOTE] if source == "ncbi" else []
     runs = None
     runs_taxon = ""
     if params.runs:
@@ -887,7 +926,12 @@ def taxon_census(params: CensusParams, source: str, logger: logging.Logger) -> C
                 replace(r, genus=genus_token) if _norm(r.genus) == _norm(ncbi_name) else r
                 for r in runs
             ]
-    if runs is not None:
+    if runs is not None and source == "ncbi":
+        notes.append(
+            "Runs and genomes are both grouped by NCBI taxonomy. A row without genomes "
+            "holds runs of a taxon with no RefSeq assembly."
+        )
+    elif runs is not None:
         notes.append(
             "Runs are grouped by the NCBI taxonomy of their taxid and genomes by GTDB. "
             "A row marked NCBI holds runs only: no GTDB genome carries that name, "
@@ -903,6 +947,7 @@ def taxon_census(params: CensusParams, source: str, logger: logging.Logger) -> C
         runs=runs,
         notes=notes,
         runs_taxon=runs_taxon,
+        mark_run_only=source != "ncbi",
     )
 
 
@@ -944,8 +989,9 @@ def workdir_census(params: CensusParams, logger: logging.Logger) -> Census:
             items = [_item(r) for r in _ingroup(wd)[0]]
             label = "selection"
             notes.append(
-                "No GTDB table or API answer is in the workdir; the candidates are the "
-                "genomes of selection.tsv. Pass --metadata-path to count the table."
+                "No GTDB table, GTDB API answer or NCBI answer is in the workdir; the "
+                "candidates are the genomes of selection.tsv. Pass --metadata-path to "
+                "count the table."
             )
         else:
             items, label = found
@@ -1017,6 +1063,13 @@ def gtdb_candidates(
     from ..sources.gtdb_api import GTDB_API_GENOMES, read_api_genomes
 
     rec = cfg.stages["metadata"].params
+    if rec.get("source") == "ncbi":
+        from ..sources.ncbi import NCBI_GENOMES, read_genomes
+
+        path = wd / NCBI_GENOMES
+        if not path.is_file():
+            return None
+        return _items_from_parsed(read_genomes(path)), "ncbi"
     if rec.get("source") == "api" and not metadata_path:
         path = wd / GTDB_API_GENOMES
         if not path.is_file():

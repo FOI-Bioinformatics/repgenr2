@@ -660,7 +660,8 @@ def census(
         None,
         "--source",
         callback=_census_source,
-        help="api (GTDB API) or table (GTDB metadata table, also 'tsv'); with --viral, "
+        help="api (GTDB API), table (GTDB metadata table, also 'tsv') or ncbi (RefSeq "
+        "assemblies by NCBI taxonomy); with --viral, "
         "ncbi_virus. bvbrc is counted only from a vmetadata workdir. Default: api, or "
         "ncbi_virus with --viral.",
     ),
