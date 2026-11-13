@@ -623,7 +623,8 @@ def _matches_target(
 
 def gtdb_api_items(rank: str, name: str, logger: logging.Logger) -> list[Item]:
     """The GTDB genomes of a family or genus from the GTDB API (one request)."""
-    from .metadata import MetadataParams, _api_genomes_detail, _normalize_api_tax, _target_taxon
+    from ..sources.base import MetadataParams
+    from ..sources.gtdb_api import api_genomes_detail, normalize_api_tax, target_taxon
 
     mp = MetadataParams(
         dataset="all",
@@ -632,14 +633,14 @@ def gtdb_api_items(rank: str, name: str, logger: logging.Logger) -> list[Item]:
         target_family=name if rank == FAMILY else None,
         target_genus=name if rank == GENUS else None,
     )
-    taxon = _target_taxon(mp)
+    taxon = target_taxon(mp)
     logger.info("Querying the GTDB API for the genomes of %s", taxon)
-    rows = _api_genomes_detail(taxon, False, logger)
+    rows = api_genomes_detail(taxon, False, logger)
     if not rows:
         raise UserInputError(f"The GTDB API returned no genomes for {taxon}.")
     items = []
     for row in rows:
-        tax = _normalize_api_tax(row)
+        tax = normalize_api_tax(row)
         items.append(
             Item(
                 row["gid"],
@@ -665,10 +666,11 @@ def gtdb_table_items(
 ) -> list[Item]:
     """The genomes of a GTDB metadata table under the target, through the
     metadata stage's parser."""
-    from .metadata import MetadataParams, _parse_metadata
+    from ..sources.base import MetadataParams
+    from ..sources.gtdb_table import parse_metadata
 
     mp = MetadataParams(dataset="all", level=GENUS if genus else FAMILY)
-    parsed = _parse_metadata(table, mp, logger)
+    parsed = parse_metadata(table, mp, logger)
     return _items_from_parsed(
         d for d in parsed.values() if _matches_target(d["tax"], family, genus, species)
     )
@@ -677,14 +679,15 @@ def gtdb_table_items(
 def obtain_table(params: CensusParams, logger: logging.Logger) -> Path:
     """The GTDB table for ``--source table``: --metadata-path, or the release
     table in the cache directory (downloaded once, then reused)."""
-    from .metadata import _RELEASE_RE, GTDB_VERSIONS, MetadataParams, obtain_metadata_table
+    from ..sources.base import MetadataParams
+    from ..sources.gtdb_table import GTDB_VERSIONS, RELEASE_RE, obtain_metadata_table
 
     if params.metadata_path:
         path = Path(params.metadata_path)
         if not path.is_file():
             raise UserInputError(f"--metadata-path not found: {params.metadata_path}")
         return path
-    if not params.release or not _RELEASE_RE.match(params.release):
+    if not params.release or not RELEASE_RE.match(params.release):
         raise UserInputError(
             "--source table needs --release like '232.0' (major.minor), or --metadata-path."
         )
@@ -985,7 +988,7 @@ def _find_table(wd: Path, cfg: Any, metadata_path: str | None) -> Path | None:
     table the record names among its inputs, or the release table in the
     workdir. Only gzipped TSVs are read (a tarball would be unpacked beside
     itself, which census must not do)."""
-    from .metadata import workdir_tables
+    from ..sources.gtdb_table import workdir_tables
 
     if metadata_path:
         path = Path(metadata_path)
@@ -1011,7 +1014,7 @@ def gtdb_candidates(
     """The genomes the metadata stage chose from: the GTDB table under the
     recorded target, or the GTDB API answer it kept; None when neither is
     in the workdir."""
-    from .metadata import GTDB_API_GENOMES, read_api_genomes
+    from ..sources.gtdb_api import GTDB_API_GENOMES, read_api_genomes
 
     rec = cfg.stages["metadata"].params
     if rec.get("source") == "api" and not metadata_path:

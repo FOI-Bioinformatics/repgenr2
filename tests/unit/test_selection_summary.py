@@ -16,6 +16,7 @@ import pytest
 from repgenr.core import selection_summary as ss
 from repgenr.core.context import WorkdirContext
 from repgenr.core.contracts import SelectionRow, genome_filename
+from repgenr.sources import gtdb_api
 from repgenr.stages import metadata
 from repgenr.stages.metadata import MetadataParams
 
@@ -252,7 +253,7 @@ def test_api_details_come_from_the_row_and_card() -> None:
             "ncbi_taxonomy_unfiltered": None,
         },
     }
-    d = metadata._api_details(row, card)
+    d = gtdb_api._api_details(row, card)
     assert d.accession_ncbi == "GCA_000833475.1"
     assert d.gtdb_taxonomy.startswith("d__Bacteria;p__Pseudomonadota;")
     assert d.gtdb_taxonomy.endswith(";s__Francisella tularensis")
@@ -260,5 +261,5 @@ def test_api_details_come_from_the_row_and_card() -> None:
     assert d.ncbi_taxonomy_unfiltered == ""
     assert d.ncbi_strain_identifiers == "NIH B-38"
     # A failed card leaves the NCBI fields empty, the GTDB lineage from the row.
-    empty = metadata._api_details(row, {})
+    empty = gtdb_api._api_details(row, {})
     assert empty.ncbi_taxonomy == "" and empty.gtdb_taxonomy == d.gtdb_taxonomy

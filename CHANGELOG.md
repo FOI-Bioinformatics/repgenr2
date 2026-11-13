@@ -13,6 +13,15 @@ All notable changes to RepGenR2 are documented here. The format follows
   clustering. A cluster holding pinned genomes is split, and each other
   member joins the candidate it shares the highest sketch ANI with.
 
+### Changed
+
+- The `metadata` stage finds genomes through a selection-source family
+  (`repgenr.sources`, entry-point group of the same name). The GTDB table
+  (`--source tsv`) and the GTDB API (`--source api`) are its first two
+  members; selections and records are unchanged. Code that imported
+  helpers from `repgenr.stages.metadata` finds them in
+  `repgenr.sources.gtdb_table` and `repgenr.sources.gtdb_api`.
+
 ### Fixed
 
 - `genome-fetch` (the download step of the Nextflow route) writes

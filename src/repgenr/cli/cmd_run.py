@@ -497,7 +497,6 @@ def run(
     from .param_builders import (
         METADATA_DATASETS,
         METADATA_LEVELS,
-        METADATA_SOURCES,
         VIRAL_SOURCES,
         apply_preset,
         assemble_params,
@@ -507,6 +506,7 @@ def run(
         ingest_params,
         join_species,
         metadata_params,
+        metadata_sources,
         phylo_params,
         reads_params,
         require_mask,
@@ -529,7 +529,7 @@ def run(
         # Fail fast before any stage runs; the same validation re-runs inside
         # each stage's builder. The selection sources are checked here under
         # the names `run` gives them (the builders know them as --source).
-        _require_choice(metadata_source, METADATA_SOURCES, "--metadata-source")
+        _require_choice(metadata_source, metadata_sources(), "--metadata-source")
         _require_choice(viral_source, VIRAL_SOURCES, "--viral-source")
         _require_choice(dataset, METADATA_DATASETS, "--dataset")
         target_species = join_species(target_species)

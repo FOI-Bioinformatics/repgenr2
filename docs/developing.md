@@ -61,6 +61,9 @@ stages/                one module per stage (metadata, genome, ingest, reads,
                        tree2tax, glance, sketch, ...) and the step
                        implementations (*_steps.py)
 viral/                 NCBI Virus and BV-BRC back-ends of vmetadata/vgenome
+sources/               selection sources of the metadata stage: base.py
+                       (GenomeSource, MetadataParams, registry) + one module
+                       per source (gtdb_table.py, gtdb_api.py)
 dereplicators/  aligners/  snptypers/  maskers/  treebuilders/
 annotators/  coregenes/  assemblers/  polishers/  classifiers/
                        one package per tool family: base.py (ABC, parameter
@@ -258,6 +261,15 @@ run uses them; `README.md` lists the adapters of each family.
 | Alignment tools | Masker | `repgenr.maskers.base.Masker` | `mask(full_alignment, out_dir, params: MaskParams, logger)` | masked variable-site FASTA `Path` | `repgenr.maskers` |
 | Alignment tools | Core-gene builder | `repgenr.coregenes.base.CoreGeneBuilder` | `call(gffs, out_dir, params, logger)` | `CoreGeneResult` | `repgenr.coregenes` |
 | Tree tools | Tree builder | `repgenr.treebuilders.base.TreeBuilder` | `build(msa_or_genomes, out_dir, params, logger)` | Newick `Path` | `repgenr.treebuilders` |
+
+The selection sources of the `metadata` stage use the same `Registry`
+(entry-point group `repgenr.sources`), although they wrap a table or a web
+service and not a tool. A source subclasses
+`repgenr.sources.base.GenomeSource` and implements
+`select(ctx, params, logger, counts)`, which returns the selected genomes,
+the outgroup and the per-genome details; the stage writes the manifest,
+`selection.tsv`, the summary and the stage record for every source alike.
+`metadata --source` accepts the registered names.
 
 The parameter dataclasses are, in the same order, `AssembleParams`,
 `PolishParams`, `ClassifyParams`, `DerepParams`, `AnnotateParams`,
