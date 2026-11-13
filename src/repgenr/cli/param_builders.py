@@ -37,6 +37,7 @@ _UNSET: Any = object()
 # its own flag names (--metadata-source, --viral-source).
 METADATA_DATASETS = frozenset({"all", "rep"})
 METADATA_LEVELS = frozenset({"family", "genus", "species"})
+METADATA_ASSEMBLY_SOURCES = frozenset({"refseq", "genbank", "all"})
 VIRAL_SOURCES = frozenset({"ncbi_virus", "bvbrc"})
 LENGTH_METHODS = frozenset({"median_of_medians", "mean"})
 DEREP_STOCK_ACTIONS = frozenset({"list", "pack", "unpack", "delete"})
@@ -78,6 +79,11 @@ def metadata_params(
     nodownload: Any = _UNSET,
     limit: Any = _UNSET,
     drop_foreign: Any = _UNSET,
+    assembly_source: Any = _UNSET,
+    assembly_level: Any = _UNSET,
+    include_atypical: Any = _UNSET,
+    exclude_mag: Any = _UNSET,
+    released_before: Any = _UNSET,
 ) -> MetadataParams:
     from ..stages.metadata import MetadataParams
 
@@ -85,6 +91,8 @@ def metadata_params(
     _require_choice(level, METADATA_LEVELS, "--level")
     if source is not _UNSET:
         _require_choice(source, metadata_sources(), "--source")
+    if assembly_source is not _UNSET:
+        _require_choice(assembly_source, METADATA_ASSEMBLY_SOURCES, "--assembly-source")
     if outgroup_mode is not _UNSET:
         from ..core.outgroup_choice import OUTGROUP_MODES
 
@@ -109,6 +117,11 @@ def metadata_params(
         nodownload=nodownload,
         limit=limit,
         drop_foreign=drop_foreign,
+        assembly_source=assembly_source,
+        assembly_level=assembly_level,
+        include_atypical=include_atypical,
+        exclude_mag=exclude_mag,
+        released_before=released_before,
     )
 
 

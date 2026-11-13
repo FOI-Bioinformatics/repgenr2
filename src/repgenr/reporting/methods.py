@@ -103,7 +103,14 @@ def _metadata(m: MethodsInfo) -> tuple[str, list[str]]:
     p = m.params
     target = p.get("target_species") or p.get("target_genus") or p.get("target_family")
     level = p.get("level")
-    if p.get("source") == "api":
+    ncbi = p.get("source") == "ncbi"
+    if ncbi:
+        held = {"refseq": "RefSeq", "genbank": "GenBank", "all": "RefSeq and GenBank"}
+        where = f"the {held.get(str(p.get('assembly_source')), 'NCBI')} assemblies at NCBI"
+        where += f", by NCBI taxonomy, with datasets{_version(m, 'datasets')}"
+        if p.get("query_date"):
+            where += f" (queried on {str(p['query_date'])[:10]})"
+    elif p.get("source") == "api":
         where = "the GTDB web API"
         if p.get("api_query_date"):
             where += f" (queried on {str(p['api_query_date'])[:10]})"
@@ -116,12 +123,25 @@ def _metadata(m: MethodsInfo) -> tuple[str, list[str]]:
         text += f" for {target}" + (f" ({level})" if level else "")
     text += "."
     if p.get("dataset") == "rep":
-        text += " Only GTDB species representatives were considered."
+        text += (
+            " Only NCBI reference genomes were considered."
+            if ncbi
+            else " Only GTDB species representatives were considered."
+        )
     if p.get("outgroup"):
         text += f" Genome {p['outgroup']} was taken as the outgroup"
-        text += _OUTGROUP_RULES.get(str(p.get("outgroup_rule")), "") + "."
-    return text, ["gtdb"]
+        rules = _NCBI_OUTGROUP_RULES if ncbi else _OUTGROUP_RULES
+        text += rules.get(str(p.get("outgroup_rule")), "") + "."
+    return text, ["datasets"] if ncbi else ["gtdb"]
 
+
+_NCBI_OUTGROUP_RULES = {
+    "quality": (
+        ": the NCBI reference genome of best assembly quality (CheckM completeness"
+        " - 5 x contamination, isolates before metagenome-assembled genomes) in the parent"
+        " taxon of the target"
+    ),
+}
 
 _OUTGROUP_RULES = {
     "sister": (

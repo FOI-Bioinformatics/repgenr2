@@ -62,18 +62,23 @@ is 'vmetadata --source'. --platform filters the sequencing platform with
 | `--platform` | `any` | With --reads: any, illumina, ont or pacbio. |
 | `--max-runs` |  | With --reads: keep at most N runs, the largest by bases. |
 | `--assembler` | `auto` | Assembler: auto, flye, shovill, skesa. |
-| `-d`, `--dataset` | `rep` | GTDB dataset: all or rep. |
+| `-d`, `--dataset` | `rep` | Dataset: all genomes of the target, or rep: the GTDB species representatives (with --source ncbi, the NCBI reference genomes). |
 | `-l`, `--level` |  | Taxonomic rank of the target: family, genus or species. |
 | `-tf`, `--target-family` |  | Restrict the selection to this family. |
 | `-tg`, `--target-genus` |  | Restrict the selection to this genus. |
 | `-ts`, `--target-species` |  | Restrict the selection to this species. On the GTDB chain, repeat it or separate names by commas to select several species of the target genus. |
 | `-r`, `--release` |  | GTDB release (tsv source). |
 | `--gtdb-version` |  | GTDB table: bac120 or ar53 (tsv source). |
-| `--metadata-source` | `tsv` | Source of the GTDB metadata: tsv (the metadata table) or api (the GTDB API). |
+| `--metadata-source` | `tsv` | Where the genomes are selected from: tsv (the GTDB metadata table of a release), api (the GTDB API, target only) or ncbi (NCBI through the datasets client, by NCBI taxonomy; RefSeq by default). |
+| `--assembly-source` | `refseq` | With --source ncbi: refseq (GCF_ assemblies), genbank (GCA_) or all (one entry per assembly, GCF_ where both exist). |
+| `--assembly-level` |  | With --source ncbi: keep only these assembly levels (complete, chromosome, scaffold, contig; comma-separated). |
+| `--include-atypical` | off | With --source ncbi: keep assemblies NCBI flags as atypical; they are left out by default. |
+| `--exclude-mag` | off | With --source ncbi: leave out metagenome-assembled genomes. |
+| `--released-before` |  | With --source ncbi: only assemblies released on or before this date (YYYY-MM-DD). |
 | `--metadata-path` |  | Use this GTDB metadata table instead of downloading. With --source tsv, -r/--release and --gtdb-version are still required. |
 | `--nodownload` | off | Reuse a GTDB table already present in the workdir. |
 | `--outgroup-accession` |  | Accession to fetch and set aside as the outgroup. |
-| `--outgroup-mode` | `sister` | How the outgroup is chosen when --outgroup-accession is not given: sister (the best-quality representative of the group nearest the target in the GTDB reference tree), quality (the best-quality representative of the parent taxon) or first (the first representative of the parent taxon in table order, as before 2.3.0). |
+| `--outgroup-mode` | `sister` | How the outgroup is chosen when --outgroup-accession is not given: sister (the best-quality representative of the group nearest the target in the GTDB reference tree), quality (the best-quality representative of the parent taxon) or first (the first representative of the parent taxon in table order, as before 2.3.0). --source ncbi has no reference tree: sister is chosen as quality, among the NCBI reference genomes of the parent taxon. |
 | `--gtdb-tree-path` |  | GTDB reference tree (e.g. bac120_r232.tree) for --outgroup-mode sister, instead of downloading it into the workdir. Required for sister with --source api. |
 | `--limit` |  | Keep at most N GTDB genomes, round-robin over species by CheckM quality. |
 | `--target` |  | Virus taxon to select (viral), as vmetadata --target takes it. |
@@ -223,16 +228,16 @@ that does not exist exits 3.
 
 ### metadata
 
-Select a taxon's genomes from GTDB (full table or the GTDB API).
+Select a taxon's genomes from GTDB (table or API) or from NCBI.
 
 The --source option is called --metadata-source in 'run'.
 
 | option | default | description |
 |---|---|---|
 | `-wd`, `--workdir` | required | Working directory (created). |
-| `-d`, `--dataset` | required | GTDB dataset: all or rep. |
+| `-d`, `--dataset` | required | Dataset: all genomes of the target, or rep: the GTDB species representatives (with --source ncbi, the NCBI reference genomes). |
 | `-l`, `--level` | required | Taxonomic rank of the target: family, genus or species. |
-| `--source` | `tsv` | tsv (download full table) or api (GTDB API, target only). |
+| `--source` | `tsv` | Where the genomes are selected from: tsv (the GTDB metadata table of a release), api (the GTDB API, target only) or ncbi (NCBI through the datasets client, by NCBI taxonomy; RefSeq by default). |
 | `-r`, `--release` |  | GTDB release (tsv source). |
 | `--gtdb-version` |  | GTDB table: bac120 or ar53 (tsv source). |
 | `-tf`, `--target-family` |  | Restrict the selection to this family. |
@@ -240,12 +245,17 @@ The --source option is called --metadata-source in 'run'.
 | `-ts`, `--target-species` |  | Restrict the selection to this species. Repeat it, or separate names by commas, to select several species of the target genus (with --level species). |
 | `--outgroup-accession` |  | Accession to fetch and set aside as the outgroup. |
 | `--no-outgroup` | off | Select no outgroup: none is chosen or downloaded. Root the tree with phylo --root midpoint, or leave it unrooted. |
-| `--outgroup-mode` | `sister` | How the outgroup is chosen when --outgroup-accession is not given: sister (the best-quality representative of the group nearest the target in the GTDB reference tree), quality (the best-quality representative of the parent taxon) or first (the first representative of the parent taxon in table order, as before 2.3.0). |
+| `--outgroup-mode` | `sister` | How the outgroup is chosen when --outgroup-accession is not given: sister (the best-quality representative of the group nearest the target in the GTDB reference tree), quality (the best-quality representative of the parent taxon) or first (the first representative of the parent taxon in table order, as before 2.3.0). --source ncbi has no reference tree: sister is chosen as quality, among the NCBI reference genomes of the parent taxon. |
 | `--gtdb-tree-path` |  | GTDB reference tree (e.g. bac120_r232.tree) for --outgroup-mode sister, instead of downloading it into the workdir. Required for sister with --source api. |
 | `--metadata-path` |  | Use this GTDB metadata table instead of downloading. With --source tsv, -r/--release and --gtdb-version are still required. |
 | `--nodownload` | off | Reuse a GTDB table already present in the workdir. |
 | `--limit` |  | Keep at most N GTDB genomes, round-robin over species by CheckM quality. |
 | `--drop-foreign` | off | Discard genomes appended from sequencing runs (assemble --append) instead of refusing to overwrite the selection that holds them. |
+| `--assembly-source` | `refseq` | With --source ncbi: refseq (GCF_ assemblies), genbank (GCA_) or all (one entry per assembly, GCF_ where both exist). |
+| `--assembly-level` |  | With --source ncbi: keep only these assembly levels (complete, chromosome, scaffold, contig; comma-separated). |
+| `--include-atypical` | off | With --source ncbi: keep assemblies NCBI flags as atypical; they are left out by default. |
+| `--exclude-mag` | off | With --source ncbi: leave out metagenome-assembled genomes. |
+| `--released-before` |  | With --source ncbi: only assemblies released on or before this date (YYYY-MM-DD). |
 
 ### genome
 

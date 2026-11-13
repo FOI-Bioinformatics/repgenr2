@@ -55,6 +55,28 @@ class MetadataParams:
     # Discard genomes another entry path appended (assemble --append) instead
     # of refusing to overwrite the selection that holds them.
     drop_foreign: bool = False
+    # Options of the NCBI source (see SOURCE_OPTIONS): which assemblies NCBI
+    # is asked for. refseq (GCF_), genbank (GCA_) or all (one per assembly,
+    # GCF_ where both exist).
+    assembly_source: str = "refseq"
+    # complete, chromosome, scaffold, contig; several separated by commas.
+    assembly_level: str | None = None
+    # Keep assemblies NCBI flags as atypical (excluded by default).
+    include_atypical: bool = False
+    # Leave out metagenome-assembled genomes.
+    exclude_mag: bool = False
+    # Only assemblies released on or before this date (YYYY-MM-DD).
+    released_before: str | None = None
+
+
+# Options only some sources read: field -> (flag, the value that means "not given").
+SOURCE_OPTIONS: dict[str, tuple[str, object]] = {
+    "assembly_source": ("--assembly-source", "refseq"),
+    "assembly_level": ("--assembly-level", None),
+    "include_atypical": ("--include-atypical", False),
+    "exclude_mag": ("--exclude-mag", False),
+    "released_before": ("--released-before", None),
+}
 
 
 def species_or_none(params: MetadataParams) -> list[str | None]:
@@ -197,6 +219,11 @@ class GenomeSource(ABC):
     # Files the source leaves in the workdir for ``census``; a run of another
     # source removes them.
     workdir_files: tuple[str, ...] = ()
+    # The fields of SOURCE_OPTIONS this source reads; the others are refused.
+    options: frozenset[str] = frozenset()
+    # Versions of the binaries a selection ran, set by prepare(); empty for a
+    # source that needs none.
+    tool_versions: dict[str, str] = {}
 
     def validate(self, params: MetadataParams) -> None:
         """Refuse parameter values this source cannot use."""

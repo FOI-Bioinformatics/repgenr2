@@ -277,6 +277,63 @@ against it. On the API path the quality card of every candidate is fetched
 before the cut, four at a time. A card the API refuses twice leaves its
 genome unscored, and unscored genomes come last.
 
+### Bacteria from NCBI
+
+`metadata --source ncbi` selects the assemblies NCBI holds for a taxon of
+NCBI Taxonomy, through the `datasets` client that `genome` also uses. It
+reaches genomes a GTDB release does not contain yet and names them as NCBI
+does. The rest of the chain is unchanged.
+
+```bash
+WD=./francisella_ncbi
+repgenr metadata -wd $WD --source ncbi -d all -l genus -tg Francisella
+repgenr genome -wd $WD
+```
+
+**Target names** are NCBI names (`Bacillus`, not GTDB's `Bacillus_A`), with
+`-l`, `-tf`, `-tg` and `-ts` as for GTDB. The name is resolved to a taxid
+first: it has to be a bacterial or archaeal taxon of the rank given with
+`-l`, so a genus name that NCBI Taxonomy also uses for an animal genus is
+settled without a prompt. A genome is named by the current species of its
+taxid; a subspecies or strain taxid therefore carries its species.
+
+**Which assemblies.** `--assembly-source refseq` (the default) selects
+RefSeq assemblies (`GCF_`), `genbank` the GenBank ones (`GCA_`), and `all`
+one entry per assembly: `GCF_` where RefSeq holds it, `GCA_` otherwise.
+`-d rep` selects NCBI's reference genomes, about one per species, in place
+of the GTDB species representatives. Further filters:
+
+| Option | Effect |
+|---|---|
+| `--assembly-level` | Keep `complete`, `chromosome`, `scaffold` or `contig` assemblies (comma-separated). |
+| `--include-atypical` | Keep assemblies NCBI flags as atypical; they are left out by default. |
+| `--exclude-mag` | Leave out metagenome-assembled genomes. |
+| `--released-before` | Only assemblies released on or before a date (`YYYY-MM-DD`). |
+
+These options are refused with `--source tsv` and `--source api`, and the
+GTDB options (`-r`, `--gtdb-version`, `--metadata-path`, `--nodownload`,
+`--gtdb-tree-path`) are ignored with a warning here.
+
+**What differs from GTDB:**
+
+- There is no release to pin. The stage records the date of the query
+  (`query_date`), shown by `status` and `versions`, and keeps NCBI's answer
+  in `ncbi_genomes.tsv`. `--released-before` narrows a later run to the
+  assemblies that existed at a date, although NCBI may have suppressed some
+  of them since.
+- There is no reference tree, so `--outgroup-mode sister` is carried out as
+  `quality`: the best assembly among the NCBI reference genomes of the
+  parent taxon (the genus of a species target, the family of a genus, the
+  order of a family) that lies outside the target. `--outgroup-accession`
+  and `--no-outgroup` work as for GTDB.
+- Completeness and contamination are NCBI's CheckM values, computed with a
+  marker set of the genome's own taxon. Some assemblies have none (15 % of
+  the GenBank *Francisella* assemblies on 2026-11-13); they rank last under
+  `--limit`. The values are not comparable with GTDB's CheckM2 values, so
+  avoid mixing selections of both kinds when quality decides the keeper.
+- No genome carries the GTDB representative flag, so `dereplicate --keeper
+  gtdb` chooses as `--keeper quality` does.
+
 ### Starting from local genomes
 
 `repgenr ingest` builds a working directory from local FASTA files, in

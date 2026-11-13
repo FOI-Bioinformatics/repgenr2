@@ -30,6 +30,68 @@ def _rows(wd: Path):
     return [r for r in rows if not r.is_outgroup], [r for r in rows if r.is_outgroup]
 
 
+# --- NCBI (datasets genome summary) ---------------------------------------------
+
+
+def test_ncbi_refseq_species_selection_and_download(run_repgenr, tmp_path: Path) -> None:
+    """--source ncbi selects RefSeq assemblies by NCBI taxonomy, with an
+    outgroup from the reference genomes of the genus, and genome downloads them."""
+    wd = tmp_path / "ncbi"
+    run_repgenr(
+        "metadata", "-wd", wd, "--source", "ncbi", "-d", "all", "-l", "species",
+        "-tg", "Francisella", "-ts", "philomiragia", "--assembly-level", "complete",
+        "--limit", "4",
+    )  # fmt: skip
+    ingroup, outgroup = _rows(wd)
+    assert len(ingroup) == 4 and {r.species for r in ingroup} == {"philomiragia"}
+    assert all(r.accession.startswith("GCF_") for r in [*ingroup, *outgroup])
+    assert all(r.completeness is not None for r in ingroup)
+    assert len(outgroup) == 1 and outgroup[0].genus == "Francisella"
+    assert outgroup[0].species != "philomiragia"
+
+    record = Config.load(wd).stages["metadata"]
+    assert record.tool == "ncbi-datasets" and "datasets" in (record.tool_versions or {})
+    assert record.params["query_date"] and record.params["assembly_level"] == "complete"
+    assert record.params["outgroup_rule"] == "quality"
+    assert (wd / "ncbi_genomes.tsv").is_file()
+
+    run_repgenr("genome", "-wd", wd)
+    assert len(list_fasta(wd / "genomes")) == 4
+    assert len(list_fasta(wd / "outgroup")) == 1
+    assert (wd / "missing_accessions.txt").read_text().strip() == ""
+
+
+def test_ncbi_assembly_sources_and_filters(run_repgenr, tmp_path: Path) -> None:
+    """genbank selects GCA_ only; all lists every assembly once; the filters
+    reach NCBI; a name NCBI does not know is refused."""
+    species = ("-l", "species", "-tg", "Francisella", "-ts", "philomiragia", "--no-outgroup")
+    gb = tmp_path / "genbank"
+    run_repgenr(
+        "metadata", "-wd", gb, "--source", "ncbi", "-d", "all", *species,
+        "--assembly-source", "genbank", "--exclude-mag", "--released-before", "2020-01-01",
+    )  # fmt: skip
+    genbank, _ = _rows(gb)
+    assert genbank and all(r.accession.startswith("GCA_") for r in genbank)
+
+    both = tmp_path / "all"
+    run_repgenr(
+        "metadata", "-wd", both, "--source", "ncbi", "-d", "all", *species,
+        "--assembly-source", "all", "--include-atypical",
+    )  # fmt: skip
+    rows, _ = _rows(both)
+    assemblies = [r.accession[4:] for r in rows]
+    assert len(assemblies) == len(set(assemblies)), "an assembly is listed as GCF_ and GCA_"
+    assert len(rows) >= len(genbank)
+    assert any(r.accession.startswith("GCF_") for r in rows)
+
+    proc = run_repgenr(
+        "metadata", "-wd", tmp_path / "bad", "--source", "ncbi", "-d", "all", "-l", "genus",
+        "-tg", "Nonexistentus", check=False,
+    )  # fmt: skip
+    assert proc.returncode == 2, proc.stderr
+    assert "no taxon named" in proc.stdout + proc.stderr
+
+
 # --- GTDB API ----------------------------------------------------------------
 
 

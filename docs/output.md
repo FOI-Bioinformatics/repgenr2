@@ -47,6 +47,7 @@ WD/
   <version>_metadata_r<major>.*   GTDB table (metadata)
   <version>_r<major>.tree         GTDB reference tree (metadata, --outgroup-mode sister)
   gtdb_api_genomes.tsv            GTDB API candidates (metadata --source api)
+  ncbi_genomes.tsv                NCBI candidates (metadata --source ncbi)
   virus_download_wd/              viral records (vmetadata)
   virus_metadata_base.tsv         viral metadata table (vmetadata)
   virus_metadata_ncbi_summary.tsv genomes and sequences per NCBI taxon (vmetadata, BV-BRC)
@@ -138,7 +139,10 @@ WD/
   `apptainer`).
 - `metadata` `params`: `release`, the GTDB release of the table; with
   `--source api` it is null and `api_query_date` holds the UTC time of the
-  query.
+  query. With `--source ncbi` both are null; `query_date` holds the UTC time
+  of the query, `assembly_source`, `assembly_level`, `include_atypical`,
+  `exclude_mag` and `released_before` the filters, and `tool_versions` the
+  `datasets` client.
 - `ingest` `params`:
   - `genomes_dir`;
   - `from_workdirs`, the `--from-workdir` directories, empty without it;
@@ -188,6 +192,7 @@ engine once.
 | `<version>_metadata_r<major>.release` | The exact release the table was fetched for; `--nodownload` checks it before reuse. |
 | `<version>_r<major>.tree` | The GTDB reference tree of the release (e.g. `bac120_r232.tree`), downloaded for `--outgroup-mode sister` (the default) unless `--gtdb-tree-path` names one. Reused by later runs. |
 | `gtdb_api_genomes.tsv` | With `--source api`: the genomes the GTDB API returned for the target before `--limit`. `census -wd` counts them as candidates. Removed by a run with `--source tsv`. |
+| `ncbi_genomes.tsv` | With `--source ncbi`: the assemblies NCBI returned for the target before `--limit` (accession, taxonomy tokens and names, reference-genome flag). Removed by a run with another source. |
 | `virus_download_wd/` | Downloaded viral sequences, the tables `vgenome` selects from, and `download.source`, the source and target of `download.fa`. |
 | `virus_download_wd/virus_records.json` | NCBI Virus path: one record per sequence (keys below). |
 | `virus_metadata_base.tsv`, `virus_metadata_ncbi.tsv` | Copies of the viral metadata tables; the second on the BV-BRC path only. On the NCBI Virus path `name` is the species and `description` the organism name. |

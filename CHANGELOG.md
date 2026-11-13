@@ -8,6 +8,15 @@ All notable changes to RepGenR2 are documented here. The format follows
 
 ### Added
 
+- `metadata --source ncbi`: select bacterial and archaeal genomes from NCBI
+  by NCBI taxonomy, through the `datasets` client. RefSeq (`GCF_`)
+  assemblies by default; `--assembly-source genbank` or `all` reach GenBank,
+  with one entry per assembly. `-d rep` selects the NCBI reference genomes.
+  New filters: `--assembly-level`, `--include-atypical`, `--exclude-mag`
+  and `--released-before`. The outgroup is the best assembly among the
+  reference genomes of the parent taxon; there is no release to pin, and
+  the query date is recorded. `run --metadata-source ncbi` takes the same
+  options. See "Bacteria from NCBI" in `docs/usage.md`.
 - `dereplicate --pin` and `--pin-file`: named genomes, such as the reference
   strains of biovars, are kept as representatives whatever the ANI
   clustering. A cluster holding pinned genomes is split, and each other

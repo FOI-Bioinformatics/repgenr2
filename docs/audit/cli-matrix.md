@@ -3,7 +3,7 @@
 Generated from `tests/audit/cli_matrix.yaml` by `scripts/render_cli_matrix.py`;
 `tests/unit/test_cli_matrix.py` keeps both in step with the command tree.
 
-41 commands, 511 flags (504 with a live test or an n/a reason, 7 pending).
+41 commands, 521 flags (514 with a live test or an n/a reason, 7 pending).
 
 ## Global flags
 
@@ -290,6 +290,11 @@ dispatch: `stage`
 | `--nodownload` |  | MetadataParams.nodownload | none | params.metadata_args | tests/live/test_network.py::test_tsv_nodownload_and_metadata_path_reuse_the_table | docs/cli-reference.md, docs/audit/cli-matrix.md |
 | `--limit` |  | MetadataParams.limit | range | params.metadata_args | tests/live/test_network.py::test_api_species_limit_and_explicit_outgroup | docs/cli-reference.md, docs/audit/scaling-audit.md, docs/usage.md, docs/audit/cli-matrix.md |
 | `--drop-foreign` |  | MetadataParams.drop_foreign | none | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: offline guard tests in tests/unit/test_foreign_rows.py | docs/reads.md, docs/cli-reference.md, docs/audit/cli-matrix.md |
+| `--assembly-source` |  | MetadataParams.assembly_source | choice | params.metadata_args | tests/live/test_network.py::test_ncbi_assembly_sources_and_filters | docs/usage.md, docs/cli-reference.md, docs/audit/cli-matrix.md |
+| `--assembly-level` |  | MetadataParams.assembly_level | stage | params.metadata_args | tests/live/test_network.py::test_ncbi_refseq_species_selection_and_download | docs/usage.md, docs/cli-reference.md, docs/audit/cli-matrix.md |
+| `--include-atypical` |  | MetadataParams.include_atypical | none | params.metadata_args | tests/live/test_network.py::test_ncbi_assembly_sources_and_filters | docs/usage.md, docs/cli-reference.md, docs/audit/cli-matrix.md |
+| `--exclude-mag` |  | MetadataParams.exclude_mag | none | params.metadata_args | tests/live/test_network.py::test_ncbi_assembly_sources_and_filters | docs/usage.md, docs/cli-reference.md, docs/audit/cli-matrix.md |
+| `--released-before` |  | MetadataParams.released_before | stage | params.metadata_args | tests/live/test_network.py::test_ncbi_assembly_sources_and_filters | docs/usage.md, docs/cli-reference.md, docs/audit/cli-matrix.md |
 
 ## phylo
 
@@ -545,6 +550,11 @@ dispatch: `stage`
 | `--release` | -r | MetadataParams.release | none | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: forwarded to metadata unchanged (wiring test); the TSV path is exercised on metadata in test_network.py | docs/usage.md, docs/cli-reference.md, docs/audit/cli-matrix.md |
 | `--gtdb-version` |  | MetadataParams.version | none | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: forwarded to metadata unchanged (wiring test); the TSV path is exercised on metadata in test_network.py | README.md, docs/cli-reference.md, docs/usage.md, docs/audit/cli-matrix.md |
 | `--metadata-source` |  | MetadataParams.source | choice | n/a: workdir command; the Nextflow layer uses the stateless steps | tests/live/test_network.py::test_run_bacterial_chain_end_to_end | docs/cli-reference.md, docs/audit/cli-matrix.md |
+| `--assembly-source` |  | MetadataParams.assembly_source | choice | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: forwarded to the stage builder unchanged (wiring test); the stage flag is covered live | docs/cli-reference.md, docs/audit/cli-matrix.md |
+| `--assembly-level` |  | MetadataParams.assembly_level | stage | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: forwarded to the stage builder unchanged (wiring test); the stage flag is covered live | docs/cli-reference.md, docs/audit/cli-matrix.md |
+| `--include-atypical` |  | MetadataParams.include_atypical | none | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: forwarded to the stage builder unchanged (wiring test); the stage flag is covered live | docs/cli-reference.md, docs/audit/cli-matrix.md |
+| `--exclude-mag` |  | MetadataParams.exclude_mag | none | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: forwarded to the stage builder unchanged (wiring test); the stage flag is covered live | docs/cli-reference.md, docs/audit/cli-matrix.md |
+| `--released-before` |  | MetadataParams.released_before | stage | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: forwarded to the stage builder unchanged (wiring test); the stage flag is covered live | docs/cli-reference.md, docs/audit/cli-matrix.md |
 | `--outgroup-accession` |  | MetadataParams.outgroup_accession | none | n/a: workdir command; the Nextflow layer uses the stateless steps | tests/live/test_network.py::test_run_bacterial_chain_end_to_end | docs/cli-reference.md, docs/audit/cli-matrix.md |
 | `--outgroup-mode` |  | MetadataParams.outgroup_mode | choice | n/a: workdir command; the Nextflow layer uses the stateless steps | tests/live/test_network.py::test_tsv_outgroup_modes_choose_from_the_gtdb_tree | docs/cli-reference.md, docs/usage.md, docs/audit/cli-matrix.md |
 | `--gtdb-tree-path` |  | MetadataParams.gtdb_tree_path | none | n/a: workdir command; the Nextflow layer uses the stateless steps | tests/live/test_network.py::test_tsv_outgroup_modes_choose_from_the_gtdb_tree | docs/cli-reference.md, docs/usage.md, docs/audit/cli-matrix.md |
