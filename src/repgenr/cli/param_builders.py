@@ -37,10 +37,16 @@ _UNSET: Any = object()
 # its own flag names (--metadata-source, --viral-source).
 METADATA_DATASETS = frozenset({"all", "rep"})
 METADATA_LEVELS = frozenset({"family", "genus", "species"})
-METADATA_SOURCES = frozenset({"tsv", "api"})
 VIRAL_SOURCES = frozenset({"ncbi_virus", "bvbrc"})
 LENGTH_METHODS = frozenset({"median_of_medians", "mean"})
 DEREP_STOCK_ACTIONS = frozenset({"list", "pack", "unpack", "delete"})
+
+
+def metadata_sources() -> frozenset[str]:
+    """The registered selection sources (``metadata --source``)."""
+    from ..sources.base import registry
+
+    return frozenset(registry.names())
 
 
 def _build(cls: type, **kwargs: Any):
@@ -78,7 +84,7 @@ def metadata_params(
     _require_choice(dataset, METADATA_DATASETS, "--dataset")
     _require_choice(level, METADATA_LEVELS, "--level")
     if source is not _UNSET:
-        _require_choice(source, METADATA_SOURCES, "--source")
+        _require_choice(source, metadata_sources(), "--source")
     if outgroup_mode is not _UNSET:
         from ..core.outgroup_choice import OUTGROUP_MODES
 

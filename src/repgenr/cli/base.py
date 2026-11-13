@@ -478,7 +478,7 @@ def _metadata_table_inputs(ctx: WorkdirContext, params: Any) -> list[Path]:
     version = getattr(params, "version", None)
     reuses = getattr(params, "nodownload", False) and getattr(params, "source", "tsv") == "tsv"
     if reuses and release and version:
-        from ..stages.metadata import workdir_tables
+        from ..sources.gtdb_table import workdir_tables
 
         try:
             # Both naming schemes; the absent one digests to a stable sentinel.

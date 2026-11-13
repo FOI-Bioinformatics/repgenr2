@@ -5,20 +5,16 @@ from __future__ import annotations
 import pytest
 
 from repgenr.core.errors import UserInputError
-from repgenr.stages.metadata import (
-    MetadataParams,
-    _normalize_api_tax,
-    _target_taxon,
-    _validate,
-)
+from repgenr.sources.gtdb_api import normalize_api_tax, target_taxon
+from repgenr.stages.metadata import MetadataParams, _validate
 
 
-def test_target_taxon_strings() -> None:
+def testtarget_taxon_strings() -> None:
     p = MetadataParams(dataset="rep", level="genus", source="api", target_genus="francisella")
-    assert _target_taxon(p) == "g__Francisella"
+    assert target_taxon(p) == "g__Francisella"
 
     p = MetadataParams(dataset="rep", level="family", source="api", target_family="francisellaceae")
-    assert _target_taxon(p) == "f__Francisellaceae"
+    assert target_taxon(p) == "f__Francisellaceae"
 
     p = MetadataParams(
         dataset="rep",
@@ -27,16 +23,16 @@ def test_target_taxon_strings() -> None:
         target_genus="francisella",
         target_species="tularensis",
     )
-    assert _target_taxon(p) == "s__Francisella tularensis"
+    assert target_taxon(p) == "s__Francisella tularensis"
 
 
-def test_normalize_api_tax() -> None:
+def testnormalize_api_tax() -> None:
     row = {
         "gtdbFamily": "f__Francisellaceae",
         "gtdbGenus": "g__Francisella",
         "gtdbSpecies": "s__Francisella tularensis",
     }
-    tax = _normalize_api_tax(row)
+    tax = normalize_api_tax(row)
     assert tax["family"] == "Francisellaceae"
     assert tax["genus"] == "Francisella"
     # genus removed from species, spaces dropped
@@ -63,13 +59,13 @@ def test_validate_tsv_requires_release() -> None:
         ("Prevotella", "Copri_A", "s__Prevotella copri_A"),
     ],
 )
-def test_target_taxon_keeps_gtdb_suffixes_and_lowers_the_epithet(genus, species, expected) -> None:
+def testtarget_taxon_keeps_gtdb_suffixes_and_lowers_the_epithet(genus, species, expected) -> None:
     p = MetadataParams(
         dataset="rep", level="species", source="api", target_genus=genus, target_species=species
     )
-    assert _target_taxon(p) == expected
+    assert target_taxon(p) == expected
 
 
-def test_target_taxon_keeps_a_genus_suffix() -> None:
+def testtarget_taxon_keeps_a_genus_suffix() -> None:
     p = MetadataParams(dataset="rep", level="genus", source="api", target_genus="bacillus_A")
-    assert _target_taxon(p) == "g__Bacillus_A"
+    assert target_taxon(p) == "g__Bacillus_A"

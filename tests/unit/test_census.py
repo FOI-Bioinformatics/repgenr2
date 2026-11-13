@@ -1,6 +1,6 @@
 """repgenr census: the three modes, the JSON and TSV output and the exit codes.
 
-Every request is faked: the GTDB API (``metadata._api_get``), ENA
+Every request is faked: the GTDB API (``gtdb_api._api_get``), ENA
 (``ena.resolve_taxon``/``ena.search_runs``), the Entrez lineage lookup, and
 the ``datasets`` runs behind the NCBI Virus report. The tables are small and
 synthetic.
@@ -19,6 +19,7 @@ from typer.testing import CliRunner
 
 from repgenr.cli.main import app
 from repgenr.core import ena
+from repgenr.core import http as core_http
 from repgenr.core.config import Config
 from repgenr.core.contracts import (
     SELECTION_TSV,
@@ -29,7 +30,8 @@ from repgenr.core.contracts import (
 )
 from repgenr.core.errors import UserInputError, WorkdirError
 from repgenr.core.manifest import Manifest, record_from_selection
-from repgenr.stages import census, metadata, reads
+from repgenr.sources import gtdb_api
+from repgenr.stages import census, reads
 from repgenr.viral import ncbi_virus
 
 runner = CliRunner()
@@ -110,7 +112,7 @@ def fake_api(monkeypatch) -> list[str]:
         key = {"f": "gtdbFamily", "g": "gtdbGenus"}[rank]
         return {"rows": [r for r in _api_rows() if r[key] == f"{rank}__{name}"]}
 
-    monkeypatch.setattr(metadata, "_api_get", api_get)
+    monkeypatch.setattr(gtdb_api, "_api_get", api_get)
     return calls
 
 
@@ -297,7 +299,7 @@ def test_table_source_reuses_the_cached_release_table(tmp_path, monkeypatch) -> 
     def no_download(*a, **k):
         raise AssertionError("the cached table must be reused")
 
-    monkeypatch.setattr(metadata.http, "download", no_download)
+    monkeypatch.setattr(core_http, "download", no_download)
     payload = _json(["-tg", "Beta", "--source", "tsv", "-r", "232.0"])
     assert payload["totals"]["genomes"] == 2
     assert census.cache_dir() == cache / "gtdb"
@@ -337,7 +339,7 @@ def test_network_failure_exits_3(monkeypatch) -> None:
     def down(path, params=None):
         raise WorkdirError("GTDB API request failed: connection refused")
 
-    monkeypatch.setattr(metadata, "_api_get", down)
+    monkeypatch.setattr(gtdb_api, "_api_get", down)
     result = runner.invoke(app, ["census", "-tg", "Alpha"])
     assert result.exit_code == 3
 
@@ -456,7 +458,7 @@ def test_candidates_from_the_kept_api_answer(tmp_path) -> None:
     wd.mkdir()
     _record(wd, ("metadata", {"source": "api", "level": "family", "target_family": "Testaceae"}))
     rows = [r for r in _api_rows() if r["gtdbFamily"] == "f__Testaceae"]
-    metadata.write_api_genomes(wd / metadata.GTDB_API_GENOMES, rows)
+    gtdb_api.write_api_genomes(wd / gtdb_api.GTDB_API_GENOMES, rows)
     payload = _json(["-wd", str(wd)])
     assert payload["source"] == "gtdb-api" and payload["rank"] == "family"
     assert payload["totals"] == {"genera": 2, "species": 3, "genomes": 5, "representatives": 3}
@@ -484,9 +486,9 @@ def test_api_answer_round_trips() -> None:
     import tempfile
 
     with tempfile.TemporaryDirectory() as tmp:
-        path = Path(tmp) / metadata.GTDB_API_GENOMES
-        metadata.write_api_genomes(path, _api_rows())
-        back = metadata.read_api_genomes(path)
+        path = Path(tmp) / gtdb_api.GTDB_API_GENOMES
+        gtdb_api.write_api_genomes(path, _api_rows())
+        back = gtdb_api.read_api_genomes(path)
     assert back[0] == {
         "accession": "GCF_000001.1",
         "tax": {
@@ -571,8 +573,8 @@ def _selection_workdir(tmp_path: Path) -> Path:
         ("metadata", {"source": "api", "level": "family", "target_family": "Testaceae"}),
         ("genome", {}),
     )
-    metadata.write_api_genomes(
-        wd / metadata.GTDB_API_GENOMES,
+    gtdb_api.write_api_genomes(
+        wd / gtdb_api.GTDB_API_GENOMES,
         [r for r in _api_rows() if r["gtdbFamily"] == "f__Testaceae"],
     )
     rows = _bacterial_selection(
@@ -809,7 +811,7 @@ def _suffix_api(monkeypatch) -> None:
         key = {"f": "gtdbFamily", "g": "gtdbGenus"}[rank]
         return {"rows": [r for r in rows if r[key] == f"{rank}__{name}"]}
 
-    monkeypatch.setattr(metadata, "_api_get", api_get)
+    monkeypatch.setattr(gtdb_api, "_api_get", api_get)
 
 
 def test_gtdb_names_keep_their_suffixes_from_the_api(monkeypatch) -> None:

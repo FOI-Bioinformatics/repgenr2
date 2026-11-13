@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 from repgenr.core.contracts import sanitise_taxon_tokens
-from repgenr.stages.metadata import _normalize_api_tax, _parse_taxonomy
+from repgenr.sources.gtdb_api import normalize_api_tax
+from repgenr.sources.gtdb_table import parse_taxonomy
 
 
 def test_tokens_drop_genus_prefix_spaces_and_underscores() -> None:
@@ -21,8 +22,8 @@ def test_tokens_drop_genus_prefix_spaces_and_underscores() -> None:
 
 def test_tsv_and_api_paths_agree_with_the_sanitiser() -> None:
     raw = "d__Bacteria;f__Francisellaceae;g__Francisella;s__Francisella tularensis"
-    tsv = _parse_taxonomy(raw)
-    api = _normalize_api_tax(
+    tsv = parse_taxonomy(raw)
+    api = normalize_api_tax(
         {
             "gtdbFamily": "f__Francisellaceae",
             "gtdbGenus": "g__Francisella",

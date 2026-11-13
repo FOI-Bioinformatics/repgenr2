@@ -56,6 +56,10 @@ repgenr = "repgenr.cli.main:app"
 
 # In-tree adapters are discovered via the same entry-point mechanism third
 # parties use, so core never imports a specific adapter directly.
+[project.entry-points."repgenr.sources"]
+tsv = "repgenr.sources.gtdb_table:GtdbTableSource"
+api = "repgenr.sources.gtdb_api:GtdbApiSource"
+
 [project.entry-points."repgenr.dereplicators"]
 drep = "repgenr.dereplicators.drep:DrepDereplicator"
 skder = "repgenr.dereplicators.skder:SkderDereplicator"

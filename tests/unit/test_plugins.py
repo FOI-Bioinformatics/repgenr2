@@ -19,11 +19,13 @@ from repgenr.dereplicators.base import registry as dereplicators
 from repgenr.maskers.base import registry as maskers
 from repgenr.polishers.base import registry as polishers
 from repgenr.snptypers.base import registry as snptypers
+from repgenr.sources.base import registry as sources
 from repgenr.treebuilders.base import registry as treebuilders
 
 ROOT = Path(__file__).resolve().parents[2]
 
 REGISTRIES = {
+    "repgenr.sources": sources,
     "repgenr.dereplicators": dereplicators,
     "repgenr.aligners": aligners,
     "repgenr.snptypers": snptypers,

@@ -20,6 +20,7 @@ from repgenr.core.outgroup_choice import (
     choose_by_quality,
     quality_key,
 )
+from repgenr.sources import gtdb_api
 from repgenr.stages import metadata
 from repgenr.stages.metadata import MetadataParams
 
@@ -302,7 +303,7 @@ def test_api_route_uses_the_tree_and_the_cards(tmp_path: Path, monkeypatch) -> N
         }
 
     monkeypatch.setattr(
-        metadata, "_api_cards_by_accession", lambda accs, logger: {a: card(a) for a in accs}
+        gtdb_api, "_api_cards_by_accession", lambda accs, logger: {a: card(a) for a in accs}
     )
     rows = [
         {"gid": "GCF_A.1", "gtdbIsRep": True, "gtdbGenus": "g__Tgt", "gtdbFamily": "f__Fam"},
@@ -311,7 +312,7 @@ def test_api_route_uses_the_tree_and_the_cards(tmp_path: Path, monkeypatch) -> N
     params = MetadataParams(
         dataset="rep", level="genus", source="api", target_genus="Tgt", gtdb_tree_path=str(tree)
     )
-    record, _ = metadata._select_outgroup_via_api(
+    record, _ = gtdb_api._select_outgroup_via_api(
         params,
         rows,
         {"GCF_A.1", "GCF_B.1"},

@@ -88,15 +88,17 @@ def test_parse_extra_int_malformed_raises_user_input_error() -> None:
 
 
 def test_metadata_target_taxon_missing_name_raises() -> None:
-    from repgenr.stages.metadata import MetadataParams, _target_taxon
+    from repgenr.sources.gtdb_api import target_taxon
+    from repgenr.stages.metadata import MetadataParams
 
     params = MetadataParams(dataset="all", level="family", target_family=None)
     with pytest.raises(UserInputError, match="family"):
-        _target_taxon(params)
+        target_taxon(params)
 
 
 def test_metadata_obtain_requires_release(tmp_path) -> None:
-    from repgenr.stages.metadata import MetadataParams, _obtain_metadata
+    from repgenr.sources.gtdb_table import _obtain_metadata
+    from repgenr.stages.metadata import MetadataParams
 
     ctx = SimpleNamespace(workdir=tmp_path)
     params = MetadataParams(dataset="all", level="family", release=None, metadata_path=None)
