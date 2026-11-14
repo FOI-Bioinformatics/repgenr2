@@ -63,6 +63,7 @@ WD/
   outgroup_choice.tsv             outgroup candidates and the choice (metadata)
   ncbi_acc_download_list.txt      accessions to download (genome)
   missing_accessions.txt          accessions not returned (genome)
+  substituted_accessions.tsv      RefSeq accessions taken from GenBank (genome)
   segments.tsv                    segment groups (vgenome --group-segments)
   genomes/                        genome FASTAs
   outgroup/                       outgroup genome
@@ -255,6 +256,7 @@ These files form the genome set every later stage reads. On the reads path
 | `outgroup/` | The outgroup genome. |
 | `ncbi_acc_download_list.txt` | Accessions `genome` will fetch (those without a FASTA in `genomes/`), one per line; the only output with `--accession-list-only`. |
 | `missing_accessions.txt` | Accessions the download did not return or whose FASTA failed the package checksum; read by the completeness check of later stages. |
+| `substituted_accessions.tsv` | Columns `selected` and `downloaded`: a selected RefSeq accession NCBI no longer serves, and the paired GenBank accession whose genome is stored under the selected accession's file name. Header only when there is none. |
 | `segments.tsv` | With `vgenome --group-segments`: columns `isolate` (the grouped isolate's token), `accession`, `segment` (normalised) and `segment_label` (as submitted), one row per member. |
 | `metadata_summary.tsv` | Genomes per taxon of the ingroup, written with `selection.tsv` by metadata, ingest, vgenome and assemble (columns below). Removed when the selection holds no ingroup genome. |
 | `metadata_summary_number_in_level.png` | Bar plot of `metadata_summary.tsv`: genomes per family, genus and species. At most 60 bars per level, the largest; the title names a cut. |

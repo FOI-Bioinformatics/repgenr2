@@ -8,6 +8,7 @@ downloaded into ``outgroup/``. Filenames are written back to the manifest.
 
 from __future__ import annotations
 
+import csv
 import shutil
 import zipfile
 from dataclasses import dataclass
@@ -21,7 +22,9 @@ from ..core.context import WorkdirContext
 from ..core.contracts import (
     FASTA_SUFFIXES,
     MISSING_ACCESSIONS_TXT,
+    SUBSTITUTED_ACCESSIONS_TSV,
     atomic_path,
+    atomic_replace,
     genome_filename,
     list_fasta,
 )
@@ -32,6 +35,7 @@ from ..core.ncbi_datasets import DATASETS_CAPS
 from ..core.outgroup_choice import check_outgroup_distance
 from ..core.plugins import preflight
 from ..core.process import check_free_disk, remove_tree
+from ..core.selection_summary import METADATA_SELECTED_TSV
 from ..core.sketches import require_sourmash_if_requested, sketch_stage_genomes, sketches_dir
 
 _DOWNLOAD_BATCH_SIZE = 5000  # accessions per datasets download/rehydrate call
@@ -68,6 +72,9 @@ class GenomeParams:
     # Genome sketches (core.sketches): None sketches when sourmash can run,
     # True requires it, False skips them.
     sketch: bool | None = None
+    # Take the paired GenBank assembly (GCA_) when NCBI no longer serves a
+    # selected RefSeq accession (GCF_).
+    genbank_fallback: bool = True
 
 
 def run(ctx: WorkdirContext, params: GenomeParams) -> int:
@@ -103,16 +110,26 @@ def run(ctx: WorkdirContext, params: GenomeParams) -> int:
         logger.info("Accession list written; stopping (--accession-list-only)")
         return 0
 
+    twins = recorded_twins(ctx.workdir)
+    # Substitutions of an earlier run stay on record while their file does.
+    substituted = {
+        acc: twin
+        for acc, twin in read_substituted(ctx.workdir / SUBSTITUTED_ACCESSIONS_TSV).items()
+        if acc in filenames and acc not in to_download
+    }
     missing: list[str] = []
     if to_download:
-        missing = download_accessions(
+        missing, new = download_with_fallback(
             to_download,
             filenames,
             ctx.genomes_dir,
             ctx.scratch_dir / "genome_download",
             logger,
             params.keep_files,
+            genbank_fallback=params.genbank_fallback,
+            twins=twins,
         )
+        substituted.update(new)
     # Record accessions NCBI returned nothing for, so downstream completeness
     # checks can excuse them (and a re-run retries them).
     (ctx.workdir / MISSING_ACCESSIONS_TXT).write_text(
@@ -120,13 +137,27 @@ def run(ctx: WorkdirContext, params: GenomeParams) -> int:
     )
 
     if outgroup:
-        _download_outgroup(ctx, outgroup[0], logger)
+        accession = outgroup[0].accession
+        # An outgroup already on disk keeps the record of where it came from.
+        kept = (
+            read_substituted(ctx.workdir / SUBSTITUTED_ACCESSIONS_TSV).get(accession)
+            if looks_like_fasta(ctx.outgroup_dir / _output_name(outgroup[0]))
+            else None
+        )
+        twin = _download_outgroup(
+            ctx, outgroup[0], logger, twins if params.genbank_fallback else None
+        )
+        downloaded = twin or kept
+        if downloaded:
+            substituted[accession] = downloaded
     elif ctx.outgroup_dir.is_dir():
         # A selection without an outgroup (metadata --no-outgroup): an
         # outgroup left by an earlier selection would still reach the tree.
         for path in list_fasta(ctx.outgroup_dir):
             path.unlink()
             logger.info("Removed the outgroup %s of an earlier selection", path.name)
+
+    write_substituted(ctx.workdir / SUBSTITUTED_ACCESSIONS_TSV, substituted)
 
     # record filenames back into the manifest (one batched transaction)
     for g in selected:
@@ -142,7 +173,12 @@ def run(ctx: WorkdirContext, params: GenomeParams) -> int:
     ctx.config.record_stage(
         "genome",
         tool="datasets",
-        params={"downloaded": len(to_download), "total": len(selected), "sketches": sketches},
+        params={
+            "downloaded": len(to_download),
+            "total": len(selected),
+            "substituted": len(substituted),
+            "sketches": sketches,
+        },
         tool_versions={**versions, **sketch_versions},
         completed=datetime.now(UTC).isoformat(),
     )
@@ -194,6 +230,114 @@ def _assert_fasta(path: Path) -> None:
         )
 
 
+def genbank_twin(accession: str, recorded: dict[str, str] | None = None) -> str | None:
+    """The GenBank assembly paired with a RefSeq accession, or None.
+
+    The pair recorded by the selection source is used when there is one;
+    otherwise the accession with the same number and version, which is the
+    pair for all but a small share of assemblies (0.7 percent of the RefSeq
+    rows of GTDB release 232 differ in the version, none in the number).
+    """
+    if not accession.startswith("GCF_"):
+        return None
+    known = (recorded or {}).get(accession, "")
+    if known.startswith("GCA_"):
+        return known
+    return "GCA_" + accession[len("GCF_") :]
+
+
+def recorded_twins(workdir: Path) -> dict[str, str]:
+    """accession -> GenBank accession, from ``metadata_selected.tsv`` when the
+    metadata stage wrote one; empty otherwise."""
+    path = workdir / METADATA_SELECTED_TSV
+    if not path.is_file():
+        return {}
+    with open(path, encoding="utf-8", newline="") as fo:
+        return {
+            row["accession"]: row["accession_ncbi"]
+            for row in csv.DictReader(fo, delimiter="\t")
+            if row.get("accession") and row.get("accession_ncbi")
+        }
+
+
+def read_substituted(path: Path) -> dict[str, str]:
+    """selected accession -> downloaded accession; empty when there is no file."""
+    if not path.is_file():
+        return {}
+    with open(path, encoding="utf-8", newline="") as fo:
+        return {
+            row["selected"]: row["downloaded"]
+            for row in csv.DictReader(fo, delimiter="\t")
+            if row.get("selected") and row.get("downloaded")
+        }
+
+
+def write_substituted(path: Path, substituted: dict[str, str]) -> None:
+    with atomic_replace(path, newline="") as fo:
+        writer = csv.writer(fo, delimiter="\t", lineterminator="\n")
+        writer.writerow(["selected", "downloaded"])
+        writer.writerows(sorted(substituted.items()))
+
+
+def download_with_fallback(
+    accessions: list[str],
+    filenames: dict[str, str],
+    dest_dir: Path,
+    scratch_dir: Path,
+    logger,
+    keep_files: bool = False,
+    *,
+    genbank_fallback: bool = True,
+    twins: dict[str, str] | None = None,
+) -> tuple[list[str], dict[str, str]]:
+    """:func:`download_accessions`, then the paired GenBank assembly for each
+    RefSeq accession NCBI served nothing for.
+
+    NCBI suppresses RefSeq assemblies that a GTDB release, or an earlier
+    selection, still lists, while the GenBank assembly often stays. The
+    genome is stored under the file name of the selected accession, so the
+    selection, the manifest and the tree names are unchanged. Returns the
+    accessions still without a genome and the substitutions made (selected
+    accession -> downloaded accession).
+    """
+    # Accessions whose download arrived but was discarded (an error page, a
+    # failed checksum): NCBI serves them, so a re-run retries them as they are.
+    discarded: set[str] = set()
+    missing = download_accessions(
+        accessions, filenames, dest_dir, scratch_dir, logger, keep_files, discarded=discarded
+    )
+    if not genbank_fallback:
+        return missing, {}
+    # A twin that is itself selected has its own file and is not taken twice.
+    selected_of = {
+        twin: acc
+        for acc in missing
+        if acc not in discarded
+        and (twin := genbank_twin(acc, twins)) is not None
+        and twin not in filenames
+    }
+    if not selected_of:
+        return missing, {}
+    logger.info(
+        "Trying the paired GenBank assembly for %d RefSeq accession(s) NCBI did not serve",
+        len(selected_of),
+    )
+    still = set(
+        download_accessions(
+            list(selected_of),
+            {twin: filenames[acc] for twin, acc in selected_of.items()},
+            dest_dir,
+            scratch_dir / "genbank_fallback",
+            logger,
+            keep_files,
+        )
+    )
+    substituted = {acc: twin for twin, acc in selected_of.items() if twin not in still}
+    for acc, twin in sorted(substituted.items()):
+        logger.warning("%s is not served by NCBI; downloaded %s in its place", acc, twin)
+    return [acc for acc in missing if acc not in substituted], substituted
+
+
 def download_accessions(
     accessions: list[str],
     filenames: dict[str, str],
@@ -201,10 +345,14 @@ def download_accessions(
     scratch_dir: Path,
     logger,
     keep_files: bool = False,
+    *,
+    discarded: set[str] | None = None,
 ) -> list[str]:
     """Download genomes in fixed-size sub-batches into ``dest_dir``.
 
-    Returns the accessions no genome came back for.
+    Returns the accessions no genome came back for. ``discarded``, when
+    given, collects those of them whose download arrived and was rejected
+    (not FASTA, or a failed checksum).
 
     Each sub-batch is downloaded, rehydrated, and moved into ``dest_dir``
     independently, so a failure loses only one batch and a re-run resumes (the
@@ -225,8 +373,9 @@ def download_accessions(
     for bi, start in enumerate(range(0, total, _DOWNLOAD_BATCH_SIZE)):
         batch = accessions[start : start + _DOWNLOAD_BATCH_SIZE]
         logger.info("Download batch %d/%d (%d accessions)", bi + 1, n_batches, len(batch))
+        extra = {} if discarded is None else {"discarded": discarded}
         missing += _download_one_batch(
-            batch, filenames, dest_dir, scratch_dir, logger, keep_files, bi
+            batch, filenames, dest_dir, scratch_dir, logger, keep_files, bi, **extra
         )
     return missing
 
@@ -239,6 +388,7 @@ def _download_one_batch(
     logger,
     keep_files: bool,
     bi: int,
+    discarded: set[str] | None = None,
 ) -> list[str]:
     acc_file = scratch_dir / f"ncbi_acc_batch{bi}.txt"
     acc_file.write_text("\n".join(batch))
@@ -307,6 +457,8 @@ def _download_one_batch(
                     "Discarding non-FASTA download for %s (error page?)", fna.parent.name
                 )
                 fna.unlink(missing_ok=True)
+                if discarded is not None:
+                    discarded.add(fna.parent.name)
                 continue
             # rehydrate does not check the package's md5sum.txt; a corrupt
             # transfer that still starts with '>' would otherwise be kept.
@@ -317,6 +469,8 @@ def _download_one_batch(
                 except WorkdirError as exc:
                     logger.warning("Discarding download for %s: %s", fna.parent.name, exc)
                     fna.unlink(missing_ok=True)
+                    if discarded is not None:
+                        discarded.add(fna.parent.name)
                     continue
             target = dest_dir / name
             shutil.move(str(fna), str(target))
@@ -366,49 +520,69 @@ def _package_checksums(extract: Path) -> dict[str, str]:
     return out
 
 
-def _download_outgroup(ctx, outgroup, logger) -> None:
+def _download_outgroup(ctx, outgroup, logger, twins: dict[str, str] | None = None) -> str | None:
+    """Download the outgroup unless it is present. ``twins`` (None turns the
+    fallback off) names recorded GenBank pairs; returns the GenBank accession
+    downloaded in place of a RefSeq outgroup NCBI no longer serves, else None.
+    """
     ctx.outgroup_dir.mkdir(parents=True, exist_ok=True)
     name = _output_name(outgroup)
     out_path = ctx.outgroup_dir / name
+    twin = None
     if looks_like_fasta(out_path):
         logger.info("Outgroup %s already present", outgroup.accession)
     else:
-        _fetch_outgroup(ctx, outgroup, out_path, logger)
+        twin = _fetch_outgroup(ctx, outgroup, out_path, logger, twins)
     # Only the current outgroup may remain: stale outgroups from earlier
     # selections would otherwise accumulate and could shadow this one.
     _prune(ctx.outgroup_dir, {name}, ctx.logger)
+    return twin
 
 
-def _fetch_outgroup(ctx, outgroup, out_path: Path, logger) -> None:
+def _fetch_outgroup(
+    ctx, outgroup, out_path: Path, logger, twins: dict[str, str] | None = None
+) -> str | None:
     zip_path = ctx.workdir / "ncbi_download_outgroup.zip"
     hint = "choose another with 'repgenr metadata --outgroup-accession'."
     require_reachable(NCBI_DATASETS_URL, what="NCBI datasets")
-    try:
-        _run_cmd(
-            [
-                "datasets",
-                "download",
-                "genome",
-                "accession",
+    twin = genbank_twin(outgroup.accession, twins) if twins is not None else None
+    accession = outgroup.accession
+    for candidate in [outgroup.accession, *([twin] if twin else [])]:
+        accession = candidate
+        try:
+            _run_cmd(
+                [
+                    "datasets",
+                    "download",
+                    "genome",
+                    "accession",
+                    candidate,
+                    "--filename",
+                    zip_path,
+                ],
+                logger=logger,
+                log_prefix="datasets",
+                permanent=no_assembly_matched,
+            )
+            break
+        except ToolExecutionError as exc:
+            if not no_assembly_matched(exc):
+                raise
+            if candidate == twin or not twin:
+                tried = f" (nor for its GenBank pair {twin})" if twin else ""
+                raise WorkdirError(
+                    f"NCBI serves no assembly for the outgroup {outgroup.accession}{tried}; {hint}"
+                ) from exc
+            logger.warning(
+                "The outgroup %s is not served by NCBI; trying its GenBank pair %s",
                 outgroup.accession,
-                "--filename",
-                zip_path,
-            ],
-            logger=logger,
-            log_prefix="datasets",
-            permanent=no_assembly_matched,
-        )
-    except ToolExecutionError as exc:
-        if not no_assembly_matched(exc):
-            raise
-        raise WorkdirError(
-            f"NCBI serves no assembly for the outgroup {outgroup.accession}; {hint}"
-        ) from exc
+                twin,
+            )
     found = False
     try:
         with zipfile.ZipFile(zip_path) as zf:
             for item in zf.namelist():
-                if item.endswith(".fna") and outgroup.accession in item:
+                if item.endswith(".fna") and accession in item:
                     # Written beside the target and renamed, so an interrupted
                     # run never leaves a partial outgroup that looks complete.
                     with atomic_path(out_path) as tmp:
@@ -425,3 +599,4 @@ def _fetch_outgroup(ctx, outgroup, out_path: Path, logger) -> None:
         )
     _assert_fasta(out_path)
     zip_path.unlink(missing_ok=True)
+    return accession if accession != outgroup.accession else None

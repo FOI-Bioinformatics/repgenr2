@@ -281,9 +281,81 @@ def test_batch_of_only_unserved_accessions_is_recorded_missing(ctx, monkeypatch)
     assert genome.run(ctx, GenomeParams()) == 2
     missing = (ctx.workdir / MISSING_ACCESSIONS_TXT).read_text(encoding="utf-8").split()
     assert missing == ["GCF_000001.1", "GCF_000002.1"]
-    assert len(attempts) == 1
+    # One request for the selection and one for its GenBank pairs.
+    assert len(attempts) == 2
     assert ctx.config.stages["genome"].completed
     assert calls  # the outgroup was still fetched
+
+
+def _fake_suppressed(monkeypatch, suppressed: set[str]) -> list[list[str]]:
+    """As ``_fake_run_cmd``, but NCBI serves nothing for ``suppressed``."""
+    calls = _fake_run_cmd(monkeypatch)
+    inner = genome._run_cmd
+
+    def fake(cmd, *, logger, **kw):
+        text = [str(c) for c in cmd]
+        if text[:2] == ["datasets", "rehydrate"]:
+            readme = Path(text[text.index("--directory") + 1]) / "README.md"
+            kept = [
+                a for a in readme.read_text(encoding="utf-8").splitlines() if a not in suppressed
+            ]
+            readme.write_text("\n".join(kept), encoding="utf-8")
+        elif "--dehydrated" not in text and text[4] in suppressed:  # the outgroup
+            calls.append(text)
+            raise genome.ToolExecutionError(text, 1, output=_NO_MATCH)
+        return inner(cmd, logger=logger, **kw)
+
+    monkeypatch.setattr(genome, "_run_cmd", fake)
+    return calls
+
+
+def _substituted(ctx) -> str:
+    from repgenr.core.contracts import SUBSTITUTED_ACCESSIONS_TSV
+
+    return (ctx.workdir / SUBSTITUTED_ACCESSIONS_TSV).read_text(encoding="utf-8")
+
+
+def test_unserved_refseq_genome_is_taken_from_genbank_and_recorded(ctx, monkeypatch) -> None:
+    from repgenr.core.contracts import MISSING_ACCESSIONS_TXT
+
+    _fake_suppressed(monkeypatch, {"GCF_000002.1"})
+    assert genome.run(ctx, GenomeParams()) == 2
+    # The file keeps the name of the selected accession.
+    assert (ctx.genomes_dir / "Francisellaceae_Francisella_tularensis_GCF_000002.1.fasta").exists()
+    assert (ctx.workdir / MISSING_ACCESSIONS_TXT).read_text(encoding="utf-8") == ""
+    assert _substituted(ctx) == "selected\tdownloaded\nGCF_000002.1\tGCA_000002.1\n"
+    assert ctx.config.stages["genome"].params["substituted"] == 1
+    # A second run downloads nothing and keeps the record.
+    genome.run(ctx, GenomeParams())
+    assert _substituted(ctx) == "selected\tdownloaded\nGCF_000002.1\tGCA_000002.1\n"
+
+
+def test_no_genbank_fallback_records_the_accession_as_missing(ctx, monkeypatch) -> None:
+    from repgenr.core.contracts import MISSING_ACCESSIONS_TXT
+
+    _fake_suppressed(monkeypatch, {"GCF_000002.1"})
+    genome.run(ctx, GenomeParams(genbank_fallback=False))
+    assert (ctx.workdir / MISSING_ACCESSIONS_TXT).read_text(encoding="utf-8") == "GCF_000002.1\n"
+    assert _substituted(ctx) == "selected\tdownloaded\n"
+
+
+def test_unserved_refseq_outgroup_is_taken_from_genbank(ctx, monkeypatch) -> None:
+    _fake_suppressed(monkeypatch, {"GCF_000010.1"})
+    genome.run(ctx, GenomeParams())
+    names = [p.name for p in ctx.outgroup_dir.iterdir()]
+    assert names == ["Francisellaceae_Francisella_philomiragia_GCF_000010.1.fasta"]
+    assert _substituted(ctx) == "selected\tdownloaded\nGCF_000010.1\tGCA_000010.1\n"
+    # The outgroup is on disk now; its record is kept by a second run.
+    genome.run(ctx, GenomeParams())
+    assert "GCA_000010.1" in _substituted(ctx)
+
+
+def test_outgroup_without_any_assembly_stops_the_stage(ctx, monkeypatch) -> None:
+    from repgenr.core.errors import WorkdirError
+
+    _fake_suppressed(monkeypatch, {"GCF_000010.1", "GCA_000010.1"})
+    with pytest.raises(WorkdirError, match="nor for its GenBank pair GCA_000010.1"):
+        genome.run(ctx, GenomeParams())
 
 
 def test_other_datasets_failures_still_fail_the_stage(ctx, monkeypatch) -> None:

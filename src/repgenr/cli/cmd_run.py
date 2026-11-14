@@ -39,6 +39,7 @@ from .base import (
     HELP_DATASET,
     HELP_DEREP_TOOL_ARG,
     HELP_EXCLUDE_MAG,
+    HELP_GENBANK_FALLBACK,
     HELP_GENE_RANK,
     HELP_GENE_TRIM,
     HELP_GTDB_RELEASE,
@@ -371,6 +372,9 @@ def run(
     # --- genome download ---
     keep_files: bool = typer.Option(
         False, "--keep-files", help="Keep the genome-download intermediates (bacterial chain)."
+    ),
+    genbank_fallback: bool = typer.Option(
+        True, "--genbank-fallback/--no-genbank-fallback", help=HELP_GENBANK_FALLBACK
     ),
     # --- dereplication ---
     derep_tool: str = typer.Option("skder", "--tool", help=_derep_help()),
@@ -796,7 +800,11 @@ def run(
             ),
             create=True,
         )
-        _run("genome", workdir, lambda: genome_params(keep_files=keep_files))
+        _run(
+            "genome",
+            workdir,
+            lambda: genome_params(keep_files=keep_files, genbank_fallback=genbank_fallback),
+        )
 
     _run(
         "dereplicate",

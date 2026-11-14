@@ -88,6 +88,7 @@ is 'vmetadata --source'. --platform filters the sequencing platform with
 | `--released-after` |  | ncbi_virus: MM/DD/YYYY (viral). |
 | `--group-segments` | off | ncbi_virus: combine an isolate's segments into one genome (viral). |
 | `--keep-files` | off | Keep the genome-download intermediates (bacterial chain). |
+| `--genbank-fallback`, `--no-genbank-fallback` | on | When NCBI no longer serves a selected RefSeq accession (GCF_), download the paired GenBank assembly (GCA_) under the same file name and list it in substituted_accessions.tsv. --no-genbank-fallback records the accession as missing instead. |
 | `--tool` | `skder` | Dereplicator: auto, drep, galah, skder, sourmash. |
 | `--primary-ani` | `0.9` | Primary (pre-clustering) ANI threshold in (0, 1]. |
 | `--secondary-ani` | `0.99` | Secondary (final cluster) ANI threshold in (0, 1]. |
@@ -266,6 +267,7 @@ Download and organize genomes selected by the metadata stage.
 | `-wd`, `--workdir` | required | Working directory. |
 | `--accession-list-only` | off | Write the accession list and stop (no download). |
 | `--keep-files` | off | Keep download and scratch intermediates. |
+| `--genbank-fallback`, `--no-genbank-fallback` | on | When NCBI no longer serves a selected RefSeq accession (GCF_), download the paired GenBank assembly (GCA_) under the same file name and list it in substituted_accessions.tsv. --no-genbank-fallback records the accession as missing instead. |
 | `--sketch`, `--no-sketch` | auto | Write a sourmash sketch of each genome to sketches/ (k=21,31,51, scaled=1000). --sketch requires sourmash and --no-sketch skips it. Default: when sourmash can run. |
 
 ### vmetadata
@@ -766,6 +768,7 @@ Download genomes listed in a selection.tsv (stateless data-channel step).
 | `--selection` | required | selection.tsv from the metadata stage. |
 | `-o`, `--out` | required | Output dir for downloaded genomes. |
 | `--keep-files` | off | Keep download and scratch intermediates. |
+| `--genbank-fallback`, `--no-genbank-fallback` | on | When NCBI no longer serves a selected RefSeq accession (GCF_), download the paired GenBank assembly (GCA_) under the same file name and list it in substituted_accessions.tsv. --no-genbank-fallback records the accession as missing instead. |
 | `--versions-out` |  | Write resolved tool versions (YAML fragment) here. |
 
 ### dereplicate-chunk

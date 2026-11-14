@@ -664,6 +664,52 @@ def test_genome_fetch_step(run_repgenr, species_cache: Path, tmp_path: Path) -> 
     assert any((out / "scratch").iterdir()), "--keep-files leaves the download scratch"
 
 
+def test_genome_fetch_takes_the_genbank_pair_of_a_suppressed_refseq_accession(
+    run_repgenr, tmp_path: Path
+) -> None:
+    """GCF_042847795.1 (Escherichia coli) is listed by GTDB release 232 and no
+    longer served by NCBI (checked 2026-11-14); GCA_042847795.1 is."""
+    from repgenr.core.contracts import (
+        MISSING_ACCESSIONS_TXT,
+        SUBSTITUTED_ACCESSIONS_TSV,
+        SelectionRow,
+        write_selection,
+    )
+    from repgenr.core.integrity import looks_like_fasta
+
+    suppressed = "Enterobacteriaceae_Escherichia_coli_GCF_042847795.1.fasta"
+    selection = tmp_path / "selection.tsv"
+    write_selection(
+        selection,
+        [
+            SelectionRow(
+                "GCF_042847795.1", "Enterobacteriaceae", "Escherichia", "coli", False, suppressed
+            ),
+            SelectionRow(
+                "GCF_000016105.1",
+                "Francisellaceae",
+                "Francisella",
+                "tularensis",
+                False,
+                "Francisellaceae_Francisella_tularensis_GCF_000016105.1.fasta",
+            ),
+        ],
+    )
+    out = tmp_path / "fetched"
+    run_repgenr("genome-fetch", "--selection", selection, "-o", out)
+    assert len(list_fasta(out / "genomes")) == 2
+    assert looks_like_fasta(out / "genomes" / suppressed)
+    assert (out / MISSING_ACCESSIONS_TXT).read_text(encoding="utf-8") == ""
+    assert (out / SUBSTITUTED_ACCESSIONS_TSV).read_text(encoding="utf-8") == (
+        "selected\tdownloaded\nGCF_042847795.1\tGCA_042847795.1\n"
+    )
+
+    strict = tmp_path / "strict"
+    run_repgenr("genome-fetch", "--selection", selection, "-o", strict, "--no-genbank-fallback")
+    assert len(list_fasta(strict / "genomes")) == 1
+    assert (strict / MISSING_ACCESSIONS_TXT).read_text(encoding="utf-8") == "GCF_042847795.1\n"
+
+
 def test_run_dry_run_reports_family_and_species_targets(run_repgenr, tmp_path: Path) -> None:
     out = run_repgenr(
         "run",

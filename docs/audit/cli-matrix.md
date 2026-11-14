@@ -3,7 +3,7 @@
 Generated from `tests/audit/cli_matrix.yaml` by `scripts/render_cli_matrix.py`;
 `tests/unit/test_cli_matrix.py` keeps both in step with the command tree.
 
-41 commands, 526 flags (519 with a live test or an n/a reason, 7 pending).
+41 commands, 529 flags (522 with a live test or an n/a reason, 7 pending).
 
 ## Global flags
 
@@ -209,6 +209,7 @@ dispatch: `stage`
 | `--workdir` | -wd | workdir | stage | n/a: workdir command; the Nextflow layer uses the stateless steps | tests/live/test_network.py::test_api_genus_representatives | docs/cli-reference.md, docs/usage.md, docs/output.md, docs/audit/cli-matrix.md |
 | `--accession-list-only` |  | GenomeParams.accession_list_only | none | n/a: workdir command; the Nextflow layer uses the stateless steps | tests/live/test_network.py::test_genome_accession_list_only_is_a_pure_query | docs/cli-reference.md, docs/audit/cli-matrix.md |
 | `--keep-files` |  | GenomeParams.keep_files | none | n/a: workdir command; the Nextflow layer uses the stateless steps | tests/live/test_network.py::test_genome_keep_files_retains_the_download_scratch | docs/cli-reference.md, docs/audit/cli-matrix.md |
+| `--genbank-fallback` |  | GenomeParams.genbank_fallback | none | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: the download helper is shared with genome-fetch, covered live there; the stage is covered in tests/unit/test_genome_stage.py | docs/cli-reference.md, docs/usage.md, docs/audit/cli-matrix.md |
 | `--sketch` |  | GenomeParams.sketch | none | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: the shared sketch step is exercised live through ingest (tests/live/test_sketches_live.py) | docs/cli-reference.md, docs/usage.md, docs/audit/cli-matrix.md |
 
 ## genome-fetch
@@ -220,6 +221,7 @@ dispatch: `step:repgenr.stages.genome_steps.genome_fetch`
 | `--selection` |  | GenomeFetchParams.selection_tsv | stage | module: fixed by the process script | tests/live/test_network.py::test_genome_fetch_step | docs/usage.md, docs/cli-reference.md, docs/audit/cli-matrix.md |
 | `--out` | -o | GenomeFetchParams.out_dir | none | module: fixed by the process script | tests/live/test_network.py::test_genome_fetch_step | docs/cli-reference.md, docs/verification.md, docs/audit/cli-matrix.md |
 | `--keep-files` |  | GenomeFetchParams.keep_files | none | n/a: not exposed by the GENOME_FETCH module | tests/live/test_network.py::test_genome_fetch_step | docs/cli-reference.md, docs/audit/cli-matrix.md |
+| `--genbank-fallback` |  | GenomeFetchParams.genbank_fallback | none | n/a: not exposed by the GENOME module, which uses the default (fallback on) | tests/live/test_network.py::test_genome_fetch_takes_the_genbank_pair_of_a_suppressed_refseq_accession | docs/cli-reference.md, docs/usage.md, docs/audit/cli-matrix.md |
 | `--versions-out` |  | GenomeFetchParams.versions_out | none | module: fixed by the process script | tests/live/test_network.py::test_genome_fetch_step | docs/cli-reference.md, docs/audit/cli-matrix.md |
 
 ## glance
@@ -541,6 +543,7 @@ dispatch: `stage`
 | `--metadata-path` |  | MetadataParams.metadata_path | none | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: forwarded to the stage builder unchanged (wiring test); the stage flag is covered live | docs/cli-reference.md, docs/audit/cli-matrix.md |
 | `--nodownload` |  | MetadataParams.nodownload | none | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: forwarded to the stage builder unchanged (wiring test); the stage flag is covered live | docs/cli-reference.md, docs/audit/cli-matrix.md |
 | `--keep-files` |  | GenomeParams.keep_files | none | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: forwarded to the stage builder unchanged (wiring test); the stage flag is covered live | docs/cli-reference.md, docs/audit/cli-matrix.md |
+| `--genbank-fallback` |  | GenomeParams.genbank_fallback | none | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: forwarded to the stage builder unchanged (wiring test); the step flag is covered live | docs/cli-reference.md, docs/usage.md, docs/audit/cli-matrix.md |
 | `--pre-primary-ani` |  | DereplicateParams.pre_primary_ani | unit_interval | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: forwarded to the stage builder unchanged (wiring test); the stage flag is covered live | docs/cli-reference.md, docs/audit/cli-matrix.md |
 | `--pre-secondary-ani` |  | DereplicateParams.pre_secondary_ani | unit_interval | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: forwarded to the stage builder unchanged (wiring test); the stage flag is covered live | docs/cli-reference.md, docs/audit/cli-matrix.md |
 | `--node-basename` |  | Tree2taxParams.node_basename | none | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: forwarded to the stage builder unchanged (wiring test); the stage flag is covered live | docs/cli-reference.md, docs/audit/cli-matrix.md |

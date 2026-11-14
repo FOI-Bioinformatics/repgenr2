@@ -8,6 +8,14 @@ All notable changes to RepGenR2 are documented here. The format follows
 
 ### Added
 
+- `genome` and `genome-fetch` take the paired GenBank assembly (`GCA_`) when
+  NCBI no longer serves a selected RefSeq accession (`GCF_`), also for the
+  outgroup. The genome keeps the file name of the selected accession, and
+  the replacement is listed in `substituted_accessions.tsv` (published
+  under `metadata/` by the Nextflow pipeline) and counted in the report.
+  `--no-genbank-fallback` (also on `run`) restores the earlier behaviour,
+  where the accession is only recorded in `missing_accessions.txt`.
+
 - `metadata --source ncbi`: select bacterial and archaeal genomes from NCBI
   by NCBI taxonomy, through the `datasets` client. RefSeq (`GCF_`)
   assemblies by default; `--assembly-source genbank` or `all` reach GenBank,

@@ -100,6 +100,12 @@ HELP_KEEP_ROOT = (
     "on the outgroup; the outgroup is still read for --remove-outgroup."
 )
 HELP_KEEP_FILES = "Keep download and scratch intermediates."
+HELP_GENBANK_FALLBACK = (
+    "When NCBI no longer serves a selected RefSeq accession (GCF_), download the paired "
+    "GenBank assembly (GCA_) under the same file name and list it in "
+    "substituted_accessions.tsv. --no-genbank-fallback records the accession as "
+    "missing instead."
+)
 HELP_SKETCH = (
     "Write a sourmash sketch of each genome to sketches/ (k=21,31,51, scaled=1000). "
     "--sketch requires sourmash and --no-sketch skips it. Default: when sourmash can run."

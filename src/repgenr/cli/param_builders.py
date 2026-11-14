@@ -135,12 +135,20 @@ def join_species(value: Any) -> Any:
 
 
 def genome_params(
-    *, accession_list_only: Any = _UNSET, keep_files: Any = _UNSET, sketch: Any = _UNSET
+    *,
+    accession_list_only: Any = _UNSET,
+    keep_files: Any = _UNSET,
+    sketch: Any = _UNSET,
+    genbank_fallback: Any = _UNSET,
 ) -> GenomeParams:
     from ..stages.genome import GenomeParams
 
     return _build(
-        GenomeParams, accession_list_only=accession_list_only, keep_files=keep_files, sketch=sketch
+        GenomeParams,
+        accession_list_only=accession_list_only,
+        keep_files=keep_files,
+        sketch=sketch,
+        genbank_fallback=genbank_fallback,
     )
 
 

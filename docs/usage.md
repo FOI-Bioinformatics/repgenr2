@@ -897,12 +897,25 @@ and `REQUESTS_CA_BUNDLE` points Python at another certificate bundle.
 go through these proxies, so on a proxy-only network use the default NCBI
 Virus source.
 
-**Genomes NCBI no longer serves** are recorded in `missing_accessions.txt`
+**Genomes NCBI no longer serves.** RefSeq suppresses assemblies that a GTDB
+release, or an earlier selection, still lists (2 of 10,000 RefSeq accessions
+sampled from GTDB release 232 on 2026-11-14), while the paired GenBank
+assembly often remains. For a selected `GCF_` accession without a genome,
+`genome` downloads the paired `GCA_` assembly and stores it under the file
+name of the selected accession, so the selection and the tree names do not
+change. The pair is the one the selection source recorded
+(`metadata_selected.tsv`), else the accession with the same number and
+version. Each replacement is logged and listed in
+`substituted_accessions.tsv`; the sequence then comes from GenBank, which
+for a current pair is the same assembly. This is the default
+(`--genbank-fallback`); `--no-genbank-fallback` turns it off. A download that arrived damaged is not replaced; a rerun asks for it
+again.
+
+Accessions still without a genome are recorded in `missing_accessions.txt`
 and excused by later stages, and a rerun asks for them again. An outgroup
-NCBI no longer serves exits 3; choose another with `metadata
---outgroup-accession`. The `genome-fetch` step of the Nextflow
-pipeline follows the same two rules and publishes the file under
-`metadata/`.
+without any assembly exits 3; choose another with `metadata
+--outgroup-accession`. The `genome-fetch` step of the Nextflow pipeline
+follows the same rules and publishes both files under `metadata/`.
 
 **NCBI Entrez throttling** (BV-BRC path): set `NCBI_API_KEY`, and
 optionally `NCBI_EMAIL`.

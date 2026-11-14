@@ -66,6 +66,9 @@ OUTGROUP_ACCESSION_TXT = "outgroup_accession.txt"
 # Accessions the genome stage requested but NCBI returned nothing for;
 # the completeness guard excuses them (core.integrity).
 MISSING_ACCESSIONS_TXT = "missing_accessions.txt"
+# Selected RefSeq accessions NCBI no longer serves whose genome was taken
+# from the paired GenBank assembly instead: selected, downloaded.
+SUBSTITUTED_ACCESSIONS_TSV = "substituted_accessions.tsv"
 # The reads-to-assembly entry path: the sequencing runs the reads stage
 # selected, the per-assembly metrics, and the runs the assemble stage could not
 # turn into a genome (excused by the completeness guard, like missing
