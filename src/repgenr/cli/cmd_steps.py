@@ -136,14 +136,16 @@ def dereplicate_chunk_cmd(
         "quality",
         "--keeper",
         help="Representative choice when --selection-tsv is given: "
-        "quality (selection.tsv CheckM values and genome N50), gtdb (GTDB species "
-        "representative first, then quality) or tool (adapter's own pick).",
+        "quality (selection.tsv CheckM values and genome N50), source (a GTDB species "
+        "representative or NCBI reference genome first, then quality; gtdb is its "
+        "earlier name) or tool (adapter's own pick).",
     ),
     sketches_dir: Path | None = typer.Option(None, "--sketches-dir", help=HELP_SKETCHES_DIR),
     versions_out: Path | None = typer.Option(None, "--versions-out", help=HELP_VERSIONS_OUT),
 ) -> None:
     """Dereplicate one chunk of genomes (scatter step; writes a chunk result dir)."""
     from ..dereplicators.base import registry as _derep_registry
+    from ..stages.derep_keeper import KEEPER_RULES, keeper_rule
     from ..stages.derep_steps import ChunkParams, dereplicate_chunk
 
     logger = configure_logging(None, level=_RUN_STATE["log_level"])
@@ -153,7 +155,8 @@ def dereplicate_chunk_cmd(
         _require_unit_interval(primary_ani, "--primary-ani")
         _require_unit_interval(secondary_ani, "--secondary-ani")
         _require_unit_interval(aligned_fraction, "--aligned-fraction")
-        _require_choice(keeper, {"quality", "gtdb", "tool"}, "--keeper")
+        keeper = keeper_rule(keeper, logger)
+        _require_choice(keeper, set(KEEPER_RULES), "--keeper")
         genomes = _read_path_fofn(genomes_fofn)
         dereplicate_chunk(
             ChunkParams(
@@ -584,8 +587,9 @@ def dereplicate_merge_cmd(
         "quality",
         "--keeper",
         help="Representative choice when --selection-tsv is given: "
-        "quality (selection.tsv CheckM values and genome N50), gtdb (GTDB species "
-        "representative first, then quality) or tool (adapter's own pick).",
+        "quality (selection.tsv CheckM values and genome N50), source (a GTDB species "
+        "representative or NCBI reference genome first, then quality; gtdb is its "
+        "earlier name) or tool (adapter's own pick).",
     ),
     reduce: str = typer.Option(
         "none",
@@ -604,6 +608,7 @@ def dereplicate_merge_cmd(
 ) -> None:
     """Dereplicate the union of chunk representatives (gather step)."""
     from ..dereplicators.base import registry as _derep_registry
+    from ..stages.derep_keeper import KEEPER_RULES, keeper_rule
     from ..stages.derep_steps import MergeParams, dereplicate_merge
 
     logger = configure_logging(None, level=_RUN_STATE["log_level"])
@@ -612,7 +617,8 @@ def dereplicate_merge_cmd(
         _require_unit_interval(primary_ani, "--primary-ani")
         _require_unit_interval(secondary_ani, "--secondary-ani")
         _require_unit_interval(aligned_fraction, "--aligned-fraction")
-        _require_choice(keeper, {"quality", "gtdb", "tool"}, "--keeper")
+        keeper = keeper_rule(keeper, logger)
+        _require_choice(keeper, set(KEEPER_RULES), "--keeper")
         _require_choice(reduce, {"none", "species", "genus"}, "--reduce")
         if target_reps < 0:
             raise UserInputError("--target-reps must be 0 (off) or a positive count.")
@@ -678,8 +684,9 @@ def dereplicate_refine_cmd(
         "quality",
         "--keeper",
         help="Representative choice when --selection-tsv is given: "
-        "quality (selection.tsv CheckM values and genome N50), gtdb (GTDB species "
-        "representative first, then quality) or tool (adapter's own pick).",
+        "quality (selection.tsv CheckM values and genome N50), source (a GTDB species "
+        "representative or NCBI reference genome first, then quality; gtdb is its "
+        "earlier name) or tool (adapter's own pick).",
     ),
     refine: list[str] = typer.Option([], "--refine", help=HELP_REFINE),
     refine_ani: float | None = typer.Option(None, "--refine-ani", help=HELP_REFINE_ANI),
@@ -689,6 +696,7 @@ def dereplicate_refine_cmd(
 ) -> None:
     """Refine the lineages of the seeds in a dereplication result at finer ANIs."""
     from ..dereplicators.base import registry as _derep_registry
+    from ..stages.derep_keeper import KEEPER_RULES, keeper_rule
     from ..stages.derep_steps import RefineStepParams, dereplicate_refine
 
     logger = configure_logging(None, level=_RUN_STATE["log_level"])
@@ -697,7 +705,8 @@ def dereplicate_refine_cmd(
         _require_unit_interval(primary_ani, "--primary-ani")
         _require_unit_interval(secondary_ani, "--secondary-ani")
         _require_unit_interval(aligned_fraction, "--aligned-fraction")
-        _require_choice(keeper, {"quality", "gtdb", "tool"}, "--keeper")
+        keeper = keeper_rule(keeper, logger)
+        _require_choice(keeper, set(KEEPER_RULES), "--keeper")
         if refine_ani is not None:
             _require_unit_interval(refine_ani, "--refine-ani")
         if not refine and refine_file is None:

@@ -1,6 +1,6 @@
-"""--keeper gtdb: a GTDB species representative is kept as its cluster's keeper.
+"""--keeper source: a representative of the source is kept as its cluster's keeper.
 
-Covers the rule itself, the gtdb_representative column of selection.tsv, the
+Covers the rule itself, the source_representative column of selection.tsv, the
 manifest column and its migration, the cluster summary column, the taxonomy
 reduction preference, and the metadata stage that fills the flag.
 """
@@ -36,7 +36,7 @@ from repgenr.dereplicators.base import (
     check_result_complete,
 )
 from repgenr.stages.cluster_summary import summarise_clusters
-from repgenr.stages.derep_keeper import prefer_gtdb_representatives
+from repgenr.stages.derep_keeper import prefer_source_representatives
 
 _LOG = logging.getLogger("keeper-gtdb")
 _ALL = ["rep.fasta", "m1.fasta", "m2.fasta", "solo.fasta"]
@@ -60,7 +60,7 @@ def _result() -> DerepResult:
 
 def test_gtdb_representative_is_kept_over_a_better_scored_member() -> None:
     quality = {"rep.fasta": (90.0, 3.0), "m1.fasta": (99.0, 0.2), "m2.fasta": (95.0, 1.0)}
-    out, swaps = prefer_gtdb_representatives(_result(), {"m2.fasta"}, quality, _LOG)
+    out, swaps = prefer_source_representatives(_result(), {"m2.fasta"}, quality, _LOG)
     assert swaps == 1
     assert sorted(p.name for p in out.representatives) == ["m2.fasta", "solo.fasta"]
     assert out.clusters["m2.fasta"] == ["m1.fasta", "rep.fasta"]
@@ -73,28 +73,28 @@ def test_gtdb_representative_is_kept_over_a_better_scored_member() -> None:
 
 def test_gtdb_representative_without_quality_is_still_kept() -> None:
     quality = {"rep.fasta": (99.0, 0.0), "m1.fasta": (99.0, 0.0)}
-    out, swaps = prefer_gtdb_representatives(_result(), {"m2.fasta"}, quality, _LOG)
+    out, swaps = prefer_source_representatives(_result(), {"m2.fasta"}, quality, _LOG)
     assert swaps == 1
     assert "m2.fasta" in out.clusters
 
 
 def test_tool_pick_that_is_a_gtdb_representative_stays() -> None:
     quality = {"m1.fasta": (99.0, 0.0)}
-    out, swaps = prefer_gtdb_representatives(_result(), {"rep.fasta"}, quality, _LOG)
+    out, swaps = prefer_source_representatives(_result(), {"rep.fasta"}, quality, _LOG)
     assert swaps == 0
     assert out.clusters["rep.fasta"] == ["m1.fasta", "m2.fasta"]
 
 
 def test_cluster_without_gtdb_representative_falls_back_to_quality() -> None:
     quality = {"rep.fasta": (90.0, 3.0), "m1.fasta": (99.0, 0.2)}
-    out, swaps = prefer_gtdb_representatives(_result(), {"solo.fasta"}, quality, _LOG)
+    out, swaps = prefer_source_representatives(_result(), {"solo.fasta"}, quality, _LOG)
     assert swaps == 1
     assert sorted(out.clusters) == ["m1.fasta", "solo.fasta"]
     check_result_complete(out, _ALL)
 
 
 def test_cluster_without_gtdb_representative_or_quality_keeps_tool_pick() -> None:
-    out, swaps = prefer_gtdb_representatives(_result(), set(), {}, _LOG)
+    out, swaps = prefer_source_representatives(_result(), set(), {}, _LOG)
     assert swaps == 0
     assert sorted(out.clusters) == ["rep.fasta", "solo.fasta"]
 
@@ -102,7 +102,9 @@ def test_cluster_without_gtdb_representative_or_quality_keeps_tool_pick() -> Non
 def test_several_gtdb_representatives_keep_the_best_scored_and_warn(caplog) -> None:
     quality = {"m1.fasta": (95.0, 1.0), "m2.fasta": (99.0, 0.1)}
     with caplog.at_level(logging.WARNING, logger=_LOG.name):
-        out, swaps = prefer_gtdb_representatives(_result(), {"m1.fasta", "m2.fasta"}, quality, _LOG)
+        out, swaps = prefer_source_representatives(
+            _result(), {"m1.fasta", "m2.fasta"}, quality, _LOG
+        )
     assert swaps == 1
     assert sorted(out.clusters) == ["m2.fasta", "solo.fasta"]
     assert out.genome_status["m1.fasta"] == STATUS_CONTAINED
@@ -113,7 +115,7 @@ def test_several_gtdb_representatives_keep_the_best_scored_and_warn(caplog) -> N
 
 
 def test_several_unscored_gtdb_representatives_prefer_the_tool_pick() -> None:
-    out, swaps = prefer_gtdb_representatives(
+    out, swaps = prefer_source_representatives(
         _result(), {"rep.fasta", "m2.fasta", "m1.fasta"}, {}, _LOG
     )
     assert swaps == 0
@@ -121,13 +123,13 @@ def test_several_unscored_gtdb_representatives_prefer_the_tool_pick() -> None:
 
 
 def test_several_unscored_gtdb_members_choose_by_name() -> None:
-    out, _ = prefer_gtdb_representatives(_result(), {"m2.fasta", "m1.fasta"}, {}, _LOG)
+    out, _ = prefer_source_representatives(_result(), {"m2.fasta", "m1.fasta"}, {}, _LOG)
     assert sorted(out.clusters) == ["m1.fasta", "solo.fasta"]
 
 
 def test_high_quality_gtdb_representative_replaces_an_unscored_one() -> None:
     quality = {"m2.fasta": (99.0, 1.0)}
-    out, _ = prefer_gtdb_representatives(_result(), {"rep.fasta", "m2.fasta"}, quality, _LOG)
+    out, _ = prefer_source_representatives(_result(), {"rep.fasta", "m2.fasta"}, quality, _LOG)
     assert sorted(out.clusters) == ["m2.fasta", "solo.fasta"]
 
 
@@ -135,14 +137,14 @@ def test_unscored_gtdb_representative_stays_against_a_low_quality_one() -> None:
     """The quality rule's guard applies among GTDB representatives too: an
     unscored incumbent is replaced only by a high-quality genome."""
     quality = {"m2.fasta": (50.0, 9.0)}
-    out, _ = prefer_gtdb_representatives(_result(), {"rep.fasta", "m2.fasta"}, quality, _LOG)
+    out, _ = prefer_source_representatives(_result(), {"rep.fasta", "m2.fasta"}, quality, _LOG)
     assert sorted(out.clusters) == ["rep.fasta", "solo.fasta"]
 
 
 def test_several_gtdb_representatives_tie_break_on_n50() -> None:
     quality = {"m1.fasta": (99.0, 0.0), "m2.fasta": (99.0, 0.0)}
     n50 = {"m1.fasta": 50_000, "m2.fasta": 2_000_000}.get
-    out, _ = prefer_gtdb_representatives(_result(), {"m1.fasta", "m2.fasta"}, quality, _LOG, n50)
+    out, _ = prefer_source_representatives(_result(), {"m1.fasta", "m2.fasta"}, quality, _LOG, n50)
     assert sorted(out.clusters) == ["m2.fasta", "solo.fasta"]
 
 
@@ -152,7 +154,7 @@ def test_gtdb_and_quality_agree_when_every_genome_is_flagged() -> None:
     quality = {"rep.fasta": (95.0, 1.0), "m1.fasta": (99.0, 0.5), "m2.fasta": (99.0, 0.5)}
     n50 = {"m1.fasta": 10_000, "m2.fasta": 900_000, "rep.fasta": 5_000_000}.get
     by_quality, _ = rescore_representatives(_result(), quality, _LOG, n50)
-    by_gtdb, _ = prefer_gtdb_representatives(_result(), set(_ALL), quality, _LOG, n50)
+    by_gtdb, _ = prefer_source_representatives(_result(), set(_ALL), quality, _LOG, n50)
     assert by_gtdb.clusters == by_quality.clusters
 
 
@@ -169,7 +171,7 @@ def _row(name: str, *, rep: bool, outgroup: bool = False) -> SelectionRow:
         filename=name,
         completeness=99.0,
         contamination=0.5,
-        gtdb_representative=rep,
+        source_representative=rep,
     )
 
 
@@ -178,7 +180,7 @@ def test_selection_round_trip_carries_the_flag(tmp_path) -> None:
     rows = [_row("A.fasta", rep=True), _row("B.fasta", rep=False, outgroup=True)]
     write_selection(path, rows)
     header = path.read_text(encoding="utf-8").splitlines()[0].split("\t")
-    assert header[-1] == "gtdb_representative"
+    assert header[-1] == "source_representative"
     assert path.read_text(encoding="utf-8").splitlines()[1].split("\t")[-1] == "1"
     assert read_selection(path) == rows
 
@@ -186,7 +188,7 @@ def test_selection_round_trip_carries_the_flag(tmp_path) -> None:
 def test_selection_without_the_column_reads_as_not_representative(tmp_path) -> None:
     path = tmp_path / "selection.tsv"
     path.write_text("accession\tfilename\tis_outgroup\nA\tA.fasta\t0\n", encoding="utf-8")
-    assert read_selection(path)[0].gtdb_representative is False
+    assert read_selection(path)[0].source_representative is False
 
 
 @pytest.mark.parametrize(("value", "expected"), [("true", True), ("yes", True), ("", False)])
@@ -195,19 +197,30 @@ def test_selection_flag_accepts_the_outgroup_spellings(tmp_path, value, expected
     path.write_text(
         f"accession\tfilename\tgtdb_representative\nA\tA.fasta\t{value}\n", encoding="utf-8"
     )
-    assert read_selection(path)[0].gtdb_representative is expected
+    assert read_selection(path)[0].source_representative is expected
 
 
-def test_selection_flag_rejects_an_unknown_value(tmp_path) -> None:
+@pytest.mark.parametrize("column", ["source_representative", "gtdb_representative"])
+def test_selection_flag_rejects_an_unknown_value(tmp_path, column) -> None:
     path = tmp_path / "selection.tsv"
-    path.write_text("accession\tfilename\tgtdb_representative\nA\tA.fasta\tmaybe\n", "utf-8")
-    with pytest.raises(WorkdirError, match="gtdb_representative"):
+    path.write_text(f"accession\tfilename\t{column}\nA\tA.fasta\tmaybe\n", "utf-8")
+    with pytest.raises(WorkdirError, match=column):
         read_selection(path)
 
 
+def test_selection_is_written_with_the_new_column_and_read_with_either(tmp_path) -> None:
+    path = tmp_path / "selection.tsv"
+    write_selection(path, [_row("A.fasta", rep=True)])
+    text = path.read_text(encoding="utf-8")
+    assert text.splitlines()[0].split("\t")[-1] == "source_representative"
+    # A file of an earlier version carries the flag as gtdb_representative.
+    path.write_text(text.replace("source_representative", "gtdb_representative"), "utf-8")
+    assert read_selection(path)[0].source_representative is True
+
+
 def test_record_from_selection_carries_the_flag() -> None:
-    assert record_from_selection(_row("A.fasta", rep=True), "gtdb").gtdb_representative
-    assert not record_from_selection(_row("A.fasta", rep=False), "local").gtdb_representative
+    assert record_from_selection(_row("A.fasta", rep=True), "gtdb").source_representative
+    assert not record_from_selection(_row("A.fasta", rep=False), "local").source_representative
 
 
 # --- manifest ---------------------------------------------------------------
@@ -235,13 +248,13 @@ def test_manifest_round_trip_and_lookup(tmp_path) -> None:
     m = Manifest(tmp_path / "m.sqlite")
     m.upsert_many(
         [
-            GenomeRecord(accession="A", filename="a.fasta", gtdb_representative=True),
+            GenomeRecord(accession="A", filename="a.fasta", source_representative=True),
             GenomeRecord(accession="B", filename="b.fasta"),
         ]
     )
     by_acc = {g.accession: g for g in m.all_genomes()}
-    assert by_acc["A"].gtdb_representative and not by_acc["B"].gtdb_representative
-    assert m.gtdb_representatives() == {"a.fasta"}
+    assert by_acc["A"].source_representative and not by_acc["B"].source_representative
+    assert m.source_representatives() == {"a.fasta"}
     m.close()
 
 
@@ -249,12 +262,12 @@ def test_v2_manifest_is_migrated_with_the_flag_unset(tmp_path) -> None:
     path = tmp_path / "old.sqlite"
     _v2_database(path)
     m = Manifest(path)
-    assert int(m._conn.execute("PRAGMA user_version").fetchone()[0]) == SCHEMA_VERSION == 4
+    assert int(m._conn.execute("PRAGMA user_version").fetchone()[0]) == SCHEMA_VERSION == 5
     (record,) = m.all_genomes()
-    assert record.gtdb_representative is False and record.completeness == 99.0
-    assert m.gtdb_representatives() == set()
-    m.upsert(GenomeRecord(accession="A", filename="a.fasta", gtdb_representative=True))
-    assert m.gtdb_representatives() == {"a.fasta"}
+    assert record.source_representative is False and record.completeness == 99.0
+    assert m.source_representatives() == set()
+    m.upsert(GenomeRecord(accession="A", filename="a.fasta", source_representative=True))
+    assert m.source_representatives() == {"a.fasta"}
     m.close()
 
 
@@ -262,8 +275,8 @@ def test_readonly_v2_manifest_reports_no_representatives(tmp_path) -> None:
     path = tmp_path / "old.sqlite"
     _v2_database(path)
     m = Manifest.open_readonly(path)
-    assert m.gtdb_representatives() == set()
-    assert m.all_genomes()[0].gtdb_representative is False
+    assert m.source_representatives() == set()
+    assert m.all_genomes()[0].source_representative is False
     m.close()
 
 
@@ -278,7 +291,9 @@ def test_manifest_digest_is_unchanged_for_rows_without_the_flag(tmp_path) -> Non
         ("\0".join(["A", "a.fasta", "", "", "s", "False", "", "", "", ""]) + "\n").encode()
     ).hexdigest()
     assert manifest_digest(m) == expected
-    m.upsert(GenomeRecord(accession="A", filename="a.fasta", species="s", gtdb_representative=True))
+    m.upsert(
+        GenomeRecord(accession="A", filename="a.fasta", species="s", source_representative=True)
+    )
     assert manifest_digest(m) != expected
     m.close()
 
@@ -288,15 +303,29 @@ def test_manifest_digest_is_unchanged_for_rows_without_the_flag(tmp_path) -> Non
 
 def test_cluster_summary_marks_a_gtdb_representative_keeper(tmp_path) -> None:
     clusters = {"rep.fasta": ["m1.fasta"], "solo.fasta": []}
-    rows = summarise_clusters(clusters, {}, {}, gtdb_representatives={"rep.fasta", "m1.fasta"})
+    rows = summarise_clusters(clusters, {}, {}, source_representatives={"rep.fasta", "m1.fasta"})
     by_rep = {r.representative: r for r in rows}
-    assert by_rep["rep.fasta"].rep_is_gtdb_representative is True
-    assert by_rep["solo.fasta"].rep_is_gtdb_representative is False
+    assert by_rep["rep.fasta"].rep_is_source_representative is True
+    assert by_rep["solo.fasta"].rep_is_source_representative is False
     path = tmp_path / "cluster_summary.tsv"
     write_cluster_summary(path, rows)
     lines = path.read_text(encoding="utf-8").splitlines()
-    column = lines[0].split("\t").index("rep_is_gtdb_representative")
+    column = lines[0].split("\t").index("rep_is_source_representative")
     assert [line.split("\t")[column] for line in lines[1:]] == ["1", "0"]
+    assert read_cluster_summary(path) == rows
+
+
+def test_cluster_summary_of_an_earlier_version_is_read(tmp_path) -> None:
+    rows = summarise_clusters(
+        {"rep.fasta": ["m1.fasta"], "solo.fasta": []}, {}, source_representatives={"rep.fasta"}
+    )
+    path = tmp_path / "cluster_summary.tsv"
+    write_cluster_summary(path, rows)
+    text = path.read_text(encoding="utf-8")
+    assert "rep_is_source_representative" in text.splitlines()[0]
+    path.write_text(
+        text.replace("rep_is_source_representative", "rep_is_gtdb_representative"), "utf-8"
+    )
     assert read_cluster_summary(path) == rows
 
 
@@ -343,10 +372,75 @@ def test_param_builder_accepts_keeper_gtdb() -> None:
     assert dereplicate_params(tool="skder", keeper="gtdb").keeper == "gtdb"
 
 
-def test_keeper_help_names_gtdb() -> None:
+def test_param_builder_accepts_keeper_source_and_refuses_others() -> None:
+    from repgenr.cli.param_builders import dereplicate_params
+    from repgenr.core.errors import UserInputError
+
+    assert dereplicate_params(tool="skder", keeper="source").keeper == "source"
+    with pytest.raises(UserInputError, match="--keeper"):
+        dereplicate_params(tool="skder", keeper="ncbi")
+
+
+def test_keeper_help_names_source_and_its_earlier_name() -> None:
     from repgenr.cli.base import HELP_KEEPER
 
-    assert "gtdb" in HELP_KEEPER
+    assert "source" in HELP_KEEPER and "gtdb" in HELP_KEEPER
+
+
+def test_gtdb_is_the_earlier_name_of_the_source_rule(caplog) -> None:
+    from repgenr.stages.derep_keeper import KEEPER_SOURCE, keeper_rule
+
+    assert keeper_rule("gtdb") == keeper_rule("source") == KEEPER_SOURCE
+    assert keeper_rule("quality") == "quality" and keeper_rule("other") == "other"
+    with caplog.at_level(logging.INFO):
+        keeper_rule("source", _LOG)
+        assert not caplog.records  # nothing to report for the present name
+        keeper_rule("gtdb", _LOG)
+    assert "--keeper gtdb is the earlier name of --keeper source" in caplog.text
+
+
+_V4_SCHEMA = (
+    "CREATE TABLE genomes (accession TEXT PRIMARY KEY, filename TEXT, source TEXT, "
+    "family TEXT, genus TEXT, species TEXT, is_outgroup INTEGER DEFAULT 0, "
+    "derep_status TEXT, representative TEXT, completeness REAL, contamination REAL, "
+    "gtdb_representative INTEGER DEFAULT 0, sketch_file TEXT, sketch_params TEXT, "
+    "sketch_digest TEXT); "
+    "PRAGMA user_version=4;"
+)
+
+
+def _v4_database(path: Path) -> None:
+    conn = sqlite3.connect(path)
+    conn.executescript(_V4_SCHEMA)
+    conn.execute(
+        "INSERT INTO genomes (accession, filename, gtdb_representative) VALUES "
+        "('A', 'a.fasta', 1), ('B', 'b.fasta', 0)"
+    )
+    conn.commit()
+    conn.close()
+
+
+def test_v4_manifest_is_read_without_migration_and_migrated_with_its_flags(tmp_path) -> None:
+    path = tmp_path / "old.sqlite"
+    _v4_database(path)
+    # Read-only: the file is left at v4 and the old column is read.
+    old = Manifest.open_readonly(path)
+    before = manifest_digest(old)
+    assert old.source_representatives() == {"a.fasta"}
+    assert {g.accession for g in old.all_genomes() if g.source_representative} == {"A"}
+    old.close()
+    conn = sqlite3.connect(path)
+    assert int(conn.execute("PRAGMA user_version").fetchone()[0]) == 4
+    conn.close()
+    # Opened for writing: the column is renamed and keeps its values.
+    m = Manifest(path)
+    cols = {r[1] for r in m._conn.execute("PRAGMA table_info(genomes)")}
+    assert "source_representative" in cols and "gtdb_representative" not in cols
+    assert int(m._conn.execute("PRAGMA user_version").fetchone()[0]) == SCHEMA_VERSION
+    assert m.source_representatives() == {"a.fasta"}
+    # The digest the stages were recorded with still matches.
+    assert manifest_digest(m) == before
+    m.close()
 
 
 def _open_after_barrier(path: str, barrier, errors) -> None:  # noqa: ANN001
@@ -372,7 +466,7 @@ def test_concurrent_opens_of_an_old_manifest_migrate_once(tmp_path, old_schema, 
         )
     elif old_schema == "v3":
         schema = schema.replace(
-            "contamination REAL)", "contamination REAL, gtdb_representative INTEGER DEFAULT 0)"
+            "contamination REAL)", "contamination REAL, source_representative INTEGER DEFAULT 0)"
         ).replace("user_version=2", "user_version=3")
     for trial in range(6):
         path = tmp_path / f"m{trial}.sqlite"
@@ -397,7 +491,7 @@ def test_concurrent_opens_of_an_old_manifest_migrate_once(tmp_path, old_schema, 
         assert found == []
         m = Manifest(path)
         cols = {r[1] for r in m._conn.execute("PRAGMA table_info(genomes)")}
-        assert {"completeness", "contamination", "gtdb_representative"} <= cols
+        assert {"completeness", "contamination", "source_representative"} <= cols
         assert {"sketch_file", "sketch_params", "sketch_digest"} <= cols
         m.close()
 
@@ -415,11 +509,11 @@ def test_migration_holds_the_write_lock_between_check_and_alter(tmp_path, monkey
 
     class RacingConnection(sqlite3.Connection):
         def execute(self, sql, *args):  # noqa: ANN001, ANN201
-            if "ADD COLUMN gtdb_representative" in sql and not racer_results:
+            if "ADD COLUMN source_representative" in sql and not racer_results:
                 other = real_connect(path, timeout=0)
                 try:
                     other.execute(
-                        "ALTER TABLE genomes ADD COLUMN gtdb_representative INTEGER DEFAULT 0"
+                        "ALTER TABLE genomes ADD COLUMN source_representative INTEGER DEFAULT 0"
                     )
                     other.commit()
                     racer_results.append("racer added the column")
@@ -447,8 +541,8 @@ def test_migration_treats_a_duplicate_column_as_done(tmp_path) -> None:
     path = tmp_path / "m.sqlite"
     _v2_database(path)
     conn = sqlite3.connect(path)
-    _add_column(conn, "gtdb_representative", "INTEGER DEFAULT 0")
-    _add_column(conn, "gtdb_representative", "INTEGER DEFAULT 0")
+    _add_column(conn, "source_representative", "INTEGER DEFAULT 0")
+    _add_column(conn, "source_representative", "INTEGER DEFAULT 0")
     conn.close()
 
 
@@ -464,6 +558,6 @@ def test_gtdb_rule_reads_no_n50_when_one_representative_competes() -> None:
     # m2 is scored but not high quality, so the quality pass keeps the
     # unscored tool pick without ranking; the GTDB pass then keeps m2.
     quality = {"m2.fasta": (50.0, 9.0)}
-    out, _ = prefer_gtdb_representatives(_result(), {"m2.fasta"}, quality, _LOG, n50)
+    out, _ = prefer_source_representatives(_result(), {"m2.fasta"}, quality, _LOG, n50)
     assert "m2.fasta" in out.clusters
     assert reads == []

@@ -10,14 +10,14 @@ for the data-channel path.
 
 Taxonomy comes from ``--selection`` (a ``selection.tsv``: accession and
 filename are required; it may also carry CheckM-style quality for ``--keeper
-quality`` and the ``gtdb_representative`` flag for ``--keeper gtdb``, 0 when
+quality`` and the ``source_representative`` flag for ``--keeper source``, 0 when
 the column is absent) or, failing that, from
 canonical ``Family_genus_species_ACCESSION.fasta`` filenames; any other name
 yields an empty taxonomy and the file stem as accession.
 
 ``--from-workdir`` (repeatable, alone or beside ``--genomes-dir``) takes the
 genome set of an earlier working directory: its ``selection.tsv`` rows are
-read unchanged (taxonomy, quality, ``gtdb_representative``), each file is
+read unchanged (taxonomy, quality, ``source_representative``), each file is
 resolved under its ``genomes/``, and the manifest source of each genome
 (gtdb, sra, ncbi_virus, bvbrc, local) is kept when that workdir has a manifest.
 The outgroup of a source workdir is not carried over; ``--outgroup`` sets the

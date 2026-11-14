@@ -367,7 +367,7 @@ def _v3_database(path: Path) -> None:
     conn.close()
 
 
-def test_v3_manifest_migrates_to_v4_with_the_digest_unchanged(tmp_path) -> None:
+def test_v3_manifest_migrates_with_the_digest_unchanged(tmp_path) -> None:
     path = tmp_path / "m.sqlite"
     _v3_database(path)
     old = Manifest.open_readonly(path)
@@ -375,16 +375,18 @@ def test_v3_manifest_migrates_to_v4_with_the_digest_unchanged(tmp_path) -> None:
     assert old.sketch_records() == {}  # a v3 file read without migration
     old.close()
     m = Manifest(path)
-    assert SCHEMA_VERSION == 4
-    assert int(m._conn.execute("PRAGMA user_version").fetchone()[0]) == 4
+    assert SCHEMA_VERSION == 5
+    assert int(m._conn.execute("PRAGMA user_version").fetchone()[0]) == SCHEMA_VERSION
     cols = {r[1] for r in m._conn.execute("PRAGMA table_info(genomes)")}
     assert {"sketch_file", "sketch_params", "sketch_digest"} <= cols
+    # v5 renames the flag column and keeps its values.
+    assert "source_representative" in cols and "gtdb_representative" not in cols
     assert manifest_digest(m) == before
     m.set_sketches([("A", SketchRecord("sketches/a.sig.zip", SKETCH_PARAMS, "abc"))])
     # Sketch records are not part of the digest the stages fingerprint on.
     assert manifest_digest(m) == before
     (row,) = m.all_genomes()
-    assert row.sketch_file == "sketches/a.sig.zip" and row.gtdb_representative
+    assert row.sketch_file == "sketches/a.sig.zip" and row.source_representative
     # A genome upsert keeps the sketch record.
     m.replace_genomes([GenomeRecord("A", "a.fasta", "gtdb", "F", "G", "s")])
     assert m.sketch_records()["A"].digest == "abc"
@@ -401,7 +403,7 @@ def test_v4_migration_treats_a_duplicate_column_as_done(tmp_path) -> None:
     conn.commit()
     conn.close()
     m = Manifest(path)
-    assert int(m._conn.execute("PRAGMA user_version").fetchone()[0]) == 4
+    assert int(m._conn.execute("PRAGMA user_version").fetchone()[0]) == SCHEMA_VERSION
     m.close()
 
 

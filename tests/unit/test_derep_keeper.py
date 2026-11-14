@@ -296,7 +296,7 @@ def test_gtdb_prefetch_reads_the_ranked_representatives(tmp_path: Path, monkeypa
     are ranked against each other, so both are read in the prefetch, below
     the high-quality bar included; nothing is read afterwards."""
     from repgenr.stages import derep_keeper
-    from repgenr.stages.derep_keeper import prefer_gtdb_representatives
+    from repgenr.stages.derep_keeper import prefer_source_representatives
 
     _write_genomes(
         tmp_path, {"r.fasta": [10], "g1.fasta": [10], "g2.fasta": [20], "g3.fasta": [30]}
@@ -322,7 +322,7 @@ def test_gtdb_prefetch_reads_the_ranked_representatives(tmp_path: Path, monkeypa
         lambda p: lazy.append(p.name) or real_read(p),
     )
 
-    out, _ = prefer_gtdb_representatives(
+    out, _ = prefer_source_representatives(
         result, {"g1.fasta", "g2.fasta", "g3.fasta"}, quality, _LOG, lookup
     )
 

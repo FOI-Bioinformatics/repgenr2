@@ -210,7 +210,7 @@ def test_quality_round_trip_and_migration(tmp_path):
     m.upsert(GenomeRecord(accession="A", filename="a.fasta", completeness=99.1, contamination=0.4))
     m.upsert(GenomeRecord(accession="B", filename="b.fasta"))
     assert m.quality() == {"a.fasta": (99.1, 0.4)}
-    assert SCHEMA_VERSION == 4
+    assert SCHEMA_VERSION == 5
     m.close()
 
 

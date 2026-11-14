@@ -65,9 +65,11 @@ from ..dereplicators.base import (
 )
 from .cluster_summary import Taxonomy, summarise_clusters
 from .derep_keeper import (
+    KEEPER_SOURCE,
     N50Lookup,
     N50Of,
-    prefer_gtdb_representatives,
+    keeper_rule,
+    prefer_source_representatives,
     rescore_representatives,
 )
 from .dereplicate import (
@@ -111,10 +113,11 @@ def _maybe_write_versions(path: Path | None, versions: dict[str, str]) -> None:
         write_versions_fragment(path, versions)
 
 
-def _gtdb_from_selection(selection_tsv: Path | None) -> set[str]:
-    """Filenames selection.tsv flags as GTDB species representatives.
+def _source_reps_from_selection(selection_tsv: Path | None) -> set[str]:
+    """Filenames selection.tsv flags as representatives of their source
+    (GTDB species representatives, NCBI reference genomes).
 
-    The outgroup row is left out: it is usually a GTDB representative itself
+    The outgroup row is left out: it is usually such a representative itself
     but is never dereplicated.
     """
     if selection_tsv is None:
@@ -122,18 +125,19 @@ def _gtdb_from_selection(selection_tsv: Path | None) -> set[str]:
     return {
         r.filename
         for r in read_selection(selection_tsv)
-        if r.gtdb_representative and not r.is_outgroup
+        if r.source_representative and not r.is_outgroup
     }
 
 
-def _warn_no_gtdb_flags(
+def _warn_no_source_flags(
     flagged: set[str], selection_tsv: Path, step: str, logger: logging.Logger
 ) -> None:
     if not flagged:
         logger.warning(
-            "%s: %s flags no GTDB species representative, so --keeper gtdb falls "
-            "back to the quality rule. Only GTDB selections from the metadata "
-            "stage carry the gtdb_representative column.",
+            "%s: %s flags no source representative (GTDB species representative or "
+            "NCBI reference genome), so --keeper source falls back to the quality "
+            "rule. Only selections from the metadata stage carry the "
+            "source_representative column.",
             step,
             selection_tsv,
         )
@@ -163,7 +167,7 @@ class ChunkParams:
     # keeper below. Unlike at the merge step, every genome in the chunk has a
     # real file here (params.genomes), so any promotion is always resolvable.
     selection_tsv: Path | None = None
-    keeper: str = "quality"  # quality | gtdb | tool
+    keeper: str = "quality"  # quality | source | tool
     # A sketches/ directory (Nextflow SKETCH) for an adapter that compares
     # sourmash sketches; matched to the genomes by record name.
     sketches_dir: Path | None = None
@@ -184,7 +188,7 @@ class MergeParams:
     # keeper below; without it (or with keeper="tool") the adapter's own
     # merge-level pick stands, as before.
     selection_tsv: Path | None = None
-    keeper: str = "quality"  # quality | gtdb | tool
+    keeper: str = "quality"  # quality | source | tool
     # Taxonomy-aware reduction after the merge (none | species | genus). The
     # taxonomy comes from selection.tsv when given, else from the canonical
     # genome filenames.
@@ -242,17 +246,17 @@ def dereplicate_chunk(params: ChunkParams, logger: logging.Logger) -> DerepResul
                 "dereplicate-chunk: quality-aware keeper changed %d representative(s)",
                 keeper_swaps,
             )
-    elif params.keeper == "gtdb" and params.selection_tsv is not None:
-        flagged = _gtdb_from_selection(params.selection_tsv)
-        _warn_no_gtdb_flags(flagged, params.selection_tsv, "dereplicate-chunk", logger)
-        result, keeper_swaps = prefer_gtdb_representatives(
+    elif keeper_rule(params.keeper) == KEEPER_SOURCE and params.selection_tsv is not None:
+        flagged = _source_reps_from_selection(params.selection_tsv)
+        _warn_no_source_flags(flagged, params.selection_tsv, "dereplicate-chunk", logger)
+        result, keeper_swaps = prefer_source_representatives(
             result,
             flagged,
             _quality_from_selection(params.selection_tsv),
             logger,
             n50,
         )
-        logger.info("dereplicate-chunk: GTDB keeper changed %d representative(s)", keeper_swaps)
+        logger.info("dereplicate-chunk: source keeper changed %d representative(s)", keeper_swaps)
     elif params.keeper == "tool" and params.selection_tsv is not None:
         logger.info(
             "dereplicate-chunk: --selection-tsv given but --keeper is 'tool'; "
@@ -269,7 +273,7 @@ def dereplicate_chunk(params: ChunkParams, logger: logging.Logger) -> DerepResul
         summary_quality,
         _summary_taxonomy(params.selection_tsv),
         n50,
-        _gtdb_from_selection(params.selection_tsv),
+        _source_reps_from_selection(params.selection_tsv),
     )
     # The merge step receives only the representatives' files, so record the
     # N50 of the scored members it may still compare. In a cluster with two or
@@ -363,13 +367,13 @@ def dereplicate_merge(params: MergeParams, logger: logging.Logger) -> DerepResul
                 "dereplicate-merge: quality-aware keeper changed %d representative(s)",
                 keeper_swaps,
             )
-    elif params.keeper == "gtdb" and params.selection_tsv is not None:
+    elif keeper_rule(params.keeper) == KEEPER_SOURCE and params.selection_tsv is not None:
         # As for the quality rule: only stage-1 representatives have a file
         # at this step, so only they may be promoted.
         resolvable = {rep.name for r in stage1 for rep in r.representatives}
-        flagged = _gtdb_from_selection(params.selection_tsv)
-        _warn_no_gtdb_flags(flagged, params.selection_tsv, "dereplicate-merge", logger)
-        final, keeper_swaps = prefer_gtdb_representatives(
+        flagged = _source_reps_from_selection(params.selection_tsv)
+        _warn_no_source_flags(flagged, params.selection_tsv, "dereplicate-merge", logger)
+        final, keeper_swaps = prefer_source_representatives(
             final,
             flagged & resolvable,
             {
@@ -380,7 +384,7 @@ def dereplicate_merge(params: MergeParams, logger: logging.Logger) -> DerepResul
             logger,
             n50,
         )
-        logger.info("dereplicate-merge: GTDB keeper changed %d representative(s)", keeper_swaps)
+        logger.info("dereplicate-merge: source keeper changed %d representative(s)", keeper_swaps)
     elif params.keeper == "tool" and params.selection_tsv is not None:
         logger.info(
             "dereplicate-merge: --selection-tsv given but --keeper is 'tool'; "
@@ -411,8 +415,8 @@ def dereplicate_merge(params: MergeParams, logger: logging.Logger) -> DerepResul
             ),
             n50=n50,
             prefer=(
-                _gtdb_from_selection(params.selection_tsv) & resolvable
-                if params.keeper == "gtdb"
+                _source_reps_from_selection(params.selection_tsv) & resolvable
+                if keeper_rule(params.keeper) == KEEPER_SOURCE
                 else set()
             ),
         )
@@ -442,7 +446,7 @@ def dereplicate_merge(params: MergeParams, logger: logging.Logger) -> DerepResul
         _summary_quality(params.selection_tsv),
         _summary_taxonomy(params.selection_tsv),
         n50,
-        _gtdb_from_selection(params.selection_tsv),
+        _source_reps_from_selection(params.selection_tsv),
     )
     _write_n50(params.out_dir / GENOME_N50_TSV, n50.computed())
     shutil.rmtree(scratch, ignore_errors=True)  # drop tool intermediates from the output
@@ -528,7 +532,7 @@ def _write_step_contract(
     quality: Mapping[str, tuple[float, float]],
     taxonomy: Taxonomy | None = None,
     n50: N50Of | None = None,
-    gtdb_representatives: set[str] | None = None,
+    source_representatives: set[str] | None = None,
     refined: Sequence[RefinedRow] = (),
 ) -> None:
     """Write representatives/, clusters.tsv, genome_status.tsv and
@@ -563,7 +567,7 @@ def _write_step_contract(
             quality,
             taxonomy,
             n50,
-            gtdb_representatives=gtdb_representatives or set(),
+            source_representatives=source_representatives or set(),
             refined={r.representative for r in refined if r.status == STATUS_REPRESENTATIVE},
         ),
     )
@@ -627,7 +631,7 @@ class RefineStepParams:
     extra: dict | None = None
     versions_out: Path | None = None
     selection_tsv: Path | None = None
-    keeper: str = "quality"  # quality | gtdb | tool
+    keeper: str = "quality"  # quality | source | tool
     seeds: list[str] = field(default_factory=list)
     ani: float | None = None
     refine_file: str | None = None
@@ -726,7 +730,7 @@ def dereplicate_refine(params: RefineStepParams, logger: logging.Logger) -> Dere
     fallbacks = sorted({g.parent for g in params.genomes})
     n50 = N50Lookup(fallbacks, workers=params.threads)
     quality = _quality_from_selection(params.selection_tsv) if params.selection_tsv else {}
-    flagged = _gtdb_from_selection(params.selection_tsv) if params.selection_tsv else set()
+    flagged = _source_reps_from_selection(params.selection_tsv) if params.selection_tsv else set()
     refined = result
     for i, lineage in enumerate(lineages):
         sub = fine_pass(
@@ -734,8 +738,8 @@ def dereplicate_refine(params: RefineStepParams, logger: logging.Logger) -> Dere
         )
         if params.keeper == "quality" and quality:
             sub, _ = rescore_representatives(sub, quality, logger, n50)
-        elif params.keeper == "gtdb" and params.selection_tsv is not None:
-            sub, _ = prefer_gtdb_representatives(sub, flagged, quality, logger, n50)
+        elif keeper_rule(params.keeper) == KEEPER_SOURCE and params.selection_tsv is not None:
+            sub, _ = prefer_source_representatives(sub, flagged, quality, logger, n50)
         refined = splice(refined, lineage, sub, paths, logger)
     rows = merge_rows(
         prior_rows, [r for lineage in lineages for r in refined_rows(refined, lineage)], lineages

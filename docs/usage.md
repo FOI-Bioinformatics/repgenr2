@@ -338,8 +338,10 @@ GTDB options (`-r`, `--gtdb-version`, `--metadata-path`, `--nodownload`,
   the GenBank *Francisella* assemblies on 2026-11-13); they rank last under
   `--limit`. The values are not comparable with GTDB's CheckM2 values, so
   avoid mixing selections of both kinds when quality decides the keeper.
-- No genome carries the GTDB representative flag, so `dereplicate --keeper
-  gtdb` chooses as `--keeper quality` does.
+- NCBI reference genomes carry the `source_representative` flag, so
+  `dereplicate --keeper source` keeps a reference genome in the clusters
+  that hold one, as it keeps a GTDB species representative in a GTDB
+  selection.
 
 ### Starting from local genomes
 
@@ -380,9 +382,10 @@ Subdirectories are not searched, so collect the `.fna` files of an NCBI
 Datasets download into one directory first. An empty or unreadable file
 stops `ingest` before anything is staged. Two files with one accession stop
 `ingest`; give them distinct accessions with `--selection`, whose
-`is_outgroup` and optional `gtdb_representative` columns take `1` or `0`
-(also `true`/`false`, `yes`/`no`). Without a `gtdb_representative` column no
-genome is a GTDB representative, so `--keeper gtdb` acts as `quality`.
+`is_outgroup` and optional `source_representative` columns take `1` or `0`
+(also `true`/`false`, `yes`/`no`). Without a `source_representative` column
+(`gtdb_representative` in files of earlier versions) no genome is a source
+representative, so `--keeper source` acts as `quality`.
 `--outgroup` names a genome under `--genomes-dir`, in a
 `--from-workdir`, or a FASTA file anywhere, and sets it aside under
 `outgroup/`.
@@ -408,8 +411,8 @@ directory, for example GTDB genomes from one and assemblies from another:
 repgenr ingest -wd WD3 --from-workdir WD1 --from-workdir WD2 --outgroup GCF_003574425.1
 ```
 
-Accession, taxonomy, CheckM values and `gtdb_representative` carry over,
-so `--keeper quality` and `--keeper gtdb` work on the combined set. The
+Accession, taxonomy, CheckM values and `source_representative` carry over,
+so `--keeper quality` and `--keeper source` work on the combined set. The
 manifest keeps each genome's source (`gtdb`, `sra`, `local`, and for viral
 genomes `ncbi_virus`, `bvbrc` or `local_viral`, whose species the summary
 names by the file-name token without `--viral`). Per-run files
@@ -524,8 +527,10 @@ The clusters go to `derep/clusters.tsv` and the representatives to
 ### Representative selection
 
 After clustering, a keeper step re-picks each cluster's representative.
-`--keeper quality` (the default) takes the best-quality genome, `gtdb`
-the GTDB species representative, and `tool` the dereplicator's own pick.
+`--keeper quality` (the default) takes the best-quality genome, `source`
+the representative of the source (a GTDB species representative or an NCBI
+reference genome), and `tool` the dereplicator's own pick. `gtdb` is the
+earlier name of `source` and is still accepted.
 Quality values come from the manifest: CheckM values of GTDB selections,
 CheckM2 scores of assemblies, or the columns of `ingest --selection`. When no
 genome has values the stage warns and records `keeper_effective: tool`.
@@ -544,11 +549,11 @@ The working-directory stage applies the keeper once, to the final clusters.
 The Nextflow steps apply it within each chunk and again after the merge, so
 the final clusters can differ slightly.
 
-With `--keeper gtdb`, a cluster keeps its GTDB species representative and
+With `--keeper source`, a cluster keeps its source representative and
 otherwise falls back to the quality rule. When a cluster holds several,
 the best is kept and the others are named in a warning; raise
-`--secondary-ani` to keep them apart. Only GTDB selections carry the flag,
-so on the other entry paths `gtdb` acts as `quality`.
+`--secondary-ani` to keep them apart. Only selections from `metadata` carry the flag,
+so on the other entry paths `source` acts as `quality`.
 
 When every genome has quality values, they are also passed to dRep
 (`--genomeInfo`, which then skips CheckM) and galah (`--genome-info`).
@@ -559,8 +564,8 @@ genome rather than a fragment becomes its representative.
 
 `--reduce species|genus` keeps one representative per taxon after
 dereplication: the representative of the taxon's largest cluster, re-picked
-by score only with `--keeper quality` and known scores. A GTDB
-representative is preferred under `--keeper gtdb`. `--target-reps N` searches the secondary ANI to land near N
+by score only with `--keeper quality` and known scores. A source
+representative is preferred under `--keeper source`. `--target-reps N` searches the secondary ANI to land near N
 representatives.
 
 #### Pinned representatives
@@ -924,7 +929,7 @@ docker ps -q --filter label=repgenr.pid=<repgenr pid> | xargs -r docker stop
 - Each stage reruns once, since the resume fingerprint changed. The
   manifest is upgraded in place, after which earlier versions refuse it.
 - A selection made before the GTDB representative flag existed needs
-  `repgenr metadata --force` with the same options for `--keeper gtdb`.
+  `repgenr metadata --force` with the same options for `--keeper source`.
 - The keeper rule is not part of the resume fingerprint, so a working
   directory dereplicated under an earlier rule keeps its representatives
   until `repgenr --force dereplicate`.

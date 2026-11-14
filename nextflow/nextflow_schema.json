@@ -235,8 +235,8 @@
                 "derep_keeper": {
                     "type": "string",
                     "default": "quality",
-                    "enum": ["quality", "gtdb", "tool"],
-                    "description": "Representative choice in the chunk and merge steps: 'quality' picks by the CheckM completeness/contamination in selection.tsv and the genome N50; 'gtdb' keeps a GTDB species representative (selection.tsv column gtdb_representative) and applies the quality rule to clusters without one; both apply only when a selection.tsv reaches the dereplication steps. 'tool' keeps the adapter's own pick.",
+                    "enum": ["quality", "source", "gtdb", "tool"],
+                    "description": "Representative choice in the chunk and merge steps: 'quality' picks by the CheckM completeness/contamination in selection.tsv and the genome N50; 'source' keeps the representative of the source, a GTDB species representative or an NCBI reference genome (selection.tsv column source_representative), and applies the quality rule to clusters without one ('gtdb' is the earlier name of 'source'); both apply only when a selection.tsv reaches the dereplication steps. 'tool' keeps the adapter's own pick.",
                     "fa_icon": "fas fa-star"
                 },
                 "derep_reduce": {

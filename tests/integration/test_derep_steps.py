@@ -886,7 +886,7 @@ def _gtdb_selection(path: Path, genomes: list[Path], reps: set[int]) -> None:
                 filename=g.name,
                 completeness=99.0 if i == 0 else 90.0,
                 contamination=0.1 if i == 0 else 2.0,
-                gtdb_representative=i in reps,
+                source_representative=i in reps,
             )
             for i, g in enumerate(genomes)
         ],
@@ -903,14 +903,14 @@ def test_chunk_keeper_gtdb_keeps_the_flagged_member(tmp_path: Path, reg) -> None
             genomes=genomes,
             out_dir=tmp_path / "c0",
             selection_tsv=selection,
-            keeper="gtdb",
+            keeper="source",
         ),
         _LOG,
     )
     assert {r.name for r in result.representatives} == {genomes[1].name, genomes[2].name}
     assert (tmp_path / "c0" / "representatives" / genomes[1].name).exists()
     summary = (tmp_path / "c0" / CLUSTER_SUMMARY_TSV).read_text(encoding="utf-8").splitlines()
-    column = summary[0].split("\t").index("rep_is_gtdb_representative")
+    column = summary[0].split("\t").index("rep_is_source_representative")
     flags = {line.split("\t")[0]: line.split("\t")[column] for line in summary[1:]}
     assert flags == {genomes[1].name: "1", genomes[2].name: "0"}
 
@@ -928,7 +928,7 @@ def test_merge_keeper_gtdb_keeps_the_flagged_chunk_representative(tmp_path: Path
                 genomes=part,
                 out_dir=tmp_path / name,
                 selection_tsv=selection,
-                keeper="gtdb",
+                keeper="source",
             ),
             _LOG,
         )
@@ -938,7 +938,7 @@ def test_merge_keeper_gtdb_keeps_the_flagged_chunk_representative(tmp_path: Path
             chunk_dirs=[tmp_path / "c0", tmp_path / "c1"],
             out_dir=tmp_path / "merged",
             selection_tsv=selection,
-            keeper="gtdb",
+            keeper="source",
         ),
         _LOG,
     )
@@ -963,7 +963,7 @@ def test_merge_keeper_gtdb_without_flags_falls_back_to_quality(tmp_path: Path, r
             chunk_dirs=[tmp_path / "c0", tmp_path / "c1"],
             out_dir=tmp_path / "merged",
             selection_tsv=selection,
-            keeper="gtdb",
+            keeper="source",
         ),
         _LOG,
     )
@@ -987,7 +987,7 @@ def test_chunk_keeper_gtdb_warns_when_only_the_outgroup_is_flagged(
             species="other",
             is_outgroup=True,
             filename="Fam_g_other_GCA_000099.1.fasta",
-            gtdb_representative=True,
+            source_representative=True,
         )
     )
     write_selection(selection, rows)
@@ -998,11 +998,11 @@ def test_chunk_keeper_gtdb_warns_when_only_the_outgroup_is_flagged(
                 genomes=genomes,
                 out_dir=tmp_path / "c0",
                 selection_tsv=selection,
-                keeper="gtdb",
+                keeper="source",
             ),
             _LOG,
         )
-    assert any("flags no GTDB" in r.getMessage() for r in caplog.records)
+    assert any("flags no source representative" in r.getMessage() for r in caplog.records)
 
 
 # --- dereplicate-refine ---------------------------------------------------------
@@ -1177,7 +1177,7 @@ def test_refine_step_reads_selection_quality_gtdb_outgroup_and_sketches(
                 filename=n,
                 completeness=99.0 if a == 112 else 90.0,
                 contamination=0.1 if a == 112 else 2.0,
-                gtdb_representative=a == 121,
+                source_representative=a == 121,
             )
             for a, n in zip((111, 112, 121, 211, 212, 221, 311), _TIERED_NAMES, strict=True)
         ]
