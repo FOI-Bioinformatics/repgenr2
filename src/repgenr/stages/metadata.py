@@ -216,7 +216,7 @@ def _write_selection(
                 filename=genome_filename(family, genus, species, r.accession),
                 completeness=r.completeness,
                 contamination=r.contamination,
-                gtdb_representative=r.gtdb_representative,
+                source_representative=r.source_representative,
             )
         )
     write_selection(ctx.workdir / SELECTION_TSV, rows)

@@ -127,7 +127,7 @@ def test_dereplication_methods_sentence() -> None:
         "Genomes were dereplicated with dRep (container image quay.io/biocontainers/drep:"
     )
     assert "primary ANI threshold of 90% and a secondary ANI threshold of 99%" in text
-    assert "'gtdb' keeper rule" in text and "per species" in text
+    assert "'source' keeper rule" in text and "per species" in text
     assert refs == []
 
 

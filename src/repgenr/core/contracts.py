@@ -297,10 +297,12 @@ class SelectionRow:
     filename: str
     completeness: float | None = None
     contamination: float | None = None
-    # GTDB marks one genome per species as its representative; the metadata
-    # stage copies that flag here so --keeper gtdb can keep those genomes.
-    # Every other entry path leaves it False.
-    gtdb_representative: bool = False
+    # The source's own representative: GTDB marks one genome per species,
+    # NCBI one reference genome per species. The metadata stage copies that
+    # flag here so --keeper source can keep those genomes; every other entry
+    # path leaves it False. Files written before the column was renamed
+    # carry it as gtdb_representative, which is still read.
+    source_representative: bool = False
 
 
 def _require_columns(reader: csv.DictReader, path: Path, required: list[str]) -> None:
@@ -365,7 +367,7 @@ def atomic_path(path: Path) -> Iterator[Path]:
 def write_selection(path: Path, rows: list[SelectionRow]) -> None:
     """Write the metadata selection (accession + taxonomy + filename + outgroup flag).
 
-    ``gtdb_representative`` is the last column, so the positions of the
+    ``source_representative`` is the last column, so the positions of the
     earlier columns are those of files written before it was added.
     """
     with atomic_replace(path, newline="") as fo:
@@ -380,7 +382,7 @@ def write_selection(path: Path, rows: list[SelectionRow]) -> None:
                 "filename",
                 "completeness",
                 "contamination",
-                "gtdb_representative",
+                "source_representative",
             ]
         )
         for r in rows:
@@ -394,7 +396,7 @@ def write_selection(path: Path, rows: list[SelectionRow]) -> None:
                     r.filename,
                     "" if r.completeness is None else f"{r.completeness:.2f}",
                     "" if r.contamination is None else f"{r.contamination:.2f}",
-                    "1" if r.gtdb_representative else "0",
+                    "1" if r.source_representative else "0",
                 ]
             )
 
@@ -408,8 +410,15 @@ def _opt_float(value: str | None) -> float | None:
 _FLAGS = {"1": True, "true": True, "yes": True, "0": False, "false": False, "no": False}
 
 
+def _renamed_flag(row: dict, column: str, old_column: str) -> bool:
+    """A flag column that files of earlier versions carry under ``old_column``."""
+    if row.get(column) is None and row.get(old_column) is not None:
+        return _outgroup_flag(row.get(old_column), old_column)
+    return _outgroup_flag(row.get(column), column)
+
+
 def _outgroup_flag(value: str | None, column: str = "is_outgroup") -> bool:
-    """A 1/0 flag column (is_outgroup, gtdb_representative): 1/0 as written,
+    """A 1/0 flag column (is_outgroup, source_representative): 1/0 as written,
     true/false and yes/no accepted, empty or absent read as 0.
 
     Any other value is an error: reading it as 0 put an intended outgroup into
@@ -447,8 +456,8 @@ def read_selection(path: Path) -> list[SelectionRow]:
                             filename=row["filename"],
                             completeness=_opt_float(row.get("completeness")),
                             contamination=_opt_float(row.get("contamination")),
-                            gtdb_representative=_outgroup_flag(
-                                row.get("gtdb_representative"), "gtdb_representative"
+                            source_representative=_renamed_flag(
+                                row, "source_representative", "gtdb_representative"
                             ),
                         )
                     )
@@ -614,9 +623,10 @@ class ClusterSummaryRow:
     best_member: str = ""
     rep_n50: int | None = None
     best_score: float | None = None
-    # Whether the representative is a GTDB species representative (from the
-    # manifest or selection.tsv); False when the selection carries no flag.
-    rep_is_gtdb_representative: bool = False
+    # Whether the representative is its source's representative (a GTDB
+    # species representative or an NCBI reference genome, from the manifest
+    # or selection.tsv); False when the selection carries no flag.
+    rep_is_source_representative: bool = False
     # Whether the cluster comes from a refinement at a finer ANI
     # (``dereplicate --refine`` or ``derep-refine``).
     refined: bool = False
@@ -641,7 +651,7 @@ _CLUSTER_SUMMARY_COLUMNS = (
     "n_genomes",
     "rep_n50",
     "best_score",
-    "rep_is_gtdb_representative",
+    "rep_is_source_representative",
     "refined",
 )
 
@@ -665,7 +675,7 @@ def write_cluster_summary(path: Path, rows: list[ClusterSummaryRow]) -> None:
                     r.n_genomes,
                     "" if r.rep_n50 is None else r.rep_n50,
                     _fmt_opt(r.best_score),
-                    "1" if r.rep_is_gtdb_representative else "0",
+                    "1" if r.rep_is_source_representative else "0",
                     "1" if r.refined else "0",
                 ]
             )
@@ -693,8 +703,8 @@ def read_cluster_summary(path: Path) -> list[ClusterSummaryRow]:
                     best_member=rec.get("best_member", ""),
                     rep_n50=int(rec["rep_n50"]) if rec.get("rep_n50") else None,
                     best_score=_opt_float(rec.get("best_score")),
-                    rep_is_gtdb_representative=_outgroup_flag(
-                        rec.get("rep_is_gtdb_representative"), "rep_is_gtdb_representative"
+                    rep_is_source_representative=_renamed_flag(
+                        rec, "rep_is_source_representative", "rep_is_gtdb_representative"
                     ),
                     refined=_outgroup_flag(rec.get("refined"), "refined"),
                 )

@@ -55,12 +55,14 @@ from ..dereplicators.base import (
     registry,
     run_quality,
 )
-from .cluster_summary import gtdb_lookup, summarise_clusters, taxonomy_lookup
+from .cluster_summary import source_rep_lookup, summarise_clusters, taxonomy_lookup
 from .derep_keeper import (
+    KEEPER_SOURCE,
     N50Of,
     choose_keeper,
+    keeper_rule,
     log_unpromoted,
-    prefer_gtdb_representatives,
+    prefer_source_representatives,
     prefetch_n50,
     rescore_representatives,
     save_n50_cache,
@@ -107,10 +109,11 @@ class DereplicateParams:
     # Proceed on a partial genome set with a warning instead of refusing.
     allow_incomplete: bool = False
     # Per-cluster representative choice: re-pick by manifest CheckM quality
-    # (completeness - 5 x contamination), "gtdb" to keep a GTDB species
-    # representative first (quality after it), or "tool" to keep the
-    # adapter's own pick.
-    keeper: str = "quality"  # quality | gtdb | tool
+    # (completeness - 5 x contamination), "source" to keep a representative
+    # of the source first (a GTDB species representative or an NCBI
+    # reference genome; quality after it), or "tool" to keep the adapter's
+    # own pick. "gtdb" is the earlier name of "source".
+    keeper: str = "quality"  # quality | source | tool
     # Seeds of a lineage to dereplicate again at refine_ani (derep_refine).
     refine: list[str] = field(default_factory=list)
     refine_ani: float | None = None
@@ -436,13 +439,13 @@ def apply_keeper(
     n50: N50Of,
     logger: logging.Logger,
     *,
-    gtdb_warning: bool = True,
+    source_warning: bool = True,
 ) -> tuple[DerepResult, int, str, dict[str, tuple[float, float]], set[str]]:
     """Apply the ``--keeper`` rule to every cluster of ``result``.
 
     Returns the result, the number of clusters whose representative changed,
-    the rule that took effect (``gtdb``, ``quality`` or ``tool``), the
-    quality map of the clustered genomes and the GTDB representatives among
+    the rule that took effect (``source``, ``quality`` or ``tool``), the
+    quality map of the clustered genomes and the source representatives among
     them (both empty when the rule did not apply), which ``--reduce`` reuses.
     """
     swaps = 0
@@ -453,19 +456,20 @@ def apply_keeper(
     # rejected on QC re-pick nothing and must not make the record claim a
     # rule applied.
     names = {n for rep, members in result.clusters.items() for n in (rep, *members)}
-    if keeper == "gtdb":
+    keeper = keeper_rule(keeper, logger if source_warning else None)
+    if keeper == KEEPER_SOURCE:
         quality = {n: q for n, q in manifest_quality.items() if n in names}
-        gtdb = gtdb_lookup(ctx) & names
-        if not gtdb and gtdb_warning:
+        gtdb = source_rep_lookup(ctx) & names
+        if not gtdb and source_warning:
             logger.warning(
-                "No clustered genome is flagged as a GTDB species "
-                "representative in the manifest, so "
-                "--keeper gtdb falls back to %s. Only GTDB selections from the "
-                "metadata stage carry the flag; a workdir selected by an older "
-                "version needs `repgenr metadata --force` to record it.",
+                "No clustered genome is flagged in the manifest as a representative "
+                "of its source (GTDB species representative or NCBI reference "
+                "genome), so --keeper source falls back to %s. Only selections "
+                "from the metadata stage carry the flag; a workdir selected by an "
+                "older version needs `repgenr metadata --force` to record it.",
                 "the quality rule" if quality else "the tool's own representatives",
             )
-        result, swaps = prefer_gtdb_representatives(result, gtdb, quality, logger, n50)
+        result, swaps = prefer_source_representatives(result, gtdb, quality, logger, n50)
     elif keeper == "quality":
         quality = {n: q for n, q in manifest_quality.items() if n in names}
         if quality:
@@ -478,7 +482,7 @@ def apply_keeper(
                 "--checkm2-db scores assemblies, and ingest --selection reads the "
                 "completeness and contamination columns."
             )
-    effective = "gtdb" if gtdb else "quality" if quality else "tool"
+    effective = KEEPER_SOURCE if gtdb else "quality" if quality else "tool"
     return result, swaps, effective, quality, gtdb
 
 
@@ -1070,8 +1074,8 @@ def _reduce_by_taxonomy(
     (keeper="tool", or no quality data) to use the largest-cluster rule
     alone. The others
     -- plus their cluster members -- become contained under the keeper.
-    A representative named in ``prefer`` (the GTDB species representatives
-    under ``--keeper gtdb``) wins over the others before any of these rules.
+    A representative named in ``prefer`` (the source representatives
+    under ``--keeper source``) wins over the others before any of these rules.
     Representatives whose taxon is unknown/empty are kept as-is (each its own
     group), so reduction never silently drops an un-annotated genome, and so
     are those named in ``keep_apart`` (the clusters of a refined lineage).
@@ -1097,7 +1101,7 @@ def _reduce_by_taxonomy(
 
     # keeper: the largest existing cluster, then lexical name; the quality
     # rule may then replace it, as within a cluster. Preferred genomes
-    # (GTDB species representatives under --keeper gtdb), when the group
+    # (source representatives under --keeper source), when the group
     # holds any, are the only candidates.
     picks: list[tuple[list[str], list[str], str]] = []
     for members in groups.values():
@@ -1221,7 +1225,7 @@ def _write_contract(
             quality,
             taxonomy_lookup(ctx),
             n50,
-            gtdb_representatives=gtdb_lookup(ctx),
+            source_representatives=source_rep_lookup(ctx),
             refined={r.representative for r in refined if r.status == STATUS_REPRESENTATIVE},
         ),
     )

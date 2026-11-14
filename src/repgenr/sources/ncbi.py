@@ -322,6 +322,8 @@ def _record(genome: NcbiGenome, tax: dict, *, is_outgroup: bool = False) -> Geno
         is_outgroup=is_outgroup,
         completeness=genome.completeness,
         contamination=genome.contamination,
+        # NCBI's reference genome of the species, for --keeper source.
+        source_representative=genome.reference,
     )
 
 

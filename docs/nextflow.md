@@ -76,7 +76,7 @@ description; parameters are validated against it at launch. The most used:
 | `--derep_tool` | `skder` | Dereplicator for the scatter-gather step. |
 | `--derep_process_size` | unset | Genomes per dereplication chunk; one chunk when unset. |
 | `--derep_secondary_ani` | `0.99` | Secondary ANI (also `--derep_primary_ani`, 0.90, and `--derep_aligned_fraction`, 0.50). |
-| `--derep_keeper` | `quality` | Representative choice: `quality`, `gtdb` or `tool`, from `selection.tsv`. |
+| `--derep_keeper` | `quality` | Representative choice: `quality`, `source` (earlier name `gtdb`) or `tool`, from `selection.tsv`. |
 | `--phylo_args` | `--treebuilder mashtree` | Phylogeny route, settings and rooting. |
 | `--tree2tax_args` | (empty) | tree2tax arguments; dereplicated genomes are listed by default. |
 | `--report` | `true` | Write the run report to `report/` (see below); `false` skips it. |

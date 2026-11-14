@@ -152,7 +152,7 @@ def test_two_workdirs_merge_with_rows_and_sources(tmp_path, sources, caplog) -> 
         "SRR0000002": "sra",
     }
     assert records["SRR0000001"].completeness == pytest.approx(97.1)
-    assert ctx.manifest.gtdb_representatives() == {GTDB_ROWS[1].filename}
+    assert ctx.manifest.source_representatives() == {GTDB_ROWS[1].filename}
 
     # The outgroup of wd1 is not carried over, and the log says so once.
     assert not (ctx.workdir / "outgroup_accession.txt").exists()
@@ -408,11 +408,11 @@ def test_keeper_gtdb_on_the_merged_workdir(tmp_path, sources, first_rep_tool) ->
     ctx = _ctx(tmp_path / "wd3")
     run(ctx, IngestParams(from_workdirs=[str(wd1), str(wd2)]))
 
-    result = dereplicate(ctx, DereplicateParams(tool="firstrep", keeper="gtdb"))
+    result = dereplicate(ctx, DereplicateParams(tool="firstrep", keeper="source"))
 
     assert [r.name for r in result.representatives] == [GTDB_ROWS[1].filename]
     params = ctx.config.stages["dereplicate"].params
-    assert params["keeper_effective"] == "gtdb"
+    assert params["keeper_effective"] == "source"
 
 
 # --- state of the source records ---------------------------------------------------

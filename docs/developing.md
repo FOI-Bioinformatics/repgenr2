@@ -100,7 +100,7 @@ through `cli/param_builders.py`, which both the manual commands and
 * `repgenr.yaml` (`core/config.py`) records, per stage, the tool chosen, the
   parameters used, the resolved tool versions, and the resume fingerprint with
   its input digests.
-* The manifest (`core/manifest.py`, SQLite, schema version 4) records which
+* The manifest (`core/manifest.py`, SQLite, schema version 5) records which
   genomes are selected, where their files are, their taxonomy, their
   dereplication status and their sketches. Genome state lives here, not in
   `str(dict)` or `pickle` blobs, and stages do not rescan directories.

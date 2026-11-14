@@ -1168,7 +1168,7 @@ def viral_candidates_census(wd: Path, cfg: Any, params: CensusParams) -> Census:
 
 
 def _item(row: SelectionRow) -> Item:
-    return Item(row.accession, row.family, row.genus, row.species, row.gtdb_representative)
+    return Item(row.accession, row.family, row.genus, row.species, row.source_representative)
 
 
 def _ingroup(wd: Path) -> tuple[list[SelectionRow], list[str]]:
@@ -1241,7 +1241,7 @@ def selection_census(wd: Path, cfg: Any, params: CensusParams, logger: logging.L
     for r in present:
         src = sources.get(r.accession) or "unknown"
         source_totals[src] = source_totals.get(src, 0) + 1
-        counts = {"genomes": 1, "representatives": int(r.gtdb_representative), src: 1}
+        counts = {"genomes": 1, "representatives": int(r.source_representative), src: 1}
         table.add(r.genus, r.species, counts)
     source_columns = [s for s in MANIFEST_SOURCES if s in source_totals]
     source_columns += sorted(s for s in source_totals if s not in MANIFEST_SOURCES)
@@ -1294,7 +1294,7 @@ def selection_census(wd: Path, cfg: Any, params: CensusParams, logger: logging.L
         "genera": n_genera,
         "species": n_species,
         "genomes": len(present),
-        "representatives": sum(1 for r in present if r.gtdb_representative),
+        "representatives": sum(1 for r in present if r.source_representative),
         **totals,
         "sources": {s: source_totals[s] for s in source_columns},
         "outgroup": ", ".join(outgroups) or None,

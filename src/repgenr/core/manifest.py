@@ -20,16 +20,18 @@ from typing import Any
 from .errors import WorkdirError
 
 MANIFEST_FILENAME = "manifest.sqlite"
-SCHEMA_VERSION = 4  # bump + add a migration step when the table layout changes
+SCHEMA_VERSION = 5  # bump + add a migration step when the table layout changes
+# The name of the source_representative column in schema versions 3 and 4.
+_OLD_SOURCE_REPRESENTATIVE = "gtdb_representative"
 BUSY_TIMEOUT_MS = 30000  # wait up to 30s for a competing writer before erroring
 
 _UPSERT_SQL = """
     INSERT INTO genomes (accession, filename, source, family, genus,
                          species, is_outgroup, derep_status, representative,
-                         completeness, contamination, gtdb_representative)
+                         completeness, contamination, source_representative)
     VALUES (:accession, :filename, :source, :family, :genus,
             :species, :is_outgroup, :derep_status, :representative,
-            :completeness, :contamination, :gtdb_representative)
+            :completeness, :contamination, :source_representative)
     ON CONFLICT(accession) DO UPDATE SET
         filename=excluded.filename,
         source=excluded.source,
@@ -41,7 +43,7 @@ _UPSERT_SQL = """
         representative=excluded.representative,
         completeness=excluded.completeness,
         contamination=excluded.contamination,
-        gtdb_representative=excluded.gtdb_representative
+        source_representative=excluded.source_representative
 """
 
 _SET_DEREP_SQL = "UPDATE genomes SET derep_status=?, representative=? WHERE accession=?"
@@ -73,7 +75,8 @@ CREATE TABLE IF NOT EXISTS genomes (
     representative TEXT,                -- accession of the representative, if contained
     completeness REAL,                 -- CheckM completeness percentage, if known
     contamination REAL,                -- CheckM contamination percentage, if known
-    gtdb_representative INTEGER DEFAULT 0,  -- 1 for a GTDB species representative
+    source_representative INTEGER DEFAULT 0,  -- 1 for a GTDB species representative
+                                       -- or an NCBI reference genome
     sketch_file TEXT,                  -- sketches/<name>.sig.zip, workdir-relative
     sketch_params TEXT,                -- sourmash parameter string of that sketch
     sketch_digest TEXT                 -- sha256 of the FASTA the sketch was built from
@@ -96,7 +99,7 @@ class GenomeRecord:
     representative: str | None = None
     completeness: float | None = None
     contamination: float | None = None
-    gtdb_representative: bool = False
+    source_representative: bool = False
     # Read from the manifest; written only through Manifest.set_sketches.
     sketch_file: str | None = None
     sketch_params: str | None = None
@@ -129,7 +132,7 @@ def record_from_selection(row: Any, source: str) -> GenomeRecord:
         is_outgroup=row.is_outgroup,
         completeness=row.completeness,
         contamination=row.contamination,
-        gtdb_representative=bool(getattr(row, "gtdb_representative", False)),
+        source_representative=bool(getattr(row, "source_representative", False)),
     )
 
 
@@ -229,16 +232,22 @@ class Manifest:
             if version < 2:
                 for col in ("completeness", "contamination"):
                     _add_column(self._conn, col, "REAL")
-            if version < 3:
-                # v3 adds the GTDB species-representative flag. Rows of an
-                # older database read 0 until the metadata stage runs again.
-                _add_column(self._conn, "gtdb_representative", "INTEGER DEFAULT 0")
+            # (v3 added the GTDB species-representative flag as
+            # gtdb_representative; v5 below gives it its present name.)
             if version < 4:
                 # v4 records the genome sketch of each row (core.sketches).
                 # Rows of an older database have none; the next sketch step
                 # builds them.
                 for col in _SKETCH_COLUMNS:
                     _add_column(self._conn, col, "TEXT")
+            if version < 5:
+                # v5 names the flag after what it marks in any source (a GTDB
+                # species representative, an NCBI reference genome). A v3 or
+                # v4 database has it as gtdb_representative and keeps its
+                # values; rows of an older database read 0 until the metadata
+                # stage runs again.
+                _rename_column(self._conn, _OLD_SOURCE_REPRESENTATIVE, "source_representative")
+                _add_column(self._conn, "source_representative", "INTEGER DEFAULT 0")
             self._conn.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
             self._conn.commit()
         except BaseException:
@@ -378,16 +387,21 @@ class Manifest:
         )
         return {r["filename"]: (float(r["completeness"]), float(r["contamination"])) for r in rows}
 
-    def gtdb_representatives(self) -> set[str]:
-        """Filenames of the genomes flagged as GTDB species representatives.
+    def source_representatives(self) -> set[str]:
+        """Filenames of the genomes their source marks as representative: GTDB
+        species representatives and NCBI reference genomes.
 
-        A pre-v3 manifest opened read-only lacks the column; it holds no flag.
+        A manifest opened read-only is not migrated: before v5 the column is
+        named gtdb_representative, and a pre-v3 file has none and no flag.
         """
         cols = {r[1] for r in self._conn.execute("PRAGMA table_info(genomes)")}
-        if "gtdb_representative" not in cols:
+        column = next(
+            (c for c in ("source_representative", _OLD_SOURCE_REPRESENTATIVE) if c in cols), None
+        )
+        if column is None:
             return set()
         rows = self._conn.execute(
-            "SELECT filename FROM genomes WHERE gtdb_representative=1 AND filename IS NOT NULL"
+            f"SELECT filename FROM genomes WHERE {column}=1 AND filename IS NOT NULL"
         )
         return {r["filename"] for r in rows}
 
@@ -461,6 +475,13 @@ def _add_column(conn: sqlite3.Connection, name: str, decl: str) -> None:
             raise
 
 
+def _rename_column(conn: sqlite3.Connection, old: str, new: str) -> None:
+    """Rename a column of ``genomes`` when the old name is there and the new is not."""
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(genomes)")}
+    if old in cols and new not in cols:
+        conn.execute(f"ALTER TABLE genomes RENAME COLUMN {old} TO {new}")
+
+
 def _record_params(record: GenomeRecord) -> dict:
     return {
         "accession": record.accession,
@@ -474,7 +495,7 @@ def _record_params(record: GenomeRecord) -> dict:
         "representative": record.representative,
         "completeness": record.completeness,
         "contamination": record.contamination,
-        "gtdb_representative": int(record.gtdb_representative),
+        "source_representative": int(record.source_representative),
     }
 
 
@@ -492,8 +513,11 @@ def _row_to_record(row: sqlite3.Row) -> GenomeRecord:
         representative=row["representative"],
         completeness=row["completeness"] if "completeness" in keys else None,
         contamination=row["contamination"] if "contamination" in keys else None,
-        gtdb_representative=bool(row["gtdb_representative"])
-        if "gtdb_representative" in keys
+        source_representative=bool(row["source_representative"])
+        if "source_representative" in keys
+        # A v3 or v4 manifest opened read-only (not migrated).
+        else bool(row[_OLD_SOURCE_REPRESENTATIVE])
+        if _OLD_SOURCE_REPRESENTATIVE in keys
         else False,
         sketch_file=row["sketch_file"] if "sketch_file" in keys else None,
         sketch_params=row["sketch_params"] if "sketch_params" in keys else None,

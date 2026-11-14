@@ -110,7 +110,7 @@ WD/
 | `repgenr.log` | all stages | Run log. |
 | `scratch/` | genome, assemble, dereplicate, snptype, phylo | Working files, one subdirectory per stage (list below). |
 
-`manifest.sqlite`, table `genomes` (schema version 4):
+`manifest.sqlite`, table `genomes` (schema version 5):
 
 | Column | Meaning |
 |--------|---------|
@@ -122,7 +122,7 @@ WD/
 | `derep_status` | `representative`, `contained`, `fail_qc`, or empty before dereplication. |
 | `representative` | The representative of a contained genome. |
 | `completeness`, `contamination` | CheckM percentages, when known. |
-| `gtdb_representative` | 1 for a GTDB species representative, else 0. |
+| `source_representative` | 1 for the representative of its source: a GTDB species representative or an NCBI reference genome; else 0. Named `gtdb_representative` before manifest version 5; the column is renamed, with its values, when a stage next opens the manifest. |
 | `sketch_file`, `sketch_params`, `sketch_digest` | The genome's sketch record (see [Genome sketches](#genome-sketches)). A version 3 manifest gains these columns, empty, when a stage next opens it. |
 
 `repgenr.yaml` holds one record per stage with these keys:
@@ -292,7 +292,7 @@ genome count, largest first, then by name. The outgroup is not counted.
 |--------|---------|
 | `accession` | Genome accession, as in `selection.tsv`. |
 | `accession_ncbi` | GenBank assembly accession. |
-| `is_outgroup`, `gtdb_representative` | As in `selection.tsv`. |
+| `is_outgroup`, `source_representative` | As in `selection.tsv`. |
 | `gtdb_taxonomy` | GTDB lineage, domain to species (`d__...;s__...`). |
 | `ncbi_taxonomy`, `ncbi_taxonomy_unfiltered` | NCBI lineage as GTDB records it: on the standard ranks, and with every rank NCBI gives. |
 | `ncbi_strain_identifiers` | NCBI strain identifiers. |
@@ -309,7 +309,7 @@ The NCBI fields are empty when the GTDB table lacks the column, and with
 | `is_outgroup` | 1 for the outgroup, else 0. |
 | `filename` | Canonical file name, `Family_genus_species_ACCESSION.fasta`. |
 | `completeness`, `contamination` | CheckM percentages, two decimals; empty when unknown. |
-| `gtdb_representative` | 1 for a GTDB species representative; 0 otherwise and on every non-GTDB path. Read by `--keeper gtdb`. |
+| `source_representative` | 1 for the representative of its source: a GTDB species representative or an NCBI reference genome; 0 otherwise and on every other entry path. Read by `--keeper source`. A file with the earlier column name `gtdb_representative` is still read. |
 
 ## Reads path
 
@@ -528,14 +528,14 @@ Nextflow steps the taxonomy, quality and GTDB flag come from
 | `n_genomes` | Genomes in the cluster, keeper included (`n_members` + 1). |
 | `rep_n50` | Keeper N50 in bases from its FASTA; filled only for a keeper with completeness and contamination whose file is found. |
 | `best_score` | Keeper score of `best_member`, four decimals; blank with `best_member`. |
-| `rep_is_gtdb_representative` | 1 when the keeper is a GTDB species representative, else 0. |
+| `rep_is_source_representative` | 1 when the keeper is the representative of its source (a GTDB species representative or an NCBI reference genome), else 0. Named `rep_is_gtdb_representative` in earlier versions, which is still read. |
 | `refined` | 1 for a cluster from a [refinement](usage.md#finer-resolution-inside-a-lineage), read from `refined.tsv`, else 0. The last column. |
 
 Without quality values the four quality columns, `best_member` and
 `best_score` are blank and the command logs it. `best_member` differs from
 `representative` under `--keeper tool`, after `--reduce` or the Nextflow
-merge (only representatives are compared), and under `--keeper gtdb` where a
-GTDB representative was kept over a better-scored member. Listing a
+merge (only representatives are compared), and under `--keeper source` where a
+source representative was kept over a better-scored member. Listing a
 cluster's members is described in
 [usage.md](usage.md#finding-the-members-of-a-cluster).
 

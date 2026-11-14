@@ -304,8 +304,8 @@ def _unpack(ctx: WorkdirContext, run_path: Path) -> None:
     # in the store as the pack-time view.
     from ..core.resources import usable_cpus
     from .cluster_summary import (
-        gtdb_lookup,
         refined_representatives,
+        source_rep_lookup,
         summarise_clusters,
         taxonomy_lookup,
     )
@@ -327,7 +327,7 @@ def _unpack(ctx: WorkdirContext, run_path: Path) -> None:
             quality_lookup(ctx),
             taxonomy_lookup(ctx),
             n50,
-            gtdb_representatives=gtdb_lookup(ctx),
+            source_representatives=source_rep_lookup(ctx),
             refined=refined_representatives(ctx.derep_dir),
         ),
     )

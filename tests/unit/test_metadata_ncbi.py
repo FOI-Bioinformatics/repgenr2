@@ -265,7 +265,10 @@ def test_species_selection_is_refseq_by_default(tmp_path, datasets) -> None:
         "Francisellaceae_Francisella_tularensis_GCF_000001.1.fasta"
     )
     assert rows["GCF_000001.1"]["completeness"] == "99.00"
-    assert all(row["gtdb_representative"] == "0" for row in rows.values())
+    # NCBI reference genomes carry the flag --keeper source reads.
+    assert {acc for acc, row in rows.items() if row["source_representative"] == "1"} == {
+        "GCF_000005.1"
+    }
     # The outgroup: the best reference genome of the genus outside the species.
     outgroup = [acc for acc, row in rows.items() if row["is_outgroup"] == "1"]
     assert outgroup == ["GCF_000005.1"]

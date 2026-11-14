@@ -198,7 +198,10 @@ def _dereplicate(m: MethodsInfo) -> tuple[str, list[str]]:
         text += (
             f" The secondary threshold was searched to approach {p['target_reps']} representatives."
         )
-    keeper = p.get("keeper_effective") or p.get("keeper")
+    from ..stages.derep_keeper import keeper_rule
+
+    # A record of an earlier version names the source rule 'gtdb'.
+    keeper = keeper_rule(str(p.get("keeper_effective") or p.get("keeper") or ""))
     if keeper and keeper != "tool":
         text += f" The representative of each cluster was chosen by the '{keeper}' keeper rule."
     if p.get("reduce") and p["reduce"] != "none":

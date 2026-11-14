@@ -88,7 +88,7 @@ def _select_via_tsv(
             data["tax"],
             completeness=data.get("completeness"),
             contamination=data.get("contamination"),
-            gtdb_representative=bool(data.get("is_rep")),
+            source_representative=bool(data.get("is_rep")),
         )
         for acc, data in selected.items()
     ]
@@ -113,7 +113,7 @@ def _select_via_tsv(
         is_outgroup=True,
         completeness=outgroup_data.get("completeness"),
         contamination=outgroup_data.get("contamination"),
-        gtdb_representative=bool(outgroup_data.get("is_rep")),
+        source_representative=bool(outgroup_data.get("is_rep")),
     )
     details[outgroup_acc] = outgroup_data["details"]
     return records, outgroup, details

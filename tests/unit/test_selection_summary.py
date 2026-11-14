@@ -31,7 +31,7 @@ def _row(acc: str, family: str, genus: str, species: str, *, outgroup=False, rep
         species,
         outgroup,
         genome_filename(family, genus, species, acc),
-        gtdb_representative=rep,
+        source_representative=rep,
     )
 
 
@@ -198,7 +198,7 @@ def test_metadata_writes_summary_and_lineage_table(tmp_path, gtdb_table) -> None
     pestis = table["GCF_000001.1"]
     assert pestis["accession_ncbi"] == "GCA_000001.1"
     assert pestis["is_outgroup"] == "0"
-    assert pestis["gtdb_representative"] == "1"
+    assert pestis["source_representative"] == "1"
     assert pestis["gtdb_taxonomy"].endswith("f__Enterobacteriaceae;g__Yersinia;s__Yersinia pestis")
     assert "f__Yersiniaceae" in pestis["ncbi_taxonomy"]
     assert "x__Pseudomonadati" in pestis["ncbi_taxonomy_unfiltered"]

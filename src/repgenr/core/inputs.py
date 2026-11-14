@@ -109,7 +109,7 @@ def manifest_digest(manifest: Manifest, *, include_derep: bool = True) -> str:
     Hashes ordered query results, never the SQLite file bytes (which are not
     byte-stable across identical logical content). Includes CheckM completeness
     and contamination (consumed by the dereplicate keeper) alongside taxonomy,
-    and the GTDB species-representative flag (``--keeper gtdb``) when set.
+    and the source-representative flag (``--keeper source``) when set.
 
     ``include_derep`` adds derep_status/representative to the hash; it must be
     False for a stage that WRITES those columns itself (dereplicate), or the
@@ -132,7 +132,9 @@ def manifest_digest(manifest: Manifest, *, include_derep: bool = True) -> str:
             "" if r.contamination is None else repr(r.contamination),
             # Only a set flag adds a field, so a manifest migrated from v2
             # (every flag 0) keeps the digest its stages were recorded with.
-            *(("gtdb_representative",) if r.gtdb_representative else ()),
+            # The field is the flag's name before manifest v5, kept so that
+            # the digests recorded by earlier versions still match.
+            *(("gtdb_representative",) if r.source_representative else ()),
         )
         for r in manifest.all_genomes(include_outgroup=True)
     )

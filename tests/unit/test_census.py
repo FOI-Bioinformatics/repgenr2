@@ -428,7 +428,7 @@ def _bacterial_selection(wd: Path, rows: list[tuple]) -> list[SelectionRow]:
                 species,
                 outgroup,
                 genome_filename(family, genus, species, acc),
-                gtdb_representative=rep,
+                source_representative=rep,
             )
         )
     write_selection(wd / SELECTION_TSV, out)

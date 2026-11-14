@@ -81,7 +81,7 @@ def collect(inp: StepInput) -> StepReport:
     missing = _missing(wd)
     genome_files = {p.name for p in list_fasta(wd / "genomes")}
     downloaded = sum(1 for r in ingroup if r.filename in genome_files) if genome_files else None
-    reps = sum(1 for r in ingroup if r.gtdb_representative)
+    reps = sum(1 for r in ingroup if r.source_representative)
     with_quality = [r for r in ingroup if r.completeness is not None]
 
     report = StepReport(step="selection", title="Genome selection")

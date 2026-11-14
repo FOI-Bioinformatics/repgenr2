@@ -350,7 +350,7 @@ def test_derep_refine_with_a_gtdb_keeper_record_warns_nothing_false(
     with caplog.at_level(logging.INFO):
         refine_run(ctx, DerepRefineParams(seeds=[A111], ani=0.999))
     assert "metadata --force" not in caplog.text
-    assert "no GTDB species representative among the lineage genomes" in caplog.text
+    assert "no source representative among the lineage genomes" in caplog.text
 
 
 def test_two_lineages_each_at_their_own_ani(workdir: Path, genomes, tiered, tmp_path) -> None:

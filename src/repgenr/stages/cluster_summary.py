@@ -4,7 +4,7 @@ Summarises ``derep/clusters.tsv`` into ``derep/cluster_summary.tsv`` with the
 cluster size, the species it spans (from the manifest taxonomy, else parsed
 from the canonical filenames),
 the manifest CheckM quality of the keeper against its members, and whether the
-keeper is a GTDB species representative. The dereplicate
+keeper is a representative of its source. The dereplicate
 stage writes the file itself; this stage regenerates it for an existing
 working directory without rerunning the dereplicator.
 """
@@ -63,7 +63,7 @@ def summarise_clusters(
     taxonomy: Taxonomy | None = None,
     n50: N50Of | None = None,
     *,
-    gtdb_representatives: Collection[str] = (),
+    source_representatives: Collection[str] = (),
     refined: Collection[str] = (),
 ) -> list[ClusterSummaryRow]:
     """Build the summary rows, largest cluster first, then by representative name.
@@ -71,12 +71,12 @@ def summarise_clusters(
     ``taxonomy`` gives the species of each genome; a genome it lacks (or
     holds without a species) falls back to its canonical filename. ``n50``
     gives each genome's N50 for ``rep_n50`` and the keeper score; without it
-    those columns use no N50. ``gtdb_representatives`` names the GTDB species
+    those columns use no N50. ``source_representatives`` names the source's
     representatives, ``refined`` the representatives of the clusters a
     refinement at a finer ANI produced.
     """
     taxonomy = taxonomy or {}
-    flagged = set(gtdb_representatives)
+    flagged = set(source_representatives)
     fine = set(refined)
     prefetch_n50(n50, clusters.items(), quality, scored_incumbents=True)
     rows = [
@@ -140,7 +140,7 @@ def _summarise(
     quality: Quality,
     taxonomy: Taxonomy,
     n50: N50Of | None,
-    gtdb_rep: bool = False,
+    source_rep: bool = False,
     refined: bool = False,
 ) -> ClusterSummaryRow:
     others = [m for m in members if m != rep]
@@ -167,7 +167,7 @@ def _summarise(
         # representatives are not read.
         rep_n50=None if n50 is None or rep_q is None else n50(rep),
         best_score=_rounded(best_score(best_member, quality, n50) if best_member else None),
-        rep_is_gtdb_representative=gtdb_rep,
+        rep_is_source_representative=source_rep,
         refined=refined,
     )
 
@@ -196,10 +196,10 @@ def refined_representatives(derep_dir: Path) -> set[str]:
     }
 
 
-def gtdb_lookup(ctx: WorkdirContext) -> set[str]:
-    """Filenames of the manifest genomes flagged as GTDB species representatives."""
+def source_rep_lookup(ctx: WorkdirContext) -> set[str]:
+    """Filenames of the manifest genomes flagged as representatives of their source."""
     try:
-        return ctx.manifest.gtdb_representatives()
+        return ctx.manifest.source_representatives()
     except (sqlite3.OperationalError, OSError):
         # No manifest (data-channel path, tests): no genome is flagged.
         return set()
@@ -226,7 +226,7 @@ def run(ctx: WorkdirContext, params: ClusterSummaryParams) -> Path:
         quality,
         taxonomy_lookup(ctx),
         n50,
-        gtdb_representatives=gtdb_lookup(ctx),
+        source_representatives=source_rep_lookup(ctx),
         refined=refined_representatives(ctx.derep_dir),
     )
     warn_missing_n50(n50, logger)

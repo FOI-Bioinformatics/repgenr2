@@ -32,6 +32,17 @@ All notable changes to RepGenR2 are documented here. The format follows
 
 ### Changed
 
+- The flag for a GTDB species representative is now source-neutral and also
+  marks NCBI reference genomes. It is named `source_representative` in
+  `selection.tsv`, `metadata_selected.tsv` and the manifest (schema version
+  5; the column is renamed in place, with its values, and earlier versions
+  then refuse the manifest), and `rep_is_source_representative` in
+  `cluster_summary.tsv`. The keeper rule is `--keeper source`
+  (`--derep_keeper source` in the Nextflow pipeline). Files with the earlier
+  column names and `--keeper gtdb` are still accepted, and resume
+  fingerprints are unchanged. With an NCBI selection, `--keeper source`
+  keeps a reference genome in each cluster that holds one.
+
 - The `metadata` stage finds genomes through a selection-source family
   (`repgenr.sources`, entry-point group of the same name). The GTDB table
   (`--source tsv`) and the GTDB API (`--source api`) are its first two

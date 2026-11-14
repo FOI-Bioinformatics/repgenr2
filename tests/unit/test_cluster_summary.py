@@ -80,7 +80,7 @@ def test_summary_round_trip(tmp_path: Path) -> None:
         "n_genomes",
         "rep_n50",
         "best_score",
-        "rep_is_gtdb_representative",
+        "rep_is_source_representative",
         "refined",
     ]
     assert read_cluster_summary(path) == rows

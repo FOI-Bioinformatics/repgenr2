@@ -15,8 +15,11 @@ quality never becomes the representative; a scored genome replaces an
 unscored representative only when it is high quality (MIMAG: completeness
 above 90, contamination below 5).
 
-``--keeper gtdb`` adds one preference before that: a GTDB species
-representative in the cluster is kept (:func:`prefer_gtdb_representatives`).
+``--keeper source`` adds one preference before that: a genome its source
+marks as representative (a GTDB species representative, an NCBI reference
+genome) is kept when the cluster holds one
+(:func:`prefer_source_representatives`). ``gtdb`` is the earlier name of the
+rule and is still accepted (:func:`keeper_rule`).
 
 Reading the N50s is the only part of the step that touches the genome files.
 Before the clusters are compared, the N50s they need are read in parallel
@@ -50,9 +53,24 @@ N50_MAX_WORKERS = 8
 # Names listed in a log line before "and N more".
 _LOG_NAMES_MAX = 5
 
+# The --keeper rules; KEEPER_ALIASES maps earlier names to them.
+KEEPER_QUALITY, KEEPER_SOURCE, KEEPER_TOOL = "quality", "source", "tool"
+KEEPER_RULES = frozenset({KEEPER_QUALITY, KEEPER_SOURCE, KEEPER_TOOL})
+KEEPER_ALIASES = {"gtdb": KEEPER_SOURCE}
+
 Quality = Mapping[str, tuple[float, float]]
 # Genome filename -> N50 in bases, or None when the file cannot be found.
 N50Of = Callable[[str], "int | None"]
+
+
+def keeper_rule(value: str, logger: logging.Logger | None = None) -> str:
+    """The keeper rule ``value`` names: itself, or the rule an earlier name
+    stands for (``gtdb`` is ``source``). Unknown values are returned as they
+    are, for the caller's choice check. With a logger, an alias is reported."""
+    rule = KEEPER_ALIASES.get(value, value)
+    if rule != value and logger is not None:
+        logger.info("--keeper %s is the earlier name of --keeper %s", value, rule)
+    return rule
 
 
 def quality_score(completeness: float, contamination: float) -> float:
@@ -413,24 +431,25 @@ def rescore_representatives(
     ), swaps
 
 
-def prefer_gtdb_representatives(
+def prefer_source_representatives(
     result: DerepResult,
-    gtdb_representatives: Collection[str],
+    source_representatives: Collection[str],
     quality: Quality,
     logger: logging.Logger,
     n50: N50Of | None = None,
 ) -> tuple[DerepResult, int]:
-    """Keep a GTDB species representative as each cluster's representative.
+    """Keep a source representative as each cluster's representative.
 
-    ``gtdb_representatives`` holds the filenames GTDB marks as species
-    representatives. The quality rule (:func:`rescore_representatives`) is
-    applied first, so a cluster without a GTDB representative is treated as
-    under ``--keeper quality``. A cluster holding GTDB representatives keeps
-    one of them, chosen among them alone by :func:`choose_keeper`: the
-    incumbent is the current representative when it is one of them, else the
-    best-ranked scored one, else the first by name. Several in one cluster
-    means the ANI threshold joined GTDB species; one keeper per cluster is
-    the contract, so the others stay contained and a warning names them.
+    ``source_representatives`` holds the filenames the source marks as
+    representative: GTDB species representatives or NCBI reference genomes.
+    The quality rule (:func:`rescore_representatives`) is applied first, so a
+    cluster without a source representative is treated as under ``--keeper
+    quality``. A cluster holding source representatives keeps one of them,
+    chosen among them alone by :func:`choose_keeper`: the incumbent is the
+    current representative when it is one of them, else the best-ranked
+    scored one, else the first by name. Several in one cluster means the ANI
+    threshold joined species of the source; one keeper per cluster is the
+    contract, so the others stay contained and a warning names them.
 
     Returns the new result and the number of clusters whose representative
     differs from the tool's pick.
@@ -438,10 +457,10 @@ def prefer_gtdb_representatives(
     n50_of = n50 or _no_n50
     tool_picks = set(result.clusters)
     result, _ = rescore_representatives(result, quality, logger, n50)
-    flagged = set(gtdb_representatives)
+    flagged = set(source_representatives)
     if isinstance(n50, N50Lookup):
         # The genomes ranked below, read in parallel first: among two or more
-        # GTDB representatives, those choose_keeper compares when the
+        # source representatives, those choose_keeper compares when the
         # representative is one of them, else the scored ones.
         ranked: set[str] = set()
         for rep_name, members in result.clusters.items():
@@ -467,7 +486,7 @@ def prefer_gtdb_representatives(
         in_cluster = [n for n in candidates if n in flagged]
         keeper = rep_name
         if len(in_cluster) == 1:
-            # One GTDB representative: kept without ranking, so no N50 is read.
+            # One source representative: kept without ranking, so no N50 is read.
             keeper = in_cluster[0]
         elif in_cluster:
             scored = [n for n in in_cluster if n in quality]
@@ -484,9 +503,9 @@ def prefer_gtdb_representatives(
             )
         if len(in_cluster) > 1:
             logger.warning(
-                "Keeper: the cluster of %s holds %d GTDB species representatives; "
+                "Keeper: the cluster of %s holds %d source representatives; "
                 "keeping %s, the others stay contained: %s. The ANI threshold "
-                "joins these GTDB species.",
+                "joins species the source keeps apart.",
                 keeper,
                 len(in_cluster),
                 keeper,
@@ -501,18 +520,18 @@ def prefer_gtdb_representatives(
         new_clusters[keeper] = sorted(n for n in candidates if n != keeper)
         status[keeper] = STATUS_REPRESENTATIVE
         status[rep_name] = STATUS_CONTAINED
-        logger.info("Keeper: GTDB species representative %s replaces %s", keeper, rep_name)
+        logger.info("Keeper: source representative %s replaces %s", keeper, rep_name)
 
     swaps = sum(1 for rep in new_clusters if rep not in tool_picks)
     logger.info(
-        "GTDB keeper: %d of %d representatives are GTDB species representatives; "
+        "Source keeper: %d of %d representatives are source representatives; "
         "%d differ from the tool's pick",
         sum(1 for rep in new_clusters if rep in flagged),
         len(new_clusters),
         swaps,
     )
     if promoted:
-        logger.info("GTDB keeper promoted %d GTDB species representative(s)", promoted)
+        logger.info("Source keeper promoted %d source representative(s)", promoted)
     return DerepResult(
         representatives=sorted(new_reps),
         clusters=new_clusters,

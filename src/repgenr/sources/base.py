@@ -257,7 +257,7 @@ def record_from_tax(
     is_outgroup: bool = False,
     completeness: float | None = None,
     contamination: float | None = None,
-    gtdb_representative: bool = False,
+    source_representative: bool = False,
 ) -> GenomeRecord:
     return GenomeRecord(
         accession=accession,
@@ -268,5 +268,5 @@ def record_from_tax(
         species=tax["species"],
         completeness=completeness,
         contamination=contamination,
-        gtdb_representative=gtdb_representative,
+        source_representative=source_representative,
     )

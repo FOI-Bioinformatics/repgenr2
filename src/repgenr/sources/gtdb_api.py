@@ -365,7 +365,7 @@ def _select_via_api(
                 normalize_api_tax(row),
                 completeness=completeness,
                 contamination=contamination,
-                gtdb_representative=bool(row.get("gtdbIsRep", False)),
+                source_representative=bool(row.get("gtdbIsRep", False)),
             )
         )
         selected_acc.add(acc)
@@ -446,7 +446,7 @@ def _select_outgroup_via_api(
             is_outgroup=True,
             completeness=completeness,
             contamination=contamination,
-            gtdb_representative=True,
+            source_representative=True,
         )
         return record, _api_details(tax_row, card or {})
 

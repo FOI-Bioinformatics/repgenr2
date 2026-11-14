@@ -501,7 +501,7 @@ def manifest_accessions(ctx: WorkdirContext) -> tuple[dict[str, str], set[str]]:
 
 def run(ctx: WorkdirContext, params: DerepRefineParams) -> DerepResult:
     """Refine the dereplication on disk with the settings of its record."""
-    from .derep_keeper import save_n50_cache, workdir_n50_lookup
+    from .derep_keeper import KEEPER_SOURCE, keeper_rule, save_n50_cache, workdir_n50_lookup
     from .dereplicate import (
         _update_manifest,
         _write_contract,
@@ -617,18 +617,18 @@ def run(ctx: WorkdirContext, params: DerepRefineParams) -> DerepResult:
     )
     scratch = ctx.scratch_dir / "derep_refine"
     n50 = workdir_n50_lookup(ctx.genomes_dir, ctx.scratch_dir, workers=params.threads)
-    keeper = str(rec.get("keeper", "quality"))
+    keeper = keeper_rule(str(rec.get("keeper", "quality")))
     refined = result
     for i, lineage in enumerate(lineages):
         sub = fine_pass(
             adapter, lineage, paths, scratch / str(i), derep_params, lineage.ani, logger
         )
         sub, _swaps, effective, _quality, _gtdb = apply_keeper(
-            ctx, sub, keeper, manifest_quality, n50, logger, gtdb_warning=False
+            ctx, sub, keeper, manifest_quality, n50, logger, source_warning=False
         )
-        if keeper == "gtdb" and effective != "gtdb":
+        if keeper == KEEPER_SOURCE and effective != KEEPER_SOURCE:
             logger.info(
-                "Refine: no GTDB species representative among the lineage genomes; the %s "
+                "Refine: no source representative among the lineage genomes; the %s "
                 "rule chose the representatives",
                 "quality" if effective == "quality" else "tool's own",
             )
