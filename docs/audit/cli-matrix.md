@@ -3,7 +3,7 @@
 Generated from `tests/audit/cli_matrix.yaml` by `scripts/render_cli_matrix.py`;
 `tests/unit/test_cli_matrix.py` keeps both in step with the command tree.
 
-41 commands, 521 flags (514 with a live test or an n/a reason, 7 pending).
+41 commands, 526 flags (519 with a live test or an n/a reason, 7 pending).
 
 ## Global flags
 
@@ -57,6 +57,11 @@ dispatch: `query`
 | `--host` |  | n/a: query command, no stage parameters | none | n/a: query command; the Nextflow layer starts from a workdir or a samplesheet | n/a: network query, faked in tests/unit/test_census.py | docs/usage.md, docs/cli-reference.md, docs/audit/cli-matrix.md |
 | `--complete-only` |  | n/a: query command, no stage parameters | none | n/a: query command; the Nextflow layer starts from a workdir or a samplesheet | n/a: network query, faked in tests/unit/test_census.py | docs/usage.md, docs/cli-reference.md, docs/audit/cli-matrix.md |
 | `--released-after` |  | n/a: query command, no stage parameters | callback | n/a: query command; the Nextflow layer starts from a workdir or a samplesheet | n/a: network query, faked in tests/unit/test_census.py | docs/usage.md, docs/cli-reference.md, docs/audit/cli-matrix.md |
+| `--assembly-source` |  | n/a: query command, no stage parameters | callback | n/a: query command; the Nextflow layer starts from a workdir or a samplesheet | n/a: network query, faked in tests/unit/test_metadata_ncbi.py | docs/usage.md, docs/cli-reference.md, docs/audit/cli-matrix.md |
+| `--assembly-level` |  | n/a: query command, no stage parameters | none | n/a: query command; the Nextflow layer starts from a workdir or a samplesheet | n/a: network query, faked in tests/unit/test_metadata_ncbi.py | docs/usage.md, docs/cli-reference.md, docs/audit/cli-matrix.md |
+| `--include-atypical` |  | n/a: query command, no stage parameters | none | n/a: query command; the Nextflow layer starts from a workdir or a samplesheet | n/a: network query, faked in tests/unit/test_metadata_ncbi.py | docs/usage.md, docs/cli-reference.md, docs/audit/cli-matrix.md |
+| `--exclude-mag` |  | n/a: query command, no stage parameters | none | n/a: query command; the Nextflow layer starts from a workdir or a samplesheet | n/a: network query, faked in tests/unit/test_metadata_ncbi.py | docs/usage.md, docs/cli-reference.md, docs/audit/cli-matrix.md |
+| `--released-before` |  | n/a: query command, no stage parameters | none | n/a: query command; the Nextflow layer starts from a workdir or a samplesheet | n/a: network query, faked in tests/unit/test_metadata_ncbi.py | docs/usage.md, docs/cli-reference.md, docs/audit/cli-matrix.md |
 | `--tsv` |  | n/a: query command, no stage parameters | none | n/a: query command; the Nextflow layer starts from a workdir or a samplesheet | n/a: read-only workdir query; tests/unit/test_census.py | docs/usage.md, docs/output.md, docs/cli-reference.md, docs/audit/cli-matrix.md |
 | `--json` |  | n/a: query command, no stage parameters | none | n/a: query command; the Nextflow layer starts from a workdir or a samplesheet | n/a: read-only workdir query; tests/unit/test_census.py | docs/usage.md, docs/output.md, docs/cli-reference.md, docs/audit/cli-matrix.md |
 

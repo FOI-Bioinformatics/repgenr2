@@ -14,6 +14,11 @@ from ..reporting.registry import STEP_NAMES as REPORT_STEP_NAMES
 from .base import (
     _RUN_STATE,
     DEFAULT_THREADS,
+    HELP_ASSEMBLY_LEVEL,
+    HELP_ASSEMBLY_SOURCE,
+    HELP_EXCLUDE_MAG,
+    HELP_INCLUDE_ATYPICAL,
+    HELP_RELEASED_BEFORE,
     HELP_THREADS,
     HELP_WORKDIR,
     PANEL_ENV,
@@ -626,6 +631,15 @@ def _census_source(value: str | None) -> str | None:
     return value
 
 
+def _census_assembly_source(value: str | None) -> str | None:
+    from .param_builders import METADATA_ASSEMBLY_SOURCES
+
+    if value is not None and value not in METADATA_ASSEMBLY_SOURCES:
+        choices = ", ".join(sorted(METADATA_ASSEMBLY_SOURCES))
+        raise typer.BadParameter(f"choose from {choices}; got '{value}'.")
+    return value
+
+
 def _census_released_after(value: str | None) -> str | None:
     from .cmd_viral import _validate_released_after
 
@@ -660,8 +674,8 @@ def census(
         None,
         "--source",
         callback=_census_source,
-        help="api (GTDB API), table (GTDB metadata table, also 'tsv') or ncbi (RefSeq "
-        "assemblies by NCBI taxonomy); with --viral, "
+        help="api (GTDB API), table (GTDB metadata table, also 'tsv') or ncbi (NCBI "
+        "assemblies by NCBI taxonomy, RefSeq by default); with --viral, "
         "ncbi_virus. bvbrc is counted only from a vmetadata workdir. Default: api, or "
         "ncbi_virus with --viral.",
     ),
@@ -678,6 +692,18 @@ def census(
         "--metadata-path",
         help="Read this GTDB metadata table (.tsv.gz) instead of downloading the release "
         "table; with -wd, the table to count the candidates from.",
+    ),
+    assembly_source: str | None = typer.Option(
+        None,
+        "--assembly-source",
+        callback=_census_assembly_source,
+        help=HELP_ASSEMBLY_SOURCE + " Default: refseq.",
+    ),
+    assembly_level: str | None = typer.Option(None, "--assembly-level", help=HELP_ASSEMBLY_LEVEL),
+    include_atypical: bool = typer.Option(False, "--include-atypical", help=HELP_INCLUDE_ATYPICAL),
+    exclude_mag: bool = typer.Option(False, "--exclude-mag", help=HELP_EXCLUDE_MAG),
+    released_before: str | None = typer.Option(
+        None, "--released-before", help=HELP_RELEASED_BEFORE
     ),
     runs: bool = typer.Option(
         False,
@@ -709,8 +735,9 @@ def census(
     """Count the genera, species and samples under a taxon (read-only).
 
     Without -wd, queries a GTDB family (-tf) or genus (-tg) through the GTDB
-    API or a GTDB metadata table, optionally with the ENA sequencing runs
-    (--runs), or a viral taxon through NCBI Virus (--viral --target; metadata
+    API or a GTDB metadata table, or an NCBI taxon (--source ncbi, with the
+    assembly options of 'metadata --source ncbi'), optionally with the ENA
+    sequencing runs (--runs), or a viral taxon through NCBI Virus (--viral --target; metadata
     only, no sequences). With -wd, counts the candidates the entry stage found
     or the genomes it selected, by source; -tf and -tg narrow the count. A
     family is counted per genus and a genus per species. No stage is recorded
@@ -738,6 +765,11 @@ def census(
         host=host,
         complete_only=complete_only,
         released_after=released_after,
+        assembly_source=assembly_source,
+        assembly_level=assembly_level,
+        include_atypical=include_atypical,
+        exclude_mag=exclude_mag,
+        released_before=released_before,
     )
     with stage_errors(logger):
         result = run_census(params, logger)
