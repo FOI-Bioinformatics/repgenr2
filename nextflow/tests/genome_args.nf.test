@@ -1,0 +1,46 @@
+nextflow_process {
+
+    name "GENOME ext.args carries params.genome_args"
+    script "../modules/local/dataflow/genome.nf"
+    tag "stub"
+    process "GENOME"
+    options "-stub"
+    config "./genome_debug.config"
+
+    test("params.genome_args reaches the genome-fetch command") {
+        when {
+            params {
+                genome_args = "--no-genbank-fallback"
+            }
+            process {
+                """
+                input[0] = tuple([id: 'test', mode: 'bacterial'],
+                                 file("${projectDir}/nextflow/tests/data/selection.tsv"))
+                """
+            }
+        }
+        then {
+            assert process.success
+            def line = process.stdout.find { it.contains('ext.args:') }
+            assert line != null
+            assert line.contains('--no-genbank-fallback')
+        }
+    }
+
+    test("the default adds nothing to the genome-fetch command") {
+        when {
+            process {
+                """
+                input[0] = tuple([id: 'test', mode: 'bacterial'],
+                                 file("${projectDir}/nextflow/tests/data/selection.tsv"))
+                """
+            }
+        }
+        then {
+            assert process.success
+            def line = process.stdout.find { it.contains('ext.args:') }
+            assert line != null
+            assert line.trim() == 'ext.args:'
+        }
+    }
+}

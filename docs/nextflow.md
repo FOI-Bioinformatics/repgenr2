@@ -71,6 +71,7 @@ description; parameters are validated against it at launch. The most used:
 | `--outdir` | `results` | Published results and execution reports. |
 | `--mode` | `bacterial` | `bacterial` (GTDB, or NCBI with `--source ncbi` in `--metadata_args`), `viral` (NCBI Virus; BV-BRC with `--vmetadata_args "--source bvbrc"`) or `reads`. |
 | `--metadata_args` | see config | Arguments for the bacterial metadata stage. |
+| `--genome_args` | empty | Arguments for the bacterial genome download (`genome-fetch`), e.g. `--no-genbank-fallback`. |
 | `--vmetadata_args`, `--vgenome_args` | see config | Arguments for the viral stages. |
 | `--reads_args` | see config | Arguments for the reads stage. |
 | `--derep_tool` | `skder` | Dereplicator for the scatter-gather step. |

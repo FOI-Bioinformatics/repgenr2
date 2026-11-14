@@ -102,6 +102,9 @@ class CensusParams:
     include_atypical: bool = False
     exclude_mag: bool = False
     released_before: str | None = None
+    # --source table: the taxonomy the taxon is named in and the rows are
+    # grouped by, as for ``metadata --taxonomy``. None means gtdb.
+    taxonomy: str | None = None
 
 
 # The census options that apply to --source ncbi only: flag -> field.
@@ -682,6 +685,12 @@ _NCBI_ASSEMBLIES = {
 }
 
 
+TABLE_NCBI_NOTE = (
+    "Genomes are those of the GTDB table, counted and named by its NCBI taxonomy column; "
+    "genomes without an NCBI name at the rank of the taxon are left out."
+)
+
+
 def ncbi_census_note(params: CensusParams) -> str:
     """Which NCBI assemblies the genomes column counts, from the options."""
     kept = []
@@ -861,6 +870,7 @@ def validate(params: CensusParams) -> str:
                 ("--complete-only", params.complete_only),
                 ("--released-after", params.released_after),
                 *((flag, getattr(params, name)) for flag, name in NCBI_OPTIONS.items()),
+                ("--taxonomy", params.taxonomy),
             )
             if value
         ]
@@ -876,6 +886,19 @@ def validate(params: CensusParams) -> str:
             f"{', '.join(ncbi_only)} choose the NCBI assemblies to count and apply with "
             "--source ncbi only."
         )
+    if params.taxonomy is not None:
+        from ..sources.base import TAXONOMIES
+
+        if params.taxonomy not in TAXONOMIES:
+            raise UserInputError(
+                f"--taxonomy {params.taxonomy} is not known; use {' or '.join(TAXONOMIES)}."
+            )
+        if params.viral or source != "table":
+            raise UserInputError(
+                "--taxonomy chooses the names a GTDB table is counted by and applies with "
+                "--source table only (the API searches by GTDB taxon; --source ncbi is "
+                "always NCBI taxonomy)."
+            )
     if params.viral:
         source = source or "ncbi_virus"
         if source not in VIRAL_SOURCES:
@@ -935,6 +958,10 @@ def taxon_census(params: CensusParams, source: str, logger: logging.Logger) -> C
 
     rank = GENUS if params.target_genus else FAMILY
     name = (params.target_genus if rank == GENUS else params.target_family) or ""
+    # Genomes named by NCBI taxonomy: the NCBI source, or a GTDB table read
+    # by its ncbi_taxonomy column.
+    table_ncbi = source == "table" and params.taxonomy == "ncbi"
+    ncbi_names = source == "ncbi" or table_ncbi
     if source == "api":
         items = gtdb_api_items(rank, name, logger)
         label = "gtdb-api"
@@ -948,9 +975,12 @@ def taxon_census(params: CensusParams, source: str, logger: logging.Logger) -> C
             logger,
             family=params.target_family if rank == FAMILY else None,
             genus=params.target_genus,
+            taxonomy=params.taxonomy or "gtdb",
         )
         if not items:
-            raise UserInputError(f"No genomes of the {rank} {name} in {table}.")
+            raise UserInputError(
+                f"No genomes of the {'NCBI ' if ncbi_names else ''}{rank} {name} in {table}."
+            )
         label = "gtdb-table"
     if rank == GENUS and params.target_family:
         items = [g for g in items if _norm(g.family) == _norm(params.target_family)]
@@ -960,6 +990,8 @@ def taxon_census(params: CensusParams, source: str, logger: logging.Logger) -> C
             )
     taxon = _gtdb_spelling(items, rank, name)
     notes = [ncbi_census_note(params)] if source == "ncbi" else []
+    if table_ncbi:
+        notes.append(TABLE_NCBI_NOTE)
     runs = None
     runs_taxon = ""
     if params.runs:
@@ -982,10 +1014,11 @@ def taxon_census(params: CensusParams, source: str, logger: logging.Logger) -> C
                 replace(r, genus=genus_token) if _norm(r.genus) == _norm(ncbi_name) else r
                 for r in runs
             ]
-    if runs is not None and source == "ncbi":
+    if runs is not None and ncbi_names:
+        without = "genome in the GTDB table" if table_ncbi else "RefSeq assembly"
         notes.append(
             "Runs and genomes are both grouped by NCBI taxonomy. A row without genomes "
-            "holds runs of a taxon with no RefSeq assembly."
+            f"holds runs of a taxon with no {without}."
         )
     elif runs is not None:
         notes.append(
@@ -1003,7 +1036,7 @@ def taxon_census(params: CensusParams, source: str, logger: logging.Logger) -> C
         runs=runs,
         notes=notes,
         runs_taxon=runs_taxon,
-        mark_run_only=source != "ncbi",
+        mark_run_only=not ncbi_names,
     )
 
 

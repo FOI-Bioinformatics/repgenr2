@@ -3,7 +3,7 @@
 Generated from `tests/audit/cli_matrix.yaml` by `scripts/render_cli_matrix.py`;
 `tests/unit/test_cli_matrix.py` keeps both in step with the command tree.
 
-41 commands, 531 flags (524 with a live test or an n/a reason, 7 pending).
+41 commands, 532 flags (525 with a live test or an n/a reason, 7 pending).
 
 ## Global flags
 
@@ -57,6 +57,7 @@ dispatch: `query`
 | `--host` |  | n/a: query command, no stage parameters | none | n/a: query command; the Nextflow layer starts from a workdir or a samplesheet | n/a: network query, faked in tests/unit/test_census.py | docs/usage.md, docs/cli-reference.md, docs/audit/cli-matrix.md |
 | `--complete-only` |  | n/a: query command, no stage parameters | none | n/a: query command; the Nextflow layer starts from a workdir or a samplesheet | n/a: network query, faked in tests/unit/test_census.py | docs/usage.md, docs/cli-reference.md, docs/audit/cli-matrix.md |
 | `--released-after` |  | n/a: query command, no stage parameters | callback | n/a: query command; the Nextflow layer starts from a workdir or a samplesheet | n/a: network query, faked in tests/unit/test_census.py | docs/usage.md, docs/cli-reference.md, docs/audit/cli-matrix.md |
+| `--taxonomy` |  | n/a: query command, no stage parameters | stage | n/a: query command; the Nextflow layer starts from a workdir or a samplesheet | n/a: table query, tests/unit/test_metadata_ncbi_taxonomy.py | docs/usage.md, docs/cli-reference.md, docs/audit/cli-matrix.md |
 | `--assembly-source` |  | n/a: query command, no stage parameters | callback | n/a: query command; the Nextflow layer starts from a workdir or a samplesheet | n/a: network query, faked in tests/unit/test_metadata_ncbi.py | docs/usage.md, docs/cli-reference.md, docs/audit/cli-matrix.md |
 | `--assembly-level` |  | n/a: query command, no stage parameters | none | n/a: query command; the Nextflow layer starts from a workdir or a samplesheet | n/a: network query, faked in tests/unit/test_metadata_ncbi.py | docs/usage.md, docs/cli-reference.md, docs/audit/cli-matrix.md |
 | `--include-atypical` |  | n/a: query command, no stage parameters | none | n/a: query command; the Nextflow layer starts from a workdir or a samplesheet | n/a: network query, faked in tests/unit/test_metadata_ncbi.py | docs/usage.md, docs/cli-reference.md, docs/audit/cli-matrix.md |
@@ -221,7 +222,7 @@ dispatch: `step:repgenr.stages.genome_steps.genome_fetch`
 | `--selection` |  | GenomeFetchParams.selection_tsv | stage | module: fixed by the process script | tests/live/test_network.py::test_genome_fetch_step | docs/usage.md, docs/cli-reference.md, docs/audit/cli-matrix.md |
 | `--out` | -o | GenomeFetchParams.out_dir | none | module: fixed by the process script | tests/live/test_network.py::test_genome_fetch_step | docs/cli-reference.md, docs/verification.md, docs/audit/cli-matrix.md |
 | `--keep-files` |  | GenomeFetchParams.keep_files | none | n/a: not exposed by the GENOME_FETCH module | tests/live/test_network.py::test_genome_fetch_step | docs/cli-reference.md, docs/audit/cli-matrix.md |
-| `--genbank-fallback` |  | GenomeFetchParams.genbank_fallback | none | n/a: not exposed by the GENOME module, which uses the default (fallback on) | tests/live/test_network.py::test_genome_fetch_takes_the_genbank_pair_of_a_suppressed_refseq_accession | docs/cli-reference.md, docs/usage.md, docs/audit/cli-matrix.md |
+| `--genbank-fallback` |  | GenomeFetchParams.genbank_fallback | none | params.genome_args | tests/live/test_network.py::test_genome_fetch_takes_the_genbank_pair_of_a_suppressed_refseq_accession | docs/cli-reference.md, docs/usage.md, docs/audit/cli-matrix.md |
 | `--versions-out` |  | GenomeFetchParams.versions_out | none | module: fixed by the process script | tests/live/test_network.py::test_genome_fetch_step | docs/cli-reference.md, docs/audit/cli-matrix.md |
 
 ## glance

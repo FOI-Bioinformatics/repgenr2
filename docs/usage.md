@@ -161,7 +161,9 @@ Allofrancisella (NCBI)        0        0                0    11           8     
   options of `metadata --source ncbi` apply here too (`--assembly-source`,
   `--assembly-level`, `--include-atypical`, `--exclude-mag`,
   `--released-before`), so the census counts what a selection with the same
-  options would find.
+  options would find. `--source table --taxonomy ncbi` counts the genomes of
+  the GTDB table by its NCBI taxonomy column, as `metadata --taxonomy ncbi`
+  selects them.
   `--runs` adds the ENA sequencing runs per platform. A row with runs only
   is marked `(NCBI)` and left out of the GTDB totals; it may be a GTDB taxon
   under another name. Runs for a suffixed GTDB name such as `Bacillus_A`
@@ -931,7 +933,8 @@ change. The pair is the one the selection source recorded
 version. Each replacement is logged and listed in
 `substituted_accessions.tsv`; the sequence then comes from GenBank, which
 for a current pair is the same assembly. This is the default
-(`--genbank-fallback`); `--no-genbank-fallback` turns it off. A download that arrived damaged is not replaced; a rerun asks for it
+(`--genbank-fallback`); `--no-genbank-fallback` turns it off (in the Nextflow
+pipeline: `--genome_args '--no-genbank-fallback'`). A download that arrived damaged is not replaced; a rerun asks for it
 again.
 
 Accessions still without a genome are recorded in `missing_accessions.txt`
