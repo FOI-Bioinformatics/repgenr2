@@ -15,6 +15,7 @@ from pathlib import Path
 from ...core.contracts import (
     MISSING_ACCESSIONS_TXT,
     SELECTION_TSV,
+    SUBSTITUTED_ACCESSIONS_TSV,
     SelectionRow,
     list_fasta,
     read_selection,
@@ -43,6 +44,7 @@ def sources(workdir: Path) -> list[Path]:
         workdir / SUMMARY_TSV,
         workdir / SELECTION_STATS,
         workdir / MISSING_ACCESSIONS_TXT,
+        workdir / SUBSTITUTED_ACCESSIONS_TSV,
         workdir / OUTGROUP_CHOICE_TSV,
     ]
 
@@ -60,6 +62,15 @@ def _taxa(workdir: Path, rows: list[SelectionRow]) -> list[tuple[str, str, int]]
             reader = csv.DictReader(fo, delimiter="\t")
             return [(r["level"], r["name"], int(r["genomes"])) for r in reader]
     return count_taxa(rows)
+
+
+def _substituted(workdir: Path) -> int:
+    """Genomes taken from the paired GenBank assembly (genome stage)."""
+    path = workdir / SUBSTITUTED_ACCESSIONS_TSV
+    if not path.is_file():
+        return 0
+    lines = [line for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    return max(len(lines) - 1, 0)
 
 
 def _missing(workdir: Path) -> int | None:
@@ -119,6 +130,14 @@ def collect(inp: StepInput) -> StepReport:
         funnel.append(("Ingroup genome files present", downloaded))
     if missing is not None:
         funnel.append(("Accessions not obtained", missing))
+    substituted = _substituted(wd)
+    if substituted:
+        funnel.append(("Genomes taken from the paired GenBank assembly", substituted))
+        report.summary.append(
+            f"NCBI no longer served {_n(substituted, 'selected RefSeq accession')}; "
+            "the paired GenBank assembly was downloaded in its place "
+            f"(listed in {SUBSTITUTED_ACCESSIONS_TSV})."
+        )
     report.tables.append(
         write_table(
             out,

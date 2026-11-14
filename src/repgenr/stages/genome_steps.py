@@ -11,6 +11,8 @@ Output layout under ``out_dir``::
     genomes/                downloaded selected genomes (named by selection.tsv)
     outgroup/               the outgroup genome, if the selection includes one
     missing_accessions.txt  selected accessions NCBI served no genome for
+    substituted_accessions.tsv  RefSeq accessions whose genome was taken from
+                            the paired GenBank assembly (selected, downloaded)
 """
 
 from __future__ import annotations
@@ -19,11 +21,15 @@ import logging
 from dataclasses import dataclass
 from pathlib import Path
 
-from ..core.contracts import MISSING_ACCESSIONS_TXT, read_selection
+from ..core.contracts import (
+    MISSING_ACCESSIONS_TXT,
+    SUBSTITUTED_ACCESSIONS_TSV,
+    read_selection,
+)
 from ..core.errors import WorkdirError
 from ..core.plugins import preflight
 from ..core.versions import write_versions_fragment
-from .genome import DATASETS_CAPS, download_accessions
+from .genome import DATASETS_CAPS, download_with_fallback, write_substituted
 
 
 @dataclass
@@ -32,6 +38,9 @@ class GenomeFetchParams:
     out_dir: Path
     keep_files: bool = False
     versions_out: Path | None = None
+    # Take the paired GenBank assembly when NCBI no longer serves a selected
+    # RefSeq accession (as the genome stage does).
+    genbank_fallback: bool = True
 
 
 def genome_fetch(params: GenomeFetchParams, logger: logging.Logger) -> int:
@@ -55,15 +64,17 @@ def genome_fetch(params: GenomeFetchParams, logger: logging.Logger) -> int:
     scratch = params.out_dir / "scratch"
 
     missing: list[str] = []
+    substituted: dict[str, str] = {}
     if selected:
         filenames = {r.accession: r.filename for r in selected}
-        missing = download_accessions(
+        missing, substituted = download_with_fallback(
             list(filenames),
             filenames,
             params.out_dir / "genomes",
             scratch,
             logger,
             params.keep_files,
+            genbank_fallback=params.genbank_fallback,
         )
     # The same record the genome stage keeps, so the report and the
     # completeness guard of the data-channel route can excuse these accessions.
@@ -71,16 +82,20 @@ def genome_fetch(params: GenomeFetchParams, logger: logging.Logger) -> int:
     (params.out_dir / MISSING_ACCESSIONS_TXT).write_text(
         "".join(f"{acc}\n" for acc in sorted(missing)), encoding="utf-8"
     )
+    write_substituted(params.out_dir / SUBSTITUTED_ACCESSIONS_TSV, substituted)
     if outgroup:
         og_filenames = {r.accession: r.filename for r in outgroup}
-        og_missing = download_accessions(
+        og_missing, og_substituted = download_with_fallback(
             list(og_filenames),
             og_filenames,
             params.out_dir / "outgroup",
             scratch,
             logger,
             params.keep_files,
+            genbank_fallback=params.genbank_fallback,
         )
+        substituted.update(og_substituted)
+        write_substituted(params.out_dir / SUBSTITUTED_ACCESSIONS_TSV, substituted)
         if og_missing:
             # A selection that names an outgroup must not continue without it:
             # the tree would be built and rooted differently with no notice.
@@ -90,10 +105,12 @@ def genome_fetch(params: GenomeFetchParams, logger: logging.Logger) -> int:
             )
 
     logger.info(
-        "genome-fetch: requested %d genomes + %d outgroup into %s (%d not served by NCBI)",
+        "genome-fetch: requested %d genomes + %d outgroup into %s (%d not served by NCBI, "
+        "%d taken from the paired GenBank assembly)",
         len(selected),
         len(outgroup),
         params.out_dir,
         len(missing),
+        len(substituted),
     )
     return len(selected)

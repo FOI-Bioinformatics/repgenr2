@@ -41,15 +41,17 @@ def test_selection_round_trip(tmp_path: Path) -> None:
 def test_genome_fetch_downloads_selected_and_outgroup(monkeypatch, tmp_path: Path) -> None:
     calls: list[tuple[list[str], Path]] = []
 
-    def fake_download(accessions, filenames, dest_dir, scratch_dir, logger, keep_files=False):
+    def fake_download(
+        accessions, filenames, dest_dir, scratch_dir, logger, keep_files=False, discarded=None
+    ):
         dest_dir.mkdir(parents=True, exist_ok=True)
         for acc in accessions:
             (dest_dir / filenames[acc]).write_text(">x\nACGT\n")
         calls.append((list(accessions), dest_dir))
         return []
 
-    # genome_steps imports the symbol into its namespace, so patch it there.
-    monkeypatch.setattr("repgenr.stages.genome_steps.download_accessions", fake_download)
+    # genome-fetch downloads through genome.download_with_fallback.
+    monkeypatch.setattr("repgenr.stages.genome.download_accessions", fake_download)
     monkeypatch.setattr("repgenr.stages.genome_steps.preflight", lambda _caps: {"datasets": "0"})
 
     rows = [
@@ -75,14 +77,16 @@ def test_genome_fetch_downloads_selected_and_outgroup(monkeypatch, tmp_path: Pat
 
 
 def _fetch_with_missing(monkeypatch, tmp_path: Path, not_served: set[str]) -> Path:
-    def fake_download(accessions, filenames, dest_dir, scratch_dir, logger, keep_files=False):
+    def fake_download(
+        accessions, filenames, dest_dir, scratch_dir, logger, keep_files=False, discarded=None
+    ):
         dest_dir.mkdir(parents=True, exist_ok=True)
         for acc in accessions:
             if acc not in not_served:
                 (dest_dir / filenames[acc]).write_text(">x\nACGT\n")
         return [acc for acc in accessions if acc in not_served]
 
-    monkeypatch.setattr("repgenr.stages.genome_steps.download_accessions", fake_download)
+    monkeypatch.setattr("repgenr.stages.genome.download_accessions", fake_download)
     monkeypatch.setattr("repgenr.stages.genome_steps.preflight", lambda _caps: {"datasets": "0"})
     selection = tmp_path / "selection.tsv"
     write_selection(
@@ -97,16 +101,41 @@ def _fetch_with_missing(monkeypatch, tmp_path: Path, not_served: set[str]) -> Pa
 
 
 def test_genome_fetch_records_accessions_ncbi_did_not_serve(monkeypatch, tmp_path: Path) -> None:
-    selection = _fetch_with_missing(monkeypatch, tmp_path, {"GCF_2.1"})
+    selection = _fetch_with_missing(monkeypatch, tmp_path, {"GCF_2.1", "GCA_2.1"})
     out = tmp_path / "out"
     genome_fetch(GenomeFetchParams(selection_tsv=selection, out_dir=out), _LOG)
+    assert (out / "missing_accessions.txt").read_text() == "GCF_2.1\n"
+    assert (out / "substituted_accessions.tsv").read_text() == "selected\tdownloaded\n"
+
+
+def test_genome_fetch_takes_the_genbank_pair_of_an_unserved_accession(
+    monkeypatch, tmp_path: Path
+) -> None:
+    # Neither GCF_2.1 nor the outgroup GCF_9.1 is served; their pairs are.
+    selection = _fetch_with_missing(monkeypatch, tmp_path, {"GCF_2.1", "GCF_9.1"})
+    out = tmp_path / "out"
+    genome_fetch(GenomeFetchParams(selection_tsv=selection, out_dir=out), _LOG)
+    assert (out / "genomes" / "Fam_Gen_sp2_GCF_2.1.fasta").exists()
+    assert (out / "outgroup" / "Fam_Out_grp_GCF_9.1.fasta").exists()
+    assert (out / "missing_accessions.txt").read_text() == ""
+    assert (out / "substituted_accessions.tsv").read_text() == (
+        "selected\tdownloaded\nGCF_2.1\tGCA_2.1\nGCF_9.1\tGCA_9.1\n"
+    )
+
+
+def test_genome_fetch_without_the_fallback(monkeypatch, tmp_path: Path) -> None:
+    selection = _fetch_with_missing(monkeypatch, tmp_path, {"GCF_2.1"})
+    out = tmp_path / "out"
+    genome_fetch(
+        GenomeFetchParams(selection_tsv=selection, out_dir=out, genbank_fallback=False), _LOG
+    )
     assert (out / "missing_accessions.txt").read_text() == "GCF_2.1\n"
 
 
 def test_genome_fetch_stops_when_the_outgroup_is_not_served(monkeypatch, tmp_path: Path) -> None:
     from repgenr.core.errors import WorkdirError
 
-    selection = _fetch_with_missing(monkeypatch, tmp_path, {"GCF_9.1"})
+    selection = _fetch_with_missing(monkeypatch, tmp_path, {"GCF_9.1", "GCA_9.1"})
     with pytest.raises(WorkdirError, match="outgroup GCF_9.1"):
         genome_fetch(GenomeFetchParams(selection_tsv=selection, out_dir=tmp_path / "out"), _LOG)
 
@@ -133,7 +162,7 @@ def test_genome_fetch_checks_datasets_before_downloading(monkeypatch, tmp_path: 
         raise AssertionError("download attempted before the preflight")
 
     monkeypatch.setattr("repgenr.stages.genome_steps.preflight", missing)
-    monkeypatch.setattr("repgenr.stages.genome_steps.download_accessions", no_download)
+    monkeypatch.setattr("repgenr.stages.genome.download_accessions", no_download)
     selection = tmp_path / "selection.tsv"
     write_selection(
         selection,

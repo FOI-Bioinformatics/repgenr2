@@ -33,6 +33,15 @@
                     ]
                 ],
                 "3": [
+                    [
+                        {
+                            "id": "test",
+                            "mode": "bacterial"
+                        },
+                        "substituted_accessions.tsv:md5,f7c4d97f0dc241953ca43175f3eb1d8f"
+                    ]
+                ],
+                "4": [
                     "versions.yml:md5,443b65f0aa22c543e0557491044953b2"
                 ],
                 "genomes": [
@@ -65,15 +74,24 @@
                         "Fam_Out_grp_GCF_000009.1.fasta:md5,9a5359767874a9770ac435769ff00d93"
                     ]
                 ],
+                "substituted": [
+                    [
+                        {
+                            "id": "test",
+                            "mode": "bacterial"
+                        },
+                        "substituted_accessions.tsv:md5,f7c4d97f0dc241953ca43175f3eb1d8f"
+                    ]
+                ],
                 "versions": [
                     "versions.yml:md5,443b65f0aa22c543e0557491044953b2"
                 ]
             }
         ],
-        "timestamp": "2026-11-13T20:00:51.923197",
+        "timestamp": "2026-11-14T11:11:06.251025",
         "meta": {
             "nf-test": "0.9.5",
-            "nextflow": "26.04.7"
+            "nextflow": "26.04.3"
         }
     }
 }

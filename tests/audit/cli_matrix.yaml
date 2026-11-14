@@ -1417,6 +1417,18 @@ commands:
         - docs/audit/cli-matrix.md
         nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
         live: tests/live/test_network.py::test_genome_keep_files_retains_the_download_scratch
+      --genbank-fallback:
+        secondary:
+        - --no-genbank-fallback
+        param: GenomeParams.genbank_fallback
+        validated: none
+        docs:
+        - docs/cli-reference.md
+        - docs/usage.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
+        live: 'n/a: the download helper is shared with genome-fetch, covered live there; the stage is covered in tests/unit/test_genome_stage.py'
+        observable: substituted_accessions.tsv lists a RefSeq accession NCBI no longer serves with the GenBank accession downloaded; with --no-genbank-fallback it is in missing_accessions.txt
       --sketch:
         secondary:
         - --no-sketch
@@ -1467,6 +1479,18 @@ commands:
         - docs/audit/cli-matrix.md
         nextflow: 'n/a: not exposed by the GENOME_FETCH module'
         live: tests/live/test_network.py::test_genome_fetch_step
+      --genbank-fallback:
+        secondary:
+        - --no-genbank-fallback
+        param: GenomeFetchParams.genbank_fallback
+        validated: none
+        docs:
+        - docs/cli-reference.md
+        - docs/usage.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'n/a: not exposed by the GENOME module, which uses the default (fallback on)'
+        live: tests/live/test_network.py::test_genome_fetch_takes_the_genbank_pair_of_a_suppressed_refseq_accession
+        observable: substituted_accessions.tsv lists a RefSeq accession NCBI no longer serves with the GenBank accession downloaded; with --no-genbank-fallback it is in missing_accessions.txt
       --versions-out:
         param: GenomeFetchParams.versions_out
         value: '{alt_file}'
@@ -4006,6 +4030,18 @@ commands:
         nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
         live: 'n/a: forwarded to the stage builder unchanged (wiring test); the stage flag is covered
           live'
+      --genbank-fallback:
+        secondary:
+        - --no-genbank-fallback
+        param: GenomeParams.genbank_fallback
+        validated: none
+        docs:
+        - docs/cli-reference.md
+        - docs/usage.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
+        live: 'n/a: forwarded to the stage builder unchanged (wiring test); the step flag is covered live'
+        observable: substituted_accessions.tsv lists a RefSeq accession NCBI no longer serves with the GenBank accession downloaded; with --no-genbank-fallback it is in missing_accessions.txt
       --pre-primary-ani:
         param: DereplicateParams.pre_primary_ani
         value: '0.85'

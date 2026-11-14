@@ -19,6 +19,9 @@ process GENOME {
     tuple val(meta), path("out/outgroup/*"), emit: outgroup, optional: true
     // Selected accessions NCBI served no genome for (empty when all arrived).
     tuple val(meta), path("missing_accessions.txt"), emit: missing
+    // RefSeq accessions whose genome came from the paired GenBank assembly
+    // (header only when there are none).
+    tuple val(meta), path("substituted_accessions.tsv"), emit: substituted
     path "versions.yml"                    , emit: versions
 
     when:
@@ -33,6 +36,7 @@ process GENOME {
     repgenr ${opts} genome-fetch --selection ${selection} --out out \\
         --versions-out tool_versions.yml
     cp out/missing_accessions.txt missing_accessions.txt
+    cp out/substituted_accessions.tsv substituted_accessions.tsv
 
     repgenr_versions_fragment "${task.process}" tool_versions.yml
     """
@@ -42,6 +46,7 @@ process GENOME {
     echo "ext.args: (none; GENOME takes no tool flags)"
     mkdir -p out/genomes out/outgroup
     : > missing_accessions.txt
+    printf 'selected\\tdownloaded\\n' > substituted_accessions.tsv
     tail -n +2 ${selection} | while IFS=\$'\\t' read -r acc fam gen sp og fname completeness contamination; do
         [ -z "\$fname" ] && continue
         if [ "\$og" = "1" ]; then

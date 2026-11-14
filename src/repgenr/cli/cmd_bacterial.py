@@ -15,6 +15,7 @@ from .base import (
     HELP_DATASET,
     HELP_DEREP_TOOL_ARG,
     HELP_EXCLUDE_MAG,
+    HELP_GENBANK_FALLBACK,
     HELP_GTDB_RELEASE,
     HELP_GTDB_TREE_PATH,
     HELP_GTDB_VERSION,
@@ -146,6 +147,9 @@ def genome(
         False, "--accession-list-only", help="Write the accession list and stop (no download)."
     ),
     keep_files: bool = typer.Option(False, "--keep-files", help=HELP_KEEP_FILES),
+    genbank_fallback: bool = typer.Option(
+        True, "--genbank-fallback/--no-genbank-fallback", help=HELP_GENBANK_FALLBACK
+    ),
     sketch: bool | None = typer.Option(None, "--sketch/--no-sketch", help=HELP_SKETCH),
 ) -> None:
     """Download and organize genomes selected by the metadata stage."""
@@ -153,7 +157,10 @@ def genome(
 
     def build():
         return genome_params(
-            accession_list_only=accession_list_only, keep_files=keep_files, sketch=sketch
+            accession_list_only=accession_list_only,
+            keep_files=keep_files,
+            sketch=sketch,
+            genbank_fallback=genbank_fallback,
         )
 
     _run("genome", workdir, build)

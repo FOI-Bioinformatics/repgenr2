@@ -31,6 +31,7 @@ from .base import (
     HELP_COREGENE,
     HELP_COREGENE_ALPHABET,
     HELP_DEREP_TOOL_ARG,
+    HELP_GENBANK_FALLBACK,
     HELP_GENE_RANK,
     HELP_GENE_TRIM,
     HELP_INCLUDE_DEREPLICATED,
@@ -92,6 +93,9 @@ def genome_fetch_cmd(
     ),
     out_dir: Path = typer.Option(..., "-o", "--out", help="Output dir for downloaded genomes."),
     keep_files: bool = typer.Option(False, "--keep-files", help=HELP_KEEP_FILES),
+    genbank_fallback: bool = typer.Option(
+        True, "--genbank-fallback/--no-genbank-fallback", help=HELP_GENBANK_FALLBACK
+    ),
     versions_out: Path | None = typer.Option(None, "--versions-out", help=HELP_VERSIONS_OUT),
 ) -> None:
     """Download genomes listed in a selection.tsv (stateless data-channel step)."""
@@ -105,6 +109,7 @@ def genome_fetch_cmd(
                 out_dir=out_dir,
                 keep_files=keep_files,
                 versions_out=versions_out,
+                genbank_fallback=genbank_fallback,
             ),
             logger,
         )
