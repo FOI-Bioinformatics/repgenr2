@@ -15,6 +15,12 @@ All notable changes to RepGenR2 are documented here. The format follows
   under `metadata/` by the Nextflow pipeline) and counted in the report.
   `--no-genbank-fallback` (also on `run`) restores the earlier behaviour,
   where the accession is only recorded in `missing_accessions.txt`.
+- `metadata --taxonomy ncbi` (with `--source tsv`; also on `run`): the
+  target is read, and the genomes are named, by the NCBI taxonomy column of
+  the GTDB table, while the release, the CheckM2 values and the species
+  representatives stay those of GTDB. The sister-group outgroup then runs
+  as `quality`, since an NCBI taxon need not be one clade of the GTDB tree.
+  `census -wd` counts such a selection by NCBI names.
 
 - `metadata --source ncbi`: select bacterial and archaeal genomes from NCBI
   by NCBI taxonomy, through the `datasets` client. RefSeq (`GCF_`)

@@ -48,6 +48,7 @@ from .base import (
     HELP_TARGET_GENUS,
     HELP_TARGET_REPS,
     HELP_TARGET_SPECIES_GTDB,
+    HELP_TAXONOMY,
     HELP_THREADS,
     HELP_VIRUS,
     HELP_WORKDIR,
@@ -105,6 +106,7 @@ def metadata(
     released_before: str | None = typer.Option(
         None, "--released-before", help=HELP_RELEASED_BEFORE
     ),
+    taxonomy: str = typer.Option("gtdb", "--taxonomy", help=HELP_TAXONOMY),
 ) -> None:
     """Select a taxon's genomes from GTDB (table or API) or from NCBI.
 
@@ -135,6 +137,7 @@ def metadata(
             include_atypical=include_atypical,
             exclude_mag=exclude_mag,
             released_before=released_before,
+            taxonomy=taxonomy,
         )
 
     _run("metadata", workdir, build, create=True)

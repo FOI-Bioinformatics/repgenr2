@@ -19,7 +19,6 @@ What it does not offer, compared with the GTDB sources:
 from __future__ import annotations
 
 import csv
-import re
 from dataclasses import dataclass, replace
 from datetime import UTC, date, datetime
 from pathlib import Path
@@ -34,6 +33,7 @@ from ..core.outgroup_choice import Candidate, Choice, choose_by_quality, write_c
 from ..core.plugins import preflight
 from ..core.selection_summary import GenomeDetails
 from .base import (
+    UNCLASSIFIED,
     GenomeSource,
     LimitCandidate,
     MetadataParams,
@@ -43,7 +43,9 @@ from .base import (
     record_from_tax,
     refuse_outgroup_in_selection,
     species_or_none,
+    species_token,
     stratified_limit,
+    taxon_token,
 )
 
 MANIFEST_SOURCE = "ncbi"
@@ -80,8 +82,6 @@ _LINEAGE_RANKS = (
     ("g", "genus"),
     ("s", "species"),
 )
-UNCLASSIFIED = "unclassified"
-_UNSAFE = re.compile(r"[^A-Za-z0-9-]+")
 
 
 @dataclass(frozen=True)
@@ -145,22 +145,6 @@ def genome_from_report(row: dict) -> NcbiGenome | None:
     )
 
 
-def _token(value: str) -> str:
-    """A filename token from an NCBI name: NCBI names hold characters GTDB
-    names do not ('sp. FSC1006', '[Clostridium]', 'str. SCHU S4 substr. FTS-634/635')."""
-    return re.sub(r"-{2,}", "-", _UNSAFE.sub("-", value)).strip("-") or UNCLASSIFIED
-
-
-def species_token(genus_name: str, species_name: str) -> str:
-    """The species as one filename token: the name without its genus, the
-    remaining words joined by hyphens ('Francisella tularensis' ->
-    'tularensis', as the GTDB sources write it; 'uncultured Francisella sp.'
-    -> 'uncultured-sp'; 'Candidatus Francisella endociliophora' ->
-    'Candidatus-endociliophora')."""
-    words = [w for w in species_name.split() if w != genus_name]
-    return _token("-".join(words))
-
-
 def tax_of(taxon: Taxon | None) -> dict[str, str]:
     """The manifest tax dict (filename tokens and display names) of a genome
     whose taxid resolved to ``taxon``; every level is 'unclassified' without one."""
@@ -169,8 +153,8 @@ def tax_of(taxon: Taxon | None) -> dict[str, str]:
     genus_name = ranks.get("genus", "")
     species_name = ranks.get("species", "")
     return {
-        "family": _token(family_name),
-        "genus": _token(genus_name),
+        "family": taxon_token(family_name),
+        "genus": taxon_token(genus_name),
         "species": species_token(genus_name, species_name),
         "family_name": family_name,
         "genus_name": genus_name,

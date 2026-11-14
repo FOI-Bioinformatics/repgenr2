@@ -2023,6 +2023,17 @@ commands:
         - docs/audit/cli-matrix.md
         nextflow: params.metadata_args
         live: tests/live/test_network.py::test_ncbi_assembly_sources_and_filters
+      --taxonomy:
+        param: MetadataParams.taxonomy
+        value: ncbi
+        validated: choice
+        docs:
+        - docs/usage.md
+        - docs/cli-reference.md
+        - docs/audit/cli-matrix.md
+        nextflow: params.metadata_args
+        live: tests/live/test_network.py::test_tsv_selection_by_ncbi_taxonomy
+        observable: with --source tsv, the target and the genome names follow the ncbi_taxonomy column of the GTDB table
   phylo:
     dispatch: stage
     base_args:
@@ -4240,6 +4251,17 @@ commands:
         nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
         live: 'n/a: forwarded to the stage builder unchanged (wiring test); the stage flag is covered
           live'
+      --taxonomy:
+        param: MetadataParams.taxonomy
+        value: ncbi
+        validated: choice
+        docs:
+        - docs/cli-reference.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
+        live: 'n/a: forwarded to the stage builder unchanged (wiring test); the stage flag is covered
+          live'
+        observable: with --metadata-source tsv, the target and the genome names follow the ncbi_taxonomy column of the GTDB table
       --outgroup-accession:
         param: MetadataParams.outgroup_accession
         value: GCF_000001.1

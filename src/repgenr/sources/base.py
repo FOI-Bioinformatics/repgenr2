@@ -9,6 +9,7 @@ group, like the tool families; ``metadata --source <name>`` selects one.
 
 from __future__ import annotations
 
+import re
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -67,6 +68,10 @@ class MetadataParams:
     exclude_mag: bool = False
     # Only assemblies released on or before this date (YYYY-MM-DD).
     released_before: str | None = None
+    # Option of the GTDB table source: the taxonomy the target is named in
+    # and the genomes are named by. gtdb, or ncbi (the table's ncbi_taxonomy
+    # column), which keeps GTDB's release, quality values and representatives.
+    taxonomy: str = "gtdb"
 
 
 # Options only some sources read: field -> (flag, the value that means "not given").
@@ -76,7 +81,29 @@ SOURCE_OPTIONS: dict[str, tuple[str, object]] = {
     "include_atypical": ("--include-atypical", False),
     "exclude_mag": ("--exclude-mag", False),
     "released_before": ("--released-before", None),
+    "taxonomy": ("--taxonomy", "gtdb"),
 }
+
+TAXONOMIES = ("gtdb", "ncbi")
+# The token of a rank NCBI gives no name for.
+UNCLASSIFIED = "unclassified"
+_UNSAFE = re.compile(r"[^A-Za-z0-9-]+")
+
+
+def taxon_token(value: str) -> str:
+    """A filename token from an NCBI name: NCBI names hold characters GTDB
+    names do not ('sp. FSC1006', '[Clostridium]', 'str. SCHU S4 substr. FTS-634/635')."""
+    return re.sub(r"-{2,}", "-", _UNSAFE.sub("-", value)).strip("-") or UNCLASSIFIED
+
+
+def species_token(genus_name: str, species_name: str) -> str:
+    """The species as one filename token: the name without its genus, the
+    remaining words joined by hyphens ('Francisella tularensis' ->
+    'tularensis', as the GTDB sources write it; 'uncultured Francisella sp.'
+    -> 'uncultured-sp'; 'Candidatus Francisella endociliophora' ->
+    'Candidatus-endociliophora')."""
+    words = [w for w in species_name.split() if w != genus_name]
+    return taxon_token("-".join(words))
 
 
 def species_or_none(params: MetadataParams) -> list[str | None]:

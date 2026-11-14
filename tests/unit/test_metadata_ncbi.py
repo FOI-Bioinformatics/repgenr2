@@ -489,7 +489,7 @@ def test_species_tokens_are_safe_in_filenames(genus, species, token) -> None:
 def test_a_genome_without_a_classification_is_named_unclassified() -> None:
     assert ncbi.tax_of(None)["genus"] == "unclassified"
     assert ncbi.lineage_string(None) == ""
-    assert ncbi._token("[Clostridium]") == "Clostridium"
+    assert ncbi.taxon_token("[Clostridium]") == "Clostridium"
 
 
 def test_report_lines_that_are_not_json_objects_are_skipped(tmp_path) -> None:

@@ -118,6 +118,8 @@ def _metadata(m: MethodsInfo) -> tuple[str, list[str]]:
         where = "the GTDB metadata table"
         if p.get("release"):
             where += f" of release {p['release']}"
+        if p.get("taxonomy") == "ncbi":
+            where += ", by the NCBI taxonomy given in the table"
     text = "Genomes were selected from " + where
     if target:
         text += f" for {target}" + (f" ({level})" if level else "")

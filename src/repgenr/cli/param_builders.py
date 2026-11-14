@@ -38,6 +38,7 @@ _UNSET: Any = object()
 METADATA_DATASETS = frozenset({"all", "rep"})
 METADATA_LEVELS = frozenset({"family", "genus", "species"})
 METADATA_ASSEMBLY_SOURCES = frozenset({"refseq", "genbank", "all"})
+METADATA_TAXONOMIES = frozenset({"gtdb", "ncbi"})
 VIRAL_SOURCES = frozenset({"ncbi_virus", "bvbrc"})
 LENGTH_METHODS = frozenset({"median_of_medians", "mean"})
 DEREP_STOCK_ACTIONS = frozenset({"list", "pack", "unpack", "delete"})
@@ -84,6 +85,7 @@ def metadata_params(
     include_atypical: Any = _UNSET,
     exclude_mag: Any = _UNSET,
     released_before: Any = _UNSET,
+    taxonomy: Any = _UNSET,
 ) -> MetadataParams:
     from ..stages.metadata import MetadataParams
 
@@ -93,6 +95,8 @@ def metadata_params(
         _require_choice(source, metadata_sources(), "--source")
     if assembly_source is not _UNSET:
         _require_choice(assembly_source, METADATA_ASSEMBLY_SOURCES, "--assembly-source")
+    if taxonomy is not _UNSET:
+        _require_choice(taxonomy, METADATA_TAXONOMIES, "--taxonomy")
     if outgroup_mode is not _UNSET:
         from ..core.outgroup_choice import OUTGROUP_MODES
 
@@ -122,6 +126,7 @@ def metadata_params(
         include_atypical=include_atypical,
         exclude_mag=exclude_mag,
         released_before=released_before,
+        taxonomy=taxonomy,
     )
 
 

@@ -165,6 +165,29 @@ def test_api_target_family_widens_the_selection(run_repgenr, tmp_path: Path) -> 
 # --- GTDB TSV ------------------------------------------------------------------
 
 
+def test_tsv_selection_by_ncbi_taxonomy(run_repgenr, tsv_cache: Path, tmp_path: Path) -> None:
+    """The NCBI genus Bacillus holds several GTDB genera (Bacillus, Bacillus_A,
+    ...), so --taxonomy ncbi selects more GTDB representatives than the GTDB
+    genus, all named Bacillus."""
+    table = next(tsv_cache.glob("bac120_metadata_r*.tsv.gz"))
+    common = (
+        "--source", "tsv", "-r", GTDB_RELEASE, "--gtdb-version", "bac120",
+        "--metadata-path", table, "-d", "rep", "-l", "genus", "-tg", "Bacillus", "--no-outgroup",
+    )  # fmt: skip
+    by_gtdb = tmp_path / "gtdb"
+    run_repgenr("metadata", "-wd", by_gtdb, *common)
+    by_ncbi = tmp_path / "ncbi"
+    run_repgenr("metadata", "-wd", by_ncbi, *common, "--taxonomy", "ncbi")
+    gtdb_rows, _ = _rows(by_gtdb)
+    ncbi_rows, _ = _rows(by_ncbi)
+    assert {r.genus for r in gtdb_rows} == {"Bacillus"}
+    assert {r.genus for r in ncbi_rows} == {"Bacillus"}
+    assert len(ncbi_rows) > len(gtdb_rows) > 0
+    assert all(r.filename.split("_")[1] == "Bacillus" for r in ncbi_rows)
+    record = Config.load(by_ncbi).stages["metadata"].params
+    assert record["taxonomy"] == "ncbi" and record["release"] == GTDB_RELEASE
+
+
 def test_tsv_source_downloads_and_parses_the_release_table(tsv_cache: Path) -> None:
     table = tsv_cache / f"bac120_metadata_r{GTDB_RELEASE.split('.')[0]}.tsv.gz"
     assert table.is_file() and table.stat().st_size > 100_000_000
