@@ -705,6 +705,12 @@ def census(
     released_before: str | None = typer.Option(
         None, "--released-before", help=HELP_RELEASED_BEFORE
     ),
+    taxonomy: str | None = typer.Option(
+        None,
+        "--taxonomy",
+        help="With --source table: the taxonomy the taxon is named in and the rows are "
+        "grouped by. gtdb (default), or ncbi: the NCBI names in the GTDB table.",
+    ),
     runs: bool = typer.Option(
         False,
         "--runs",
@@ -770,6 +776,7 @@ def census(
         include_atypical=include_atypical,
         exclude_mag=exclude_mag,
         released_before=released_before,
+        taxonomy=taxonomy,
     )
     with stage_errors(logger):
         result = run_census(params, logger)

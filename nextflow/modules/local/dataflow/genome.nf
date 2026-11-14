@@ -29,12 +29,13 @@ process GENOME {
 
     script:
     def opts = task.ext.repgenr_opts ?: ''
+    def args = task.ext.args ?: ''
     """
     # Forward tool exit codes (OOM kill -> 137) so errorStrategy can retry.
     export REPGENR_PROPAGATE_TOOL_EXIT=1
 
     repgenr ${opts} genome-fetch --selection ${selection} --out out \\
-        --versions-out tool_versions.yml
+        --versions-out tool_versions.yml ${args}
     cp out/missing_accessions.txt missing_accessions.txt
     cp out/substituted_accessions.tsv substituted_accessions.tsv
 
@@ -42,8 +43,9 @@ process GENOME {
     """
 
     stub:
+    def args = task.ext.args ?: ''
     """
-    echo "ext.args: (none; GENOME takes no tool flags)"
+    echo "ext.args: ${args}"
     mkdir -p out/genomes out/outgroup
     : > missing_accessions.txt
     printf 'selected\\tdownloaded\\n' > substituted_accessions.tsv

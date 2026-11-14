@@ -39,6 +39,12 @@
                     "description": "Arguments for the bacterial metadata stage: a GTDB selection, or an NCBI one with --source ncbi. Reaches the process as task.ext.args; a site config can override it with withName.",
                     "fa_icon": "fas fa-table"
                 },
+                "genome_args": {
+                    "type": "string",
+                    "default": "",
+                    "description": "Arguments for the bacterial genome download (repgenr genome-fetch), for example --no-genbank-fallback. Reaches the process as task.ext.args; a site config can override it with withName.",
+                    "fa_icon": "fas fa-download"
+                },
                 "vmetadata_args": {
                     "type": "string",
                     "default": "--target adenoviridae",

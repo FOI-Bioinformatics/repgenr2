@@ -591,6 +591,7 @@ or an unsupported combination, 3 when a request fails or -wd does not exist.
 | `--include-atypical` | off | With --source ncbi: keep assemblies NCBI flags as atypical; they are left out by default. |
 | `--exclude-mag` | off | With --source ncbi: leave out metagenome-assembled genomes. |
 | `--released-before` |  | With --source ncbi: only assemblies released on or before this date (YYYY-MM-DD). |
+| `--taxonomy` |  | With --source table: the taxonomy the taxon is named in and the rows are grouped by. gtdb (default), or ncbi: the NCBI names in the GTDB table. |
 | `--runs` | off | Also count the ENA whole-genome sequencing runs under the taxon: runs, biosamples and runs per platform (bacterial taxa only). |
 | `--host` |  | With --viral: only records from this host species. |
 | `--complete-only` | off | With --viral: only sequences marked complete. |

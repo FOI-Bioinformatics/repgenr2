@@ -20,8 +20,10 @@ All notable changes to RepGenR2 are documented here. The format follows
   the GTDB table, while the release, the CheckM2 values and the species
   representatives stay those of GTDB. The sister-group outgroup then runs
   as `quality`, since an NCBI taxon need not be one clade of the GTDB tree.
-  `census -wd` counts such a selection by NCBI names.
-
+  `census -wd` counts such a selection by NCBI names, and `census --source
+  table --taxonomy ncbi` counts a taxon of the table by them.
+- Nextflow: `--genome_args` passes arguments to the bacterial genome
+  download, for example `--no-genbank-fallback`.
 - `metadata --source ncbi`: select bacterial and archaeal genomes from NCBI
   by NCBI taxonomy, through the `datasets` client. RefSeq (`GCF_`)
   assemblies by default; `--assembly-source genbank` or `all` reach GenBank,

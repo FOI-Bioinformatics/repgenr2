@@ -353,6 +353,16 @@ commands:
         nextflow: 'n/a: query command; the Nextflow layer starts from a workdir or a samplesheet'
         live: 'n/a: network query, faked in tests/unit/test_census.py'
         observable: --released-after reaches the datasets summary request
+      --taxonomy:
+        param: 'n/a: query command, no stage parameters'
+        validated: stage
+        docs:
+        - docs/usage.md
+        - docs/cli-reference.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'n/a: query command; the Nextflow layer starts from a workdir or a samplesheet'
+        live: 'n/a: table query, tests/unit/test_metadata_ncbi_taxonomy.py'
+        observable: with --source table, the taxon and the rows follow the ncbi_taxonomy column of the GTDB table
       --assembly-source:
         param: 'n/a: query command, no stage parameters'
         validated: callback
@@ -1488,7 +1498,7 @@ commands:
         - docs/cli-reference.md
         - docs/usage.md
         - docs/audit/cli-matrix.md
-        nextflow: 'n/a: not exposed by the GENOME module, which uses the default (fallback on)'
+        nextflow: params.genome_args
         live: tests/live/test_network.py::test_genome_fetch_takes_the_genbank_pair_of_a_suppressed_refseq_accession
         observable: substituted_accessions.tsv lists a RefSeq accession NCBI no longer serves with the GenBank accession downloaded; with --no-genbank-fallback it is in missing_accessions.txt
       --versions-out:

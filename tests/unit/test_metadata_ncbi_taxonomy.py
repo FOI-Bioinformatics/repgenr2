@@ -216,6 +216,57 @@ def test_census_of_the_workdir_counts_by_ncbi_names(tmp_path, table) -> None:
     assert {row["name"] for row in result.rows} >= {"Bacillus cereus", "Bacillus subtilis"}
 
 
+def _taxon_census(table: Path, **options):
+    from repgenr.stages import census
+
+    params = census.CensusParams(source="table", metadata_path=str(table), **options)
+    return census.taxon_census(params, census.validate(params), LOG)
+
+
+def test_census_of_a_taxon_counts_the_table_by_ncbi_names(table) -> None:
+    result = _taxon_census(table, target_genus="Bacillus", taxonomy="ncbi")
+    assert result.totals["genomes"] == 4
+    assert {row["name"] for row in result.rows} >= {"Bacillus cereus", "Bacillus subtilis"}
+    assert any("NCBI taxonomy column" in note for note in result.notes)
+    # The same name by GTDB taxonomy is another, smaller genus.
+    by_gtdb = _taxon_census(table, target_genus="Bacillus")
+    assert by_gtdb.totals["genomes"] == 2
+    assert not any("NCBI taxonomy column" in note for note in by_gtdb.notes)
+
+
+def test_census_does_not_find_a_gtdb_name_in_the_ncbi_taxonomy(table) -> None:
+    with pytest.raises(UserInputError, match="NCBI genus Bacillus_A"):
+        _taxon_census(table, target_genus="Bacillus_A", taxonomy="ncbi")
+
+
+@pytest.mark.parametrize(
+    "options",
+    [
+        {"source": "api"},
+        {"source": "ncbi"},
+        {},
+        {"viral": True, "target": "adenoviridae"},
+    ],
+)
+def test_census_takes_the_taxonomy_with_the_table_source_only(options) -> None:
+    from repgenr.stages import census
+
+    options.setdefault("target_genus", "Bacillus")
+    with pytest.raises(UserInputError, match="--source table only"):
+        census.validate(census.CensusParams(taxonomy="ncbi", **options))
+
+
+def test_census_refuses_an_unknown_taxonomy_and_the_option_with_a_workdir(tmp_path) -> None:
+    from repgenr.stages import census
+
+    with pytest.raises(UserInputError, match="--taxonomy silva is not known"):
+        census.validate(
+            census.CensusParams(source="table", target_genus="Bacillus", taxonomy="silva")
+        )
+    with pytest.raises(UserInputError, match="--taxonomy.*do not apply with -wd"):
+        census.validate(census.CensusParams(workdir=tmp_path, taxonomy="ncbi"))
+
+
 def test_methods_text_names_the_taxonomy() -> None:
     from repgenr.reporting.methods import _metadata
     from repgenr.reporting.model import MethodsInfo
