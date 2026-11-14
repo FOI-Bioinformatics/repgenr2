@@ -153,6 +153,41 @@ def test_merge_composes_membership_over_chunks(tmp_path: Path, reg) -> None:
     assert len(all_members) + len(clusters) == 8
 
 
+class _PairsOnly(_Halver):
+    """As skDER: refuses an input of fewer than two genomes."""
+
+    capabilities = ToolCapabilities(name="pairsonly", supports_native_scaling=True)
+
+    def dereplicate(self, genomes, out_dir, params, logger) -> DerepResult:  # noqa: ANN001
+        genomes = list(genomes)
+        if len(genomes) < 2:
+            raise AssertionError("fewer than 2 genomes provided")
+        return super().dereplicate(genomes, out_dir, params, logger)
+
+
+def test_merge_of_one_representative_needs_no_tool_call(tmp_path: Path, reg) -> None:
+    """One chunk whose genomes collapse to one representative (a clonal species)."""
+    registry.register("pairsonly", _PairsOnly, replace=True)
+    try:
+        genomes = _make_genomes(tmp_path / "genomes", 2)
+        dereplicate_chunk(
+            ChunkParams(tool="pairsonly", genomes=genomes, out_dir=tmp_path / "c0"), _LOG
+        )
+        final = dereplicate_merge(
+            MergeParams(
+                tool="pairsonly", chunk_dirs=[tmp_path / "c0"], out_dir=tmp_path / "merged"
+            ),
+            _LOG,
+        )
+    finally:
+        registry._classes.pop("pairsonly", None)
+    assert [r.name for r in final.representatives] == [genomes[0].name]
+    assert read_clusters(tmp_path / "merged" / CLUSTERS_TSV) == {genomes[0].name: [genomes[1].name]}
+    status = read_genome_status(tmp_path / "merged" / GENOME_STATUS_TSV)
+    assert status[genomes[0].name] == STATUS_REPRESENTATIVE
+    assert status[genomes[1].name] == STATUS_CONTAINED
+
+
 def test_discrete_matches_in_process_chunked(workdir: Path, reg) -> None:
     """Scatter-gather steps reproduce the in-process two-stage membership."""
     genomes = _make_genomes(workdir / "genomes", 8)
