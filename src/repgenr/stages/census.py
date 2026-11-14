@@ -746,13 +746,15 @@ def gtdb_table_items(
     family: str | None = None,
     genus: str | None = None,
     species: str | None = None,
+    taxonomy: str = "gtdb",
 ) -> list[Item]:
     """The genomes of a GTDB metadata table under the target, through the
-    metadata stage's parser."""
+    metadata stage's parser. ``taxonomy`` is the one the target is named in
+    (``metadata --taxonomy``)."""
     from ..sources.base import MetadataParams
     from ..sources.gtdb_table import parse_metadata
 
-    mp = MetadataParams(dataset="all", level=GENUS if genus else FAMILY)
+    mp = MetadataParams(dataset="all", level=GENUS if genus else FAMILY, taxonomy=taxonomy)
     parsed = parse_metadata(table, mp, logger)
     return _items_from_parsed(
         d for d in parsed.values() if _matches_target(d["tax"], family, genus, species)
@@ -1138,6 +1140,8 @@ def gtdb_candidates(
         family=rec.get("target_family"),
         genus=rec.get("target_genus"),
         species=rec.get("target_species") if rec.get("level") == "species" else None,
+        # A selection by NCBI names is counted by NCBI names.
+        taxonomy=str(rec.get("taxonomy") or "gtdb"),
     )
     return items, "gtdb-table"
 

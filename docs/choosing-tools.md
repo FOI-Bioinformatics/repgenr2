@@ -218,6 +218,7 @@ Notes on the table:
 |---|---|
 | Bacteria or archaea in GTDB, many taxa or a whole release | `metadata` with the default `--source tsv`, which downloads the release table once. |
 | One taxon only | `metadata --source api`, which asks the GTDB API for the target taxon and also fetches each genome's quality values. |
+| NCBI names, with the release pin and quality values of GTDB | `metadata --source tsv --taxonomy ncbi`, which reads the target and the genome names from the NCBI taxonomy column of the GTDB table. No sister-group outgroup. |
 | Bacteria or archaea by NCBI taxonomy, or genomes newer than the GTDB release | `metadata --source ncbi`, which asks NCBI for the RefSeq assemblies of the taxon (`--assembly-source genbank` or `all` for GenBank). No release pin and no sister-group outgroup. |
 | Genomes already on disk | `ingest --genomes-dir DIR`. Add a `selection.tsv` for taxonomy and quality. |
 | Sequencing runs, no assembly yet | `reads`, then `assemble`. Runs come from ENA, which mirrors SRA. |

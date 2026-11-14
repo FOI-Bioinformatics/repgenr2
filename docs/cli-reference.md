@@ -75,6 +75,7 @@ is 'vmetadata --source'. --platform filters the sequencing platform with
 | `--include-atypical` | off | With --source ncbi: keep assemblies NCBI flags as atypical; they are left out by default. |
 | `--exclude-mag` | off | With --source ncbi: leave out metagenome-assembled genomes. |
 | `--released-before` |  | With --source ncbi: only assemblies released on or before this date (YYYY-MM-DD). |
+| `--taxonomy` | `gtdb` | With --source tsv: the taxonomy the target is named in and the genomes are named by. gtdb (default), or ncbi: the NCBI names in the GTDB table, with GTDB's release, CheckM2 values and species representatives. |
 | `--metadata-path` |  | Use this GTDB metadata table instead of downloading. With --source tsv, -r/--release and --gtdb-version are still required. |
 | `--nodownload` | off | Reuse a GTDB table already present in the workdir. |
 | `--outgroup-accession` |  | Accession to fetch and set aside as the outgroup. |
@@ -257,6 +258,7 @@ The --source option is called --metadata-source in 'run'.
 | `--include-atypical` | off | With --source ncbi: keep assemblies NCBI flags as atypical; they are left out by default. |
 | `--exclude-mag` | off | With --source ncbi: leave out metagenome-assembled genomes. |
 | `--released-before` |  | With --source ncbi: only assemblies released on or before this date (YYYY-MM-DD). |
+| `--taxonomy` | `gtdb` | With --source tsv: the taxonomy the target is named in and the genomes are named by. gtdb (default), or ncbi: the NCBI names in the GTDB table, with GTDB's release, CheckM2 values and species representatives. |
 
 ### genome
 

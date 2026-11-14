@@ -171,6 +171,11 @@ HELP_EXCLUDE_MAG = "With --source ncbi: leave out metagenome-assembled genomes."
 HELP_RELEASED_BEFORE = (
     "With --source ncbi: only assemblies released on or before this date (YYYY-MM-DD)."
 )
+HELP_TAXONOMY = (
+    "With --source tsv: the taxonomy the target is named in and the genomes are named "
+    "by. gtdb (default), or ncbi: the NCBI names in the GTDB table, with GTDB's release, "
+    "CheckM2 values and species representatives."
+)
 HELP_LEVEL = "Taxonomic rank of the target: family, genus or species."
 HELP_ALL_GENOMES = "Use all genomes, not only the representatives."
 HELP_BOOTSTRAP = (

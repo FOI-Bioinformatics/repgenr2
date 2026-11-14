@@ -37,6 +37,7 @@ from ..core.selection_summary import (
     GenomeDetails,
 )
 from .base import (
+    TAXONOMIES,
     GenomeSource,
     LimitCandidate,
     MetadataParams,
@@ -47,7 +48,9 @@ from .base import (
     refuse_outgroup_in_selection,
     refuse_outgroup_in_target,
     species_or_none,
+    species_token,
     stratified_limit,
+    taxon_token,
 )
 
 MANIFEST_SOURCE = "gtdb"
@@ -71,13 +74,23 @@ def _select_via_tsv(
 ) -> tuple[list[GenomeRecord], GenomeRecord | None, dict[str, GenomeDetails]]:
     metadata_file = _obtain_metadata(ctx, params, logger)
     accessions = parse_metadata(metadata_file, params, logger)
+    if params.taxonomy == "ncbi" and params.outgroup_mode == "sister":
+        # The sister group is read from the GTDB reference tree, where a
+        # taxon named by NCBI need not be one clade.
+        if not (params.no_outgroup or params.outgroup_accession):
+            logger.warning(
+                "--taxonomy ncbi: the sister-group outgroup follows the GTDB tree, in "
+                "which an NCBI taxon need not be one clade; choosing by quality among "
+                "the GTDB representatives of the parent NCBI taxon."
+            )
+        params = replace(params, outgroup_mode="quality")
 
     targets = []
     for species in species_or_none(params):
         target_levels = _target_levels(accessions, replace(params, target_species=species))
         if not target_levels:
             raise UserInputError(
-                f"Target not found in GTDB: family={params.target_family} "
+                f"Target not found in {_taxonomy_label(params)}: family={params.target_family} "
                 f"genus={params.target_genus} species={species} at level {params.level}"
             )
         targets.append(target_levels)
@@ -267,6 +280,12 @@ def parse_metadata(path: Path, params: MetadataParams, logger) -> dict[str, dict
         reader = csv.reader(fo, delimiter="\t")
         header = next(reader, [])
         idx = {name: i for i, name in enumerate(header)}
+        tax_column = "ncbi_taxonomy" if params.taxonomy == "ncbi" else "gtdb_taxonomy"
+        if tax_column not in idx:
+            raise UserInputError(
+                f"The GTDB metadata table {path.name} has no {tax_column} column"
+                + (", which --taxonomy ncbi reads." if params.taxonomy == "ncbi" else ".")
+            )
         for fields in reader:
             if not fields:
                 continue
@@ -282,7 +301,7 @@ def parse_metadata(path: Path, params: MetadataParams, logger) -> dict[str, dict
             if outgroup_only and accession != params.outgroup_accession:
                 continue
 
-            tax = parse_taxonomy(fields[idx["gtdb_taxonomy"]])
+            tax = parse_taxonomy(_text_column(fields, idx, tax_column), params.taxonomy)
             completeness = _opt_column(fields, idx, "checkm2_completeness", "checkm_completeness")
             contamination = _opt_column(
                 fields, idx, "checkm2_contamination", "checkm_contamination"
@@ -351,13 +370,27 @@ def _opt_column(fields: list[str], idx: dict[str, int], *names: str) -> float | 
     return None
 
 
-def parse_taxonomy(raw: str) -> dict[str, str]:
+def parse_taxonomy(raw: str, taxonomy: str = "gtdb") -> dict[str, str]:
+    """The levels of a lineage string (``d__...;s__...``) with the family,
+    genus and species as filename tokens. ``taxonomy`` names whose lineage
+    it is: NCBI names hold characters GTDB names do not, and a rank NCBI
+    gives no name for becomes ``unclassified``."""
     tax = {level: "" for level in TAXONOMY}
     for chunk in raw.split(";"):
         for level in TAXONOMY:
             key = level[0] + "__"
             if chunk.startswith(key):
                 tax[level] = chunk[len(key) :]
+    if taxonomy == "ncbi":
+        tax["family_name"], tax["genus_name"], tax["species_name"] = (
+            tax["family"],
+            tax["genus"],
+            tax["species"],
+        )
+        tax["family"] = taxon_token(tax["family_name"])
+        tax["genus"] = taxon_token(tax["genus_name"])
+        tax["species"] = species_token(tax["genus_name"], tax["species_name"])
+        return tax
     # The names as GTDB writes them ('Bacillus_A', 'Bacillus_A cereus_S'),
     # for display; the levels below become filename tokens.
     tax["family_name"], tax["genus_name"], tax["species_name"] = (
@@ -431,6 +464,10 @@ def _select(
     kept = stratified_limit(candidates, limit)
     log_limit(limit, candidates, kept, logger)
     return {c.accession: matching[c.accession] for c in kept}
+
+
+def _taxonomy_label(params: MetadataParams) -> str:
+    return "the NCBI taxonomy of the GTDB table" if params.taxonomy == "ncbi" else "GTDB"
 
 
 def _pick_outgroup(accessions, selected, targets, params, *, tree_loader=None, logger=None):
@@ -559,8 +596,18 @@ class GtdbTableSource(GenomeSource):
     manifest_source = MANIFEST_SOURCE
     record_tool = "gtdb-table"
     stats_source = "gtdb-tsv"
+    options = frozenset({"taxonomy"})
+
+    def prepare(self, ctx, params, logger) -> dict[str, object]:
+        # Recorded only when it is not the default, so records of GTDB-named
+        # selections stay as they were.
+        return {"taxonomy": params.taxonomy} if params.taxonomy != "gtdb" else {}
 
     def validate(self, params: MetadataParams) -> None:
+        if params.taxonomy not in TAXONOMIES:
+            raise UserInputError(
+                f"--taxonomy must be one of {', '.join(TAXONOMIES)}; got {params.taxonomy!r}."
+            )
         if not params.release or not RELEASE_RE.match(params.release):
             raise UserInputError("tsv source needs --release like '232.0' (major.minor).")
         if not params.version:

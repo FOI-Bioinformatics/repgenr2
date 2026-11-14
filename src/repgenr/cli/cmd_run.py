@@ -89,6 +89,7 @@ from .base import (
     HELP_TARGET_GENUS,
     HELP_TARGET_REPS,
     HELP_TARGET_SPECIES_RUN,
+    HELP_TAXONOMY,
     HELP_THREADS,
     HELP_WORKDIR_CREATED,
     PANEL_PIPELINE,
@@ -334,6 +335,7 @@ def run(
     released_before: str | None = typer.Option(
         None, "--released-before", help=HELP_RELEASED_BEFORE
     ),
+    taxonomy: str = typer.Option("gtdb", "--taxonomy", help=HELP_TAXONOMY),
     metadata_path: str | None = typer.Option(None, "--metadata-path", help=HELP_METADATA_PATH),
     nodownload: bool = typer.Option(False, "--nodownload", help=HELP_NODOWNLOAD),
     outgroup_accession: str | None = typer.Option(
@@ -797,6 +799,7 @@ def run(
                 include_atypical=include_atypical,
                 exclude_mag=exclude_mag,
                 released_before=released_before,
+                taxonomy=taxonomy,
             ),
             create=True,
         )

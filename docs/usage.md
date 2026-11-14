@@ -212,6 +212,29 @@ target is raised and a species epithet lowered, so `-tg francisella -ts
 Tularensis` finds `s__Francisella tularensis`. Suffixes such as
 `Bacillus_A` must be typed as GTDB spells them. An unknown taxon exits 2.
 
+**NCBI names on the GTDB table.** `--taxonomy ncbi` (with `--source tsv`)
+reads the target and names the genomes by the `ncbi_taxonomy` column of the
+GTDB table, in place of GTDB's own taxonomy:
+
+```bash
+repgenr metadata -wd $WD -r 232.0 --gtdb-version bac120 -d rep -l genus \
+    -tg Bacillus --taxonomy ncbi
+```
+
+The release pin, the CheckM2 values and the species representatives remain
+those of GTDB, so the selection is reproducible in a way an NCBI query is
+not, while the names are those of NCBI. The two taxonomies cut differently:
+the NCBI genus *Bacillus* covers several GTDB genera (`Bacillus`,
+`Bacillus_A` and others), and one NCBI species can hold several GTDB
+species and the reverse. `-d rep` still selects GTDB species
+representatives, so it can give several genomes for one NCBI species or
+none. The sister-group outgroup follows the GTDB tree, in which an NCBI
+taxon need not be one clade; `--outgroup-mode sister` therefore runs as
+`quality` here, with a warning, among the GTDB representatives of the
+parent NCBI taxon. A genome without an NCBI name at a rank is named
+`unclassified` there. The stage record keeps `taxonomy: ncbi`, and `census
+-wd` counts such a selection by NCBI names.
+
 **Several species.** `-ts` can be repeated, or given several names
 separated by commas, to select several species of one genus at
 `--level species`:
