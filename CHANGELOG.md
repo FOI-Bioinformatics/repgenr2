@@ -21,6 +21,10 @@ All notable changes to RepGenR2 are documented here. The format follows
   of an NCBI family or genus, and `census -wd` counts the candidates of an
   NCBI selection from `ncbi_genomes.tsv`. In the Nextflow pipeline the
   source is selected through `--metadata_args '--source ncbi ...'`.
+- `census --source ncbi` takes the assembly options of `metadata --source
+  ncbi` (`--assembly-source`, `--assembly-level`, `--include-atypical`,
+  `--exclude-mag`, `--released-before`), so GenBank assemblies can be
+  counted as well. The options are refused with another source.
 - `dereplicate --pin` and `--pin-file`: named genomes, such as the reference
   strains of biovars, are kept as representatives whatever the ANI
   clustering. A cluster holding pinned genomes is split, and each other

@@ -562,8 +562,9 @@ Emit FlexTaxD-compatible taxonomy relations from the tree.
 Count the genera, species and samples under a taxon (read-only).
 
 Without -wd, queries a GTDB family (-tf) or genus (-tg) through the GTDB
-API or a GTDB metadata table, optionally with the ENA sequencing runs
-(--runs), or a viral taxon through NCBI Virus (--viral --target; metadata
+API or a GTDB metadata table, or an NCBI taxon (--source ncbi, with the
+assembly options of 'metadata --source ncbi'), optionally with the ENA
+sequencing runs (--runs), or a viral taxon through NCBI Virus (--viral --target; metadata
 only, no sequences). With -wd, counts the candidates the entry stage found
 or the genomes it selected, by source; -tf and -tg narrow the count. A
 family is counted per genus and a genus per species. No stage is recorded
@@ -577,10 +578,15 @@ or an unsupported combination, 3 when a request fails or -wd does not exist.
 | `-tg`, `--target-genus` |  | Count this genus: one row per species. |
 | `--viral` | off | Count a viral taxon (NCBI Virus) instead of a GTDB taxon. |
 | `--target` |  | With --viral: the virus taxon, as vmetadata takes it (e.g. picornaviridae). |
-| `--source` |  | api (GTDB API), table (GTDB metadata table, also 'tsv') or ncbi (RefSeq assemblies by NCBI taxonomy); with --viral, ncbi_virus. bvbrc is counted only from a vmetadata workdir. Default: api, or ncbi_virus with --viral. |
+| `--source` |  | api (GTDB API), table (GTDB metadata table, also 'tsv') or ncbi (NCBI assemblies by NCBI taxonomy, RefSeq by default); with --viral, ncbi_virus. bvbrc is counted only from a vmetadata workdir. Default: api, or ncbi_virus with --viral. |
 | `-r`, `--release` |  | GTDB release of the table source, e.g. 232.0. |
 | `--gtdb-version` |  | GTDB table of the table source: bac120 or ar53. Default: bac120. |
 | `--metadata-path` |  | Read this GTDB metadata table (.tsv.gz) instead of downloading the release table; with -wd, the table to count the candidates from. |
+| `--assembly-source` |  | With --source ncbi: refseq (GCF_ assemblies), genbank (GCA_) or all (one entry per assembly, GCF_ where both exist). Default: refseq. |
+| `--assembly-level` |  | With --source ncbi: keep only these assembly levels (complete, chromosome, scaffold, contig; comma-separated). |
+| `--include-atypical` | off | With --source ncbi: keep assemblies NCBI flags as atypical; they are left out by default. |
+| `--exclude-mag` | off | With --source ncbi: leave out metagenome-assembled genomes. |
+| `--released-before` |  | With --source ncbi: only assemblies released on or before this date (YYYY-MM-DD). |
 | `--runs` | off | Also count the ENA whole-genome sequencing runs under the taxon: runs, biosamples and runs per platform (bacterial taxa only). |
 | `--host` |  | With --viral: only records from this host species. |
 | `--complete-only` | off | With --viral: only sequences marked complete. |

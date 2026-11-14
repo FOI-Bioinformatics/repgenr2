@@ -95,6 +95,23 @@ class CensusParams:
     host: str | None = None
     complete_only: bool = False
     released_after: str | None = None
+    # --source ncbi: which assemblies are counted, as for ``metadata --source
+    # ncbi``. None means the default of that source (refseq).
+    assembly_source: str | None = None
+    assembly_level: str | None = None
+    include_atypical: bool = False
+    exclude_mag: bool = False
+    released_before: str | None = None
+
+
+# The census options that apply to --source ncbi only: flag -> field.
+NCBI_OPTIONS = {
+    "--assembly-source": "assembly_source",
+    "--assembly-level": "assembly_level",
+    "--include-atypical": "include_atypical",
+    "--exclude-mag": "exclude_mag",
+    "--released-before": "released_before",
+}
 
 
 @dataclass
@@ -658,15 +675,38 @@ def gtdb_api_items(rank: str, name: str, logger: logging.Logger) -> list[Item]:
     return items
 
 
-NCBI_CENSUS_NOTE = (
-    "Genomes are the RefSeq assemblies of the NCBI taxon, without those NCBI flags as "
-    "atypical; the representatives column counts NCBI reference genomes."
-)
+_NCBI_ASSEMBLIES = {
+    "refseq": "the RefSeq assemblies",
+    "genbank": "the GenBank assemblies",
+    "all": "the assemblies (RefSeq and GenBank, each assembly once)",
+}
 
 
-def ncbi_items(rank: str, name: str, logger: logging.Logger) -> list[Item]:
-    """The RefSeq assemblies of an NCBI family or genus, as ``metadata
-    --source ncbi`` would find them with its default options."""
+def ncbi_census_note(params: CensusParams) -> str:
+    """Which NCBI assemblies the genomes column counts, from the options."""
+    kept = []
+    if params.assembly_level:
+        kept.append(f"of assembly level {params.assembly_level}")
+    if params.released_before:
+        kept.append(f"released on or before {params.released_before}")
+    left_out = []
+    if not params.include_atypical:
+        left_out.append("those NCBI flags as atypical")
+    if params.exclude_mag:
+        left_out.append("metagenome-assembled genomes")
+    text = f"Genomes are {_NCBI_ASSEMBLIES[params.assembly_source or 'refseq']} of the NCBI taxon"
+    if kept:
+        text += " " + " and ".join(kept)
+    if left_out:
+        text += ", without " + " and ".join(left_out)
+    return text + "; the representatives column counts NCBI reference genomes."
+
+
+def ncbi_items(
+    rank: str, name: str, logger: logging.Logger, params: CensusParams | None = None
+) -> list[Item]:
+    """The assemblies of an NCBI family or genus, as ``metadata --source
+    ncbi`` would find them with the same options (RefSeq by default)."""
     import tempfile
 
     from ..core.http import NCBI_DATASETS_URL, require_reachable
@@ -675,15 +715,22 @@ def ncbi_items(rank: str, name: str, logger: logging.Logger) -> list[Item]:
     from ..sources import ncbi
     from ..sources.base import MetadataParams
 
-    preflight(DATASETS_CAPS)
-    require_reachable(NCBI_DATASETS_URL, what="NCBI datasets")
+    params = params or CensusParams()
     mp = MetadataParams(
         dataset="all",
         level=rank,
         source="ncbi",
         target_family=name if rank == FAMILY else None,
         target_genus=name if rank == GENUS else None,
+        assembly_source=params.assembly_source or "refseq",
+        assembly_level=params.assembly_level,
+        include_atypical=params.include_atypical,
+        exclude_mag=params.exclude_mag,
+        released_before=params.released_before,
     )
+    ncbi.NcbiSource().validate(mp)
+    preflight(DATASETS_CAPS)
+    require_reachable(NCBI_DATASETS_URL, what="NCBI datasets")
     with tempfile.TemporaryDirectory(prefix="repgenr_census_") as scratch:
         _targets, genomes, _taxa, tax = ncbi.candidates(mp, Path(scratch), logger)
     return _items_from_parsed(
@@ -811,6 +858,7 @@ def validate(params: CensusParams) -> str:
                 ("--host", params.host),
                 ("--complete-only", params.complete_only),
                 ("--released-after", params.released_after),
+                *((flag, getattr(params, name)) for flag, name in NCBI_OPTIONS.items()),
             )
             if value
         ]
@@ -820,6 +868,12 @@ def validate(params: CensusParams) -> str:
                 "record names the source and target; -tf, -tg and --metadata-path do."
             )
         return ""
+    ncbi_only = [flag for flag, name in NCBI_OPTIONS.items() if getattr(params, name)]
+    if ncbi_only and (params.viral or source != "ncbi"):
+        raise UserInputError(
+            f"{', '.join(ncbi_only)} choose the NCBI assemblies to count and apply with "
+            "--source ncbi only."
+        )
     if params.viral:
         source = source or "ncbi_virus"
         if source not in VIRAL_SOURCES:
@@ -883,7 +937,7 @@ def taxon_census(params: CensusParams, source: str, logger: logging.Logger) -> C
         items = gtdb_api_items(rank, name, logger)
         label = "gtdb-api"
     elif source == "ncbi":
-        items = ncbi_items(rank, name, logger)
+        items = ncbi_items(rank, name, logger, params)
         label = "ncbi"
     else:
         table = obtain_table(params, logger)
@@ -903,7 +957,7 @@ def taxon_census(params: CensusParams, source: str, logger: logging.Logger) -> C
                 f"No genomes of the genus {name} in the family {params.target_family}."
             )
     taxon = _gtdb_spelling(items, rank, name)
-    notes = [NCBI_CENSUS_NOTE] if source == "ncbi" else []
+    notes = [ncbi_census_note(params)] if source == "ncbi" else []
     runs = None
     runs_taxon = ""
     if params.runs:

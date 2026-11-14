@@ -544,7 +544,7 @@ def test_census_counts_the_refseq_assemblies_of_an_ncbi_genus(datasets, monkeypa
     # The representatives column counts NCBI reference genomes.
     assert by_name["Francisella philomiragia"]["representatives"] == 1
     assert result.totals["genomes"] == 4 and result.totals["representatives"] == 2
-    assert census.NCBI_CENSUS_NOTE in result.notes
+    assert any(note.startswith("Genomes are the RefSeq assemblies") for note in result.notes)
     first = _genome_queries(datasets)[0]
     assert first[first.index("--assembly-source") + 1] == "RefSeq"
 
@@ -562,6 +562,77 @@ def test_census_of_a_workdir_counts_the_candidates_ncbi_returned(tmp_path, datas
     (ctx.workdir / ncbi.NCBI_GENOMES).unlink()
     fallback = census.workdir_census(census.CensusParams(workdir=ctx.workdir), LOG)
     assert fallback.source == "selection" and fallback.totals["genomes"] == 1
+
+
+def _census(monkeypatch, **options):
+    from repgenr.stages import census
+
+    monkeypatch.setattr("repgenr.core.plugins.preflight", lambda _caps: {"datasets": "18.14.0"})
+    monkeypatch.setattr("repgenr.core.http.require_reachable", lambda *_a, **_k: None)
+    params = census.CensusParams(target_genus="Francisella", source="ncbi", **options)
+    return census.taxon_census(params, census.validate(params), LOG)
+
+
+def test_census_counts_each_assembly_once_under_all(datasets, monkeypatch) -> None:
+    result = _census(monkeypatch, assembly_source="all")
+    # Four RefSeq assemblies and one that GenBank alone holds.
+    assert result.totals["genomes"] == 5
+    assert any("RefSeq and GenBank, each assembly once" in note for note in result.notes)
+    first = _genome_queries(datasets)[0]
+    assert first[first.index("--assembly-source") + 1] == "all"
+
+
+def test_census_passes_the_assembly_filters_to_the_client(datasets, monkeypatch) -> None:
+    result = _census(
+        monkeypatch,
+        assembly_source="genbank",
+        assembly_level="complete",
+        include_atypical=True,
+        exclude_mag=True,
+        released_before="2020-01-01",
+    )
+    first = _genome_queries(datasets)[0]
+    assert first[first.index("--assembly-source") + 1] == "GenBank"
+    assert first[first.index("--assembly-level") + 1] == "complete"
+    assert first[first.index("--released-before") + 1] == "2020-01-01"
+    assert first[first.index("--mag") + 1] == "exclude"
+    assert "--exclude-atypical" not in first
+    (note,) = [n for n in result.notes if n.startswith("Genomes are")]
+    assert note == (
+        "Genomes are the GenBank assemblies of the NCBI taxon of assembly level complete "
+        "and released on or before 2020-01-01, without metagenome-assembled genomes; "
+        "the representatives column counts NCBI reference genomes."
+    )
+
+
+def test_census_checks_the_assembly_options(datasets, monkeypatch) -> None:
+    with pytest.raises(UserInputError, match="--assembly-level takes"):
+        _census(monkeypatch, assembly_level="finished")
+    assert not datasets  # refused before any request
+
+
+@pytest.mark.parametrize(
+    "options",
+    [
+        {"source": "api"},
+        {"source": "table"},
+        {},
+        {"viral": True, "target": "picornaviridae"},
+    ],
+)
+def test_census_refuses_the_assembly_options_of_another_source(options) -> None:
+    from repgenr.stages import census
+
+    options.setdefault("target_genus", None if options.get("viral") else "Francisella")
+    with pytest.raises(UserInputError, match="apply with --source ncbi only"):
+        census.validate(census.CensusParams(assembly_source="genbank", **options))
+
+
+def test_census_refuses_the_assembly_options_with_a_workdir(tmp_path) -> None:
+    from repgenr.stages import census
+
+    with pytest.raises(UserInputError, match="--exclude-mag select a taxon query"):
+        census.validate(census.CensusParams(workdir=tmp_path, exclude_mag=True))
 
 
 def test_census_refuses_ncbi_as_a_viral_source() -> None:
