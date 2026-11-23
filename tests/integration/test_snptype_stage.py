@@ -477,3 +477,106 @@ def test_ska2_warns_on_a_multi_species_set(workdir, register_tool, monkeypatch, 
     with caplog.at_level(logging.WARNING, logger="test-snptype"):
         run(ctx, SnptypeParams(tool="ska2", all_genomes=True))
     assert any("spanning 2 species" in r.getMessage() for r in caplog.records)
+
+
+# -- the staged outgroup ---------------------------------------------------------
+# phylo types the outgroup with the genomes, so tree/msa/full_alignment.fasta holds
+# it; snptype typed the genomes alone, so snp/full_alignment.fasta, of the same
+# name, did not. A canSNP tool given the second could not settle polarity, and
+# nothing said so.
+
+OUTGROUP = "Francisellaceae_allofrancisella_guangzhouensis_GCA_000009.fasta"
+
+
+@pytest.fixture
+def staged_outgroup(workdir: Path) -> Path:
+    outgroup_dir = workdir / "outgroup"
+    outgroup_dir.mkdir(parents=True)
+    path = outgroup_dir / OUTGROUP
+    path.write_text(">og\n" + "ACGA" * 10 + "\n")
+    (workdir / "outgroup_accession.txt").write_text("GCA_000009\n")
+    return path
+
+
+class _ParamsTyper(_FakeTyper):
+    """Records the genomes the stage hands the typer."""
+
+    seen: dict = {}
+
+    def call(self, genomes, reference, out_dir, params, logger) -> SnpResult:  # noqa: ANN001
+        _ParamsTyper.seen = {"genomes": [g.name for g in genomes]}
+        return super().call(genomes, reference, out_dir, params, logger)
+
+
+@pytest.fixture
+def stage_params(monkeypatch):
+    """The stage parameters snptype_core is given, where mask_exclude is applied."""
+    import repgenr.stages.snptype as stage
+
+    seen: dict = {}
+    real = stage.snptype_core
+
+    def record(genomes, reference, out_dir, scratch, params, logger, **kwargs):  # noqa: ANN001
+        seen["params"] = params
+        return real(genomes, reference, out_dir, scratch, params, logger, **kwargs)
+
+    monkeypatch.setattr(stage, "snptype_core", record)
+    return seen
+
+
+def test_the_staged_outgroup_is_typed_with_the_genomes(
+    workdir, genome_files, staged_outgroup, register_tool
+) -> None:
+    register_tool(registry, "paramstyper", _ParamsTyper)
+    ctx = WorkdirContext(workdir, create=True)
+    result = run(ctx, SnptypeParams(tool="paramstyper", all_genomes=True))
+    records = result.core_snp_fasta.read_text()
+    assert records.count(">") == len(genome_files) + 1
+    assert f">{staged_outgroup.stem}" in records
+    assert _ParamsTyper.seen["genomes"][-1] == OUTGROUP
+
+
+def test_the_masker_leaves_the_outgroup_out_of_its_scan(
+    workdir, genome_files, staged_outgroup, fake_typer, stage_params
+) -> None:
+    # A species-level outgroup breaks a recombination scan; phylo already
+    # excludes it there, and snptype now does the same.
+    ctx = WorkdirContext(workdir, create=True)
+    run(ctx, SnptypeParams(tool="faketyper", all_genomes=True))
+    assert stage_params["params"].mask_exclude == (staged_outgroup.stem,)
+
+
+def test_no_outgroup_types_the_genomes_alone(
+    workdir, genome_files, staged_outgroup, fake_typer, stage_params
+) -> None:
+    ctx = WorkdirContext(workdir, create=True)
+    result = run(ctx, SnptypeParams(tool="faketyper", all_genomes=True, no_outgroup=True))
+    assert result.core_snp_fasta.read_text().count(">") == len(genome_files)
+    assert stage_params["params"].mask_exclude == ()
+
+
+def test_the_outgroup_is_recorded_with_the_stage(
+    workdir, genome_files, staged_outgroup, fake_typer
+) -> None:
+    ctx = WorkdirContext(workdir, create=True)
+    run(ctx, SnptypeParams(tool="faketyper", all_genomes=True))
+    assert ctx.config.stages["snptype"].params["outgroup"] == OUTGROUP
+
+
+def test_a_workdir_without_an_outgroup_types_as_before(workdir, genome_files, fake_typer) -> None:
+    ctx = WorkdirContext(workdir, create=True)
+    result = run(ctx, SnptypeParams(tool="faketyper", all_genomes=True))
+    assert result.core_snp_fasta.read_text().count(">") == len(genome_files)
+    assert ctx.config.stages["snptype"].params["outgroup"] is None
+
+
+def test_a_changed_outgroup_reruns_the_stage(workdir, genome_files, staged_outgroup) -> None:
+    # The stage's input digest must cover the outgroup, or a new outgroup would
+    # leave the old alignment in place and report the stage as current.
+    from repgenr.cli.base import STAGE_INPUTS
+
+    ctx = WorkdirContext(workdir, create=True)
+    inputs = STAGE_INPUTS["snptype"](ctx, SnptypeParams(all_genomes=True))
+    assert ctx.outgroup_dir in inputs
+    alone = STAGE_INPUTS["snptype"](ctx, SnptypeParams(all_genomes=True, no_outgroup=True))
+    assert ctx.outgroup_dir not in alone
