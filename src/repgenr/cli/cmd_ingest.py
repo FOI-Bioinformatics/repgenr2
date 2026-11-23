@@ -70,6 +70,15 @@ def ingest(
         "an epithet. Recorded as manifest source local_viral. --from-workdir genomes "
         "keep the source of their workdir.",
     ),
+    where: list[str] = typer.Option(
+        [],
+        "--where",
+        help="Take only the genomes that match, as key=value on accession, family, genus, "
+        "species, source or source_representative. Repeatable: a key given twice takes "
+        "either value, different keys must all match. A GTDB species is a genus and an "
+        "epithet: --where genus=Brucella --where species=melitensis. A genome left out may "
+        "still be named with --outgroup.",
+    ),
 ) -> None:
     """Populate a working directory from local genomes (no download)."""
     from .param_builders import ingest_params
@@ -85,6 +94,7 @@ def ingest(
             sketch=sketch,
             strict_sources=strict_sources,
             viral=viral,
+            where=list(where),
         )
 
     _run("ingest", workdir, build, create=True)

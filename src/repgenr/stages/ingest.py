@@ -86,6 +86,52 @@ class IngestParams:
     # species token is the whole species name. Recorded as manifest source
     # local_viral, so a later --from-workdir of this workdir knows it too.
     viral: bool = False
+    # Take only the genomes that match, as key=value: a key given twice takes
+    # either value, different keys must all match. A genome left out may still
+    # be named with --outgroup.
+    where: list[str] = field(default_factory=list)
+
+
+# The fields --where selects on: those of selection.tsv, and the manifest source.
+WHERE_KEYS = ("accession", "family", "genus", "species", "source", "source_representative")
+_FLAG_VALUES = {"yes": True, "true": True, "1": True, "no": False, "false": False, "0": False}
+
+
+def _parse_where(items: list[str]) -> dict[str, set[str]]:
+    """The --where filter as key -> accepted values."""
+    where: dict[str, set[str]] = {}
+    for item in items:
+        if "=" not in item:
+            raise UserInputError(f"--where must be key=value, got '{item}'.")
+        key, value = (part.strip() for part in item.split("=", 1))
+        if not key:
+            raise UserInputError(f"--where has an empty key in '{item}'.")
+        if key not in WHERE_KEYS:
+            raise UserInputError(
+                f"--where {key}: not a field ingest selects on; give one of "
+                f"{', '.join(WHERE_KEYS)}. A GTDB species is a genus and an epithet, so "
+                "Brucella melitensis is --where genus=Brucella --where species=melitensis."
+            )
+        if key == "source_representative" and value.lower() not in _FLAG_VALUES:
+            raise UserInputError(f"--where source_representative={value}: give yes or no.")
+        where.setdefault(key, set()).add(value)
+    return where
+
+
+def _matches(candidate: _Candidate, where: dict[str, set[str]]) -> bool:
+    row = candidate.row
+    for key, values in where.items():
+        if key == "source":
+            found = candidate.source
+        elif key == "source_representative":
+            if row.source_representative not in {_FLAG_VALUES[v.lower()] for v in values}:
+                return False
+            continue
+        else:
+            found = getattr(row, key)
+        if found not in values:
+            return False
+    return True
 
 
 # Stages that write the genome set (selection.tsv and genomes/) of a workdir.
@@ -283,6 +329,27 @@ def _plan(params: IngestParams, target: Path, logger) -> _Plan:
         rows, outgroups = _workdir_candidates(Path(wd).expanduser(), target, origin)
         ingroup.extend(rows)
         others.extend(outgroups)
+
+    if params.where:
+        where = _parse_where(params.where)
+        kept = [c for c in ingroup if _matches(c, where)]
+        if not kept:
+            asked = " ".join(f"--where {item}" for item in params.where)
+            raise UserInputError(
+                f"{asked} matches none of the {len(ingroup)} genomes of {', '.join(origins)}."
+            )
+        if logger is not None:
+            logger.info(
+                "--where keeps %d of %d genomes: %s",
+                len(kept),
+                len(ingroup),
+                ", ".join(params.where),
+            )
+        # A genome left out may still be the outgroup, as a source workdir's own
+        # outgroup may: a species taken from a pool can be rooted on another
+        # species of the same pool.
+        others.extend(c for c in ingroup if c not in kept)
+        ingroup = kept
 
     outgroup = _resolve_outgroup(ingroup, marked, others, params.outgroup)
     if outgroup is not None and params.viral and outgroup.origin.startswith("--outgroup "):
@@ -488,6 +555,7 @@ def run(ctx: WorkdirContext, params: IngestParams) -> int:
             "copy": params.copy,
             "drop_foreign": params.drop_foreign,
             "viral": params.viral,
+            "where": list(params.where),
             "total": len(ingroup),
             # Ingroup genomes per manifest source (gtdb, sra, local, ...).
             "sources": dict(sorted(by_source.items())),
