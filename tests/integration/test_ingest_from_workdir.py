@@ -626,3 +626,166 @@ def test_viral_flag_marks_local_genomes_and_carries_over(tmp_path, sources) -> N
     run(plain, IngestParams(genomes_dir=str(local)))
     text = (plain.workdir / "metadata_summary.tsv").read_text(encoding="utf-8")
     assert "species\tHepatovirus Hepatovirus-ahepa\t1" in text
+
+
+# -- --where: a subset of the genome set -----------------------------------------
+# A genus scheme built in tiers needs one species' genomes in their own working
+# directory; --where takes them from the pool instead of a script doing it.
+
+MIXED_ROWS = [
+    SelectionRow(
+        "GCF_000011.1",
+        "Francisellaceae",
+        "Francisella",
+        "tularensis",
+        False,
+        "Francisellaceae_Francisella_tularensis_GCF_000011.1.fasta",
+        99.0,
+        0.1,
+        True,
+    ),
+    SelectionRow(
+        "GCF_000012.1",
+        "Francisellaceae",
+        "Francisella",
+        "philomiragia",
+        False,
+        "Francisellaceae_Francisella_philomiragia_GCF_000012.1.fasta",
+        98.0,
+        0.2,
+        False,
+    ),
+    SelectionRow(
+        "GCF_000013.1",
+        "Francisellaceae",
+        "Allofrancisella",
+        "guangzhouensis",
+        False,
+        "Francisellaceae_Allofrancisella_guangzhouensis_GCF_000013.1.fasta",
+        97.0,
+        0.3,
+        False,
+    ),
+]
+
+
+@pytest.fixture
+def pool(tmp_path: Path) -> Path:
+    return _make_workdir(tmp_path / "pool", MIXED_ROWS, "gtdb")
+
+
+def _taken(ctx: WorkdirContext) -> list[str]:
+    """The ingroup taken; selection.tsv also lists the outgroup, marked as such."""
+    return sorted(
+        r.accession for r in read_selection(ctx.workdir / SELECTION_TSV) if not r.is_outgroup
+    )
+
+
+def test_where_takes_the_genomes_that_match(tmp_path, pool) -> None:
+    ctx = _ctx(tmp_path / "wd")
+    run(ctx, IngestParams(from_workdirs=[str(pool)], where=["species=tularensis"]))
+    assert _taken(ctx) == ["GCF_000011.1"]
+
+
+def test_one_key_given_twice_takes_either_value(tmp_path, pool) -> None:
+    ctx = _ctx(tmp_path / "wd")
+    run(
+        ctx,
+        IngestParams(
+            from_workdirs=[str(pool)], where=["species=tularensis", "species=philomiragia"]
+        ),
+    )
+    assert _taken(ctx) == ["GCF_000011.1", "GCF_000012.1"]
+
+
+def test_different_keys_must_all_match(tmp_path, pool) -> None:
+    ctx = _ctx(tmp_path / "wd")
+    run(
+        ctx,
+        IngestParams(from_workdirs=[str(pool)], where=["genus=Francisella", "species=tularensis"]),
+    )
+    assert _taken(ctx) == ["GCF_000011.1"]
+
+
+def test_a_filter_that_matches_nothing_is_refused_and_writes_nothing(tmp_path, pool) -> None:
+    ctx = _ctx(tmp_path / "wd")
+    with pytest.raises(UserInputError, match="genus=Allofrancisella") as raised:
+        run(
+            ctx,
+            IngestParams(
+                from_workdirs=[str(pool)], where=["genus=Allofrancisella", "species=tularensis"]
+            ),
+        )
+    assert "3 genomes" in str(raised.value), "it says how many there were to choose from"
+    assert not (ctx.workdir / SELECTION_TSV).exists()
+
+
+def test_the_outgroup_may_be_a_genome_the_filter_left_out(tmp_path, pool) -> None:
+    # Take one genus from a pool, and name a genome of another genus from the
+    # same pool as the outgroup.
+    ctx = _ctx(tmp_path / "wd")
+    run(
+        ctx,
+        IngestParams(
+            from_workdirs=[str(pool)], where=["genus=Francisella"], outgroup="GCF_000013.1"
+        ),
+    )
+    assert _taken(ctx) == ["GCF_000011.1", "GCF_000012.1"]
+    assert [p.name for p in ctx.outgroup_dir.iterdir()] == [MIXED_ROWS[2].filename]
+    outgroups = [r.accession for r in read_selection(ctx.workdir / SELECTION_TSV) if r.is_outgroup]
+    assert outgroups == ["GCF_000013.1"]
+
+
+def test_where_reads_the_manifest_source(tmp_path, sources) -> None:
+    wd1, wd2 = sources
+    ctx = _ctx(tmp_path / "wd3")
+    run(ctx, IngestParams(from_workdirs=[str(wd1), str(wd2)], where=["source=sra"]))
+    assert _taken(ctx) == ["SRR0000001", "SRR0000002"]
+
+
+def test_where_reads_the_representative_flag(tmp_path, pool) -> None:
+    ctx = _ctx(tmp_path / "wd")
+    run(ctx, IngestParams(from_workdirs=[str(pool)], where=["source_representative=yes"]))
+    assert _taken(ctx) == ["GCF_000011.1"]
+
+
+@pytest.mark.parametrize(
+    "bad, said",
+    [
+        ("species", "key=value"),
+        ("gtdb_species=Francisella tularensis", "accession, family, genus"),
+        ("=tularensis", "key"),
+    ],
+)
+def test_a_where_that_cannot_be_read_is_refused(tmp_path, pool, bad, said) -> None:
+    ctx = _ctx(tmp_path / "wd")
+    with pytest.raises(UserInputError, match=said):
+        run(ctx, IngestParams(from_workdirs=[str(pool)], where=[bad]))
+
+
+def test_where_is_recorded_with_the_stage(tmp_path, pool) -> None:
+    ctx = _ctx(tmp_path / "wd")
+    run(ctx, IngestParams(from_workdirs=[str(pool)], where=["genus=Francisella"]))
+    assert Config.load(ctx.workdir).stages["ingest"].params["where"] == ["genus=Francisella"]
+
+
+def test_where_on_the_command_line(tmp_path, pool) -> None:
+    target = tmp_path / "wd"
+    result = _runner.invoke(
+        app,
+        [
+            "ingest",
+            "-wd",
+            str(target),
+            "--from-workdir",
+            str(pool),
+            "--where",
+            "genus=Francisella",
+            "--no-sketch",
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    assert sorted(r.accession for r in read_selection(target / SELECTION_TSV)) == [
+        "GCF_000011.1",
+        "GCF_000012.1",
+    ]
