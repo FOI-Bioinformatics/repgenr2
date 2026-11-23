@@ -872,7 +872,7 @@ prose.
 ```json
 {
   "schema": "repgenr.status/1",
-  "repgenr": "2.2.0",
+  "repgenr": "2.3.0",
   "workdir": "/data/wd",
   "pipeline": "local",
   "stages": [
@@ -915,7 +915,7 @@ prose.
 ```json
 {
   "schema": "repgenr.doctor/1",
-  "repgenr": "2.2.0",
+  "repgenr": "2.3.0",
   "workdir": "/data/wd",
   "quick": false,
   "findings": [
