@@ -451,6 +451,28 @@ and `genomes/` of each source are resume inputs, but its manifest is not, so
 a change of a source label alone needs `--force`. A source whose stage record is interrupted, stale or absent
 is named in a warning, and `--strict-sources` refuses it instead.
 
+#### Taking part of a genome set
+
+`--where KEY=VALUE` takes only the genomes that match, from `--from-workdir`
+or `--genomes-dir`. The keys are `accession`, `family`, `genus`, `species`,
+`source` (the manifest source) and `source_representative` (yes or no). A key
+given twice takes either value; different keys must all match. GTDB writes a
+species as a genus and an epithet, so the classical *Brucella*, the GTDB
+species `s__Brucella melitensis`, are:
+
+```bash
+repgenr ingest -wd wd_classical --from-workdir POOL \
+    --where genus=Brucella --where species=melitensis \
+    --outgroup GCF_006376685.1
+```
+
+A genome the filter leaves out may still be named with `--outgroup`, as
+here, where the outgroup is a *Brucella* of another species from the same
+pool. This is how a group too divergent for one alignment is built in tiers:
+one working directory over the whole set, and one per subset that needs an
+alignment of its own. A filter that matches nothing stops `ingest` before
+anything is written, and says how many genomes there were to choose from.
+
 ### Starting from sequencing reads
 
 `repgenr reads` selects runs from ENA, and `repgenr assemble` fetches and

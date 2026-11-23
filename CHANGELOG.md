@@ -8,6 +8,14 @@ All notable changes to RepGenR2 are documented here. The format follows
 
 ### Added
 
+- `ingest --where KEY=VALUE` takes only the genomes that match, on
+  `accession`, `family`, `genus`, `species`, `source` or
+  `source_representative`. A key given twice takes either value; different
+  keys must all match. A genome left out may still be named with
+  `--outgroup`, so one species of a pool can be rooted on another. A filter
+  that matches nothing stops before anything is written. GTDB writes a
+  species as a genus and an epithet: `--where genus=Brucella --where
+  species=melitensis`.
 - `genome` and `genome-fetch` take the paired GenBank assembly (`GCA_`) when
   NCBI no longer serves a selected RefSeq accession (`GCF_`), also for the
   outgroup. The genome keeps the file name of the selected accession, and

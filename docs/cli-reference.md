@@ -332,6 +332,7 @@ Populate a working directory from local genomes (no download).
 | `--drop-foreign` | off | Discard genomes appended from sequencing runs (assemble --append) instead of refusing to overwrite the selection that holds them. |
 | `--sketch`, `--no-sketch` | auto | Write a sourmash sketch of each genome to sketches/ (k=21,31,51, scaled=1000). --sketch requires sourmash and --no-sketch skips it. Default: when sourmash can run. A --from-workdir sketch of the same genome is copied. |
 | `--viral` | off | The --genomes-dir genomes are viral: the species token of a file name is the whole species name (Picornaviridae_Hepatovirus_Hepatovirus-ahepa_ACC), not an epithet. Recorded as manifest source local_viral. --from-workdir genomes keep the source of their workdir. |
+| `--where` |  | Take only the genomes that match, as key=value on accession, family, genus, species, source or source_representative. Repeatable: a key given twice takes either value, different keys must all match. A GTDB species is a genus and an epithet: --where genus=Brucella --where species=melitensis. A genome left out may still be named with --outgroup. |
 
 ### reads
 
