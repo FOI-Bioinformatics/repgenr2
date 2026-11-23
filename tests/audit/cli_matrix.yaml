@@ -5063,6 +5063,16 @@ commands:
         nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
         live: tests/live/test_species_set.py::test_simple_typer_on_representatives_only
         observable: row count equals all genomes
+      --no-outgroup:
+        param: SnptypeParams.no_outgroup
+        validated: none
+        docs:
+        - docs/cli-reference.md
+        - docs/output.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'n/a: workdir command; the Nextflow layer uses the stateless steps'
+        live: 'n/a: tests/integration/test_snptype_stage.py types with and without a staged outgroup'
+        observable: no outgroup record in snp/full_alignment.fasta
       --mask:
         param: SnptypeParams.mask
         value: gubbins

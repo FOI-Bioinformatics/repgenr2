@@ -501,6 +501,7 @@ commands it selects the dereplicator.
 | `--tool` | `simple` | SNP typer: parsnp, simple, ska2, snippy. |
 | `--reference` |  | Reference genome: a filename, 'medoid' (the genome nearest to all others by sketch ANI) or 'first'. Default: medoid when the genomes are sketched and sourmash is at hand, else first. |
 | `--all-genomes` | off | Use all genomes, not only the representatives. |
+| `--no-outgroup` | off | Type the genomes without the staged outgroup. By default it is typed with them, as phylo types it, so that snp/full_alignment.fasta holds it as tree/msa/ does. |
 | `--mask` | `none` | Recombination masking of the SNP alignment: none, gubbins. |
 | `--core-fraction` |  | Keep only the variable columns where at least this fraction of the genomes have a called base (a soft core, 0 to 1). Default: every variable column, and the log reports what 0.95 would keep. |
 | `-t`, `--threads` | `16` | Threads for the external tool. Default: 16, or the CPU limit when lower. |

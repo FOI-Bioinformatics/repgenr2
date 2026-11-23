@@ -56,6 +56,15 @@ All notable changes to RepGenR2 are documented here. The format follows
 
 ### Changed
 
+- `snptype` types the staged outgroup with the genomes, as `phylo` already
+  did, so `snp/full_alignment.fasta` and `tree/msa/full_alignment.fasta` hold
+  the same records. Typed alone, the genomes gave an alignment of the same name
+  that a tool reading polarity from an outgroup record, such as CanSNPCreator,
+  could not use, and nothing said so. The outgroup is left out of a
+  `--mask gubbins` scan, as in `phylo`, and recorded with the stage.
+  `snptype --no-outgroup` types the genomes alone. An existing workdir with an
+  outgroup staged reruns `snptype` once, since the outgroup is now one of its
+  inputs.
 - The flag for a GTDB species representative is now source-neutral and also
   marks NCBI reference genomes. It is named `source_representative` in
   `selection.tsv`, `metadata_selected.tsv` and the manifest (schema version

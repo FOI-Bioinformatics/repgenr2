@@ -45,6 +45,7 @@ from .base import (
     HELP_REMOVE_OUTGROUP,
     HELP_ROOT,
     HELP_ROOT_NAME,
+    HELP_SNPTYPE_NO_OUTGROUP,
     HELP_THREADS,
     HELP_WORKDIR,
     PANEL_CORE,
@@ -114,6 +115,7 @@ def snptype(
     tool: str = typer.Option("simple", "--tool", help=_snp_help()),
     reference: str | None = typer.Option(None, "--reference", help=HELP_REFERENCE),
     all_genomes: bool = typer.Option(False, "--all-genomes", help=HELP_ALL_GENOMES),
+    no_outgroup: bool = typer.Option(False, "--no-outgroup", help=HELP_SNPTYPE_NO_OUTGROUP),
     mask: str = typer.Option("none", "--mask", help=_mask_help()),
     core_fraction: float | None = typer.Option(
         None, "--core-fraction", min=0.0, max=1.0, help=HELP_CORE_FRACTION
@@ -147,6 +149,7 @@ def snptype(
             threads=threads,
             reference=reference,
             all_genomes=all_genomes,
+            no_outgroup=no_outgroup,
             mask=mask,
             core_fraction=core_fraction,
             allow_incomplete=allow_incomplete,
