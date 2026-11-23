@@ -865,6 +865,39 @@ genomes can reach that depth; `--collapse-diameter` reduces it. A rank
 column is read on every row, and an empty value inherits the previous
 row's, so `--ranks` writes a rank on every row.
 
+### Joining working directories built in tiers
+
+A set too divergent for one alignment is built in tiers: one working
+directory over the whole set, in whose tree one clade holds a subset, and one
+working directory of that subset, aligned and treed on its own so that it is
+resolved further. `ingest --where` makes the second from the first. After `tree2tax` in both, `graft` replaces the clade
+with the subset's tree:
+
+```bash
+repgenr graft --parent wd_genus --child wd_classical -o merged/
+```
+
+It writes `merged/tree2tax.tsv` and `merged/genomes_map.tsv`. The seam, where
+the two meet, is the parent node whose genomes are exactly the child's.
+`--child` is repeatable, and each is grafted in turn.
+
+The child is rooted on its own outgroup, which tree2tax keeps as a leaf; that
+leaf is left out of the graft, since the genome already sits in the parent,
+and a node that then holds exactly the child's root genomes is folded into the
+seam. Supports, branch lengths and RED do not carry across two trees, so no
+`tree2tax_nodes.tsv` is written, and a rank column is not kept.
+
+Three things stop `graft` before anything is written, each a finding rather
+than something to work around:
+
+- the child's genomes are spread over more than one branch of the parent, so
+  no parent node holds exactly them: the two trees disagree about the group,
+  and the message names the smallest node holding them all and its branches;
+- the child holds genomes the parent does not, so the two were not built from
+  one genome set;
+- a node name both trees use outside the seam, which two working directories
+  named with one `--node-basename` produce; give each its own basename.
+
 ## Running tools in containers
 
 RepGenR2 can run each external tool in a pinned container, while RepGenR2

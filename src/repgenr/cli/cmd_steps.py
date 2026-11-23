@@ -66,6 +66,7 @@ from .base import (
     HELP_THREADS,
     HELP_VERSIONS_OUT,
     HELP_VIRUS,
+    PANEL_CORE,
     PANEL_STEPS,
     _aligner_help,
     _assembler_help,
@@ -471,6 +472,37 @@ def phylo_build_cmd(
             ),
             logger,
         )
+
+
+@app.command(name="graft", rich_help_panel=PANEL_CORE)
+def graft_cmd(
+    parent: Path = typer.Option(
+        ...,
+        "--parent",
+        help="Working directory over the whole set, after tree2tax; one of its clades holds "
+        "the genomes of each --child.",
+    ),
+    child: list[Path] = typer.Option(
+        ...,
+        "--child",
+        help="Working directory of a subset, after tree2tax; its tree replaces the parent's "
+        "clade that holds exactly its genomes. Repeatable, grafted in turn.",
+    ),
+    out_dir: Path = typer.Option(
+        ..., "-o", "--out", help="Output dir (writes tree2tax.tsv + genomes_map.tsv)."
+    ),
+) -> None:
+    """Join the hierarchies of working directories at the node they share.
+
+    For a set too divergent for one alignment, built in tiers. The seam is the parent
+    node whose genomes are exactly the child's; a child whose genomes are spread over
+    more than one branch of the parent is refused, since the two trees then disagree.
+    """
+    from ..stages.graft import GraftStepParams, graft
+
+    logger = configure_logging(None, level=_RUN_STATE["log_level"])
+    with stage_errors(logger):
+        graft(GraftStepParams(parent=parent, children=list(child), out_dir=out_dir), logger)
 
 
 @app.command(name="tree2tax-relations", rich_help_panel=PANEL_STEPS)

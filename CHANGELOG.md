@@ -8,6 +8,13 @@ All notable changes to RepGenR2 are documented here. The format follows
 
 ### Added
 
+- `graft --parent WD --child WD -o OUT` joins the hierarchies of working
+  directories built in tiers. The seam is the parent node whose genomes are
+  exactly the child's, and the child's tree replaces the clade there; the
+  child's own outgroup leaf is left out. A child whose genomes are spread over
+  more than one branch of the parent, genomes the parent lacks, and a node
+  name both trees use are each refused. `--child` is repeatable.
+  `core.contracts` gains readers for `tree2tax.tsv` and `genomes_map.tsv`.
 - `genome` and `genome-fetch` take the paired GenBank assembly (`GCA_`) when
   NCBI no longer serves a selected RefSeq accession (`GCF_`), also for the
   outgroup. The genome keeps the file name of the selected accession, and
