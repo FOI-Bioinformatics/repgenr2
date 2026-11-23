@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import logging
 import shutil
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -65,6 +65,9 @@ class SnptypeParams:
     threads: int = 16
     reference: str | None = None
     all_genomes: bool = False
+    # Type the genomes without the staged outgroup. By default it is typed with
+    # them, as phylo types it, so that snp/ and tree/msa/ hold the same records.
+    no_outgroup: bool = False
     mask: str = "none"  # none | gubbins
     allow_incomplete: bool = False
     # Record ids the masker leaves out of its scan (the outgroup) but keeps.
@@ -406,10 +409,21 @@ def run(ctx: WorkdirContext, params: SnptypeParams) -> SnpResult:
 
     reference = None
     if snp_registry.create(params.tool).requires_reference:
+        # The reference comes from the genomes, never the outgroup, as in phylo.
         reference = _reference_path(ctx, params.reference, genomes, logger, params.threads)
 
+    # The outgroup is typed with the genomes, as phylo types it: typed alone, the
+    # genomes gave an alignment that a tool reading polarity from an outgroup
+    # record could not use, under the same name as phylo's alignment that holds it.
+    outgroup = None if params.no_outgroup else _staged_outgroup(ctx, logger)
+    inputs = [*genomes, outgroup] if outgroup is not None else genomes
+    if outgroup is not None:
+        # A species-level outgroup breaks the recombination scan; the masker
+        # runs on the ingroup and applies its regions to all.
+        params = replace(params, mask_exclude=(record_name(outgroup),))
+
     result, versions = snptype_core(
-        genomes, reference, ctx.snp_dir, ctx.scratch_dir / "snptype", params, logger
+        inputs, reference, ctx.snp_dir, ctx.scratch_dir / "snptype", params, logger
     )
 
     ctx.config.record_stage(
@@ -418,6 +432,8 @@ def run(ctx: WorkdirContext, params: SnptypeParams) -> SnpResult:
         params={
             "all_genomes": params.all_genomes,
             "reference": reference.name if reference else None,
+            "outgroup": outgroup.name if outgroup is not None else None,
+            "no_outgroup": params.no_outgroup,
             "mask": params.mask,
             "core_fraction": params.core_fraction,
         },
@@ -427,6 +443,21 @@ def run(ctx: WorkdirContext, params: SnptypeParams) -> SnpResult:
     ctx.save_config()
     logger.info("SNP typing complete: %s", result.core_snp_fasta)
     return result
+
+
+def _staged_outgroup(ctx: WorkdirContext, logger: logging.Logger) -> Path | None:
+    """The outgroup ingest or metadata staged, or None when there is none.
+
+    A workdir without an outgroup is typed as before, without a warning: an
+    outgroup is optional for SNP typing.
+    """
+    from .phylo import resolve_outgroup_files
+
+    accession_file = ctx.workdir / "outgroup_accession.txt"
+    if not accession_file.exists() or not ctx.outgroup_dir.exists():
+        return None
+    outgroup, _leaf = resolve_outgroup_files(ctx.outgroup_dir, accession_file, logger)
+    return outgroup
 
 
 def _genome_set(ctx: WorkdirContext, all_genomes: bool) -> list[Path]:

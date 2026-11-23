@@ -599,7 +599,7 @@ writes the same files under `tree/msa/` (see [phylo](#phylo)).
 | Path | Content |
 |------|---------|
 | `snp/core_snp.fasta` | Core-SNP (variable-site) alignment; masked in place with `--mask`. |
-| `snp/full_alignment.fasta` | Whole-genome alignment in reference coordinates (snippy, parsnp, simple); the input of `--mask`. In the `simple` typer's alignment, positions where a genome has no aligned base are N. |
+| `snp/full_alignment.fasta` | Whole-genome alignment in reference coordinates (snippy, parsnp, simple); the input of `--mask`. In the `simple` typer's alignment, positions where a genome has no aligned base are N. It holds the staged outgroup as well as the genomes, as `tree/msa/full_alignment.fasta` does, unless `--no-outgroup` was given; that is what lets a tool reading polarity from an outgroup record use either file. |
 | `snp/snp_distance_matrix.tsv` | `simple` typer only: pairwise SNP distances over sites where both genomes have A, C, G or T; `NA` without such a site. Computed before masking. |
 | `snp/reference_coverage.tsv` | `simple` typer only: `genome`, `covered_fraction` (the fraction of the reference's bases the genome has a base at), `is_reference` (1 for the reference, listed first with 1.0). Removed when a later typer does not write it. |
 | `snp/variants.vcf` | The typer's variant calls (snippy); for `ska2 --tool-arg lo=true`, the indels `ska lo` recovered. |

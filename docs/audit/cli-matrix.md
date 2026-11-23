@@ -3,7 +3,7 @@
 Generated from `tests/audit/cli_matrix.yaml` by `scripts/render_cli_matrix.py`;
 `tests/unit/test_cli_matrix.py` keeps both in step with the command tree.
 
-41 commands, 532 flags (525 with a live test or an n/a reason, 7 pending).
+41 commands, 533 flags (526 with a live test or an n/a reason, 7 pending).
 
 ## Global flags
 
@@ -638,6 +638,7 @@ dispatch: `stage`
 | `--tool` |  | SnptypeParams.tool | registry | n/a: workdir command; the Nextflow layer uses the stateless steps | tests/live/test_species_set.py::test_parsnp_typer | README.md, docs/developing.md, docs/choosing-tools.md, docs/cli-reference.md, docs/usage.md, docs/audit/scaling-audit.md, docs/audit/cli-matrix.md |
 | `--reference` |  | SnptypeParams.reference | none | n/a: workdir command; the Nextflow layer uses the stateless steps | tests/live/test_species_set.py::test_simple_typer_all_genomes_with_explicit_reference | docs/cli-reference.md, docs/audit/scaling-audit.md, docs/audit/cli-matrix.md |
 | `--all-genomes` |  | SnptypeParams.all_genomes | none | n/a: workdir command; the Nextflow layer uses the stateless steps | tests/live/test_species_set.py::test_simple_typer_on_representatives_only | docs/cli-reference.md, docs/audit/cli-matrix.md |
+| `--no-outgroup` |  | SnptypeParams.no_outgroup | none | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: tests/integration/test_snptype_stage.py types with and without a staged outgroup | docs/cli-reference.md, docs/output.md, docs/audit/cli-matrix.md |
 | `--mask` |  | SnptypeParams.mask | registry | n/a: workdir command; the Nextflow layer uses the stateless steps | tests/live/test_species_set.py::test_gubbins_mask_changes_the_core_alignment | README.md, docs/developing.md, docs/choosing-tools.md, docs/cli-reference.md, docs/output.md, docs/usage.md, docs/audit/cli-matrix.md |
 | `--core-fraction` |  | SnptypeParams.core_fraction | range | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: covered offline in tests/integration/test_snptype_stage.py | docs/cli-reference.md, docs/phylogeny.md, docs/audit/cli-matrix.md |
 | `--threads` | -t | SnptypeParams.threads | range | n/a: workdir command; the Nextflow layer uses the stateless steps | tests/live/test_species_set.py::test_simple_typer_all_genomes_with_explicit_reference | docs/cli-reference.md, docs/audit/cli-matrix.md |

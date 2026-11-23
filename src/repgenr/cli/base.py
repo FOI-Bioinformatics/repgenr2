@@ -75,6 +75,10 @@ HELP_TARGET_GENUS = "Restrict the selection to this genus."
 HELP_TARGET_SPECIES = "Restrict the selection to this species."
 HELP_OUTGROUP_ACCESSION = "Accession to fetch and set aside as the outgroup."
 HELP_NO_OUTGROUP = "Do not root with an outgroup."
+HELP_SNPTYPE_NO_OUTGROUP = (
+    "Type the genomes without the staged outgroup. By default it is typed with them, "
+    "as phylo types it, so that snp/full_alignment.fasta holds it as tree/msa/ does."
+)
 HELP_TARGET_SPECIES_GTDB = (
     "Restrict the selection to this species. Repeat it, or separate names by commas, to "
     "select several species of the target genus (with --level species)."
@@ -641,7 +645,9 @@ STAGE_INPUTS: dict[str, Any] = {
         *_refine_file_input(p),
     ],
     "snptype": lambda ctx, p: [
-        ctx.genomes_dir if getattr(p, "all_genomes", False) else ctx.representatives_dir
+        ctx.genomes_dir if getattr(p, "all_genomes", False) else ctx.representatives_dir,
+        # The staged outgroup is typed with the genomes, so a new outgroup reruns.
+        *([] if getattr(p, "no_outgroup", False) else [ctx.outgroup_dir]),
     ],
     "annotate": _annotate_inputs,
     "phylo": _phylo_inputs,
