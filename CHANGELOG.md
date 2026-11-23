@@ -6,6 +6,8 @@ All notable changes to RepGenR2 are documented here. The format follows
 
 ## [Unreleased]
 
+## [2.3.0] - 2026-11-23
+
 ### Added
 
 - `ingest --where KEY=VALUE` takes only the genomes that match, on
