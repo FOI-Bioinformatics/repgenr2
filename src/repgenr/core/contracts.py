@@ -1199,6 +1199,36 @@ def read_segments(path: Path) -> dict[str, list[str]]:
     return members
 
 
+def read_tree2tax(path: Path) -> list[tuple[str, str]]:
+    """Read the child -> parent edges ``write_tree2tax`` writes; a rank column is ignored."""
+    edges: list[tuple[str, str]] = []
+    with open(path, encoding="utf-8", newline="") as fo:
+        reader = csv.DictReader(fo, delimiter="\t")
+        _require_columns(reader, path, ["child", "parent"])
+        for row in reader:
+            child = (row.get("child") or "").strip()
+            parent = (row.get("parent") or "").strip()
+            if not child or not parent:
+                raise WorkdirError(
+                    f"{path} line {reader.line_num}: a row needs a child and a parent."
+                )
+            edges.append((child, parent))
+    return edges
+
+
+def read_genomes_map(path: Path) -> list[tuple[str, str]]:
+    """Read the accession -> leaf rows ``write_genomes_map`` writes (no header)."""
+    rows: list[tuple[str, str]] = []
+    with open(path, encoding="utf-8", newline="") as fo:
+        for number, row in enumerate(csv.reader(fo, delimiter="\t"), 1):
+            if not any(field.strip() for field in row):
+                continue
+            if len(row) < 2 or not row[0].strip() or not row[1].strip():
+                raise WorkdirError(f"{path} line {number}: expected an accession and a leaf.")
+            rows.append((row[0].strip(), row[1].strip()))
+    return rows
+
+
 def write_genomes_map(path: Path, mapping: list[tuple[str, str]]) -> None:
     """Write accession -> leaf rows."""
     with atomic_replace(path, newline="") as fo:

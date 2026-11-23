@@ -419,7 +419,15 @@ COMMAND_PANELS: dict[str, tuple[str, ...]] = {
         "reads-screen",
         "assemble",
     ),
-    PANEL_CORE: ("dereplicate", "derep-refine", "annotate", "snptype", "phylo", "tree2tax"),
+    PANEL_CORE: (
+        "dereplicate",
+        "derep-refine",
+        "annotate",
+        "snptype",
+        "phylo",
+        "tree2tax",
+        "graft",
+    ),
     PANEL_INSPECT: ("census", "glance", "cluster-summary", "derep-unpack", "derep-stock", "sketch"),
     PANEL_ENV: ("list-tools", "doctor", "versions", "markers-db"),
     PANEL_STEPS: (

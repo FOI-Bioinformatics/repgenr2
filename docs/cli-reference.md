@@ -561,6 +561,20 @@ Emit FlexTaxD-compatible taxonomy relations from the tree.
 | `--ranks` | off | Add a rank column to tree2tax.tsv: 'strain' on every genome, 'no rank' on internal nodes unless --rank-red names them. |
 | `--rank-red` |  | With --ranks: NAME=RED bands, e.g. species=0.95,genus=0.8; an internal node takes the rank with the largest threshold not above its relative evolutionary divergence, once per lineage. Needs branch lengths and a rooted tree. |
 
+### graft
+
+Join the hierarchies of working directories at the node they share.
+
+For a set too divergent for one alignment, built in tiers. The seam is the parent
+node whose genomes are exactly the child's; a child whose genomes are spread over
+more than one branch of the parent is refused, since the two trees then disagree.
+
+| option | default | description |
+|---|---|---|
+| `--parent` | required | Working directory over the whole set, after tree2tax; one of its clades holds the genomes of each --child. |
+| `--child` | required | Working directory of a subset, after tree2tax; its tree replaces the parent's clade that holds exactly its genomes. Repeatable, grafted in turn. |
+| `-o`, `--out` | required | Output dir (writes tree2tax.tsv + genomes_map.tsv). |
+
 ## Inspect a dereplication
 
 ### census

@@ -3,7 +3,7 @@
 Generated from `tests/audit/cli_matrix.yaml` by `scripts/render_cli_matrix.py`;
 `tests/unit/test_cli_matrix.py` keeps both in step with the command tree.
 
-41 commands, 534 flags (527 with a live test or an n/a reason, 7 pending).
+42 commands, 537 flags (530 with a live test or an n/a reason, 7 pending).
 
 ## Global flags
 
@@ -698,6 +698,16 @@ dispatch: `stage`
 | `--collapse-diameter` |  | Tree2taxParams.collapse_diameter | range | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: covered offline in tests/unit/test_tree2tax_collapse.py | docs/cli-reference.md, docs/usage.md, docs/choosing-tools.md, docs/audit/cli-matrix.md |
 | `--ranks` |  | Tree2taxParams.ranks | none | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: covered offline in tests/integration/test_tree2tax.py and tests/unit/test_tree2tax_ranks.py | docs/cli-reference.md, docs/usage.md, docs/output.md, docs/audit/cli-matrix.md |
 | `--rank-red` |  | Tree2taxParams.rank_red | stage | n/a: workdir command; the Nextflow layer uses the stateless steps | n/a: covered offline in tests/integration/test_tree2tax.py and tests/unit/test_tree2tax_ranks.py | docs/cli-reference.md, docs/usage.md, docs/output.md, docs/audit/cli-matrix.md |
+
+## graft
+
+dispatch: `step:repgenr.stages.graft.graft`
+
+| flag | aliases | param | validated | nextflow | live | docs |
+|---|---|---|---|---|---|---|
+| `--parent` |  | GraftStepParams.parent | stage | n/a: no Nextflow process; graft joins finished working directories | n/a: offline tests in tests/integration/test_graft.py | docs/usage.md, docs/cli-reference.md, docs/audit/cli-matrix.md |
+| `--child` |  | GraftStepParams.children | stage | n/a: no Nextflow process; graft joins finished working directories | n/a: offline tests in tests/integration/test_graft.py | docs/usage.md, docs/cli-reference.md, docs/audit/cli-matrix.md |
+| `--out` | -o | GraftStepParams.out_dir | none | n/a: no Nextflow process; graft joins finished working directories | n/a: offline tests in tests/integration/test_graft.py | docs/usage.md, docs/cli-reference.md, docs/audit/cli-matrix.md |
 
 ## tree2tax-relations
 

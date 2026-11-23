@@ -5437,6 +5437,51 @@ commands:
         live: 'n/a: covered offline in tests/integration/test_tree2tax.py and tests/unit/test_tree2tax_ranks.py'
         with_args:
         - --ranks
+  graft:
+    dispatch: step:repgenr.stages.graft.graft
+    base_args:
+    - --parent
+    - '{dir}'
+    - --child
+    - '{dir}'
+    - -o
+    - '{out}'
+    flags:
+      --parent:
+        param: GraftStepParams.parent
+        value: '{alt_dir}'
+        validated: stage
+        docs:
+        - docs/usage.md
+        - docs/cli-reference.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'n/a: no Nextflow process; graft joins finished working directories'
+        live: 'n/a: offline tests in tests/integration/test_graft.py'
+        observable: tree2tax.tsv holds the parent's tree with the child's below the seam
+      --child:
+        param: GraftStepParams.children
+        value: '{alt_dir}'
+        validated: stage
+        docs:
+        - docs/usage.md
+        - docs/cli-reference.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'n/a: no Nextflow process; graft joins finished working directories'
+        live: 'n/a: offline tests in tests/integration/test_graft.py'
+        observable: each child's tree replaces the parent clade holding exactly its genomes
+      --out:
+        aliases:
+        - -o
+        param: GraftStepParams.out_dir
+        value: '{alt_dir}'
+        validated: none
+        docs:
+        - docs/usage.md
+        - docs/cli-reference.md
+        - docs/audit/cli-matrix.md
+        nextflow: 'n/a: no Nextflow process; graft joins finished working directories'
+        live: 'n/a: offline tests in tests/integration/test_graft.py'
+        observable: tree2tax.tsv and genomes_map.tsv are written there
   tree2tax-relations:
     dispatch: step:repgenr.stages.tree2tax.tree2tax_relations
     base_args:
